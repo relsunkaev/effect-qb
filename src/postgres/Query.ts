@@ -1,0 +1,68 @@
+import * as Expression from "../Expression.ts"
+import {
+  type CompletePlan,
+  type DialectCompatiblePlan,
+  type EffectiveNullability,
+  type ExpressionInput,
+  type GroupByInput,
+  type HavingPredicateInput,
+  type OrderDirection,
+  type OutputOfExpression,
+  type OutputOfSelection,
+  type PredicateInput,
+  type QueryPlan,
+  type ResultRow,
+  type ResultRows,
+  type StringExpressionInput
+} from "../Query.ts"
+import { makeDialectQuery } from "../internal/query-factory.ts"
+
+const postgresQuery = makeDialectQuery({
+  dialect: "postgres",
+  textDb: { dialect: "postgres", kind: "text" } as Expression.DbType.PgText,
+  numericDb: { dialect: "postgres", kind: "numeric" } as Expression.DbType.PgNumeric,
+  boolDb: { dialect: "postgres", kind: "bool" } as Expression.DbType.PgBool,
+  timestampDb: { dialect: "postgres", kind: "timestamp" } as Expression.DbType.PgTimestamp,
+  nullDb: { dialect: "postgres", kind: "null" } as Expression.DbType.Base<"postgres", "null">
+})
+
+export const literal = postgresQuery.literal
+export const eq = postgresQuery.eq
+export const isNull = postgresQuery.isNull
+export const isNotNull = postgresQuery.isNotNull
+export const upper = postgresQuery.upper
+export const lower = postgresQuery.lower
+export const and = postgresQuery.and
+export const or = postgresQuery.or
+export const not = postgresQuery.not
+export const coalesce = postgresQuery.coalesce
+export const concat = postgresQuery.concat
+export const count = postgresQuery.count
+export const max = postgresQuery.max
+export const min = postgresQuery.min
+export const as = postgresQuery.as
+export const select = postgresQuery.select
+export const where = postgresQuery.where
+export const having = postgresQuery.having
+export const from = postgresQuery.from
+export const innerJoin = postgresQuery.innerJoin
+export const leftJoin = postgresQuery.leftJoin
+export const orderBy = postgresQuery.orderBy
+export const groupBy = postgresQuery.groupBy
+
+export type {
+  CompletePlan,
+  DialectCompatiblePlan,
+  EffectiveNullability,
+  ExpressionInput,
+  GroupByInput,
+  HavingPredicateInput,
+  OrderDirection,
+  OutputOfExpression,
+  OutputOfSelection,
+  PredicateInput,
+  QueryPlan,
+  ResultRow,
+  ResultRows,
+  StringExpressionInput
+}

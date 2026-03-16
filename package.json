@@ -1,0 +1,24 @@
+{
+  "name": "effect-db",
+  "module": "src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./postgres": "./src/postgres.ts",
+    "./mysql": "./src/mysql.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "test:types": "bunx tsc -p tsconfig.type-tests.json"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@typescript/native-preview": "latest",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@effect/experimental": "^0.57.0",
+    "@effect/sql": "^0.48.0",
+    "effect": "^3.19.3"
+  }
+}
