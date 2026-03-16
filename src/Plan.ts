@@ -1,7 +1,7 @@
 import type { Pipeable } from "effect/Pipeable"
 
 /** Symbol used to attach logical-plan metadata to runtime values. */
-export const TypeId: unique symbol = Symbol.for("effect-db/Plan")
+export const TypeId: unique symbol = Symbol.for("effect-qb/Plan")
 
 export type TypeId = typeof TypeId
 

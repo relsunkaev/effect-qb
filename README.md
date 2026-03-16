@@ -1,4 +1,4 @@
-# effect-db
+# effect-qb
 
 To install dependencies:
 

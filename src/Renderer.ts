@@ -3,7 +3,7 @@ import { type Projection, validateProjections } from "./internal/projections.ts"
 import { renderPostgresPlan } from "./internal/postgres-renderer.ts"
 
 /** Symbol used to attach rendered-query phantom row metadata. */
-export const TypeId: unique symbol = Symbol.for("effect-db/Renderer")
+export const TypeId: unique symbol = Symbol.for("effect-qb/Renderer")
 
 export type TypeId = typeof TypeId
 

@@ -1,5 +1,5 @@
 {
-  "name": "effect-db",
+  "name": "effect-qb",
   "module": "src/index.ts",
   "type": "module",
   "exports": {

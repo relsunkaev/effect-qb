@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "effect-db",
+      "name": "effect-qb",
       "dependencies": {
         "@effect/sql": "^0.48.0",
         "effect": "^3.19.3",

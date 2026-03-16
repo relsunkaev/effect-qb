@@ -24,7 +24,9 @@ export interface PostgresRenderResult {
 export const renderPostgresPlan = <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any>>(
   plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
 ): PostgresRenderResult => {
-  const ast = plan[QueryAst.TypeId]
+  const ast = Query.getAst(
+    plan as Query.QueryPlan<any, any, any, any, any, any, any>
+  ) as QueryAst.Ast<Record<string, unknown>, any>
   const state: RenderState = {
     params: []
   }
@@ -44,16 +46,16 @@ export const renderPostgresPlan = <PlanValue extends Query.QueryPlan<any, any, a
     clauses.push(`${join.kind} join ${postgresDialect.renderTableReference(join.tableName, join.baseTableName)} on ${renderExpression(join.on, state, postgresDialect)}`)
   }
   if (ast.where.length > 0) {
-    clauses.push(`where ${ast.where.map((entry) => renderExpression(entry.predicate, state, postgresDialect)).join(" and ")}`)
+    clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, postgresDialect)).join(" and ")}`)
   }
   if (ast.groupBy.length > 0) {
-    clauses.push(`group by ${ast.groupBy.map((value) => renderExpression(value, state, postgresDialect)).join(", ")}`)
+    clauses.push(`group by ${ast.groupBy.map((value: QueryAst.Ast["groupBy"][number]) => renderExpression(value, state, postgresDialect)).join(", ")}`)
   }
   if (ast.having.length > 0) {
-    clauses.push(`having ${ast.having.map((entry) => renderExpression(entry.predicate, state, postgresDialect)).join(" and ")}`)
+    clauses.push(`having ${ast.having.map((entry: QueryAst.HavingClause) => renderExpression(entry.predicate, state, postgresDialect)).join(" and ")}`)
   }
   if (ast.orderBy.length > 0) {
-    clauses.push(`order by ${ast.orderBy.map((entry) => `${renderExpression(entry.value, state, postgresDialect)} ${entry.direction}`).join(", ")}`)
+    clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, postgresDialect)} ${entry.direction}`).join(", ")}`)
   }
   return {
     sql: clauses.join(" "),

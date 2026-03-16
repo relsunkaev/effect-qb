@@ -136,7 +136,7 @@ export const fromDriver = <
   sqlDriver: Driver<Dialect, Error, Context>
 ): Executor<Dialect, Error, Context> =>
   make(renderer.dialect, (plan) => {
-    const rendered = renderer.render(plan)
+    const rendered = renderer.render(plan) as Renderer.RenderedQuery<Query.ResultRow<typeof plan>, Dialect>
     return Effect.map(sqlDriver.execute(rendered), (rows) =>
       decodeRows<Query.ResultRow<typeof plan>>(rendered, rows) as Query.ResultRows<typeof plan>)
   })

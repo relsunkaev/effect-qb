@@ -1,7 +1,7 @@
 import type { Pipeable } from "effect/Pipeable"
 
 /** Symbol used to attach expression metadata to runtime values. */
-export const TypeId: unique symbol = Symbol.for("effect-db/Expression")
+export const TypeId: unique symbol = Symbol.for("effect-qb/Expression")
 
 export type TypeId = typeof TypeId
 
@@ -38,6 +38,16 @@ export type Nullability = "never" | "maybe" | "always"
  * - `window`: windowed expression such as `row_number() over (...)`
  */
 export type AggregationKind = "scalar" | "aggregate" | "window"
+
+/**
+ * Whether an expression should still be promoted by optional-source scope.
+ *
+ * Most expressions propagate optional-source nullability because a missing
+ * joined row turns their inputs into `null`. Some expressions, such as
+ * `coalesce(...)`, `is null`, and aggregates, already model their own
+ * null-handling semantics and should not be promoted again by plan scope.
+ */
+export type SourceNullabilityMode = "propagate" | "resolved"
 
 /**
  * Phantom dependency map of source names referenced by an expression.
@@ -104,7 +114,8 @@ export interface State<
   Dialect extends string,
   Aggregation extends AggregationKind,
   Source = never,
-  Dependencies extends SourceDependencies = {}
+  Dependencies extends SourceDependencies = {},
+  SourceNullability extends SourceNullabilityMode = "propagate"
 > {
   readonly runtime: Runtime
   readonly dbType: Db
@@ -112,6 +123,7 @@ export interface State<
   readonly dialect: Dialect
   readonly aggregation: Aggregation
   readonly source: Source
+  readonly sourceNullability: SourceNullability
   /**
    * Type-level source dependency map used for lazy nullability resolution.
    *
@@ -136,13 +148,14 @@ export interface Expression<
   Dialect extends string = Db["dialect"],
   Aggregation extends AggregationKind = "scalar",
   Source = never,
-  Dependencies extends SourceDependencies = {}
+  Dependencies extends SourceDependencies = {},
+  SourceNullability extends SourceNullabilityMode = "propagate"
 > extends Pipeable {
-  readonly [TypeId]: State<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies>
+  readonly [TypeId]: State<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability>
 }
 
 /** Convenience alias for any expression-like value. */
-export type Any = Expression<any, DbType.Any, Nullability, string, AggregationKind, any, SourceDependencies>
+export type Any = Expression<any, DbType.Any, Nullability, string, AggregationKind, any, SourceDependencies, SourceNullabilityMode>
 /** Extracts an expression's decoded runtime type. */
 export type RuntimeOf<Value extends Any> = Value[typeof TypeId]["runtime"]
 /** Extracts an expression's database-type descriptor. */
@@ -151,3 +164,5 @@ export type DbTypeOf<Value extends Any> = Value[typeof TypeId]["dbType"]
 export type NullabilityOf<Value extends Any> = Value[typeof TypeId]["nullability"]
 /** Extracts an expression's source dependency map. */
 export type DependenciesOf<Value extends Any> = Value[typeof TypeId]["dependencies"]
+/** Extracts how plan-scope nullability should apply to an expression. */
+export type SourceNullabilityOf<Value extends Any> = Value[typeof TypeId]["sourceNullability"]

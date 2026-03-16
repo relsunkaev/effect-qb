@@ -21,7 +21,9 @@ export interface MysqlRenderResult {
 export const renderMysqlPlan = <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any>>(
   plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
 ): MysqlRenderResult => {
-  const ast = plan[QueryAst.TypeId]
+  const ast = Query.getAst(
+    plan as Query.QueryPlan<any, any, any, any, any, any, any>
+  ) as QueryAst.Ast<Record<string, unknown>, any>
   const state: RenderState = {
     params: []
   }
@@ -41,16 +43,16 @@ export const renderMysqlPlan = <PlanValue extends Query.QueryPlan<any, any, any,
     clauses.push(`${join.kind} join ${mysqlDialect.renderTableReference(join.tableName, join.baseTableName)} on ${renderExpression(join.on, state, mysqlDialect)}`)
   }
   if (ast.where.length > 0) {
-    clauses.push(`where ${ast.where.map((entry) => renderExpression(entry.predicate, state, mysqlDialect)).join(" and ")}`)
+    clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, mysqlDialect)).join(" and ")}`)
   }
   if (ast.groupBy.length > 0) {
-    clauses.push(`group by ${ast.groupBy.map((value) => renderExpression(value, state, mysqlDialect)).join(", ")}`)
+    clauses.push(`group by ${ast.groupBy.map((value: QueryAst.Ast["groupBy"][number]) => renderExpression(value, state, mysqlDialect)).join(", ")}`)
   }
   if (ast.having.length > 0) {
-    clauses.push(`having ${ast.having.map((entry) => renderExpression(entry.predicate, state, mysqlDialect)).join(" and ")}`)
+    clauses.push(`having ${ast.having.map((entry: QueryAst.HavingClause) => renderExpression(entry.predicate, state, mysqlDialect)).join(" and ")}`)
   }
   if (ast.orderBy.length > 0) {
-    clauses.push(`order by ${ast.orderBy.map((entry) => `${renderExpression(entry.value, state, mysqlDialect)} ${entry.direction}`).join(", ")}`)
+    clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, mysqlDialect)} ${entry.direction}`).join(", ")}`)
   }
   return {
     sql: clauses.join(" "),

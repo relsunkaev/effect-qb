@@ -24,14 +24,14 @@ import {
 } from "./internal/schema-derivation.ts"
 
 /** Symbol used to attach table-definition metadata. */
-export const TypeId: unique symbol = Symbol.for("effect-db/Table")
+export const TypeId: unique symbol = Symbol.for("effect-qb/Table")
 /** Symbol for the normalized table option list. */
-export const OptionsSymbol: unique symbol = Symbol.for("effect-db/Table/normalizedOptions")
+export const OptionsSymbol: unique symbol = Symbol.for("effect-qb/Table/normalizedOptions")
 /** Symbol used by `Table.Class` to declare table-level options. */
-export const options: unique symbol = Symbol.for("effect-db/Table/declaredOptions")
+export const options: unique symbol = Symbol.for("effect-qb/Table/declaredOptions")
 
-const CacheSymbol: unique symbol = Symbol.for("effect-db/Table/cache")
-const DeclaredOptionsSymbol: unique symbol = Symbol.for("effect-db/Table/factoryDeclaredOptions")
+const CacheSymbol: unique symbol = Symbol.for("effect-qb/Table/cache")
+const DeclaredOptionsSymbol: unique symbol = Symbol.for("effect-qb/Table/factoryDeclaredOptions")
 
 type InlinePrimaryKeyKeys<Fields extends TableFieldMap> = Extract<{
   [K in keyof Fields]: Fields[K]["metadata"]["primaryKey"] extends true ? K : never

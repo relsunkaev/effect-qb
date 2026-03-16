@@ -1,7 +1,7 @@
 import type * as Expression from "../Expression.ts"
 
 /** Symbol used to attach query-clause AST metadata to query-plan values. */
-export const TypeId: unique symbol = Symbol.for("effect-db/QueryAst")
+export const TypeId: unique symbol = Symbol.for("effect-qb/QueryAst")
 
 export type TypeId = typeof TypeId
 

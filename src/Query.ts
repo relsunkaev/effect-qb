@@ -31,7 +31,7 @@ const PlanProto = {
 }
 
 /** Internal symbol used to preserve query-only phantom metadata through inference. */
-const QueryTypeId: unique symbol = Symbol.for("effect-db/Query/internal")
+const QueryTypeId: unique symbol = Symbol.for("effect-qb/Query/internal")
 
 /** Internal phantom state tracked on query plans. */
 interface QueryState<
@@ -393,6 +393,8 @@ export type EffectiveNullability<
   Available extends Record<string, Plan.Source>
 > =
   Expression.NullabilityOf<Value> extends "always" ? "always"
+  : Expression.SourceNullabilityOf<Value> extends "resolved"
+    ? Expression.NullabilityOf<Value>
   : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
   : Expression.NullabilityOf<Value>
 
@@ -426,9 +428,18 @@ export type ResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, 
 export type ResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> = ReadonlyArray<ResultRow<PlanValue>>
 
 /** Narrows a query plan to aggregate-compatible selections. */
+type HasKnownOutstanding<Required> = [Required] extends [never]
+  ? false
+  : string extends Required
+    ? false
+    : true
+
+/** Narrows a query plan to aggregate-compatible, source-complete plans. */
 export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<infer Selection, any, any, any, infer Grouped, any, any>
-    ? IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : never
+  PlanValue extends QueryPlan<infer Selection, infer Required, any, any, infer Grouped, any, any>
+    ? HasKnownOutstanding<Required> extends true
+      ? never
+      : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : never
     : never
 
 /** Whether a plan dialect is compatible with a target engine dialect. */
@@ -583,11 +594,12 @@ export const makeExpression = <
   Dialect extends string,
   Aggregation extends Expression.AggregationKind,
   Source,
-  Dependencies extends Expression.SourceDependencies = {}
+  Dependencies extends Expression.SourceDependencies = {},
+  SourceNullability extends Expression.SourceNullabilityMode = "propagate"
 >(
-  state: Expression.State<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies>,
+  state: Expression.State<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability>,
   ast: ExpressionAst.Any
-): Expression.Expression<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies> => {
+): Expression.Expression<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability> => {
   const expression = Object.create(ExpressionProto)
   expression[Expression.TypeId] = state
   expression[ExpressionAst.TypeId] = ast

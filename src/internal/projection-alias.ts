@@ -1,5 +1,5 @@
 /** Symbol used to attach explicit projection-alias metadata to an expression. */
-export const TypeId: unique symbol = Symbol.for("effect-db/ProjectionAlias")
+export const TypeId: unique symbol = Symbol.for("effect-qb/ProjectionAlias")
 
 export type TypeId = typeof TypeId
 

@@ -5,9 +5,9 @@ import * as Expression from "../Expression.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 
 /** Symbol used to attach column-definition metadata. */
-export const ColumnTypeId: unique symbol = Symbol.for("effect-db/Column")
+export const ColumnTypeId: unique symbol = Symbol.for("effect-qb/Column")
 /** Symbol used to attach bound-column provenance. */
-export const BoundColumnTypeId: unique symbol = Symbol.for("effect-db/BoundColumn")
+export const BoundColumnTypeId: unique symbol = Symbol.for("effect-qb/BoundColumn")
 
 export type ColumnTypeId = typeof ColumnTypeId
 export type BoundColumnTypeId = typeof BoundColumnTypeId
@@ -136,7 +136,8 @@ export interface BoundColumn<
     Db["dialect"],
     "scalar",
     Expression.ColumnSource<TableName, ColumnName, BaseTableName>,
-    Record<TableName, true>
+    Record<TableName, true>,
+    "propagate"
   >
 }
 
@@ -230,6 +231,7 @@ export const makeColumnDefinition = <
     dialect: metadata.dbType.dialect,
     aggregation: "scalar",
     source: undefined as Source,
+    sourceNullability: "propagate" as const,
     dependencies: {} as Dependencies
   }
   column[ColumnTypeId] = {
@@ -275,6 +277,7 @@ export const bindColumn = <
       columnName,
       baseTableName
     },
+    sourceNullability: "propagate" as const,
     dependencies: {
       [tableName]: true
     } as Record<TableName, true>

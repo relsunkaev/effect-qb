@@ -1,7 +1,7 @@
 import type * as Expression from "../Expression.ts"
 
 /** Symbol used to attach internal expression-AST metadata to runtime values. */
-export const TypeId: unique symbol = Symbol.for("effect-db/ExpressionAst")
+export const TypeId: unique symbol = Symbol.for("effect-qb/ExpressionAst")
 
 export type TypeId = typeof TypeId
 
@@ -74,4 +74,3 @@ export type Any =
   | UnaryNode
   | BinaryNode
   | VariadicNode
-
