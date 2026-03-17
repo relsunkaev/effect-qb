@@ -13,6 +13,8 @@ import {
   type QueryPlan,
   type ResultRow,
   type ResultRows,
+  type RuntimeResultRow,
+  type RuntimeResultRows,
   type StringExpressionInput
 } from "../Query.ts"
 import { makeDialectQuery } from "../internal/query-factory.ts"
@@ -35,6 +37,7 @@ export const lower = mysqlQuery.lower
 export const and = mysqlQuery.and
 export const or = mysqlQuery.or
 export const not = mysqlQuery.not
+const case_ = mysqlQuery.case
 export const coalesce = mysqlQuery.coalesce
 export const concat = mysqlQuery.concat
 export const count = mysqlQuery.count
@@ -49,6 +52,7 @@ export const innerJoin = mysqlQuery.innerJoin
 export const leftJoin = mysqlQuery.leftJoin
 export const orderBy = mysqlQuery.orderBy
 export const groupBy = mysqlQuery.groupBy
+export { case_ as case }
 
 export type {
   CompletePlan,
@@ -64,5 +68,7 @@ export type {
   QueryPlan,
   ResultRow,
   ResultRows,
+  RuntimeResultRow,
+  RuntimeResultRows,
   StringExpressionInput
 }

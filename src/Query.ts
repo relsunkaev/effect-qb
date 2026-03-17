@@ -5,6 +5,9 @@ import * as Plan from "./Plan.ts"
 import * as Table from "./Table.ts"
 import * as ExpressionAst from "./internal/expression-ast.ts"
 import * as QueryAst from "./internal/query-ast.ts"
+import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./internal/case-analysis.ts"
+import type { GuaranteedNonNullKeys, GuaranteedNullKeys } from "./internal/predicate-analysis.ts"
+import type { PredicateFormula, TrueFormula } from "./internal/predicate-formula.ts"
 
 /**
  * Shared prototype for runtime expression values created by query helpers.
@@ -37,11 +40,13 @@ const QueryTypeId: unique symbol = Symbol.for("effect-qb/Query/internal")
 interface QueryState<
   Outstanding extends string,
   AvailableNames extends string,
-  Grouped extends string
+  Grouped extends string,
+  Assumptions extends PredicateFormula
 > {
   readonly required: Outstanding
   readonly availableNames: AvailableNames
   readonly grouped: Grouped
+  readonly assumptions: Assumptions
 }
 
 /** Source provenance attached to an expression. */
@@ -52,8 +57,7 @@ export type DialectOf<Value extends Expression.Any> = Value[typeof Expression.Ty
 export type DependenciesOf<Value extends Expression.Any> = Expression.DependenciesOf<Value>
 /** Aggregation kind carried by an expression. */
 export type AggregationOf<Value extends Expression.Any> = Value[typeof Expression.TypeId]["aggregation"]
-/** Exact bound-column source keys referenced by an expression. */
-type SourceKeysOf<Value extends Expression.Any> = SourceKeyOf<SourceOf<Value>>
+type AstOf<Value extends Expression.Any> = Value extends { readonly [ExpressionAst.TypeId]: infer Ast extends ExpressionAst.Any } ? Ast : never
 
 /**
  * Primitive values that can be lifted directly into constant SQL expressions.
@@ -88,7 +92,9 @@ export type PredicateInput = Expression.Expression<
   Expression.Nullability,
   string,
   "scalar",
-  any
+  any,
+  Expression.SourceDependencies,
+  Expression.SourceNullabilityMode
 > | boolean
 
 /** Input accepted by `having(...)`. */
@@ -98,7 +104,9 @@ export type HavingPredicateInput = Expression.Expression<
   Expression.Nullability,
   string,
   "scalar" | "aggregate",
-  any
+  any,
+  Expression.SourceDependencies,
+  Expression.SourceNullabilityMode
 > | boolean
 
 /** Input accepted by `GROUP BY`. */
@@ -133,13 +141,14 @@ type DependenciesOfInput<Value extends ExpressionInput> = DependenciesOf<AsExpre
 type RequiredFromInput<Value extends ExpressionInput> = RequiredFromDependencies<DependenciesOfInput<Value>>
 /** String-valued expressions accepted by text operators. */
 export type StringExpressionInput = Expression.Expression<
-  string,
+  string | null,
   Expression.DbType.Any,
   Expression.Nullability,
   string,
   Expression.AggregationKind,
   any,
-  Expression.SourceDependencies
+  Expression.SourceDependencies,
+  Expression.SourceNullabilityMode
 > | string
 /** Converts a string operator input into its canonical expression type. */
 type AsStringExpression<Value extends StringExpressionInput> = Value extends Expression.Any ? Value : LiteralExpression<Extract<Value, string>>
@@ -154,12 +163,57 @@ type NullabilityOfStringInput<Value extends StringExpressionInput> = Expression.
 
 /** Extracts a required table name from expression provenance. */
 type RequiredFromSource<Source> = Source extends { readonly tableName: infer Name extends string } ? Name : never
-/** Extracts exact grouped-column keys from expression provenance. */
-type SourceKeyOf<Source> = Source extends { readonly tableName: infer TableName extends string, readonly columnName: infer ColumnName extends string }
-  ? `${TableName}.${ColumnName}`
-  : never
 /** Extracts required table names from an expression dependency map. */
 export type RequiredFromDependencies<Dependencies extends Expression.SourceDependencies> = Extract<keyof Dependencies, string>
+
+type LiteralGroupingKey<Value> =
+  Value extends string ? `string:${Value}` :
+    Value extends number ? `number:${Value}` :
+      Value extends boolean ? `boolean:${Value}` :
+        Value extends null ? "null" :
+          Value extends Date ? `date:${string}` :
+            "unknown"
+
+type JoinGroupingKeys<Keys extends readonly string[]> = Keys extends readonly []
+  ? ""
+  : Keys extends readonly [infer Head extends string]
+    ? Head
+    : Keys extends readonly [infer Head extends string, ...infer Tail extends readonly string[]]
+      ? `${Head},${JoinGroupingKeys<Tail>}`
+      : string
+
+type BranchGroupingKeys<
+  Branches extends readonly ExpressionAst.CaseBranchNode[]
+> = Branches extends readonly []
+  ? ""
+  : Branches extends readonly [infer Head extends ExpressionAst.CaseBranchNode]
+    ? `when:${GroupingKeyOfExpression<Head["when"]>}=>${GroupingKeyOfExpression<Head["then"]>}`
+    : Branches extends readonly [
+        infer Head extends ExpressionAst.CaseBranchNode,
+        ...infer Tail extends readonly ExpressionAst.CaseBranchNode[]
+      ]
+      ? `when:${GroupingKeyOfExpression<Head["when"]>}=>${GroupingKeyOfExpression<Head["then"]>}|${BranchGroupingKeys<Tail>}`
+      : string
+
+type GroupingKeyOfAst<Ast extends ExpressionAst.Any> =
+  Ast extends ExpressionAst.ColumnNode<infer TableName extends string, infer ColumnName extends string>
+    ? `column:${TableName}.${ColumnName}`
+    : Ast extends ExpressionAst.LiteralNode<infer Value>
+      ? `literal:${LiteralGroupingKey<Value>}`
+      : Ast extends ExpressionAst.UnaryNode<infer Kind extends ExpressionAst.UnaryKind, infer Value extends Expression.Any>
+        ? `${Kind}(${GroupingKeyOfExpression<Value>})`
+        : Ast extends ExpressionAst.BinaryNode<infer Kind extends ExpressionAst.BinaryKind, infer Left extends Expression.Any, infer Right extends Expression.Any>
+          ? `${Kind}(${GroupingKeyOfExpression<Left>},${GroupingKeyOfExpression<Right>})`
+          : Ast extends ExpressionAst.VariadicNode<infer Kind extends ExpressionAst.VariadicKind, infer Values extends readonly Expression.Any[]>
+            ? `${Kind}(${JoinGroupingKeys<{
+                readonly [K in keyof Values]: Values[K] extends Expression.Any ? GroupingKeyOfExpression<Values[K]> : never
+              } & readonly string[]>})`
+            : Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
+              ? `case(${BranchGroupingKeys<Branches>};else:${GroupingKeyOfExpression<Else>})`
+              : never
+
+/** Canonical grouping identity for an expression AST. */
+export type GroupingKeyOfExpression<Value extends Expression.Any> = GroupingKeyOfAst<AstOf<Value>>
 
 /**
  * Recursive selection tree accepted by `select(...)`.
@@ -216,28 +270,31 @@ type SourceModeOf<
   Available extends Record<string, Plan.Source>,
   Name extends string
 > = Name extends keyof Available ? Available[Name]["mode"] : never
+type TrueAssumptions = TrueFormula
 
 /** Extracts the selection carried by a query plan. */
-export type SelectionOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
+export type SelectionOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
   PlanValue[typeof Plan.TypeId]["selection"]
 /** Extracts the public required-source state carried by a query plan. */
-export type RequiredOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
+export type RequiredOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
   PlanValue[typeof Plan.TypeId]["required"]
 /** Extracts the available-source scope carried by a query plan. */
-export type AvailableOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
+export type AvailableOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
   PlanValue[typeof Plan.TypeId]["available"]
 /** Extracts the effective dialect carried by a query plan. */
-export type PlanDialectOf<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
+export type PlanDialectOf<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
   PlanValue[typeof Plan.TypeId]["dialect"]
 /** Extracts the grouped-source phantom carried by a query plan. */
-export type GroupedOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, infer Grouped, any, any> ? Grouped : never
+export type GroupedOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
+  PlanValue extends QueryPlan<any, any, any, any, infer Grouped, any, any, any> ? Grouped : never
 /** Extracts the available-name phantom carried by a query plan. */
-export type ScopedNamesOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, infer ScopedNames, any> ? ScopedNames : never
+export type ScopedNamesOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
+  PlanValue extends QueryPlan<any, any, any, any, any, infer ScopedNames, any, any> ? ScopedNames : never
 /** Extracts the outstanding-required-source phantom carried by a query plan. */
-export type OutstandingOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, any, infer Outstanding> ? Outstanding : never
+export type OutstandingOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
+  PlanValue extends QueryPlan<any, any, any, any, any, any, infer Outstanding, any> ? Outstanding : never
+export type AssumptionsOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, infer Assumptions> ? Assumptions : TrueAssumptions
 
 /**
  * Adds a single source entry to the set of available sources.
@@ -347,10 +404,12 @@ export type TupleDependencies<
 /** Builds a canonical dependency map from a string union of table names. */
 export type DependencyRecord<Keys extends string> = [Keys] extends [never] ? {} : Record<Keys, true>
 
-/** Grouped source keys carried by a tuple of scalar expressions. */
-type GroupedKeysFromValues<
+/** Grouped expression identities carried by a tuple of scalar expressions. */
+export type GroupedKeysFromValues<
   Values extends readonly Expression.Any[]
-> = Values[number] extends never ? never : SourceKeysOf<Values[number]>
+> = Values[number] extends never ? never : {
+  [K in keyof Values]: Values[K] extends Expression.Any ? GroupingKeyOfExpression<Values[K]> : never
+}[number]
 
 /** Whether a selection contains any aggregate expressions. */
 type SelectionHasAggregate<Selection> = Selection extends Expression.Any
@@ -370,7 +429,9 @@ type IsGroupedSelectionValid<
     ? true
     : AggregationOf<Selection> extends "window"
       ? false
-      : Exclude<SourceKeysOf<Selection>, Grouped> extends never ? true : false
+      : RequiredFromDependencies<DependenciesOf<Selection>> extends never
+        ? true
+        : [GroupingKeyOfExpression<Selection>] extends [Grouped] ? true : false
   : Selection extends Record<string, any>
     ? Extract<{
         [K in keyof Selection]: IsGroupedSelectionValid<Selection[K], Grouped> extends true ? never : true
@@ -387,45 +448,180 @@ type IsAggregationCompatibleSelection<
     ? true
     : IsGroupedSelectionValid<Selection, Grouped>
 
+type MergeNullabilityStates<
+  Left extends Expression.Nullability,
+  Right extends Expression.Nullability
+> = Left extends "always"
+  ? "always"
+  : Right extends "always"
+    ? "always"
+    : Left extends "maybe"
+      ? "maybe"
+      : Right extends "maybe"
+        ? "maybe"
+        : "never"
+
+type FoldEffectiveNullability<
+  Values extends readonly Expression.Any[],
+  Available extends Record<string, Plan.Source>,
+  Assumptions extends PredicateFormula
+> = Extract<{
+  [K in keyof Values]: Values[K] extends Expression.Any ? EffectiveNullability<Values[K], Available, Assumptions> : never
+}[number], "always"> extends never
+  ? Extract<{
+      [K in keyof Values]: Values[K] extends Expression.Any ? EffectiveNullability<Values[K], Available, Assumptions> : never
+    }[number], "maybe"> extends never
+    ? "never"
+    : "maybe"
+  : "always"
+
+type CoalesceEffectiveNullability<
+  Values extends readonly Expression.Any[],
+  Available extends Record<string, Plan.Source>,
+  Assumptions extends PredicateFormula
+> = Extract<{
+  [K in keyof Values]: Values[K] extends Expression.Any ? EffectiveNullability<Values[K], Available, Assumptions> : never
+}[number], "never"> extends never
+  ? Extract<{
+      [K in keyof Values]: Values[K] extends Expression.Any ? EffectiveNullability<Values[K], Available, Assumptions> : never
+    }[number], "maybe"> extends never
+    ? "always"
+    : "maybe"
+  : "never"
+
+type NullabilityOfOutput<Output> =
+  null extends Output
+    ? Exclude<Output, null> extends never ? "always" : "maybe"
+    : "never"
+
+type RequiredTablesFromAssumptions<Assumptions extends PredicateFormula> =
+  GuaranteedNonNullKeys<Assumptions> extends `${infer TableName}.${string}` ? TableName : never
+
+type EffectiveAvailable<
+  Available extends Record<string, Plan.Source>,
+  Assumptions extends PredicateFormula
+> = {
+  readonly [K in keyof Available]: Available[K] & {
+    readonly mode: K extends RequiredTablesFromAssumptions<Assumptions> ? "required" : Available[K]["mode"]
+  }
+}
+
+type BaseEffectiveNullability<
+  Value extends Expression.Any,
+  Available extends Record<string, Plan.Source>,
+  Assumptions extends PredicateFormula
+> = AstOf<Value> extends ExpressionAst.ColumnNode<infer TableName extends string, infer ColumnName extends string>
+  ? `${TableName}.${ColumnName}` extends GuaranteedNullKeys<Assumptions>
+    ? "always"
+    : `${TableName}.${ColumnName}` extends GuaranteedNonNullKeys<Assumptions>
+      ? "never"
+      : Expression.NullabilityOf<Value> extends "always" ? "always"
+        : Expression.SourceNullabilityOf<Value> extends "resolved"
+          ? Expression.NullabilityOf<Value>
+        : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
+        : Expression.NullabilityOf<Value>
+  : Expression.NullabilityOf<Value> extends "always" ? "always"
+    : Expression.SourceNullabilityOf<Value> extends "resolved"
+      ? Expression.NullabilityOf<Value>
+      : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
+      : Expression.NullabilityOf<Value>
+
+type CaseOutputOf<
+  Branches extends readonly ExpressionAst.CaseBranchNode[],
+  Else extends Expression.Any,
+  Available extends Record<string, Plan.Source>,
+  Assumptions extends PredicateFormula
+> = Branches extends readonly [
+  infer Head extends ExpressionAst.CaseBranchNode,
+  ...infer Tail extends readonly ExpressionAst.CaseBranchNode[]
+]
+  ? Head extends ExpressionAst.CaseBranchNode<infer Predicate extends Expression.Any, infer Then extends Expression.Any>
+    ? CaseBranchDecision<Assumptions, Predicate> extends "skip"
+      ? CaseOutputOf<Tail, Else, Available, Assumptions>
+      : CaseBranchDecision<Assumptions, Predicate> extends "take"
+        ? OutputOfExpression<Then, EffectiveAvailable<Available, CaseBranchAssumeTrue<Assumptions, Predicate>>, CaseBranchAssumeTrue<Assumptions, Predicate>>
+        : OutputOfExpression<Then, EffectiveAvailable<Available, CaseBranchAssumeTrue<Assumptions, Predicate>>, CaseBranchAssumeTrue<Assumptions, Predicate>> |
+          CaseOutputOf<Tail, Else, Available, CaseBranchAssumeFalse<Assumptions, Predicate>>
+    : never
+  : OutputOfExpression<Else, EffectiveAvailable<Available, Assumptions>, Assumptions>
+
 /** Effective nullability of an expression after source-scope nullability is applied. */
 export type EffectiveNullability<
   Value extends Expression.Any,
-  Available extends Record<string, Plan.Source>
+  Available extends Record<string, Plan.Source>,
+  Assumptions extends PredicateFormula = TrueAssumptions
 > =
-  Expression.NullabilityOf<Value> extends "always" ? "always"
-  : Expression.SourceNullabilityOf<Value> extends "resolved"
-    ? Expression.NullabilityOf<Value>
-  : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
-  : Expression.NullabilityOf<Value>
+  AstOf<Value> extends infer Ast extends ExpressionAst.Any
+    ? Ast extends ExpressionAst.ColumnNode<any, any>
+      ? BaseEffectiveNullability<Value, Available, Assumptions>
+      : Ast extends ExpressionAst.LiteralNode<any>
+        ? Expression.NullabilityOf<Value>
+        : Ast extends ExpressionAst.UnaryNode<infer Kind, infer UnaryValue extends Expression.Any>
+          ? Kind extends "upper" | "lower" | "not"
+            ? EffectiveNullability<UnaryValue, Available, Assumptions>
+            : Kind extends "isNull" | "isNotNull" | "count"
+              ? "never"
+              : Expression.NullabilityOf<Value>
+          : Ast extends ExpressionAst.BinaryNode<"eq", infer Left extends Expression.Any, infer Right extends Expression.Any>
+            ? EffectiveNullability<Left, Available, Assumptions> extends "never"
+              ? EffectiveNullability<Right, Available, Assumptions> extends "never" ? "never" : "maybe"
+              : "maybe"
+            : Ast extends ExpressionAst.VariadicNode<infer Kind, infer Values extends readonly Expression.Any[]>
+              ? Kind extends "coalesce"
+                ? CoalesceEffectiveNullability<Values, Available, Assumptions>
+                : Kind extends "and" | "or" | "concat"
+                  ? FoldEffectiveNullability<Values, Available, Assumptions>
+                  : BaseEffectiveNullability<Value, Available, Assumptions>
+              : Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
+                ? NullabilityOfOutput<CaseOutputOf<Branches, Else, Available, Assumptions>>
+              : BaseEffectiveNullability<Value, Available, Assumptions>
+    : BaseEffectiveNullability<Value, Available, Assumptions>
 
 /** Result runtime type of an expression after effective nullability is resolved. */
 export type OutputOfExpression<
   Value extends Expression.Any,
-  Available extends Record<string, Plan.Source>
-> = EffectiveNullability<Value, Available> extends "never"
-  ? Expression.RuntimeOf<Value>
-  : Expression.RuntimeOf<Value> | null
+  Available extends Record<string, Plan.Source>,
+  Assumptions extends PredicateFormula = TrueAssumptions
+> = AstOf<Value> extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
+  ? CaseOutputOf<Branches, Else, Available, Assumptions>
+  : EffectiveNullability<Value, Available, Assumptions> extends "never"
+    ? Expression.RuntimeOf<Value>
+    : EffectiveNullability<Value, Available, Assumptions> extends "always"
+      ? null
+      : Expression.RuntimeOf<Value> | null
 
 /** Result runtime type of a nested selection after source-scope nullability is resolved. */
 export type OutputOfSelection<
   Selection,
-  Available extends Record<string, Plan.Source>
+  Available extends Record<string, Plan.Source>,
+  Assumptions extends PredicateFormula = TrueAssumptions
 > = Selection extends Expression.Any
-  ? OutputOfExpression<Selection, Available>
+  ? OutputOfExpression<Selection, Available, Assumptions>
   : Selection extends Record<string, any>
     ? {
-        readonly [K in keyof Selection]: OutputOfSelection<Selection[K], Available>
+        readonly [K in keyof Selection]: OutputOfSelection<Selection[K], Available, Assumptions>
       }
     : never
 
 /** Resolved row type produced by a concrete query plan. */
-export type ResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> = OutputOfSelection<
+export type ResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> = OutputOfSelection<
   PlanValue[typeof Plan.TypeId]["selection"],
-  PlanValue[typeof Plan.TypeId]["available"]
+  EffectiveAvailable<PlanValue[typeof Plan.TypeId]["available"], AssumptionsOfPlan<PlanValue>>,
+  AssumptionsOfPlan<PlanValue>
 >
 
 /** Resolved row collection type produced by a concrete query plan. */
-export type ResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> = ReadonlyArray<ResultRow<PlanValue>>
+export type ResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> = ReadonlyArray<ResultRow<PlanValue>>
+
+/** Conservative runtime row shape produced by remapping projection aliases. */
+export type RuntimeResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> = OutputOfSelection<
+  PlanValue[typeof Plan.TypeId]["selection"],
+  PlanValue[typeof Plan.TypeId]["available"],
+  TrueAssumptions
+>
+
+/** Conservative runtime row collection type. */
+export type RuntimeResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> = ReadonlyArray<RuntimeResultRow<PlanValue>>
 
 /** Narrows a query plan to aggregate-compatible selections. */
 type HasKnownOutstanding<Required> = [Required] extends [never]
@@ -435,8 +631,8 @@ type HasKnownOutstanding<Required> = [Required] extends [never]
     : true
 
 /** Narrows a query plan to aggregate-compatible, source-complete plans. */
-export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<infer Selection, infer Required, any, any, infer Grouped, any, any>
+export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
+  PlanValue extends QueryPlan<infer Selection, infer Required, any, any, infer Grouped, any, any, any>
     ? HasKnownOutstanding<Required> extends true
       ? never
       : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : never
@@ -454,7 +650,7 @@ type IsDialectCompatible<
 
 /** Narrows a complete plan to those compatible with a target engine dialect. */
 export type DialectCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any>,
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>,
   EngineDialect extends string
 > = IsDialectCompatible<PlanValue[typeof Plan.TypeId]["dialect"], EngineDialect> extends true
   ? CompletePlan<PlanValue>
@@ -482,11 +678,12 @@ export type QueryPlan<
   Dialect extends string = never,
   Grouped extends string = never,
   ScopedNames extends string = Extract<keyof Available, string>,
-  Outstanding extends string = Extract<Required, string>
+  Outstanding extends string = Extract<Required, string>,
+  Assumptions extends PredicateFormula = TrueAssumptions
 > = Plan.Plan<Selection, Required, Available, Dialect> & {
   readonly [Plan.TypeId]: Plan.State<Selection, Required, Available, Dialect>
   readonly [QueryAst.TypeId]: QueryAst.Ast<Selection, Grouped>
-  readonly [QueryTypeId]: QueryState<Outstanding, ScopedNames, Grouped>
+  readonly [QueryTypeId]: QueryState<Outstanding, ScopedNames, Grouped, Assumptions>
 }
 
 /**
@@ -595,11 +792,14 @@ export const makeExpression = <
   Aggregation extends Expression.AggregationKind,
   Source,
   Dependencies extends Expression.SourceDependencies = {},
-  SourceNullability extends Expression.SourceNullabilityMode = "propagate"
+  SourceNullability extends Expression.SourceNullabilityMode = "propagate",
+  Ast extends ExpressionAst.Any = ExpressionAst.Any
 >(
   state: Expression.State<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability>,
-  ast: ExpressionAst.Any
-): Expression.Expression<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability> => {
+  ast: Ast
+): Expression.Expression<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability> & {
+  readonly [ExpressionAst.TypeId]: Ast
+} => {
   const expression = Object.create(ExpressionProto)
   expression[Expression.TypeId] = state
   expression[ExpressionAst.TypeId] = ast
@@ -617,26 +817,34 @@ export const makePlan = <
   Dialect extends string,
   Grouped extends string = never,
   ScopedNames extends string = Extract<keyof Available, string>,
-  Outstanding extends string = Extract<Required, string>
+  Outstanding extends string = Extract<Required, string>,
+  Assumptions extends PredicateFormula = TrueAssumptions
 >(
   state: Plan.State<Selection, Required, Available, Dialect>,
-  ast: QueryAst.Ast<Selection, Grouped>
-): QueryPlan<Selection, Required, Available, Dialect, Grouped, ScopedNames, Outstanding> => {
+  ast: QueryAst.Ast<Selection, Grouped>,
+  _assumptions?: Assumptions
+): QueryPlan<Selection, Required, Available, Dialect, Grouped, ScopedNames, Outstanding, Assumptions> => {
   const plan = Object.create(PlanProto)
   plan[Plan.TypeId] = state
   plan[QueryAst.TypeId] = ast
   plan[QueryTypeId] = {
     required: undefined as unknown as Outstanding,
     availableNames: undefined as unknown as ScopedNames,
-    grouped: undefined as unknown as Grouped
+    grouped: undefined as unknown as Grouped,
+    assumptions: undefined as unknown as Assumptions
   }
   return plan
 }
 
 /** Returns the internal AST carried by a query plan. */
 export const getAst = <Selection>(
-  plan: QueryPlan<Selection, any, any, any, any, any, any>
+  plan: QueryPlan<Selection, any, any, any, any, any, any, any>
 ): QueryAst.Ast<Selection, any> => plan[QueryAst.TypeId]
+
+/** Returns the internal phantom query state carried by a query plan. */
+export const getQueryState = (
+  plan: QueryPlan<any, any, any, any, any, any, any, any>
+): QueryState<any, any, any, any> => plan[QueryTypeId]
 
 /**
  * Collects the required table names referenced by a runtime selection object.

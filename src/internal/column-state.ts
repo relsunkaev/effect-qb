@@ -139,6 +139,7 @@ export interface BoundColumn<
     Record<TableName, true>,
     "propagate"
   >
+  readonly [ExpressionAst.TypeId]: ExpressionAst.ColumnNode<TableName, ColumnName>
 }
 
 /** Convenience alias for any column definition. */

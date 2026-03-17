@@ -5,6 +5,7 @@ import {
   currentRequiredList,
   extractRequiredRuntime,
   getAst,
+  getQueryState,
   makeExpression,
   makePlan,
   mergeAggregationManyRuntime,
@@ -18,6 +19,7 @@ import {
   type AddExpressionRequired,
   type AddJoinRequired,
   type AggregationOf,
+  type AssumptionsOfPlan,
   type AvailableOfPlan,
   type DependenciesOf,
   type DependencyRecord,
@@ -27,6 +29,7 @@ import {
   type ExtractRequired,
   type GroupByInput,
   type GroupedOfPlan,
+  type GroupedKeysFromValues,
   type HavingPredicateInput,
   type JoinSourceMode,
   type LiteralValue,
@@ -52,6 +55,8 @@ import {
   type TupleSource
 } from "../Query.ts"
 import * as ExpressionAst from "./expression-ast.ts"
+import type { AssumeTrue } from "./predicate-analysis.ts"
+import { dedupeGroupedExpressions } from "./grouping-key.ts"
 import * as ProjectionAlias from "./projection-alias.ts"
 import * as QueryAst from "./query-ast.ts"
 
@@ -113,7 +118,9 @@ type DialectLiteralExpression<
   Dialect,
   "scalar",
   never
->
+> & {
+  readonly [ExpressionAst.TypeId]: ExpressionAst.LiteralNode<Value>
+}
 
 /** Normalizes a generic scalar input into the expression form used internally. */
 type DialectAsExpression<
@@ -251,19 +258,202 @@ type CoalesceNullability<
         ? "maybe"
         : "always"
 
+/** Result nullability for variadic `coalesce(...)`. */
+type CoalesceNullabilityTuple<
+  Values extends readonly Expression.Any[]
+> = Values extends readonly [
+  infer Head extends Expression.Any,
+  ...infer Tail extends readonly Expression.Any[]
+]
+  ? Tail["length"] extends 0
+    ? Expression.NullabilityOf<Head>
+    : CoalesceNullability<Expression.NullabilityOf<Head>, CoalesceNullabilityTuple<Tail>>
+  : "always"
+
+/** Runtime type of variadic `coalesce(...)` after stripping null branches. */
+type CoalesceRuntimeTuple<
+  Values extends readonly Expression.Any[]
+> = Exclude<Expression.RuntimeOf<Values[number]>, null>
+
+/** Normalized expression tuple for generic scalar operator inputs. */
+type DialectExpressionTuple<
+  Values extends readonly ExpressionInput[],
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = {
+  readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+}
+
+/** Normalized expression tuple for generic string operator inputs. */
+type DialectStringExpressionTuple<
+  Values extends readonly StringExpressionInput[],
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = {
+  readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+}
+
 /** Names of sources already available to a plan. */
 type AvailableNames<Available extends Record<string, Plan.Source>> = Extract<keyof Available, string>
 
-/** Grouped source keys carried by a tuple of scalar expressions. */
-type GroupedKeysFromValues<
-  Values extends readonly Expression.Any[]
-> = Values[number] extends never ? never : {
-  [K in keyof Values]: Values[K] extends Expression.Any
-    ? SourceOf<Values[K]> extends { readonly tableName: infer TableName extends string, readonly columnName: infer ColumnName extends string }
-      ? `${TableName}.${ColumnName}`
-      : never
+type PlanAssumptionsAfterWhere<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>,
+  Predicate extends PredicateInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = AssumeTrue<
+  AssumptionsOfPlan<PlanValue>,
+  DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+>
+
+type AstBackedExpression<
+  Runtime,
+  Db extends Expression.DbType.Any,
+  Nullable extends Expression.Nullability,
+  Dialect extends string,
+  Aggregation extends Expression.AggregationKind,
+  Source,
+  Dependencies extends Expression.SourceDependencies,
+  Ast extends ExpressionAst.Any,
+  SourceNullability extends Expression.SourceNullabilityMode = "propagate"
+> = Expression.Expression<
+  Runtime,
+  Db,
+  Nullable,
+  Dialect,
+  Aggregation,
+  Source,
+  Dependencies,
+  SourceNullability
+> & {
+  readonly [ExpressionAst.TypeId]: Ast
+}
+
+type CaseBranch<
+  Predicate extends Expression.Any = Expression.Any,
+  Then extends Expression.Any = Expression.Any
+> = {
+  readonly when: Predicate
+  readonly then: Then
+}
+
+type CasePredicateUnion<Branches extends readonly CaseBranch[]> =
+  Branches[number] extends CaseBranch<infer Predicate extends Expression.Any, any> ? Predicate : never
+
+type CaseResultUnion<Branches extends readonly CaseBranch[]> =
+  Branches[number] extends CaseBranch<any, infer Then extends Expression.Any> ? Then : never
+
+type CasePredicateTuple<Branches extends readonly CaseBranch[]> = {
+  readonly [K in keyof Branches]: Branches[K] extends CaseBranch<infer Predicate extends Expression.Any, any> ? Predicate : never
+} & readonly Expression.Any[]
+
+type CaseResultTuple<Branches extends readonly CaseBranch[]> = {
+  readonly [K in keyof Branches]: Branches[K] extends CaseBranch<any, infer Then extends Expression.Any> ? Then : never
+} & readonly Expression.Any[]
+
+type CaseAllTuple<
+  Branches extends readonly CaseBranch[],
+  Else extends Expression.Any
+> = [...CasePredicateTuple<Branches>, ...CaseResultTuple<Branches>, Else]
+
+type CaseResultTupleWithElse<
+  Branches extends readonly CaseBranch[],
+  Else extends Expression.Any
+> = [...CaseResultTuple<Branches>, Else]
+
+type MergeAggregationUnion<Value extends Expression.Any> =
+  Extract<AggregationOf<Value>, "window"> extends never
+    ? Extract<AggregationOf<Value>, "aggregate"> extends never ? "scalar" : "aggregate"
+    : "window"
+
+type CaseNullabilityOfUnion<Value extends Expression.Any> =
+  Extract<Expression.NullabilityOf<Value>, "never"> extends never
+    ? Extract<Expression.NullabilityOf<Value>, "maybe"> extends never ? "always" : "maybe"
+    : Exclude<Expression.NullabilityOf<Value>, "never"> extends never ? "never" : "maybe"
+
+type CaseAstBranches<
+  Branches extends readonly CaseBranch[]
+> = {
+  readonly [K in keyof Branches]: Branches[K] extends CaseBranch<infer Predicate extends Expression.Any, infer Then extends Expression.Any>
+    ? ExpressionAst.CaseBranchNode<Predicate, Then>
     : never
-}[number]
+} & readonly ExpressionAst.CaseBranchNode[]
+
+type CaseBuilder<
+  Branches extends readonly [CaseBranch<any, any>, ...CaseBranch<any, any>[]],
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = {
+  when<Predicate extends HavingPredicateInput, Then extends ExpressionInput>(
+    predicate: Predicate,
+    result: Then
+  ): CaseBuilder<
+    [...Branches, CaseBranch<
+      DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    >],
+    Dialect,
+    TextDb,
+    NumericDb,
+    BoolDb,
+    TimestampDb,
+    NullDb
+  >
+  else<Else extends ExpressionInput>(
+    fallback: Else
+  ): AstBackedExpression<
+    Expression.RuntimeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
+    Expression.DbTypeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
+    CaseNullabilityOfUnion<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
+    TupleDialect<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    MergeAggregationTuple<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    TupleSource<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    TupleDependencies<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    ExpressionAst.CaseNode<CaseAstBranches<Branches>, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    "resolved"
+  >
+}
+
+type CaseStarter<
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = {
+  when<Predicate extends HavingPredicateInput, Then extends ExpressionInput>(
+    predicate: Predicate,
+    result: Then
+  ): CaseBuilder<
+    [CaseBranch<
+      DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    >],
+    Dialect,
+    TextDb,
+    NumericDb,
+    BoolDb,
+    TimestampDb,
+    NullDb
+  >
+}
 
 /**
  * Builds a dialect-specialized query namespace from the shared query core.
@@ -330,14 +520,19 @@ export const makeDialectQuery = <
   >(
     left: Left,
     right: Right
-  ): Expression.Expression<
+  ): AstBackedExpression<
     boolean,
     BoolDb,
     "maybe",
     DialectOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     MergeAggregation<AggregationOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>, AggregationOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
     SourceOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | SourceOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+    DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    ExpressionAst.BinaryNode<
+      "eq",
+      DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    >
   > => {
     const leftExpression = toDialectExpression(left)
     const rightExpression = toDialectExpression(right)
@@ -365,7 +560,7 @@ export const makeDialectQuery = <
 
   const isNull = <Value extends ExpressionInput>(
     value: Value
-  ): Expression.Expression<
+  ): AstBackedExpression<
     boolean,
     BoolDb,
     "never",
@@ -373,6 +568,7 @@ export const makeDialectQuery = <
     AggregationOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     SourceOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    ExpressionAst.UnaryNode<"isNull", DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     "resolved"
   > => {
     const expression = toDialectExpression(value)
@@ -393,7 +589,7 @@ export const makeDialectQuery = <
 
   const isNotNull = <Value extends ExpressionInput>(
     value: Value
-  ): Expression.Expression<
+  ): AstBackedExpression<
     boolean,
     BoolDb,
     "never",
@@ -401,6 +597,7 @@ export const makeDialectQuery = <
     AggregationOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     SourceOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    ExpressionAst.UnaryNode<"isNotNull", DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     "resolved"
   > => {
     const expression = toDialectExpression(value)
@@ -421,14 +618,15 @@ export const makeDialectQuery = <
 
   const upper = <Value extends StringExpressionInput>(
     value: Value
-  ): Expression.Expression<
+  ): AstBackedExpression<
     string,
     TextDb,
     NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     DialectOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     AggregationOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     SourceOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    ExpressionAst.UnaryNode<"upper", DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectStringExpression(value)
     return makeExpression({
@@ -448,14 +646,15 @@ export const makeDialectQuery = <
 
   const lower = <Value extends StringExpressionInput>(
     value: Value
-  ): Expression.Expression<
+  ): AstBackedExpression<
     string,
     TextDb,
     NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     DialectOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     AggregationOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     SourceOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    ExpressionAst.UnaryNode<"lower", DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectStringExpression(value)
     return makeExpression({
@@ -477,16 +676,19 @@ export const makeDialectQuery = <
     Values extends readonly [ExpressionInput, ...ExpressionInput[]]
   >(
     ...values: Values
-  ): Expression.Expression<
+  ): AstBackedExpression<
     boolean,
     BoolDb,
     MergeNullabilityTuple<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
     TupleDialect<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
     MergeAggregationTuple<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
     TupleSource<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-    TupleDependencies<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>
+    TupleDependencies<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
+    ExpressionAst.VariadicNode<"and", { readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>
   > => {
-    const expressions = values.map((value) => toDialectExpression(value)) as readonly Expression.Any[]
+    const expressions = values.map((value) => toDialectExpression(value)) as {
+      readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    } & readonly Expression.Any[]
     return makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
@@ -506,16 +708,19 @@ export const makeDialectQuery = <
     Values extends readonly [ExpressionInput, ...ExpressionInput[]]
   >(
     ...values: Values
-  ): Expression.Expression<
+  ): AstBackedExpression<
     boolean,
     BoolDb,
     MergeNullabilityTuple<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
     TupleDialect<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
     MergeAggregationTuple<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
     TupleSource<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-    TupleDependencies<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>
+    TupleDependencies<{ readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
+    ExpressionAst.VariadicNode<"or", { readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>
   > => {
-    const expressions = values.map((value) => toDialectExpression(value)) as readonly Expression.Any[]
+    const expressions = values.map((value) => toDialectExpression(value)) as {
+      readonly [K in keyof Values]: DialectAsExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    } & readonly Expression.Any[]
     return makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
@@ -533,14 +738,15 @@ export const makeDialectQuery = <
 
   const not = <Value extends ExpressionInput>(
     value: Value
-  ): Expression.Expression<
+  ): AstBackedExpression<
     boolean,
     BoolDb,
     Expression.NullabilityOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     AggregationOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     SourceOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    ExpressionAst.UnaryNode<"not", DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectExpression(value)
     return makeExpression({
@@ -562,25 +768,34 @@ export const makeDialectQuery = <
     Values extends readonly [StringExpressionInput, StringExpressionInput, ...StringExpressionInput[]]
   >(
     ...values: Values
-  ): Expression.Expression<
+  ): AstBackedExpression<
     string,
     TextDb,
-    MergeNullabilityTuple<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-    TupleDialect<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-    MergeAggregationTuple<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-    TupleSource<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-    TupleDependencies<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>
+    MergeNullabilityTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    TupleDialect<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    MergeAggregationTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    TupleSource<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    TupleDependencies<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    ExpressionAst.VariadicNode<"concat", DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
-    const expressions = values.map((value) => toDialectStringExpression(value)) as readonly Expression.Any[]
+    const expressions = values.map((value) => toDialectStringExpression(value)) as DialectStringExpressionTuple<
+      Values,
+      Dialect,
+      TextDb,
+      NumericDb,
+      BoolDb,
+      TimestampDb,
+      NullDb
+    >
     return makeExpression({
       runtime: "" as string,
       dbType: profile.textDb as TextDb,
-      nullability: mergeNullabilityManyRuntime(expressions) as MergeNullabilityTuple<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as TupleDialect<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-      aggregation: mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
-      source: mergeManySources(expressions) as TupleSource<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>,
+      nullability: mergeNullabilityManyRuntime(expressions) as MergeNullabilityTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as TupleDialect<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      aggregation: mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      source: mergeManySources(expressions) as TupleSource<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       sourceNullability: "propagate" as const,
-      dependencies: mergeManyDependencies(expressions) as TupleDependencies<{ readonly [K in keyof Values]: DialectAsStringExpression<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> } & readonly Expression.Any[]>
+      dependencies: mergeManyDependencies(expressions) as TupleDependencies<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
     }, {
       kind: "concat",
       values: expressions
@@ -589,7 +804,7 @@ export const makeDialectQuery = <
 
   const count = <Value extends ExpressionInput>(
     value: Value
-  ): Expression.Expression<
+  ): AstBackedExpression<
     number,
     NumericDb,
     "never",
@@ -597,6 +812,7 @@ export const makeDialectQuery = <
     "aggregate",
     SourceOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    ExpressionAst.UnaryNode<"count", DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     "resolved"
   > => {
     const expression = toDialectExpression(value)
@@ -617,7 +833,7 @@ export const makeDialectQuery = <
 
   const max = <Value extends Expression.Any>(
     value: Value
-  ): Expression.Expression<
+  ): AstBackedExpression<
     Expression.RuntimeOf<Value>,
     Expression.DbTypeOf<Value>,
     "maybe",
@@ -625,6 +841,7 @@ export const makeDialectQuery = <
     "aggregate",
     SourceOf<Value>,
     DependenciesOf<Value>,
+    ExpressionAst.UnaryNode<"max", Value>,
     "resolved"
   > =>
     makeExpression({
@@ -643,7 +860,7 @@ export const makeDialectQuery = <
 
   const min = <Value extends Expression.Any>(
     value: Value
-  ): Expression.Expression<
+  ): AstBackedExpression<
     Expression.RuntimeOf<Value>,
     Expression.DbTypeOf<Value>,
     "maybe",
@@ -651,6 +868,7 @@ export const makeDialectQuery = <
     "aggregate",
     SourceOf<Value>,
     DependenciesOf<Value>,
+    ExpressionAst.UnaryNode<"min", Value>,
     "resolved"
   > =>
     makeExpression({
@@ -667,77 +885,152 @@ export const makeDialectQuery = <
       value
     })
 
+  const resolveCoalesceNullabilityRuntime = (
+    values: readonly Expression.Any[]
+  ): Expression.Nullability =>
+    values.some((value) => value[Expression.TypeId].nullability === "never")
+      ? "never"
+      : values.some((value) => value[Expression.TypeId].nullability === "maybe")
+        ? "maybe"
+        : "always"
+
   const coalesce = <
-    Left extends Expression.Any,
-    Right extends ExpressionInput
+    Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
   >(
-    left: Left,
-    right: Right
-  ): Expression.Expression<
-    NonNullable<Expression.RuntimeOf<Left>>,
-    Expression.DbTypeOf<Left>,
-    CoalesceNullability<
-      Expression.NullabilityOf<Left>,
-      Expression.NullabilityOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
-    >,
-    DialectOf<Left> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    MergeAggregation<
-      AggregationOf<Left>,
-      AggregationOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
-    >,
-    SourceOf<Left> | SourceOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DependencyRecord<
-      | Extract<keyof DependenciesOf<Left>, string>
-      | Extract<
-        keyof DependenciesOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-        string
-      >
-    >,
+    ...values: Values
+  ): AstBackedExpression<
+    CoalesceRuntimeTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    Expression.DbTypeOf<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>[number]>,
+    CoalesceNullabilityTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    MergeAggregationTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    TupleSource<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    ExpressionAst.VariadicNode<"coalesce", DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     "resolved"
   > => {
-    const rightExpression = toDialectExpression(right)
+    const expressions = values.map((value) => toDialectExpression(value)) as DialectExpressionTuple<
+      Values,
+      Dialect,
+      TextDb,
+      NumericDb,
+      BoolDb,
+      TimestampDb,
+      NullDb
+    >
+    const representative = expressions.find((value) =>
+      value[Expression.TypeId].nullability !== "always") ?? expressions[0]!
     return makeExpression({
-      runtime: undefined as NonNullable<Expression.RuntimeOf<Left>>,
-      dbType: left[Expression.TypeId].dbType as Expression.DbTypeOf<Left>,
-      nullability: (
-        left[Expression.TypeId].nullability === "never" || rightExpression[Expression.TypeId].nullability === "never"
-          ? "never"
-          : left[Expression.TypeId].nullability === "maybe" || rightExpression[Expression.TypeId].nullability === "maybe"
-            ? "maybe"
-            : "always"
-      ) as CoalesceNullability<
-        Expression.NullabilityOf<Left>,
-        Expression.NullabilityOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
-      >,
-      dialect: (left[Expression.TypeId].dialect ?? rightExpression[Expression.TypeId].dialect) as
-        | DialectOf<Left>
-        | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      aggregation: mergeAggregationRuntime(
-        left[Expression.TypeId].aggregation,
-        rightExpression[Expression.TypeId].aggregation
-      ) as MergeAggregation<
-        AggregationOf<Left>,
-        AggregationOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
-      >,
-      source: mergeSources(
-        left[Expression.TypeId].source,
-        rightExpression[Expression.TypeId].source
-      ) as SourceOf<Left> | SourceOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      runtime: undefined as CoalesceRuntimeTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      dbType: representative[Expression.TypeId].dbType as Expression.DbTypeOf<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>[number]>,
+      nullability: resolveCoalesceNullabilityRuntime(expressions) as CoalesceNullabilityTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      aggregation: mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      source: mergeManySources(expressions) as TupleSource<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       sourceNullability: "resolved" as const,
-      dependencies: mergeDependencies(
-        left[Expression.TypeId].dependencies,
-        rightExpression[Expression.TypeId].dependencies
-      ) as DependencyRecord<
-        | Extract<keyof DependenciesOf<Left>, string>
-        | Extract<
-          keyof DependenciesOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-          string
-        >
-      >
+      dependencies: mergeManyDependencies(expressions) as TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
     }, {
       kind: "coalesce",
-      values: [left, rightExpression]
+      values: expressions
     })
+  }
+
+  const resolveCaseNullabilityRuntime = (
+    values: readonly Expression.Any[]
+  ): Expression.Nullability => {
+    let sawNever = false
+    let sawMaybe = false
+    let sawAlways = false
+    for (const value of values) {
+      switch (value[Expression.TypeId].nullability) {
+        case "never":
+          sawNever = true
+          break
+        case "maybe":
+          sawMaybe = true
+          break
+        case "always":
+          sawAlways = true
+          break
+      }
+    }
+    return sawNever
+      ? sawMaybe || sawAlways ? "maybe" : "never"
+      : sawMaybe ? "maybe" : "always"
+  }
+
+  const case_ = (): CaseStarter<Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
+    type RuntimeCaseBranch = {
+      readonly when: Expression.Any
+      readonly then: Expression.Any
+    }
+
+    const finalize = (
+      branches: readonly RuntimeCaseBranch[],
+      fallback: Expression.Any
+    ): Expression.Any => {
+      const resultExpressions = [...branches.map((branch) => branch.then), fallback]
+      const allExpressions = [...branches.flatMap((branch) => [branch.when, branch.then]), fallback]
+      const representative = resultExpressions.find((value) =>
+        value[Expression.TypeId].nullability !== "always") ?? fallback
+      return makeExpression({
+        runtime: undefined as never,
+        dbType: representative[Expression.TypeId].dbType,
+        nullability: resolveCaseNullabilityRuntime(resultExpressions),
+        dialect: (allExpressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect),
+        aggregation: mergeAggregationManyRuntime(allExpressions),
+        source: mergeManySources(allExpressions),
+        sourceNullability: "resolved" as const,
+        dependencies: mergeManyDependencies(allExpressions)
+      }, {
+        kind: "case",
+        branches: branches.map((branch) => ({
+          when: branch.when,
+          then: branch.then
+        })),
+        else: fallback
+      })
+    }
+
+    const build = (
+      branches: readonly RuntimeCaseBranch[]
+    ): {
+      when: (predicate: HavingPredicateInput, result: ExpressionInput) => unknown
+      else: (fallback: ExpressionInput) => Expression.Any
+    } => ({
+      when(predicate, result) {
+        return build([
+          ...branches,
+          {
+            when: toDialectExpression(predicate),
+            then: toDialectExpression(result)
+          }
+        ])
+      },
+      else(fallback) {
+        return finalize(branches, toDialectExpression(fallback))
+      }
+    })
+
+    return {
+      when<Predicate extends HavingPredicateInput, Then extends ExpressionInput>(predicate: Predicate, result: Then) {
+        return build([{
+          when: toDialectExpression(predicate),
+          then: toDialectExpression(result)
+        }]) as unknown as CaseBuilder<
+          [CaseBranch<
+            DialectAsExpression<typeof predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+            DialectAsExpression<typeof result, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+          >],
+          Dialect,
+          TextDb,
+          NumericDb,
+          BoolDb,
+          TimestampDb,
+          NullDb
+        >
+      }
+    }
   }
 
   const as = <
@@ -752,12 +1045,17 @@ export const makeDialectQuery = <
       [Expression.TypeId]: Expression.State<any, any, any, any, any, any, any, Expression.SourceNullabilityMode>
       [ExpressionAst.TypeId]: ExpressionAst.Any
       [ProjectionAlias.TypeId]: ProjectionAlias.State<Alias>
+      schema?: unknown
     }
     const runtimeExpression = expression as DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> & {
       readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+      readonly schema?: unknown
     }
     projected[Expression.TypeId] = runtimeExpression[Expression.TypeId]
     projected[ExpressionAst.TypeId] = runtimeExpression[ExpressionAst.TypeId]
+    if ("schema" in runtimeExpression) {
+      projected.schema = runtimeExpression.schema
+    }
     projected[ProjectionAlias.TypeId] = {
       alias
     } satisfies ProjectionAlias.State<Alias>
@@ -792,7 +1090,7 @@ export const makeDialectQuery = <
   const where = <Predicate extends PredicateInput>(
     predicate: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
       plan: PlanValue
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -801,10 +1099,12 @@ export const makeDialectQuery = <
       PlanDialectOf<PlanValue> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>
+      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
+      PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const predicateExpression = toDialectExpression(predicate)
       const predicateRequired = extractRequiredFromDialectInputRuntime(predicate)
       return makePlan({
@@ -819,13 +1119,13 @@ export const makeDialectQuery = <
           kind: "where",
           predicate: predicateExpression
         }]
-      })
+      }, undefined as unknown as PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>)
     }
 
   const from = <CurrentTable extends TableLike>(
     table: CurrentTable
   ) =>
-    <PlanValue extends QueryPlan<any, any, {}, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, {}, any, any, any, any, any>>(
       plan: PlanValue & (
         TableNameOf<CurrentTable> extends OutstandingOfPlan<PlanValue> ? unknown : never
       )
@@ -840,6 +1140,7 @@ export const makeDialectQuery = <
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       return makePlan({
         selection: current.selection,
         required: currentRequiredList(current.required).filter((name) =>
@@ -859,13 +1160,13 @@ export const makeDialectQuery = <
           tableName: table[Table.TypeId].name,
           baseTableName: table[Table.TypeId].baseName
         }
-      })
+      }, currentQuery.assumptions)
     }
 
   const having = <Predicate extends HavingPredicateInput>(
     predicate: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
       plan: PlanValue
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -878,6 +1179,7 @@ export const makeDialectQuery = <
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const predicateExpression = toDialectExpression(predicate)
       const predicateRequired = extractRequiredFromDialectInputRuntime(predicate)
       return makePlan({
@@ -892,7 +1194,7 @@ export const makeDialectQuery = <
           kind: "having",
           predicate: predicateExpression
         }]
-      })
+      }, currentQuery.assumptions)
     }
 
   const innerJoin = <CurrentTable extends TableLike, Predicate extends PredicateInput>(
@@ -916,7 +1218,7 @@ export const makeDialectQuery = <
     table: CurrentTable,
     on: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
       plan: PlanValue & (
         keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
@@ -933,6 +1235,7 @@ export const makeDialectQuery = <
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const onExpression = toDialectExpression(on)
       const nextAvailable = {
         ...current.available,
@@ -956,14 +1259,14 @@ export const makeDialectQuery = <
           baseTableName: table[Table.TypeId].baseName,
           on: onExpression
         }]
-      })
+      }, currentQuery.assumptions)
     }
 
   const orderBy = <Value extends ExpressionInput>(
     value: Value,
     direction: OrderDirection = "asc"
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
       plan: PlanValue
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -976,6 +1279,7 @@ export const makeDialectQuery = <
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const expression = toDialectExpression(value)
       const required = extractRequiredFromDialectInputRuntime(value)
       return makePlan({
@@ -991,13 +1295,13 @@ export const makeDialectQuery = <
           value: expression,
           direction
         }]
-      })
+      }, currentQuery.assumptions)
     }
 
   const groupBy = <Values extends readonly [GroupByInput, ...GroupByInput[]]>(
     ...values: Values
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
       plan: PlanValue
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -1010,6 +1314,7 @@ export const makeDialectQuery = <
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const required = [...values.flatMap((value) => Object.keys(value[Expression.TypeId].dependencies))].filter((name, index, list) =>
         !(name in current.available) && list.indexOf(name) === index)
       return makePlan({
@@ -1020,8 +1325,8 @@ export const makeDialectQuery = <
         dialect: current.dialect as PlanDialectOf<PlanValue> | TupleDialect<Values>
       }, {
         ...currentAst,
-        groupBy: [...currentAst.groupBy, ...values]
-      })
+        groupBy: dedupeGroupedExpressions([...currentAst.groupBy, ...values])
+      }, currentQuery.assumptions)
     }
 
   return {
@@ -1034,6 +1339,7 @@ export const makeDialectQuery = <
     and,
     or,
     not,
+    case: case_,
     coalesce,
     concat,
     count,

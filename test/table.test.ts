@@ -8,6 +8,8 @@ import * as Postgres from "../src/postgres.ts"
 import { renderMysqlPlan } from "../src/internal/mysql-renderer.ts"
 import { Column as C, Executor, Expression, Plan, Query as Q, Renderer, Table } from "../src/index.ts"
 
+const userId = "11111111-1111-1111-1111-111111111111"
+
 describe("table definitions", () => {
   test("factory tables expose direct columns and schemas", () => {
     const users = Table.make("users", {
@@ -300,15 +302,15 @@ describe("table definitions", () => {
     }).pipe(
       Q.from(users),
       Q.innerJoin(posts, Q.and(Q.eq(users.id, posts.userId), Q.not(false))),
-      Q.groupBy(users.email),
+      Q.groupBy(Q.upper(users.email)),
       Q.orderBy(Q.count(posts.id), "desc"),
-      Q.orderBy(Q.lower(users.email))
+      Q.orderBy(Q.upper(users.email))
     )
 
     const renderer = Renderer.make("postgres")
     const rendered = renderer.render(plan)
 
-    expect(rendered.sql).toBe('select upper("users"."email") as "emailUpper", count("posts"."id") as "postCount", max("posts"."title") as "maxPostTitle", min("posts"."title") as "minPostTitle", coalesce(max("posts"."title"), $1) as "fallbackTitle" from "users" inner join "posts" on (("users"."id" = "posts"."userId") and (not false)) group by "users"."email" order by count("posts"."id") desc, lower("users"."email") asc')
+    expect(rendered.sql).toBe('select upper("users"."email") as "emailUpper", count("posts"."id") as "postCount", max("posts"."title") as "maxPostTitle", min("posts"."title") as "minPostTitle", coalesce(max("posts"."title"), $1) as "fallbackTitle" from "users" inner join "posts" on (("users"."id" = "posts"."userId") and (not false)) group by upper("users"."email") order by count("posts"."id") desc, upper("users"."email") asc')
     expect(rendered.params).toEqual(["NONE"])
   })
 
@@ -336,6 +338,43 @@ describe("table definitions", () => {
     )
   })
 
+  test("runtime validation requires exact grouped-expression matches", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey),
+      email: C.text()
+    })
+
+    const posts = Table.make("posts", {
+      id: C.uuid().pipe(C.primaryKey),
+      userId: C.uuid()
+    })
+
+    const groupedByDerived = Q.select({
+      email: users.email,
+      postCount: Q.count(posts.id)
+    }).pipe(
+      Q.from(users),
+      Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
+      Q.groupBy(Q.lower(users.email))
+    )
+
+    const groupedByBase = Q.select({
+      loweredEmail: Q.lower(users.email),
+      postCount: Q.count(posts.id)
+    }).pipe(
+      Q.from(users),
+      Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
+      Q.groupBy(users.email)
+    )
+
+    expect(() => Renderer.make("postgres").render(groupedByDerived as never)).toThrow(
+      "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
+    )
+    expect(() => Renderer.make("postgres").render(groupedByBase as never)).toThrow(
+      "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
+    )
+  })
+
   test("Executor.fromDriver renders, runs, and decodes nested rows", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),
@@ -358,7 +397,7 @@ describe("table definitions", () => {
       expect(query.params).toEqual(["user"])
       return Effect.succeed([
         {
-          user__id: "user-1",
+          user__id: userId,
           user__email: "alice@example.com",
           kind: "user"
         }
@@ -371,7 +410,7 @@ describe("table definitions", () => {
     expect(rows).toEqual([
       {
         user: {
-          id: "user-1",
+          id: userId,
           email: "alice@example.com"
         },
         kind: "user"
@@ -409,7 +448,7 @@ describe("table definitions", () => {
       expect(query.projections).toEqual(rendered.projections)
       return Effect.succeed([
         {
-          user_identifier: "user-1",
+          user_identifier: userId,
           email_lower: "alice@example.com",
           kind_label: "user"
         }
@@ -420,7 +459,7 @@ describe("table definitions", () => {
     expect(rows).toEqual([
       {
         profile: {
-          id: "user-1",
+          id: userId,
           email: "alice@example.com"
         },
         kind: "user"
@@ -501,7 +540,7 @@ describe("table definitions", () => {
         expect(params).toEqual([])
         return Effect.succeed([
           {
-            profile__id: "user-1",
+            profile__id: userId,
             profile__email: "alice@example.com"
           }
         ] as unknown as ReadonlyArray<A>)
@@ -515,7 +554,7 @@ describe("table definitions", () => {
     expect(rows).toEqual([
       {
         profile: {
-          id: "user-1",
+          id: userId,
           email: "alice@example.com"
         }
       }

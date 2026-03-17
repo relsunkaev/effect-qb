@@ -13,6 +13,8 @@ import {
   type QueryPlan,
   type ResultRow,
   type ResultRows,
+  type RuntimeResultRow,
+  type RuntimeResultRows,
   type StringExpressionInput
 } from "../Query.ts"
 import { makeDialectQuery } from "../internal/query-factory.ts"
@@ -35,6 +37,7 @@ export const lower = postgresQuery.lower
 export const and = postgresQuery.and
 export const or = postgresQuery.or
 export const not = postgresQuery.not
+const case_ = postgresQuery.case
 export const coalesce = postgresQuery.coalesce
 export const concat = postgresQuery.concat
 export const count = postgresQuery.count
@@ -49,6 +52,7 @@ export const innerJoin = postgresQuery.innerJoin
 export const leftJoin = postgresQuery.leftJoin
 export const orderBy = postgresQuery.orderBy
 export const groupBy = postgresQuery.groupBy
+export { case_ as case }
 
 export type {
   CompletePlan,
@@ -64,5 +68,7 @@ export type {
   QueryPlan,
   ResultRow,
   ResultRows,
+  RuntimeResultRow,
+  RuntimeResultRows,
   StringExpressionInput
 }

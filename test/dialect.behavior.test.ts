@@ -5,6 +5,8 @@ import * as Mysql from "../src/mysql.ts"
 import * as Postgres from "../src/postgres.ts"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makePostgresEmployees, makePostgresSocialGraph } from "./fixtures/schema.ts"
 
+const userId = "11111111-1111-1111-1111-111111111111"
+
 describe("dialect behavior", () => {
   test("postgres and mysql produce the same decoded row shape for the same logical query", () => {
     const { users: pgUsers } = makePostgresSocialGraph()
@@ -28,13 +30,13 @@ describe("dialect behavior", () => {
     )
 
     const row = {
-      profile__id: "user-1",
+      profile__id: userId,
       profile__email: "alice@example.com"
     }
 
     const pgRows = Effect.runSync(Postgres.Executor.fromDriver(
       Postgres.Renderer.make(),
-      Postgres.Executor.driver("postgres", () => Effect.succeed([row]))
+      Postgres.Executor.driver(() => Effect.succeed([row]))
     ).execute(pgPlan))
     const myRows = Effect.runSync(Mysql.Executor.fromDriver(
       Mysql.Renderer.make(),

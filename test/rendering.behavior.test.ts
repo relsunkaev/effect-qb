@@ -98,7 +98,9 @@ describe("rendering behavior", () => {
       { path: ["profile", "lowerEmail"], alias: "email_lower" },
       { path: ["kind"], alias: "kind" }
     ])
-    expect(second).toEqual(first)
+    expect(second.sql).toBe(first.sql)
+    expect(second.params).toEqual(first.params)
+    expect(second.projections).toEqual(first.projections)
   })
 
   test("rejects explicit aliases that collide with auto-generated aliases", () => {

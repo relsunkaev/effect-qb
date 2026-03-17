@@ -10,10 +10,9 @@ export type FlatRow = Readonly<Record<string, unknown>>
 /**
  * Driver that executes already-rendered SQL.
  *
- * This is the concrete render -> run boundary. Drivers operate on
- * `Renderer.RenderedQuery` values and return flat alias-keyed rows, which the
- * executor layer then decodes back into `Query.ResultRow<...>` shapes using
- * the renderer's projection metadata.
+ * Drivers operate on rendered SQL plus projection metadata and return flat
+ * alias-keyed rows. The executor layer only remaps those aliases back into the
+ * nested query result shape.
  */
 export interface Driver<
   Dialect extends string = string,
@@ -30,7 +29,8 @@ export interface Driver<
  * Public execution contract.
  *
  * Executors only accept complete, dialect-compatible plans. Successful
- * execution always yields `ReadonlyArray<Query.ResultRow<typeof plan>>`.
+ * execution yields the compile-time query result contract, but runtime
+ * execution does not validate the returned row payloads.
  */
 export interface Executor<
   Dialect extends string = string,
@@ -38,7 +38,7 @@ export interface Executor<
   Context = never
 > {
   readonly dialect: Dialect
-  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any>>(
+  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 }
@@ -63,24 +63,22 @@ const setPath = (
   current[path[path.length - 1]!] = value
 }
 
-const decodeRows = <Row>(
+const remapRows = <Row>(
   query: Renderer.RenderedQuery<Row, any>,
   rows: ReadonlyArray<FlatRow>
 ): ReadonlyArray<Row> =>
   rows.map((row) => {
     const decoded: Record<string, unknown> = {}
     for (const projection of query.projections) {
-      setPath(decoded, projection.path, row[projection.alias])
+      if (projection.alias in row) {
+        setPath(decoded, projection.path, row[projection.alias])
+      }
     }
     return decoded as Row
   })
 
 /**
  * Constructs an executor from a dialect and implementation callback.
- *
- * This is intentionally minimal. It gives future database adapters a stable,
- * strongly-typed surface without committing the library to a concrete runtime
- * strategy yet.
  */
 export const make = <
   Dialect extends string,
@@ -88,20 +86,18 @@ export const make = <
   Context = never
 >(
   dialect: Dialect,
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 ): Executor<Dialect, Error, Context> => ({
   dialect,
   execute(plan) {
-    return execute(plan)
+    return (execute as any)(plan)
   }
-})
+}) as Executor<Dialect, Error, Context>
 
 /**
  * Constructs a driver from a dialect and execution callback.
- *
- * This is the lowest-level concrete SQL execution hook in the library.
  */
 export const driver = <
   Dialect extends string,
@@ -122,10 +118,10 @@ export const driver = <
 /**
  * Creates an executor by composing a renderer with a rendered-query driver.
  *
- * This is the concrete render -> run -> decode pipeline:
+ * This is the concrete render -> run -> remap pipeline:
  * 1. render a complete query plan into SQL + params
  * 2. execute that rendered query through the driver
- * 3. decode flat alias-keyed rows back into `Query.ResultRow<typeof plan>`
+ * 3. remap flat alias-keyed rows back into nested objects
  */
 export const fromDriver = <
   Dialect extends string,
@@ -134,19 +130,22 @@ export const fromDriver = <
 >(
   renderer: Renderer.Renderer<Dialect>,
   sqlDriver: Driver<Dialect, Error, Context>
-): Executor<Dialect, Error, Context> =>
-  make(renderer.dialect, (plan) => {
-    const rendered = renderer.render(plan) as Renderer.RenderedQuery<Query.ResultRow<typeof plan>, Dialect>
-    return Effect.map(sqlDriver.execute(rendered), (rows) =>
-      decodeRows<Query.ResultRow<typeof plan>>(rendered, rows) as Query.ResultRows<typeof plan>)
-  })
+): Executor<Dialect, Error, Context> => {
+  const executor = {
+    dialect: renderer.dialect,
+    execute(plan: any) {
+      const rendered = renderer.render(plan) as Renderer.RenderedQuery<any, Dialect>
+      return Effect.map(
+        sqlDriver.execute(rendered),
+        (rows) => remapRows<any>(rendered, rows)
+      )
+    }
+  }
+  return executor as unknown as Executor<Dialect, Error, Context>
+}
 
 /**
  * Creates an executor backed by `@effect/sql`'s `SqlClient`.
- *
- * The rendered SQL is executed via `sql.unsafe(...)`, and the flat rows are
- * decoded through the renderer's projection metadata into the canonical query
- * result shape.
  */
 export const fromSqlClient = <Dialect extends string>(
   renderer: Renderer.Renderer<Dialect>

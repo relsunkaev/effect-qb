@@ -34,6 +34,21 @@ void nullableDerivedField
 void nonNullFallback
 void nullFallback
 
+const variadicFallbackPlan = Q.select({
+  userId: users.id,
+  fallbackTitle: Q.coalesce(null, posts.title, Q.literal("missing"))
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
+)
+
+type VariadicFallbackRow = Q.ResultRow<typeof variadicFallbackPlan>
+const variadicFallback: VariadicFallbackRow["fallbackTitle"] = "missing"
+// @ts-expect-error variadic coalesce with a non-null fallback should not stay nullable
+const variadicNullFallback: VariadicFallbackRow["fallbackTitle"] = null
+void variadicFallback
+void variadicNullFallback
+
 const innerJoined = Q.select({
   userId: users.id,
   postId: posts.id,
@@ -109,9 +124,9 @@ const renderedRow: RenderedRow = {
 }
 void renderedRow
 
-const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any>>(
+const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any>>(
   plan: Q.DialectCompatiblePlan<PlanValue, "postgres">
-): Effect.Effect<Q.ResultRows<PlanValue>, never, never> => {
+): Effect.Effect<any, never, never> => {
   void plan
   return null as never
 })

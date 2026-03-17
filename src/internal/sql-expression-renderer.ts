@@ -48,6 +48,10 @@ export const renderExpression = (
       return `coalesce(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")})`
     case "concat":
       return dialect.renderConcat(ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)))
+    case "case":
+      return `case ${ast.branches.map((branch) =>
+        `when ${renderExpression(branch.when, state, dialect)} then ${renderExpression(branch.then, state, dialect)}`
+      ).join(" ")} else ${renderExpression(ast.else, state, dialect)} end`
   }
   throw new Error("Unsupported expression for SQL rendering")
 }

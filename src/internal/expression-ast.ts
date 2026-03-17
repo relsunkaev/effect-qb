@@ -67,6 +67,25 @@ export interface VariadicNode<
   readonly values: Values
 }
 
+/** One `when ... then ...` branch inside a searched `case`. */
+export interface CaseBranchNode<
+  Predicate extends Expression.Any = Expression.Any,
+  Then extends Expression.Any = Expression.Any
+> {
+  readonly when: Predicate
+  readonly then: Then
+}
+
+/** Searched `case when ... then ... else ... end` expression node. */
+export interface CaseNode<
+  Branches extends readonly CaseBranchNode[] = readonly CaseBranchNode[],
+  Else extends Expression.Any = Expression.Any
+> {
+  readonly kind: "case"
+  readonly branches: Branches
+  readonly else: Else
+}
+
 /** Union of all internal expression nodes. */
 export type Any =
   | ColumnNode
@@ -74,3 +93,4 @@ export type Any =
   | UnaryNode
   | BinaryNode
   | VariadicNode
+  | CaseNode

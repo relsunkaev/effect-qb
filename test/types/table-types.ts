@@ -159,9 +159,9 @@ void renderedNullPost
 void renderedNullPostTitleUpper
 void renderedFallbackPostTitle
 
-const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any>>(
+const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any>>(
   plan: Q.DialectCompatiblePlan<PlanValue, "postgres">
-): Effect.Effect<Q.ResultRows<PlanValue>, never, never> => {
+): Effect.Effect<any, never, never> => {
   void plan
   return null as never
 })
@@ -256,9 +256,9 @@ const aggregatePlan = Q.select({
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.and(Q.eq(users.id, posts.userId), Q.not(false))),
-  Q.groupBy(users.email),
+  Q.groupBy(Q.upper(users.email)),
   Q.orderBy(Q.count(posts.id), "desc"),
-  Q.orderBy(Q.lower(users.email))
+  Q.orderBy(Q.upper(users.email))
 )
 
 type AggregateRow = Q.ResultRow<typeof aggregatePlan>
@@ -290,6 +290,42 @@ const invalidAggregatePlan = Q.select({
 
 // @ts-expect-error selecting grouped and aggregate expressions without groupBy is invalid
 const badAggregateComplete: Q.CompletePlan<typeof invalidAggregatePlan> = invalidAggregatePlan
+
+const exactGroupedDerivedPlan = Q.select({
+  loweredEmail: Q.lower(users.email),
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(Q.lower(users.email))
+)
+
+const exactGroupedDerivedComplete: Q.CompletePlan<typeof exactGroupedDerivedPlan> = exactGroupedDerivedPlan
+void exactGroupedDerivedComplete
+
+const groupedByDerivedButSelectingBase = Q.select({
+  email: users.email,
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(Q.lower(users.email))
+)
+
+// @ts-expect-error grouping a derived expression does not cover the base column
+const badDerivedGroupingComplete: Q.CompletePlan<typeof groupedByDerivedButSelectingBase> = groupedByDerivedButSelectingBase
+
+const groupedByBaseButSelectingDerived = Q.select({
+  loweredEmail: Q.lower(users.email),
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(users.email)
+)
+
+// @ts-expect-error grouping a base column does not cover a derived expression
+const badBaseGroupingComplete: Q.CompletePlan<typeof groupedByBaseButSelectingDerived> = groupedByBaseButSelectingDerived
 
 // @ts-expect-error nullable columns cannot become primary keys
 const badNullablePrimaryKey = C.text().pipe(C.nullable, C.primaryKey)

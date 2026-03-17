@@ -84,7 +84,7 @@ const twoOptionalSources = Q.select({
   userId: users.id,
   commentId: comments.id,
   commentBody: comments.body,
-  fallbackComment: Q.coalesce(comments.body, Q.literal("none"))
+  fallbackComment: Q.coalesce(null, comments.body, Q.literal("none"))
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -103,3 +103,52 @@ void nullableCommentBody
 void fallbackComment
 void optionalUserId
 void nullFallbackComment
+
+const filteredOptionalSource = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  postTitle: posts.title,
+  upperPostTitle: Q.upper(posts.title)
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.and(
+    Q.isNotNull(posts.title),
+    Q.eq(posts.id, "post-id")
+  ))
+)
+
+type FilteredOptionalSourceRow = Q.ResultRow<typeof filteredOptionalSource>
+const filteredUserId: FilteredOptionalSourceRow["userId"] = null
+const filteredPostId: FilteredOptionalSourceRow["postId"] = null
+const filteredPostTitle: FilteredOptionalSourceRow["postTitle"] = null
+const filteredUpperPostTitle: FilteredOptionalSourceRow["upperPostTitle"] = null
+const filteredNullPostId: FilteredOptionalSourceRow["postId"] = null
+const filteredNullPostTitle: FilteredOptionalSourceRow["postTitle"] = null
+const filteredNullUpperPostTitle: FilteredOptionalSourceRow["upperPostTitle"] = null
+void filteredUserId
+void filteredPostId
+void filteredPostTitle
+void filteredUpperPostTitle
+void filteredNullPostId
+void filteredNullPostTitle
+void filteredNullUpperPostTitle
+
+const searchedCasePlan = Q.select({
+  userId: users.id,
+  normalizedTitle: Q.case()
+    .when(Q.isNotNull(posts.title), Q.upper(posts.title))
+    .else("missing")
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
+)
+
+type SearchedCaseRow = Q.ResultRow<typeof searchedCasePlan>
+const searchedCaseUserId: SearchedCaseRow["userId"] = "user-id"
+const searchedCaseTitle: SearchedCaseRow["normalizedTitle"] = "HELLO"
+// @ts-expect-error searched CASE with a non-null else should resolve to string
+const searchedCaseNullTitle: SearchedCaseRow["normalizedTitle"] = null
+void searchedCaseUserId
+void searchedCaseTitle
+void searchedCaseNullTitle

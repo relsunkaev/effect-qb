@@ -1,9 +1,11 @@
 /** Postgres-specialized column-definition DSL. */
 export * as Column from "./postgres/Column.ts"
+/** Postgres SQLSTATE catalog and error normalization helpers. */
+export * as Errors from "./postgres/errors/index.ts"
 /** Shared scalar SQL expression interfaces and DB-type descriptors. */
 export * as Expression from "./Expression.ts"
-/** Shared typed query execution contracts. */
-export * as Executor from "./Executor.ts"
+/** Postgres-specialized typed query execution contracts. */
+export * as Executor from "./postgres/Executor.ts"
 /** Shared logical query-plan interfaces. */
 export * as Plan from "./Plan.ts"
 /** Postgres-specialized query-construction DSL. */
