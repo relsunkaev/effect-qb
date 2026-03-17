@@ -288,6 +288,14 @@ const invalidAggregatePlan = Q.select({
   Q.leftJoin(posts, true)
 )
 
+type InvalidAggregatePlanError = Q.CompletePlan<typeof invalidAggregatePlan>
+const invalidAggregateError: InvalidAggregatePlanError["__effect_qb_error__"] =
+  "effect-qb: invalid grouped selection"
+const invalidAggregateHint: InvalidAggregatePlanError["__effect_qb_hint__"] =
+  "Scalar selections must be covered by groupBy(...) when aggregates are present"
+void invalidAggregateError
+void invalidAggregateHint
+
 // @ts-expect-error selecting grouped and aggregate expressions without groupBy is invalid
 const badAggregateComplete: Q.CompletePlan<typeof invalidAggregatePlan> = invalidAggregatePlan
 

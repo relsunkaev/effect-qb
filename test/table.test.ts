@@ -641,7 +641,7 @@ describe("table definitions", () => {
       Mysql.Query.where(Mysql.Query.eq(users.email, "alice@example.com"))
     )
 
-    const rendered = renderMysqlPlan(plan)
+    const rendered = renderMysqlPlan(plan as never)
 
     expect(rendered.sql).toBe("select `users`.`id` as `id`, concat(lower(`users`.`email`), ?) as `decoratedEmail`, ? as `kind` from `users` where (`users`.`email` = ?)")
     expect(rendered.params).toEqual(["-user", "user", "alice@example.com"])

@@ -131,7 +131,7 @@ describe("mysql errors", () => {
     expect(error.query?.sql).toBe("select `users`.`id` as `id` from `users`")
   })
 
-  test("unknown but mysql-like catalog misses fall back to the unknown code namespace", () => {
+  test("unknown but mysql-like catalog misses fall back to the unknown errno namespace", () => {
     const error = Mysql.Errors.normalizeMysqlDriverError({
       code: "ER_NOT_IN_OUR_CATALOG",
       errno: 999999,

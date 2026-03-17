@@ -184,15 +184,14 @@ describe("mysql dialect behavior", () => {
   test("renders searched case expressions with mysql placeholders", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
-    const plan = Mysql.Query.select({
+    const selected = Mysql.Query.select({
       titleState: Mysql.Query.case()
         .when(Mysql.Query.isNull(posts.title), "missing")
         .when(Mysql.Query.eq(Mysql.Query.lower(posts.title), "draft"), "draft")
         .else(Mysql.Query.upper(Mysql.Query.coalesce(posts.title, "published")))
-    }).pipe(
-      Mysql.Query.from(users),
-      Mysql.Query.leftJoin(posts, Mysql.Query.eq(users.id, posts.userId))
-    )
+    })
+    const fromUsers = Mysql.Query.from(users)(selected as never)
+    const plan = Mysql.Query.leftJoin(posts, Mysql.Query.eq(users.id, posts.userId))(fromUsers)
 
     const rendered = Mysql.Renderer.make().render(plan)
 

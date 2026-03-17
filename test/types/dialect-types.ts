@@ -68,6 +68,18 @@ const myExecutor = Executor.make("mysql", <PlanValue extends RootQuery.QueryPlan
   return null as never
 })
 
+type MysqlPlanAgainstPostgres = RootQuery.DialectCompatiblePlan<typeof myPlan, "postgres">
+const mysqlPlanDialectError: MysqlPlanAgainstPostgres["__effect_qb_error__"] =
+  "effect-qb: plan dialect is not compatible with the target renderer or executor"
+const mysqlPlanDialect: MysqlPlanAgainstPostgres["__effect_qb_plan_dialect__"] = "mysql"
+const mysqlTargetDialect: MysqlPlanAgainstPostgres["__effect_qb_target_dialect__"] = "postgres"
+const mysqlDialectHint: MysqlPlanAgainstPostgres["__effect_qb_hint__"] =
+  "Use the matching dialect module or renderer/executor"
+void mysqlPlanDialectError
+void mysqlPlanDialect
+void mysqlTargetDialect
+void mysqlDialectHint
+
 // @ts-expect-error mysql plans are not accepted by the postgres executor
 pgExecutor.execute(myPlan)
 

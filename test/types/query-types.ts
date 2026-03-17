@@ -111,6 +111,16 @@ const incomplete = Q.select({
   userId: users.id
 })
 
+type IncompletePlanError = Q.CompletePlan<typeof incomplete>
+const incompletePlanError: IncompletePlanError["__effect_qb_error__"] =
+  "effect-qb: query references sources that are not yet in scope"
+const incompletePlanMissingSource: IncompletePlanError["__effect_qb_missing_sources__"] = "users"
+const incompletePlanHint: IncompletePlanError["__effect_qb_hint__"] =
+  "Add from(...) or a join for each referenced source before render or execute"
+void incompletePlanError
+void incompletePlanMissingSource
+void incompletePlanHint
+
 // @ts-expect-error incomplete plans are not renderable
 const incompleteRendered = Renderer.make("postgres").render(incomplete)
 void incompleteRendered

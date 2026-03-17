@@ -630,12 +630,38 @@ type HasKnownOutstanding<Required> = [Required] extends [never]
     ? false
     : true
 
+type SourceCompletenessError<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>,
+  MissingSources extends string
+> = PlanValue & {
+  readonly __effect_qb_error__: "effect-qb: query references sources that are not yet in scope"
+  readonly __effect_qb_missing_sources__: MissingSources
+  readonly __effect_qb_hint__: "Add from(...) or a join for each referenced source before render or execute"
+}
+
+type AggregationCompatibilityError<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>
+> = PlanValue & {
+  readonly __effect_qb_error__: "effect-qb: invalid grouped selection"
+  readonly __effect_qb_hint__: "Scalar selections must be covered by groupBy(...) when aggregates are present"
+}
+
+type DialectCompatibilityError<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>,
+  EngineDialect extends string
+> = PlanValue & {
+  readonly __effect_qb_error__: "effect-qb: plan dialect is not compatible with the target renderer or executor"
+  readonly __effect_qb_plan_dialect__: PlanValue[typeof Plan.TypeId]["dialect"]
+  readonly __effect_qb_target_dialect__: EngineDialect
+  readonly __effect_qb_hint__: "Use the matching dialect module or renderer/executor"
+}
+
 /** Narrows a query plan to aggregate-compatible, source-complete plans. */
 export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>> =
   PlanValue extends QueryPlan<infer Selection, infer Required, any, any, infer Grouped, any, any, any>
     ? HasKnownOutstanding<Required> extends true
-      ? never
-      : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : never
+      ? SourceCompletenessError<PlanValue, Extract<Required, string>>
+      : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
     : never
 
 /** Whether a plan dialect is compatible with a target engine dialect. */
@@ -654,7 +680,7 @@ export type DialectCompatiblePlan<
   EngineDialect extends string
 > = IsDialectCompatible<PlanValue[typeof Plan.TypeId]["dialect"], EngineDialect> extends true
   ? CompletePlan<PlanValue>
-  : never
+  : DialectCompatibilityError<PlanValue, EngineDialect>
 
 /** True when any of an expression's dependencies are optional in the current scope. */
 type HasOptionalSource<

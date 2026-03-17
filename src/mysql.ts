@@ -5,7 +5,7 @@ export * as Errors from "./mysql/errors/index.ts"
 /** Shared scalar SQL expression interfaces and DB-type descriptors. */
 export * as Expression from "./expression.ts"
 /** MySQL-specialized typed query execution contracts. */
-export * as Executor from "./mysql/Executor.ts"
+export * as Executor from "./mysql/executor.ts"
 /** Shared logical query-plan interfaces. */
 export * as Plan from "./plan.ts"
 /** MySQL-specialized query-construction DSL. */
