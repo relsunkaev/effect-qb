@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect"
 import * as SqlClient from "@effect/sql/SqlClient"
 
-import * as Query from "./Query.ts"
-import * as Renderer from "./Renderer.ts"
+import * as Query from "./query.ts"
+import * as Renderer from "./renderer.ts"
 
 /** Flat database row keyed by rendered projection aliases. */
 export type FlatRow = Readonly<Record<string, unknown>>

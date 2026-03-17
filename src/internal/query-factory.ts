@@ -1,6 +1,6 @@
-import * as Expression from "../Expression.ts"
-import * as Plan from "../Plan.ts"
-import * as Table from "../Table.ts"
+import * as Expression from "../expression.ts"
+import * as Plan from "../plan.ts"
+import * as Table from "../table.ts"
 import {
   currentRequiredList,
   extractRequiredRuntime,
@@ -53,7 +53,7 @@ import {
   type TupleDependencies,
   type TupleDialect,
   type TupleSource
-} from "../Query.ts"
+} from "../query.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 import type { AssumeTrue } from "./predicate-analysis.ts"
 import { dedupeGroupedExpressions } from "./grouping-key.ts"

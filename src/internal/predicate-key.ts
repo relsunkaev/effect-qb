@@ -1,4 +1,4 @@
-import type * as Expression from "../Expression.ts"
+import type * as Expression from "../expression.ts"
 import type * as ExpressionAst from "./expression-ast.ts"
 
 export type ColumnKey<

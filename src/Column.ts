@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import * as Expression from "./Expression.ts"
+import * as Expression from "./expression.ts"
 import {
   type AnyBoundColumn,
   type AnyColumnDefinition,

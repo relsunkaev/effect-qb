@@ -1,4 +1,4 @@
-import * as Query from "./Query.ts"
+import * as Query from "./query.ts"
 import { type Projection, validateProjections } from "./internal/projections.ts"
 import { renderPostgresPlan } from "./internal/postgres-renderer.ts"
 

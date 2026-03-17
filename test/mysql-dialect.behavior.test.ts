@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
-import * as CoreRenderer from "../src/Renderer.ts"
+import * as CoreRenderer from "../src/renderer.ts"
 import * as ExpressionAst from "../src/internal/expression-ast.ts"
 import { mysqlDialect } from "../src/internal/mysql-dialect.ts"
 import { renderExpression } from "../src/internal/sql-expression-renderer.ts"
@@ -222,7 +222,7 @@ describe("mysql dialect behavior", () => {
 
     const rows = Effect.runSync(Mysql.Executor.fromDriver(
       Mysql.Renderer.make(),
-      Mysql.Executor.driver("mysql", () => Effect.succeed([{
+      Mysql.Executor.driver(() => Effect.succeed([{
         profile__id: userId,
         profile__email: "alice@example.com",
         post__id: null,

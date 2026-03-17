@@ -1,7 +1,7 @@
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import * as Plan from "./Plan.ts"
+import * as Plan from "./plan.ts"
 import type { BoundColumnFrom } from "./internal/column-state.ts"
 import { bindColumn, type AnyColumnDefinition } from "./internal/column-state.ts"
 import {

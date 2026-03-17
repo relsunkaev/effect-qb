@@ -1,4 +1,4 @@
-import * as Expression from "../Expression.ts"
+import * as Expression from "../expression.ts"
 import * as ProjectionAlias from "./projection-alias.ts"
 
 /**

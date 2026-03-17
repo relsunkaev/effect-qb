@@ -1,4 +1,4 @@
-import * as CoreRenderer from "../Renderer.ts"
+import * as CoreRenderer from "../renderer.ts"
 
 /** Postgres-specialized rendered query shape. */
 export type RenderedQuery<Row> = CoreRenderer.RenderedQuery<Row, "postgres">
@@ -7,8 +7,8 @@ export type RowOf<Value extends RenderedQuery<any>> = CoreRenderer.RowOf<Value>
 /** Postgres-specialized renderer contract. */
 export type Renderer = CoreRenderer.Renderer<"postgres">
 
-export { TypeId } from "../Renderer.ts"
-export type { Projection } from "../Renderer.ts"
+export { TypeId } from "../renderer.ts"
+export type { Projection } from "../renderer.ts"
 
 /** Creates the built-in Postgres renderer. */
 export const make = (): Renderer =>

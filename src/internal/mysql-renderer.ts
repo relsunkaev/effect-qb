@@ -1,4 +1,4 @@
-import * as Query from "../Query.ts"
+import * as Query from "../query.ts"
 import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.ts"
 import { type RenderState } from "./dialect.ts"
 import { mysqlDialect } from "./mysql-dialect.ts"

@@ -1,4 +1,4 @@
-import * as Expression from "../Expression.ts"
+import * as Expression from "../expression.ts"
 import { groupingKeyOfExpression } from "./grouping-key.ts"
 
 /** Recursive selection value accepted by aggregate-shape validation. */

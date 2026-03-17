@@ -40,7 +40,7 @@ describe("dialect behavior", () => {
     ).execute(pgPlan))
     const myRows = Effect.runSync(Mysql.Executor.fromDriver(
       Mysql.Renderer.make(),
-      Mysql.Executor.driver("mysql", () => Effect.succeed([row]))
+      Mysql.Executor.driver(() => Effect.succeed([row]))
     ).execute(myPlan))
 
     expect(pgRows).toEqual(myRows)

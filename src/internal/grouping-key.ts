@@ -1,4 +1,4 @@
-import * as Expression from "../Expression.ts"
+import * as Expression from "../expression.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 
 const literalGroupingKey = (value: unknown): string => {

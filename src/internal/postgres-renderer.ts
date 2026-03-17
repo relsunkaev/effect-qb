@@ -1,4 +1,4 @@
-import * as Query from "../Query.ts"
+import * as Query from "../query.ts"
 import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.ts"
 import { flattenSelection, type Projection } from "./projections.ts"
 import { type RenderState } from "./dialect.ts"

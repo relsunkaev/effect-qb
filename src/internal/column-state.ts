@@ -1,7 +1,7 @@
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import * as Expression from "../Expression.ts"
+import * as Expression from "../expression.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 
 /** Symbol used to attach column-definition metadata. */

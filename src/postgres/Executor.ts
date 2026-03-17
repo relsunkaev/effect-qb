@@ -1,9 +1,9 @@
 import * as Effect from "effect/Effect"
 import * as SqlClient from "@effect/sql/SqlClient"
 
-import * as CoreExecutor from "../Executor.ts"
-import * as Query from "./Query.ts"
-import * as Renderer from "./Renderer.ts"
+import * as CoreExecutor from "../executor.ts"
+import * as Query from "./query.ts"
+import * as Renderer from "./renderer.ts"
 import {
   normalizePostgresDriverError,
   type PostgresDriverError

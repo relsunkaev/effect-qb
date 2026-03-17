@@ -1,8 +1,8 @@
 import { pipeArguments } from "effect/Pipeable"
 
-import * as Expression from "./Expression.ts"
-import * as Plan from "./Plan.ts"
-import * as Table from "./Table.ts"
+import * as Expression from "./expression.ts"
+import * as Plan from "./plan.ts"
+import * as Table from "./table.ts"
 import * as ExpressionAst from "./internal/expression-ast.ts"
 import * as QueryAst from "./internal/query-ast.ts"
 import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./internal/case-analysis.ts"

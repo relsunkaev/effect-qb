@@ -1,4 +1,4 @@
-import * as Expression from "../Expression.ts"
+import * as Expression from "../expression.ts"
 import {
   type CompletePlan,
   type DialectCompatiblePlan,
@@ -16,7 +16,7 @@ import {
   type RuntimeResultRow,
   type RuntimeResultRows,
   type StringExpressionInput
-} from "../Query.ts"
+} from "../query.ts"
 import { makeDialectQuery } from "../internal/query-factory.ts"
 
 const postgresQuery = makeDialectQuery({

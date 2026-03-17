@@ -1,4 +1,4 @@
-import type * as Renderer from "../../Renderer.ts"
+import type * as Renderer from "../../renderer.ts"
 import {
   getPostgresErrorDescriptor,
   isPostgresSqlStateCode,

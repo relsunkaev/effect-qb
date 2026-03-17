@@ -1,4 +1,4 @@
-import * as Expression from "../Expression.ts"
+import * as Expression from "../expression.ts"
 import type { RenderState, SqlDialect } from "./dialect.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 

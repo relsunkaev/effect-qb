@@ -1,4 +1,4 @@
-import type * as Expression from "../Expression.ts"
+import type * as Expression from "../expression.ts"
 
 /** Symbol used to attach internal expression-AST metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/ExpressionAst")

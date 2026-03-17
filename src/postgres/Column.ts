@@ -12,6 +12,6 @@ export {
   timestamp,
   unique,
   uuid
-} from "../Column.ts"
+} from "../column.ts"
 
-export type { Any, AnyBound } from "../Column.ts"
+export type { Any, AnyBound } from "../column.ts"
