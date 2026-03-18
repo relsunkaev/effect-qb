@@ -166,3 +166,20 @@ export type NullabilityOf<Value extends Any> = Value[typeof TypeId]["nullability
 export type DependenciesOf<Value extends Any> = Value[typeof TypeId]["dependencies"]
 /** Extracts how plan-scope nullability should apply to an expression. */
 export type SourceNullabilityOf<Value extends Any> = Value[typeof TypeId]["sourceNullability"]
+
+/** Maps a database type descriptor back to its decoded runtime type. */
+export type RuntimeOfDbType<Db extends DbType.Any> =
+  Db extends DbType.Json<any, any> ? unknown :
+    Db extends DbType.Base<any, infer Kind extends string>
+      ? Kind extends "text" | "uuid"
+        ? string
+        : Kind extends "int4" | "int" | "numeric" | "decimal"
+          ? number
+          : Kind extends "bool" | "boolean"
+            ? boolean
+            : Kind extends "timestamp"
+              ? Date
+              : Kind extends "null"
+                ? null
+                : unknown
+      : never

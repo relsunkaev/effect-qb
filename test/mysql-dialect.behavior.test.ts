@@ -128,6 +128,19 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual(["a", "b", "c", "done", "x", "mix", "MIX"])
   })
 
+  test("renders explicit casts with mysql syntax", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.select({
+      idAsText: Mysql.Query.cast(users.id, Mysql.Query.type.text())
+    }).pipe(Mysql.Query.from(users))
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe("select cast(`users`.`id` as char) as `idAsText` from `users`")
+    expect(rendered.params).toEqual([])
+  })
+
   test("renders boolean combinators and clause-level parameter ordering across mysql queries", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

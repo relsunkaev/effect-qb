@@ -139,24 +139,38 @@ const paginatedUserId: PaginatedRow["userId"] = "user-1"
 void paginatedUserId
 
 const predicateSurfaceApplied = Q.where(Q.and(
-  Q.neq(users.id, 1),
-  Q.lt(users.id, 2),
-  Q.lte(users.id, 3),
-  Q.gt(users.id, 0),
-  Q.gte(users.id, 0),
+  Q.neq(users.id, Q.cast("00000000-0000-0000-0000-000000000011", Q.type.uuid())),
+  Q.lt(users.id, Q.cast("00000000-0000-0000-0000-000000000012", Q.type.uuid())),
+  Q.lte(users.id, Q.cast("00000000-0000-0000-0000-000000000013", Q.type.uuid())),
+  Q.gt(users.id, Q.cast("00000000-0000-0000-0000-000000000014", Q.type.uuid())),
+  Q.gte(users.id, Q.cast("00000000-0000-0000-0000-000000000015", Q.type.uuid())),
   Q.like(users.email, "%@example.com"),
   Q.ilike(users.email, "%@EXAMPLE.COM%"),
-  Q.between(users.id, 4, 6),
-  Q.in(users.id, 7, 8, 9)
+  Q.between(
+    users.id,
+    Q.cast("00000000-0000-0000-0000-000000000016", Q.type.uuid()),
+    Q.cast("00000000-0000-0000-0000-000000000017", Q.type.uuid())
+  ),
+  Q.in(
+    users.id,
+    Q.cast("00000000-0000-0000-0000-000000000007", Q.type.uuid()),
+    Q.cast("00000000-0000-0000-0000-000000000008", Q.type.uuid()),
+    Q.cast("00000000-0000-0000-0000-000000000009", Q.type.uuid())
+  )
 ))(predicateSurfacePlan)
 void predicateSurfaceApplied
 
 const predicateHelpersPlan = Q.select({
   distinctEmail: Q.isDistinctFrom(users.email, "alice@example.com"),
   sameEmail: Q.isNotDistinctFrom(users.email, "alice@example.com"),
-  notInIds: Q.notIn(users.id, 4, 5, 6),
+  notInIds: Q.notIn(
+    users.id,
+    Q.cast("00000000-0000-0000-0000-000000000004", Q.type.uuid()),
+    Q.cast("00000000-0000-0000-0000-000000000005", Q.type.uuid()),
+    Q.cast("00000000-0000-0000-0000-000000000006", Q.type.uuid())
+  ),
   combined: Q.all(
-    Q.eq(users.id, 1),
+    Q.eq(users.id, Q.cast("00000000-0000-0000-0000-000000000001", Q.type.uuid())),
     Q.any(
       Q.eq(users.email, "alice@example.com"),
       Q.eq(users.email, "bob@example.com")
@@ -183,6 +197,28 @@ void predicateHelpersNotIn
 void predicateHelpersCombined
 void predicateHelpersLabelValue
 void predicateHelpersLabel
+
+// @ts-expect-error incompatible comparison families should be rejected
+Q.eq(users.id, users.email)
+
+// @ts-expect-error incompatible membership family should be rejected
+Q.in(users.id, users.email, Q.cast("00000000-0000-0000-0000-000000000010", Q.type.uuid()))
+
+// @ts-expect-error incompatible text operator family should be rejected
+Q.like(users.id, "%@example.com")
+
+// @ts-expect-error incompatible simple-case comparison should be rejected
+Q.match(users.id).when(users.email, "bad").else("ok")
+
+const castPlan = Q.select({
+  idAsText: Q.cast(users.id, Q.type.text())
+}).pipe(
+  Q.from(users)
+)
+
+type CastPlanRow = Q.ResultRow<typeof castPlan>
+const castRowId: CastPlanRow["idAsText"] = "user-1"
+void castRowId
 
 // @ts-expect-error distinct is select-only
 Q.distinct()(Q.delete(users))

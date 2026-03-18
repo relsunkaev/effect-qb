@@ -48,6 +48,8 @@ const mysqlQuery = makeDialectQuery({
 })
 
 export const literal = mysqlQuery.literal
+export const cast = mysqlQuery.cast
+export const type = mysqlQuery.type
 export const eq = mysqlQuery.eq
 export const neq = mysqlQuery.neq
 export const lt = mysqlQuery.lt

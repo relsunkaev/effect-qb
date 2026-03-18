@@ -114,7 +114,7 @@ const filteredOptionalSource = Q.select({
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
   Q.where(Q.and(
     Q.isNotNull(posts.title),
-    Q.eq(posts.id, "post-id")
+    Q.eq(posts.id, Q.cast("00000000-0000-0000-0000-000000000018", Q.type.uuid()))
   ))
 )
 

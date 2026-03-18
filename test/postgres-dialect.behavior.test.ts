@@ -128,6 +128,19 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual(["a", "b", "c", "done", "x", "mix", "MIX"])
   })
 
+  test("renders explicit casts with postgres syntax", () => {
+    const { users } = makePostgresSocialGraph()
+
+    const plan = Postgres.Query.select({
+      idAsText: Postgres.Query.cast(users.id, Postgres.Query.type.text())
+    }).pipe(Postgres.Query.from(users))
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe('select cast("users"."id" as text) as "idAsText" from "users"')
+    expect(rendered.params).toEqual([])
+  })
+
   test("renders boolean combinators and clause-level parameter ordering across postgres queries", () => {
     const { users, posts } = makePostgresSocialGraph()
 

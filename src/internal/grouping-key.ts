@@ -29,6 +29,8 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
       return `column:${ast.tableName}.${ast.columnName}`
     case "literal":
       return `literal:${literalGroupingKey(ast.value)}`
+    case "cast":
+      return `cast(${groupingKeyOfExpression(ast.value)} as ${ast.target.dialect}:${ast.target.kind})`
     case "isNull":
     case "isNotNull":
     case "not":

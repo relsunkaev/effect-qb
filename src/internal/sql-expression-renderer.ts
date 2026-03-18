@@ -17,6 +17,32 @@ const renderDbType = (
   return dbType.kind
 }
 
+const renderCastType = (
+  dialect: SqlDialect,
+  dbType: Expression.DbType.Any
+): string => {
+  if (dialect.name !== "mysql") {
+    return dbType.kind
+  }
+  switch (dbType.kind) {
+    case "text":
+      return "char"
+    case "uuid":
+      return "char(36)"
+    case "numeric":
+      return "decimal"
+    case "timestamp":
+      return "datetime"
+    case "bool":
+    case "boolean":
+      return "boolean"
+    case "json":
+      return "json"
+    default:
+      return dbType.kind
+  }
+}
+
 const renderColumnDefinition = (
   dialect: SqlDialect,
   columnName: string,
@@ -385,6 +411,8 @@ export const renderExpression = (
       return `${dialect.quoteIdentifier(ast.tableName)}.${dialect.quoteIdentifier(ast.columnName)}`
     case "literal":
       return dialect.renderLiteral(ast.value, state)
+    case "cast":
+      return `cast(${renderExpression(ast.value, state, dialect)} as ${renderCastType(dialect, ast.target)})`
     case "eq":
       return `(${renderExpression(ast.left, state, dialect)} = ${renderExpression(ast.right, state, dialect)})`
     case "neq":

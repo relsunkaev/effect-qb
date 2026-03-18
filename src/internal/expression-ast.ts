@@ -22,6 +22,16 @@ export interface LiteralNode<Value = unknown> {
   readonly value: Value
 }
 
+/** Explicit type cast captured by the internal expression AST. */
+export interface CastNode<
+  Value extends Expression.Any = Expression.Any,
+  Target extends Expression.DbType.Any = Expression.DbType.Any
+> {
+  readonly kind: "cast"
+  readonly value: Value
+  readonly target: Target
+}
+
 /** Unary expression kinds supported by the current query layer. */
 export type UnaryKind =
   | "isNull"
@@ -134,6 +144,7 @@ export interface WindowNode<
 export type Any =
   | ColumnNode
   | LiteralNode
+  | CastNode
   | UnaryNode
   | BinaryNode
   | VariadicNode

@@ -1,6 +1,9 @@
 import * as Expression from "../expression.ts"
 import * as Plan from "../plan.ts"
 import * as Table from "../table.ts"
+import type { CastTargetError, OperandCompatibilityError } from "./coercion-errors.ts"
+import type { RuntimeOfDbType } from "./coercion-analysis.ts"
+import type { CanCastDbType, CanCompareDbTypes, CanTextuallyCoerceDbType } from "./coercion-rules.ts"
 import {
   currentRequiredList,
   extractRequiredRuntime,
@@ -156,9 +159,9 @@ type DialectAsExpression<
   ? Value
   : DialectLiteralExpression<Extract<Value, LiteralValue>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 
-/** Normalizes a generic string input into the expression form used internally. */
+/** Normalizes a generic string-capable input into the expression form used internally. */
 type DialectAsStringExpression<
-  Value extends StringExpressionInput,
+  Value extends ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -167,7 +170,9 @@ type DialectAsStringExpression<
   NullDb extends Expression.DbType.Any
 > = Value extends Expression.Any
   ? Value
-  : DialectLiteralExpression<Extract<Value, string>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+  : Value extends string
+    ? DialectLiteralExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    : never
 
 /** Normalizes a numeric-clause input into the expression form used internally. */
 type DialectAsNumericExpression<
@@ -181,6 +186,311 @@ type DialectAsNumericExpression<
 > = Value extends Expression.Any
   ? Value
   : DialectLiteralExpression<Extract<Value, number>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+
+/** Database type carried by a dialect-specialized scalar input. */
+type DialectDbTypeOfInput<
+  Value extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Expression.DbTypeOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+
+type ComparableInput<
+  Left extends ExpressionInput,
+  Right extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = CanCompareDbTypes<
+  DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Dialect
+> extends true ? Right : OperandCompatibilityError<
+    Operator,
+    DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Dialect,
+    "the same db type family"
+  >
+
+type TextInput<
+  Value extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = CanTextuallyCoerceDbType<
+  DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Dialect
+> extends true ? Value : OperandCompatibilityError<
+    Operator,
+    DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Dialect,
+    "a text-compatible db type"
+  >
+
+type CastTarget<
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any
+> =
+  | TextDb
+  | NumericDb
+  | BoolDb
+  | TimestampDb
+  | Expression.DbType.Base<Dialect, "uuid">
+  | Expression.DbType.Base<Dialect, "json">
+
+type CastResult<
+  Value extends ExpressionInput,
+  Target extends Expression.DbType.Any,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Expression.Expression<
+  RuntimeOfDbType<Target>,
+  Target,
+  Expression.NullabilityOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+  Dialect,
+  AggregationOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+  SourceOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Expression.SourceNullabilityOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> & {
+  readonly [ExpressionAst.TypeId]: ExpressionAst.CastNode<
+    DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Target
+  >
+}
+
+type CastInput<
+  Value extends ExpressionInput,
+  Target extends Expression.DbType.Any,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = CanCastDbType<
+    DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Target,
+    Dialect
+  > extends true ? Target : CastTargetError<
+    DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Target,
+    Dialect
+  >
+
+type ComparableGuard<
+  Left extends ExpressionInput,
+  Right extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = CanCompareDbTypes<
+  DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Dialect
+> extends true ? true : OperandCompatibilityError<
+  Operator,
+  DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Dialect,
+  "the same db type family"
+>
+
+type TextGuard<
+  Value extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = CanTextuallyCoerceDbType<
+  DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Dialect
+> extends true ? true : OperandCompatibilityError<
+  Operator,
+  DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Dialect,
+  "a text-compatible db type"
+>
+
+type CastGuard<
+  Value extends ExpressionInput,
+  Target extends Expression.DbType.Any,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = CanCastDbType<
+  DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Target,
+  Dialect
+> extends true ? true : CastTargetError<
+  DialectDbTypeOfInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Target,
+  Dialect
+>
+
+type TextTupleGuard<
+  Values extends readonly ExpressionInput[],
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = Values extends readonly [infer Head extends ExpressionInput, ...infer Tail extends readonly ExpressionInput[]]
+  ? Tail extends readonly []
+    ? TextGuard<Head, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>
+    : TextGuard<Head, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
+      ? TextTupleGuard<Tail, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>
+      : TextGuard<Head, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>
+  : true
+
+type ComparableTupleGuard<
+  Values extends readonly ExpressionInput[],
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = Values extends readonly [infer Head extends ExpressionInput, ...infer Tail extends readonly ExpressionInput[]]
+  ? Tail extends readonly []
+    ? true
+    : ComparableGuard<Values[0], Head, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
+      ? ComparableTupleGuard<[Values[0], ...Tail], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>
+      : ComparableGuard<Values[0], Head, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>
+  : true
+
+type ComparableArgs<
+  Left extends ExpressionInput,
+  Right extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = ComparableGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
+  ? readonly [left: Left, right: Right]
+  : readonly [ComparableGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
+
+type TextArgs<
+  Left extends ExpressionInput,
+  Right extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = TextGuard<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
+  ? TextGuard<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
+    ? readonly [left: Left, right: Right]
+    : readonly [TextGuard<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
+  : readonly [TextGuard<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
+
+type MembershipArgs<
+  Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]],
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = ComparableTupleGuard<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
+  ? Values
+  : readonly [ComparableTupleGuard<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
+
+type BetweenArgs<
+  Value extends ExpressionInput,
+  Lower extends ExpressionInput,
+  Upper extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = ComparableGuard<
+  Value,
+  Lower,
+  Dialect,
+  TextDb,
+  NumericDb,
+  BoolDb,
+  TimestampDb,
+  NullDb,
+  "between"
+> extends true
+  ? ComparableGuard<
+      Value,
+      Upper,
+      Dialect,
+      TextDb,
+      NumericDb,
+      BoolDb,
+      TimestampDb,
+      NullDb,
+      "between"
+    > extends true
+      ? readonly [value: Value, lower: Lower, upper: Upper]
+      : readonly [ComparableGuard<
+          Value,
+          Upper,
+          Dialect,
+          TextDb,
+          NumericDb,
+          BoolDb,
+          TimestampDb,
+          NullDb,
+          "between"
+        >]
+  : readonly [ComparableGuard<
+      Value,
+      Lower,
+      Dialect,
+      TextDb,
+      NumericDb,
+      BoolDb,
+      TimestampDb,
+      NullDb,
+      "between"
+    >]
 
 /** Provenance carried by a dialect-specialized scalar input. */
 type SourceOfDialectInput<
@@ -228,7 +538,7 @@ type RequiredFromDialectInput<
 
 /** Provenance carried by a dialect-specialized string input. */
 type SourceOfDialectStringInput<
-  Value extends StringExpressionInput,
+  Value extends ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -239,7 +549,7 @@ type SourceOfDialectStringInput<
 
 /** Dialect carried by a dialect-specialized string input. */
 type DialectOfDialectStringInput<
-  Value extends StringExpressionInput,
+  Value extends ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -250,7 +560,7 @@ type DialectOfDialectStringInput<
 
 /** Dependency map carried by a dialect-specialized string input. */
 type DependenciesOfDialectStringInput<
-  Value extends StringExpressionInput,
+  Value extends ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -261,7 +571,7 @@ type DependenciesOfDialectStringInput<
 
 /** Intrinsic nullability carried by a dialect-specialized string input. */
 type NullabilityOfDialectStringInput<
-  Value extends StringExpressionInput,
+  Value extends ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -357,7 +667,7 @@ type DialectExpressionTuple<
 
 /** Normalized expression tuple for generic string operator inputs. */
 type DialectStringExpressionTuple<
-  Values extends readonly StringExpressionInput[],
+  Values extends readonly ExpressionInput[],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -506,9 +816,9 @@ type MatchBuilder<
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-  > = {
+> = {
   when<Compare extends ExpressionInput, Then extends ExpressionInput>(
-    compare: Compare,
+    compare: Compare & ComparableInput<Subject, Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
     result: Then
   ): MatchBuilder<
     Subject,
@@ -573,7 +883,7 @@ type MatchStarter<
   NullDb extends Expression.DbType.Any
 > = {
   when<Compare extends ExpressionInput, Then extends ExpressionInput>(
-    compare: Compare,
+    compare: Compare & ComparableInput<Subject, Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
     result: Then
   ): MatchBuilder<
     Subject,
@@ -834,9 +1144,15 @@ export function makeDialectQuery<
     BoolDb,
     Nullability,
     DialectOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    MergeAggregation<AggregationOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>, AggregationOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    MergeAggregation<
+      AggregationOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      AggregationOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+    >,
     SourceOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | SourceOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    DependencyRecord<
+      RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> |
+      RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    >,
     ExpressionAst.BinaryNode<
       Kind,
       DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -871,10 +1187,10 @@ export function makeDialectQuery<
     kind: Kind,
     nullability: Nullability = "maybe" as Nullability,
     sourceNullability: SourceNullability = "propagate" as SourceNullability
-  ): BinaryPredicateExpression<Left, Right, Kind, Nullability, SourceNullability> => {
+  ): any => {
     const leftExpression = toDialectExpression(left)
     const rightExpression = toDialectExpression(right)
-    return makeExpression({
+    return (makeExpression as any)({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability,
@@ -889,11 +1205,11 @@ export function makeDialectQuery<
         leftExpression[Expression.TypeId].dependencies,
         rightExpression[Expression.TypeId].dependencies
       ) as DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
-    }, {
+    } as any, {
       kind,
       left: leftExpression,
       right: rightExpression
-    })
+    }) as any
   }
 
   const buildVariadicPredicate = <
@@ -903,7 +1219,7 @@ export function makeDialectQuery<
     values: Values,
     kind: Kind
   ): VariadicPredicateExpression<Values, Kind> => {
-    const expressions = values.map((value) => toDialectExpression(value)) as DialectExpressionTuple<
+    const expressions = values.map((value) => toDialectExpression(value as any)) as DialectExpressionTuple<
       Values,
       Dialect,
       TextDb,
@@ -931,91 +1247,101 @@ export function makeDialectQuery<
     Left extends ExpressionInput,
     Right extends ExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "eq"> =>
-    buildBinaryPredicate(left, right, "eq")
+    ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "eq">
+  ): BinaryPredicateExpression<Left, Right, "eq"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "eq")
+  }
 
   const neq = <
     Left extends ExpressionInput,
     Right extends ExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "neq"> =>
-    buildBinaryPredicate(left, right, "neq")
+    ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "neq">
+  ): BinaryPredicateExpression<Left, Right, "neq"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "neq")
+  }
 
   const lt = <
     Left extends ExpressionInput,
     Right extends ExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "lt"> =>
-    buildBinaryPredicate(left, right, "lt")
+    ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "lt">
+  ): BinaryPredicateExpression<Left, Right, "lt"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "lt")
+  }
 
   const lte = <
     Left extends ExpressionInput,
     Right extends ExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "lte"> =>
-    buildBinaryPredicate(left, right, "lte")
+    ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "lte">
+  ): BinaryPredicateExpression<Left, Right, "lte"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "lte")
+  }
 
   const gt = <
     Left extends ExpressionInput,
     Right extends ExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "gt"> =>
-    buildBinaryPredicate(left, right, "gt")
+    ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "gt">
+  ): BinaryPredicateExpression<Left, Right, "gt"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "gt")
+  }
 
   const gte = <
     Left extends ExpressionInput,
     Right extends ExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "gte"> =>
-    buildBinaryPredicate(left, right, "gte")
+    ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "gte">
+  ): BinaryPredicateExpression<Left, Right, "gte"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "gte")
+  }
 
   const like = <
     Left extends StringExpressionInput,
     Right extends StringExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "like"> =>
-    buildBinaryPredicate(left, right, "like")
+    ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "like">
+  ): BinaryPredicateExpression<Left, Right, "like"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "like")
+  }
 
   const ilike = <
     Left extends StringExpressionInput,
     Right extends StringExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "ilike"> =>
-    buildBinaryPredicate(left, right, "ilike")
+    ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "ilike">
+  ): BinaryPredicateExpression<Left, Right, "ilike"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "ilike")
+  }
 
   const isDistinctFrom = <
     Left extends ExpressionInput,
     Right extends ExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "isDistinctFrom", "never", "resolved"> =>
-    buildBinaryPredicate(left, right, "isDistinctFrom", "never", "resolved")
+    ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "isDistinctFrom">
+  ): BinaryPredicateExpression<Left, Right, "isDistinctFrom", "never", "resolved"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "isDistinctFrom", "never", "resolved")
+  }
 
   const isNotDistinctFrom = <
     Left extends ExpressionInput,
     Right extends ExpressionInput
   >(
-    left: Left,
-    right: Right
-  ): BinaryPredicateExpression<Left, Right, "isNotDistinctFrom", "never", "resolved"> =>
-    buildBinaryPredicate(left, right, "isNotDistinctFrom", "never", "resolved")
+    ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "isNotDistinctFrom">
+  ): BinaryPredicateExpression<Left, Right, "isNotDistinctFrom", "never", "resolved"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "isNotDistinctFrom", "never", "resolved")
+  }
 
   const isNull = <Value extends ExpressionInput>(
     value: Value
@@ -1075,7 +1401,7 @@ export function makeDialectQuery<
     })
   }
 
-  const upper = <Value extends StringExpressionInput>(
+  const upper = <Value extends ExpressionInput>(
     value: Value
   ): AstBackedExpression<
     string,
@@ -1087,7 +1413,7 @@ export function makeDialectQuery<
     DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     ExpressionAst.UnaryNode<"upper", DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
-    const expression = toDialectStringExpression(value)
+    const expression = toDialectStringExpression(value as any)
     return makeExpression({
       runtime: "" as string,
       dbType: profile.textDb as TextDb,
@@ -1103,7 +1429,7 @@ export function makeDialectQuery<
     })
   }
 
-  const lower = <Value extends StringExpressionInput>(
+  const lower = <Value extends ExpressionInput>(
     value: Value
   ): AstBackedExpression<
     string,
@@ -1115,7 +1441,7 @@ export function makeDialectQuery<
     DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     ExpressionAst.UnaryNode<"lower", DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
-    const expression = toDialectStringExpression(value)
+    const expression = toDialectStringExpression(value as any)
     return makeExpression({
       runtime: "" as string,
       dbType: profile.textDb as TextDb,
@@ -1129,6 +1455,48 @@ export function makeDialectQuery<
       kind: "lower",
       value: expression
     })
+  }
+
+  const cast = <
+    Value extends ExpressionInput,
+    Target extends CastTarget<Dialect, TextDb, NumericDb, BoolDb, TimestampDb>
+  >(
+    value: Value,
+    target: Target
+  ): CastResult<
+    Value,
+    Target,
+    Dialect,
+    TextDb,
+    NumericDb,
+    BoolDb,
+    TimestampDb,
+    NullDb
+  > => {
+    const expression = toDialectExpression(value as any)
+    return makeExpression({
+      runtime: undefined as unknown as RuntimeOfDbType<Target>,
+      dbType: target as Target,
+      nullability: expression[Expression.TypeId].nullability,
+      dialect: expression[Expression.TypeId].dialect,
+      aggregation: expression[Expression.TypeId].aggregation,
+      source: expression[Expression.TypeId].source,
+      sourceNullability: expression[Expression.TypeId].sourceNullability,
+      dependencies: expression[Expression.TypeId].dependencies
+    }, {
+      kind: "cast",
+      value: expression,
+      target: target as Target
+    }) as CastResult<Value, Target, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+  }
+
+  const type = {
+    text: () => profile.textDb,
+    numeric: () => profile.numericDb,
+    boolean: () => profile.boolDb,
+    timestamp: () => profile.timestampDb,
+    uuid: () => ({ dialect: profile.dialect, kind: "uuid" } as Expression.DbType.Base<Dialect, "uuid">),
+    json: () => ({ dialect: profile.dialect, kind: "json" } as Expression.DbType.Base<Dialect, "json">)
   }
 
   const and = <
@@ -1224,32 +1592,58 @@ export function makeDialectQuery<
   }
 
   const in_ = <
-    Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
+    Head extends ExpressionInput,
+    Tail extends readonly [ExpressionInput, ...ExpressionInput[]]
   >(
-    ...values: Values
-  ): VariadicPredicateExpression<Values, "in"> =>
-    buildVariadicPredicate(values, "in")
+    head: Head,
+    ...tail: {
+      readonly [K in keyof Tail]: Tail[K] & ComparableInput<
+        Head,
+        Tail[K],
+        Dialect,
+        TextDb,
+        NumericDb,
+        BoolDb,
+        TimestampDb,
+        NullDb,
+        "in"
+      >
+    }
+  ): VariadicPredicateExpression<[Head, ...Tail], "in"> =>
+    buildVariadicPredicate([head, ...tail] as [Head, ...Tail], "in")
 
   const notIn = <
-    Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
+    Head extends ExpressionInput,
+    Tail extends readonly [ExpressionInput, ...ExpressionInput[]]
   >(
-    ...values: Values
-  ): VariadicPredicateExpression<Values, "notIn"> =>
-    buildVariadicPredicate(values, "notIn")
+    head: Head,
+    ...tail: {
+      readonly [K in keyof Tail]: Tail[K] & ComparableInput<
+        Head,
+        Tail[K],
+        Dialect,
+        TextDb,
+        NumericDb,
+        BoolDb,
+        TimestampDb,
+        NullDb,
+        "notIn"
+      >
+    }
+  ): VariadicPredicateExpression<[Head, ...Tail], "notIn"> =>
+    buildVariadicPredicate([head, ...tail] as [Head, ...Tail], "notIn")
 
   const between = <
     Value extends ExpressionInput,
     Lower extends ExpressionInput,
     Upper extends ExpressionInput
   >(
-    value: Value,
-    lower: Lower,
-    upper: Upper
+    ...values: BetweenArgs<Value, Lower, Upper, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   ): VariadicPredicateExpression<[Value, Lower, Upper], "between"> =>
-    buildVariadicPredicate([value, lower, upper], "between")
+    buildVariadicPredicate(values as [Value, Lower, Upper], "between")
 
   const concat = <
-    Values extends readonly [StringExpressionInput, StringExpressionInput, ...StringExpressionInput[]]
+    Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
   >(
     ...values: Values
   ): AstBackedExpression<
@@ -1262,7 +1656,7 @@ export function makeDialectQuery<
     TupleDependencies<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     ExpressionAst.VariadicNode<"concat", DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
-    const expressions = values.map((value) => toDialectStringExpression(value)) as DialectStringExpressionTuple<
+    const expressions = values.map((value) => toDialectStringExpression(value as any)) as DialectStringExpressionTuple<
       Values,
       Dialect,
       TextDb,
@@ -1657,14 +2051,14 @@ export function makeDialectQuery<
     const build = (
       branches: readonly RuntimeCaseBranch[]
     ): {
-      when: (compare: ExpressionInput, result: ExpressionInput) => unknown
+      when<Compare extends ExpressionInput>(compare: Compare & ComparableInput<Value, Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">, result: ExpressionInput): unknown
       else: (fallback: ExpressionInput) => Expression.Any
     } => ({
       when(compare, result) {
         return build([
           ...branches,
           {
-            when: eq(subject, compare),
+            when: buildBinaryPredicate(subject as ExpressionInput, compare as ExpressionInput, "eq"),
             then: toDialectExpression(result)
           }
         ])
@@ -1675,8 +2069,11 @@ export function makeDialectQuery<
     })
 
     return {
-      when<Compare extends ExpressionInput, Then extends ExpressionInput>(compare: Compare, result: Then) {
-        const predicate = eq(subject, compare)
+      when<Compare extends ExpressionInput, Then extends ExpressionInput>(
+        compare: ComparableInput<Value, Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
+        result: Then
+      ) {
+        const predicate = buildBinaryPredicate(subject as ExpressionInput, compare as ExpressionInput, "eq")
         return build([{
           when: predicate,
           then: toDialectExpression(result)
@@ -2982,6 +3379,8 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
 
   const api = {
     literal,
+    cast,
+    type,
     eq,
     neq,
     lt,

@@ -17,6 +17,20 @@ export type {
   QueryRequirement
 } from "./internal/query-requirements.ts"
 export type {
+  ComparableDbType,
+  RuntimeOfDbType,
+  TextCompatibleDbType,
+  CastableDbType
+} from "./internal/coercion-analysis.ts"
+export type {
+  CoercionKind,
+  CoercionKindOf
+} from "./internal/coercion-kind.ts"
+export type {
+  CanCastDbType,
+  CanCompareDbTypes
+} from "./internal/coercion-rules.ts"
+export type {
   ConflictClause,
   LockClause,
   QueryStatement,
@@ -241,8 +255,10 @@ type GroupingKeyOfAst<Ast extends ExpressionAst.Any> =
     ? `column:${TableName}.${ColumnName}`
     : Ast extends ExpressionAst.LiteralNode<infer Value>
       ? `literal:${LiteralGroupingKey<Value>}`
-      : Ast extends ExpressionAst.UnaryNode<infer Kind extends ExpressionAst.UnaryKind, infer Value extends Expression.Any>
-        ? `${Kind}(${GroupingKeyOfExpression<Value>})`
+    : Ast extends ExpressionAst.CastNode<infer Value extends Expression.Any, infer Target extends Expression.DbType.Any>
+      ? `cast(${GroupingKeyOfExpression<Value>} as ${Target["dialect"]}:${Target["kind"]})`
+    : Ast extends ExpressionAst.UnaryNode<infer Kind extends ExpressionAst.UnaryKind, infer Value extends Expression.Any>
+      ? `${Kind}(${GroupingKeyOfExpression<Value>})`
     : Ast extends ExpressionAst.BinaryNode<infer Kind extends ExpressionAst.BinaryKind, infer Left extends Expression.Any, infer Right extends Expression.Any>
       ? `${Kind}(${GroupingKeyOfExpression<Left>},${GroupingKeyOfExpression<Right>})`
       : Ast extends ExpressionAst.VariadicNode<infer Kind extends ExpressionAst.VariadicKind, infer Values extends readonly Expression.Any[]>
