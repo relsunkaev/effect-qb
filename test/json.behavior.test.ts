@@ -15,6 +15,12 @@ const payloadSchema = Schema.Struct({
   note: Schema.NullOr(Schema.String)
 })
 
+const mutationSchema = Schema.Struct({
+  profile: Schema.Struct({
+    city: Schema.String
+  })
+})
+
 const makeTable = <TableModule extends typeof Postgres | typeof Mysql>(table: TableModule) =>
   table.Table.make("docs", {
     id: table.Column.uuid().pipe(table.Column.primaryKey),
@@ -200,5 +206,81 @@ describe("json behavior", () => {
         }
       }
     })
+  })
+
+  test("postgres and mysql render json-backed insert and update mutations", () => {
+    const renderMutation = <TableModule extends typeof Postgres | typeof Mysql>(table: TableModule) => {
+      const docs = table.Table.make("docs", {
+        id: table.Column.uuid().pipe(table.Column.primaryKey),
+        payload: table.Column.json(mutationSchema)
+      })
+
+      const insertPlan = table.Query.insert(docs, {
+        id: "doc-1",
+        payload: table.Query.json.buildObject({
+          profile: {
+            city: "Paris"
+          }
+        })
+      })
+
+      const updatePlan = table.Query.update(docs, {
+        payload: table.Query.json.merge(
+          docs.payload,
+          table.Query.json.buildObject({
+            profile: {
+              city: "Paris"
+            }
+          })
+        )
+      })
+
+      return {
+        insert: table.Renderer.make().render(insertPlan),
+        update: table.Renderer.make().render(updatePlan)
+      }
+    }
+
+    const postgres = renderMutation(Postgres)
+    expect(postgres.insert.sql).toBe(
+      'insert into "docs" ("id", "payload") values ($1, jsonb_build_object($2, $3))'
+    )
+    expect(postgres.insert.params).toEqual([
+      "doc-1",
+      "profile",
+      {
+        city: "Paris"
+      }
+    ])
+    expect(postgres.update.sql).toBe(
+      'update "docs" set "payload" = (cast("docs"."payload" as jsonb) || cast(jsonb_build_object($1, $2) as jsonb))'
+    )
+    expect(postgres.update.params).toEqual([
+      "profile",
+      {
+        city: "Paris"
+      }
+    ])
+
+    const mysql = renderMutation(Mysql)
+    expect(mysql.insert.sql).toBe(
+      "insert into `docs` (`id`, `payload`) values (?, json_object(?, ?))"
+    )
+    expect(mysql.insert.params).toEqual([
+      "doc-1",
+      "profile",
+      {
+        city: "Paris"
+      }
+    ])
+    expect(mysql.update.sql).toBe(
+      "update `docs` set `payload` = json_merge_preserve(`docs`.`payload`, json_object(?, ?))"
+    )
+    expect(mysql.update.params).toEqual([
+      "profile",
+      {
+        city: "Paris"
+      }
+    ])
   })
 })
