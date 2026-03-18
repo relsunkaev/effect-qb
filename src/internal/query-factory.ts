@@ -76,6 +76,23 @@ import {
   type TupleSource
 } from "../query.ts"
 import * as ExpressionAst from "./expression-ast.ts"
+import type { JsonNode } from "./json/ast.ts"
+import type { JsonPathUsageError } from "./json/errors.ts"
+import * as JsonPath from "./json/path.ts"
+import type {
+  JsonConcatResult,
+  JsonDeleteAtPath,
+  JsonInsertAtPath,
+  JsonKeysResult,
+  JsonLengthResult,
+  JsonLiteralInput,
+  JsonStripNullsResult,
+  JsonSetAtPath,
+  JsonTextResult,
+  JsonTypeName,
+  JsonValueAtPath,
+  NormalizeJsonLiteral
+} from "./json/types.ts"
 import type { AssumeTrue } from "./predicate-analysis.ts"
 import type { TrueFormula } from "./predicate-formula.ts"
 import { dedupeGroupedExpressions } from "./grouping-key.ts"
@@ -749,6 +766,149 @@ type AstBackedExpression<
 > & {
   readonly [ExpressionAst.TypeId]: Ast
 }
+
+type JsonRuntime<Value> = NormalizeJsonLiteral<Value> extends never
+  ? unknown
+  : NormalizeJsonLiteral<Value>
+
+type JsonDb<
+  Dialect extends string,
+  Kind extends string = "json"
+> = Expression.DbType.Json<Dialect, Kind>
+
+type JsonExpression<
+  Runtime,
+  Db extends Expression.DbType.Any,
+  Nullability extends Expression.Nullability,
+  Dialect extends string,
+  Aggregation extends Expression.AggregationKind,
+  Source,
+  Dependencies extends Expression.SourceDependencies,
+  Ast extends ExpressionAst.Any,
+  SourceNullability extends Expression.SourceNullabilityMode = "propagate"
+> = AstBackedExpression<
+  Runtime,
+  Db,
+  Nullability,
+  Dialect,
+  Aggregation,
+  Source,
+  Dependencies,
+  Ast,
+  SourceNullability
+>
+
+type JsonExpressionLike<Runtime = unknown> = Expression.Expression<
+  Runtime,
+  Expression.DbType.Json<any, any>,
+  Expression.Nullability,
+  string,
+  Expression.AggregationKind,
+  any,
+  Expression.SourceDependencies,
+  Expression.SourceNullabilityMode
+>
+
+type JsonValueInput = JsonLiteralInput | Expression.Any
+
+type JsonPathInput = JsonPath.Path<any> | JsonPath.CanonicalSegment
+
+type JsonQueryInput = JsonPath.Path<any> | StringExpressionInput
+
+type JsonPathOutputOf<
+  Root,
+  Target extends JsonPathInput,
+  Operation extends string
+> = Target extends JsonPath.Path<any>
+  ? JsonValueAtPath<Root, Target, Operation>
+  : Target extends JsonPath.CanonicalSegment
+    ? JsonValueAtPath<Root, JsonPath.Path<[Target]>, Operation>
+    : never
+
+type JsonDeleteOutputOf<
+  Root,
+  Target extends JsonPathInput,
+  Operation extends string
+> = Target extends JsonPath.Path<any>
+  ? JsonDeleteAtPath<Root, Target, Operation>
+  : Target extends JsonPath.CanonicalSegment
+    ? JsonDeleteAtPath<Root, JsonPath.Path<[Target]>, Operation>
+    : never
+
+type JsonSetOutputOf<
+  Root,
+  Target extends JsonPathInput,
+  Next,
+  Operation extends string
+> = Target extends JsonPath.Path<any>
+  ? JsonSetAtPath<Root, Target, Next, Operation>
+  : Target extends JsonPath.CanonicalSegment
+    ? JsonSetAtPath<Root, JsonPath.Path<[Target]>, Next, Operation>
+    : never
+
+type JsonInsertOutputOf<
+  Root,
+  Target extends JsonPathInput,
+  Next,
+  InsertAfter extends boolean,
+  Operation extends string
+> = Target extends JsonPath.Path<any>
+  ? JsonInsertAtPath<Root, Target, Next, InsertAfter, Operation>
+  : Target extends JsonPath.CanonicalSegment
+    ? JsonInsertAtPath<Root, JsonPath.Path<[Target]>, Next, InsertAfter, Operation>
+    : never
+
+type JsonPathGuard<
+  Root,
+  Target extends JsonPathInput,
+  Operation extends string
+> = JsonPathOutputOf<Root, Target, Operation> extends JsonPathUsageError<any, any, any, any>
+  ? JsonPathOutputOf<Root, Target, Operation>
+  : unknown
+
+type JsonDeleteGuard<
+  Root,
+  Target extends JsonPathInput,
+  Operation extends string
+> = JsonDeleteOutputOf<Root, Target, Operation> extends JsonPathUsageError<any, any, any, any>
+  ? JsonDeleteOutputOf<Root, Target, Operation>
+  : unknown
+
+type JsonSetGuard<
+  Root,
+  Target extends JsonPathInput,
+  Next,
+  Operation extends string
+> = JsonSetOutputOf<Root, Target, Next, Operation> extends JsonPathUsageError<any, any, any, any>
+  ? JsonSetOutputOf<Root, Target, Next, Operation>
+  : unknown
+
+type JsonInsertGuard<
+  Root,
+  Target extends JsonPathInput,
+  Next,
+  InsertAfter extends boolean,
+  Operation extends string
+> = JsonInsertOutputOf<Root, Target, Next, InsertAfter, Operation> extends JsonPathUsageError<any, any, any, any>
+  ? JsonInsertOutputOf<Root, Target, Next, InsertAfter, Operation>
+  : unknown
+
+type JsonNullabilityOf<Output> =
+  null extends Output
+    ? Exclude<Output, null> extends never ? "always" : "maybe"
+    : "never"
+
+type JsonOutputOfInput<Value> = Value extends Expression.Any
+  ? JsonRuntime<Expression.RuntimeOf<Value>>
+  : JsonRuntime<Value>
+
+type JsonObjectOutput<Shape extends Record<string, JsonValueInput>> = {
+  readonly [K in keyof Shape]: JsonOutputOfInput<Shape[K]>
+}
+
+type JsonArrayOutput<Values extends readonly JsonValueInput[]> = {
+  readonly [K in keyof Values]: JsonOutputOfInput<Values[K]>
+} & readonly unknown[]
 
 type CaseBranch<
   Predicate extends Expression.Any = Expression.Any,
@@ -1592,6 +1752,911 @@ export function makeDialectQuery<
     domain,
     enum: enum_,
     set
+  }
+
+  const makeJsonDb = <Kind extends string>(
+    kind: Kind
+  ): JsonDb<Dialect, Kind> => ({
+    dialect: profile.dialect,
+    kind,
+    variant: "json"
+  })
+
+  const jsonDb = makeJsonDb("json")
+  const jsonbDb = makeJsonDb((profile.dialect === "postgres" ? "jsonb" : "json") as string)
+
+  const isExpressionValue = (value: unknown): value is Expression.Any =>
+    value !== null && typeof value === "object" && Expression.TypeId in value
+
+  const isJsonExpressionValue = (value: unknown): value is JsonExpressionLike<any> =>
+    isExpressionValue(value) && (() => {
+      const dbType = value[Expression.TypeId].dbType as { readonly variant?: string; readonly kind?: string }
+      return dbType.variant === "json" || dbType.kind === "json" || dbType.kind === "jsonb"
+    })()
+
+  const isJsonPathValue = (value: unknown): value is JsonPath.Path<any> =>
+    value !== null && typeof value === "object" && JsonPath.TypeId in value
+
+  const normalizeJsonPathInput = (value: JsonPathInput): readonly JsonPath.CanonicalSegment[] =>
+    isJsonPathValue(value) ? value.segments : [value]
+
+  const isExactJsonSegmentValue = (segment: JsonPath.CanonicalSegment): boolean =>
+    segment.kind === "key" || segment.kind === "index"
+
+  const isExactJsonPathValue = (segments: readonly JsonPath.CanonicalSegment[]): boolean =>
+    segments.every(isExactJsonSegmentValue)
+
+  const buildJsonNodeExpression = <
+    Runtime,
+    Db extends Expression.DbType.Any,
+    Nullability extends Expression.Nullability,
+    Ast extends ExpressionAst.Any,
+    SourceNullability extends Expression.SourceNullabilityMode = "propagate"
+  >(
+    expressions: readonly Expression.Any[],
+    state: {
+      readonly runtime: Runtime
+      readonly dbType: Db
+      readonly nullability: Nullability
+      readonly sourceNullability?: SourceNullability
+    },
+    ast: Ast
+  ): AstBackedExpression<
+    Runtime,
+    Db,
+    Nullability,
+    TupleDialect<typeof expressions>,
+    MergeAggregationTuple<typeof expressions>,
+    TupleSource<typeof expressions>,
+    TupleDependencies<typeof expressions>,
+    Ast,
+    SourceNullability
+  > => makeExpression({
+    runtime: state.runtime,
+    dbType: state.dbType,
+    nullability: state.nullability,
+    dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as TupleDialect<typeof expressions>,
+    aggregation: mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<typeof expressions>,
+    source: mergeManySources(expressions) as TupleSource<typeof expressions>,
+    sourceNullability: (state.sourceNullability ?? "propagate") as SourceNullability,
+    dependencies: mergeManyDependencies(expressions) as TupleDependencies<typeof expressions>
+  }, ast) as AstBackedExpression<
+    Runtime,
+    Db,
+    Nullability,
+    TupleDialect<typeof expressions>,
+    MergeAggregationTuple<typeof expressions>,
+    TupleSource<typeof expressions>,
+    TupleDependencies<typeof expressions>,
+    Ast,
+    SourceNullability
+  >
+
+  const makeJsonLiteralExpression = <Value extends JsonLiteralInput>(
+    value: Value,
+    dbType: Expression.DbType.Json<any, any> = jsonDb
+  ) => makeExpression({
+    runtime: value as JsonRuntime<Value>,
+    dbType,
+    nullability: (value === null ? "always" : "never") as JsonNullabilityOf<Value>,
+    dialect: profile.dialect as Dialect,
+    aggregation: "scalar",
+    source: undefined as never,
+    sourceNullability: "resolved" as const,
+    dependencies: {}
+  }, {
+    kind: "literal",
+    value
+  })
+
+  const wrapJsonExpression = (
+    value: Expression.Any,
+    kind: "jsonToJson" | "jsonToJsonb",
+    dbType: Expression.DbType.Json<any, any>
+  ) => buildJsonNodeExpression(
+    [value],
+    {
+      runtime: undefined as unknown as JsonRuntime<Expression.RuntimeOf<typeof value>>,
+      dbType,
+      nullability: value[Expression.TypeId].nullability as JsonNullabilityOf<JsonRuntime<Expression.RuntimeOf<typeof value>>>,
+      sourceNullability: value[Expression.TypeId].sourceNullability
+    },
+    {
+      kind,
+      value
+    }
+  )
+
+  const toJsonValueExpression = (
+    value: JsonValueInput,
+    kind: "jsonToJson" | "jsonToJsonb" = "jsonToJson",
+    dbType: Expression.DbType.Json<any, any> = jsonDb
+  ): Expression.Any => {
+    if (isJsonExpressionValue(value)) {
+      return value
+    }
+    if (isExpressionValue(value)) {
+      return wrapJsonExpression(value, kind, dbType)
+    }
+    return makeJsonLiteralExpression(value as JsonLiteralInput, dbType)
+  }
+
+  const jsonQueryExpression = (query: StringExpressionInput): Expression.Any =>
+    toDialectStringExpression(query as any)
+
+  const jsonGet = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput
+  >(
+    base: Base,
+    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.get">
+  ): JsonExpression<
+    JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
+    JsonDb<Dialect>,
+    JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>,
+    DialectOf<Base>,
+    AggregationOf<Base>,
+    SourceOf<Base>,
+    DependenciesOf<Base>,
+    JsonNode
+  > => {
+    const segments = normalizeJsonPathInput(target)
+    const kind = isJsonPathValue(target)
+      ? isExactJsonPathValue(segments) ? "jsonPath" : "jsonTraverse"
+      : isExactJsonSegmentValue(target) ? "jsonGet" : "jsonAccess"
+    return buildJsonNodeExpression(
+      [base],
+      {
+        runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
+        dbType: jsonDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>
+      },
+      {
+        kind,
+        base,
+        segments
+      }
+    ) as JsonExpression<
+      JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
+      JsonDb<Dialect>,
+      JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>,
+      DialectOf<Base>,
+      AggregationOf<Base>,
+      SourceOf<Base>,
+      DependenciesOf<Base>,
+      JsonNode
+    >
+  }
+
+  const jsonText = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput
+  >(
+    base: Base,
+    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.text">
+  ): JsonExpression<
+    JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
+      (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never),
+    TextDb,
+    JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">>,
+    DialectOf<Base>,
+    AggregationOf<Base>,
+    SourceOf<Base>,
+    DependenciesOf<Base>,
+    JsonNode
+  > => {
+    const segments = normalizeJsonPathInput(target)
+    const kind = isJsonPathValue(target)
+      ? isExactJsonPathValue(segments) ? "jsonPathText" : "jsonTraverseText"
+      : isExactJsonSegmentValue(target) ? "jsonGetText" : "jsonAccessText"
+    return buildJsonNodeExpression(
+      [base],
+      {
+        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
+          (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never),
+        dbType: profile.textDb as TextDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">>
+      },
+      {
+        kind,
+        base,
+        segments
+      }
+    ) as JsonExpression<
+      JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
+        (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never),
+      TextDb,
+      JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">>,
+      DialectOf<Base>,
+      AggregationOf<Base>,
+      SourceOf<Base>,
+      DependenciesOf<Base>,
+      JsonNode
+    >
+  }
+
+  const jsonAccess = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput
+  >(
+    base: Base,
+    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.access">
+  ) => {
+    const segments = normalizeJsonPathInput(target)
+    return buildJsonNodeExpression(
+      [base],
+      {
+        runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.access">,
+        dbType: jsonDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.access">>
+      },
+      {
+        kind: isJsonPathValue(target) || segments.length > 1 ? "jsonTraverse" : "jsonAccess",
+        base,
+        segments
+      }
+    )
+  }
+
+  const jsonTraverse = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput
+  >(
+    base: Base,
+    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.traverse">
+  ) => {
+    const segments = normalizeJsonPathInput(target)
+    return buildJsonNodeExpression(
+      [base],
+      {
+        runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverse">,
+        dbType: jsonDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverse">>
+      },
+      {
+        kind: "jsonTraverse",
+        base,
+        segments
+      }
+    )
+  }
+
+  const jsonAccessText = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput
+  >(
+    base: Base,
+    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.accessText">
+  ) => {
+    const segments = normalizeJsonPathInput(target)
+    return buildJsonNodeExpression(
+      [base],
+      {
+        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.accessText">, JsonPathUsageError<any, any, any, any> | null>> |
+          (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.accessText"> ? null : never),
+        dbType: profile.textDb as TextDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.accessText">>
+      },
+      {
+        kind: isJsonPathValue(target) || segments.length > 1 ? "jsonTraverseText" : "jsonAccessText",
+        base,
+        segments
+      }
+    )
+  }
+
+  const jsonTraverseText = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput
+  >(
+    base: Base,
+    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.traverseText">
+  ) => {
+    const segments = normalizeJsonPathInput(target)
+    return buildJsonNodeExpression(
+      [base],
+      {
+        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverseText">, JsonPathUsageError<any, any, any, any> | null>> |
+          (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverseText"> ? null : never),
+        dbType: profile.textDb as TextDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverseText">>
+      },
+      {
+        kind: "jsonTraverseText",
+        base,
+        segments
+      }
+    )
+  }
+
+  const jsonContains = <
+    Left extends JsonExpressionLike<any>,
+    Right extends JsonValueInput
+  >(
+    left: Left,
+    right: Right
+  ) => buildBinaryPredicate(left, toJsonValueExpression(right), "contains")
+
+  const jsonContainedBy = <
+    Left extends JsonExpressionLike<any>,
+    Right extends JsonValueInput
+  >(
+    left: Left,
+    right: Right
+  ) => buildBinaryPredicate(left, toJsonValueExpression(right), "containedBy")
+
+  const jsonHasKey = <
+    Base extends JsonExpressionLike<any>,
+    Key extends string
+  >(
+    base: Base,
+    key: Key
+  ) => buildJsonNodeExpression(
+    [base],
+    {
+      runtime: true as boolean,
+      dbType: profile.boolDb as BoolDb,
+      nullability: "never" as const,
+      sourceNullability: "resolved" as const
+    },
+    {
+      kind: "jsonHasKey",
+      base,
+      keys: [key]
+    }
+  )
+
+  const jsonHasAnyKeys = <
+    Base extends JsonExpressionLike<any>,
+    Keys extends readonly [string, ...string[]]
+  >(
+    base: Base,
+    ...keys: Keys
+  ) => buildJsonNodeExpression(
+    [base],
+    {
+      runtime: true as boolean,
+      dbType: profile.boolDb as BoolDb,
+      nullability: "never" as const,
+      sourceNullability: "resolved" as const
+    },
+    {
+      kind: "jsonHasAnyKeys",
+      base,
+      keys
+    }
+  )
+
+  const jsonHasAllKeys = <
+    Base extends JsonExpressionLike<any>,
+    Keys extends readonly [string, ...string[]]
+  >(
+    base: Base,
+    ...keys: Keys
+  ) => buildJsonNodeExpression(
+    [base],
+    {
+      runtime: true as boolean,
+      dbType: profile.boolDb as BoolDb,
+      nullability: "never" as const,
+      sourceNullability: "resolved" as const
+    },
+    {
+      kind: "jsonHasAllKeys",
+      base,
+      keys
+    }
+  )
+
+  const jsonDelete = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput
+  >(
+    base: Base,
+    target: Target & JsonDeleteGuard<Expression.RuntimeOf<Base>, Target, "json.delete">
+  ): JsonExpression<
+    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+    JsonDb<Dialect>,
+    JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>,
+    DialectOf<Base>,
+    AggregationOf<Base>,
+    SourceOf<Base>,
+    DependenciesOf<Base>,
+    JsonNode
+  > => {
+    const segments = normalizeJsonPathInput(target)
+    return buildJsonNodeExpression(
+      [base],
+      {
+        runtime: undefined as unknown as JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+        dbType: jsonDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>
+      },
+      {
+        kind: isJsonPathValue(target) ? "jsonDeletePath" : "jsonDelete",
+        base,
+        segments
+      }
+    ) as JsonExpression<
+      JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+      JsonDb<Dialect>,
+      JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>,
+      DialectOf<Base>,
+      AggregationOf<Base>,
+      SourceOf<Base>,
+      DependenciesOf<Base>,
+      JsonNode
+    >
+  }
+
+  const jsonRemove = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput
+  >(
+    base: Base,
+    target: Target & JsonDeleteGuard<Expression.RuntimeOf<Base>, Target, "json.remove">
+  ): JsonExpression<
+    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+    JsonDb<Dialect>,
+    JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>,
+    DialectOf<Base>,
+    AggregationOf<Base>,
+    SourceOf<Base>,
+    DependenciesOf<Base>,
+    JsonNode
+  > => {
+    const segments = normalizeJsonPathInput(target)
+    return buildJsonNodeExpression(
+      [base],
+      {
+        runtime: undefined as unknown as JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+        dbType: jsonDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>
+      },
+      {
+        kind: "jsonRemove",
+        base,
+        segments
+      }
+    ) as JsonExpression<
+      JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+      JsonDb<Dialect>,
+      JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>,
+      DialectOf<Base>,
+      AggregationOf<Base>,
+      SourceOf<Base>,
+      DependenciesOf<Base>,
+      JsonNode
+    >
+  }
+
+  const jsonSet = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput,
+    Next extends JsonValueInput
+  >(
+    base: Base,
+    target: Target & JsonSetGuard<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+    next: Next,
+    options: {
+      readonly createMissing?: boolean
+    } = {}
+  ): JsonExpression<
+    JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+    JsonDb<Dialect>,
+    JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>,
+    DialectOf<Base>,
+    AggregationOf<Base>,
+    SourceOf<Base>,
+    DependenciesOf<Base>,
+    JsonNode
+  > => {
+    const segments = normalizeJsonPathInput(target)
+    const newValue = toJsonValueExpression(next)
+    return buildJsonNodeExpression(
+      [base, newValue],
+      {
+        runtime: undefined as unknown as JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+        dbType: jsonDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>
+      },
+      {
+        kind: "jsonSet",
+        base,
+        segments,
+        newValue,
+        createMissing: options.createMissing ?? true
+      }
+    ) as JsonExpression<
+      JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+      JsonDb<Dialect>,
+      JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>,
+      DialectOf<Base>,
+      AggregationOf<Base>,
+      SourceOf<Base>,
+      DependenciesOf<Base>,
+      JsonNode
+    >
+  }
+
+  const jsonInsert = <
+    Base extends JsonExpressionLike<any>,
+    Target extends JsonPathInput,
+    Next extends JsonValueInput,
+    InsertAfter extends boolean = false
+  >(
+    base: Base,
+    target: Target & JsonInsertGuard<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+    next: Next,
+    options: {
+      readonly insertAfter?: InsertAfter
+    } = {}
+  ): JsonExpression<
+    JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+    JsonDb<Dialect>,
+    JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>,
+    DialectOf<Base>,
+    AggregationOf<Base>,
+    SourceOf<Base>,
+    DependenciesOf<Base>,
+    JsonNode
+  > => {
+    const segments = normalizeJsonPathInput(target)
+    const insert = toJsonValueExpression(next)
+    const insertAfter = options.insertAfter ?? false
+    return buildJsonNodeExpression(
+      [base, insert],
+      {
+        runtime: undefined as unknown as JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+        dbType: jsonDb,
+        nullability: undefined as unknown as JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>
+      },
+      {
+        kind: "jsonInsert",
+        base,
+        segments,
+        insert,
+        insertAfter
+      }
+    ) as JsonExpression<
+      JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+      JsonDb<Dialect>,
+      JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>,
+      DialectOf<Base>,
+      AggregationOf<Base>,
+      SourceOf<Base>,
+      DependenciesOf<Base>,
+      JsonNode
+    >
+  }
+
+  const jsonConcat = <
+    Left extends JsonValueInput,
+    Right extends JsonValueInput
+  >(
+    left: Left,
+    right: Right
+  ): JsonExpression<
+    JsonConcatResult<JsonOutputOfInput<Left>, JsonOutputOfInput<Right>>,
+    JsonDb<Dialect>,
+    "maybe",
+    Dialect,
+    Expression.AggregationKind,
+    never,
+    {},
+    JsonNode
+  > => {
+    const leftExpression = toJsonValueExpression(left)
+    const rightExpression = toJsonValueExpression(right)
+    return buildJsonNodeExpression(
+      [leftExpression, rightExpression],
+      {
+        runtime: undefined as unknown as JsonConcatResult<JsonOutputOfInput<Left>, JsonOutputOfInput<Right>>,
+        dbType: jsonDb,
+        nullability: "maybe" as const
+      },
+      {
+        kind: "jsonConcat",
+        left: leftExpression,
+        right: rightExpression
+      }
+    ) as JsonExpression<
+      JsonConcatResult<JsonOutputOfInput<Left>, JsonOutputOfInput<Right>>,
+      JsonDb<Dialect>,
+      "maybe",
+      Dialect,
+      Expression.AggregationKind,
+      never,
+      {},
+      JsonNode
+    >
+  }
+
+  const jsonMerge = <
+    Left extends JsonValueInput,
+    Right extends JsonValueInput
+  >(
+    left: Left,
+    right: Right
+  ) => {
+    const leftExpression = toJsonValueExpression(left)
+    const rightExpression = toJsonValueExpression(right)
+    return buildJsonNodeExpression(
+      [leftExpression, rightExpression],
+      {
+        runtime: undefined as unknown as JsonConcatResult<JsonOutputOfInput<Left>, JsonOutputOfInput<Right>>,
+        dbType: jsonDb,
+        nullability: "maybe" as const
+      },
+      {
+        kind: "jsonMerge",
+        left: leftExpression,
+        right: rightExpression
+      }
+    )
+  }
+
+  const jsonKeyExists = <
+    Base extends JsonExpressionLike<any>,
+    Key extends string
+  >(
+    base: Base,
+    key: Key
+  ) => buildJsonNodeExpression(
+    [base],
+    {
+      runtime: true as boolean,
+      dbType: profile.boolDb as BoolDb,
+      nullability: "never" as const,
+      sourceNullability: "resolved" as const
+    },
+    {
+      kind: "jsonKeyExists",
+      base,
+      keys: [key]
+    }
+  )
+
+  const jsonBuildObject = <
+    Shape extends Record<string, JsonValueInput>
+  >(
+    shape: Shape
+  ) => {
+    const entries = Object.entries(shape).map(([key, value]) => ({
+      key,
+      value: toJsonValueExpression(value)
+    }))
+    return buildJsonNodeExpression(
+      entries.map((entry) => entry.value),
+      {
+        runtime: {} as JsonObjectOutput<Shape>,
+        dbType: jsonDb,
+        nullability: "never" as const,
+        sourceNullability: "resolved" as const
+      },
+      {
+        kind: "jsonBuildObject",
+        entries
+      }
+    )
+  }
+
+  const jsonBuildArray = <
+    Values extends readonly JsonValueInput[]
+  >(
+    ...values: Values
+  ) => {
+    const expressions = values.map((value) => toJsonValueExpression(value))
+    return buildJsonNodeExpression(
+      expressions,
+      {
+        runtime: [] as JsonArrayOutput<Values>,
+        dbType: jsonDb,
+        nullability: "never" as const,
+        sourceNullability: "resolved" as const
+      },
+      {
+        kind: "jsonBuildArray",
+        values: expressions
+      }
+    )
+  }
+
+  const jsonToJson = <Value extends JsonValueInput>(
+    value: Value
+  ) => toJsonValueExpression(value, "jsonToJson", jsonDb) as JsonExpression<
+    JsonOutputOfInput<Value>,
+    JsonDb<Dialect>,
+    JsonNullabilityOf<JsonOutputOfInput<Value>>,
+    string,
+    Expression.AggregationKind,
+    unknown,
+    Expression.SourceDependencies,
+    JsonNode
+  >
+
+  const jsonToJsonb = <Value extends JsonValueInput>(
+    value: Value
+  ) => toJsonValueExpression(value, "jsonToJsonb", jsonbDb) as JsonExpression<
+    JsonOutputOfInput<Value>,
+    JsonDb<Dialect, string>,
+    JsonNullabilityOf<JsonOutputOfInput<Value>>,
+    string,
+    Expression.AggregationKind,
+    unknown,
+    Expression.SourceDependencies,
+    JsonNode
+  >
+
+  const jsonTypeOf = <Base extends JsonExpressionLike<any>>(
+    base: Base
+  ) => buildJsonNodeExpression(
+    [base],
+    {
+      runtime: undefined as unknown as JsonTypeName<Expression.RuntimeOf<Base>>,
+      dbType: profile.textDb as TextDb,
+      nullability: base[Expression.TypeId].nullability
+    },
+    {
+      kind: "jsonTypeOf",
+      value: base
+    }
+  )
+
+  const jsonLength = <Base extends JsonExpressionLike<any>>(
+    base: Base
+  ) => buildJsonNodeExpression(
+    [base],
+    {
+      runtime: undefined as unknown as JsonLengthResult<Expression.RuntimeOf<Base>>,
+      dbType: profile.numericDb as NumericDb,
+      nullability: undefined as unknown as JsonNullabilityOf<JsonLengthResult<Expression.RuntimeOf<Base>>>
+    },
+    {
+      kind: "jsonLength",
+      value: base
+    }
+  )
+
+  const jsonKeys = <Base extends JsonExpressionLike<any>>(
+    base: Base
+  ) => buildJsonNodeExpression(
+    [base],
+    {
+      runtime: undefined as unknown as JsonKeysResult<Expression.RuntimeOf<Base>>,
+      dbType: jsonDb,
+      nullability: undefined as unknown as JsonNullabilityOf<JsonKeysResult<Expression.RuntimeOf<Base>>>
+    },
+    {
+      kind: "jsonKeys",
+      value: base
+    }
+  )
+
+  const jsonPathExists = <Base extends JsonExpressionLike<any>>(
+    base: Base,
+    query: JsonQueryInput
+  ) => {
+    if (isJsonPathValue(query)) {
+      return buildJsonNodeExpression(
+        [base],
+        {
+          runtime: true as boolean,
+          dbType: profile.boolDb as BoolDb,
+          nullability: "never" as const,
+          sourceNullability: "resolved" as const
+        },
+        {
+          kind: "jsonPathExists",
+          base,
+          query
+        }
+      )
+    }
+    const queryExpression = jsonQueryExpression(query as StringExpressionInput)
+    return buildJsonNodeExpression(
+      [base, queryExpression] as const,
+      {
+        runtime: true as boolean,
+        dbType: profile.boolDb as BoolDb,
+        nullability: "never" as const,
+        sourceNullability: "resolved" as const
+      },
+      {
+        kind: "jsonPathExists",
+        base,
+        query: queryExpression
+      }
+    )
+  }
+
+  const jsonStripNulls = <Base extends JsonExpressionLike<any>>(
+    base: Base
+  ) => buildJsonNodeExpression(
+    [base],
+    {
+      runtime: undefined as unknown as JsonStripNullsResult<Expression.RuntimeOf<Base>>,
+      dbType: jsonDb,
+      nullability: undefined as unknown as JsonNullabilityOf<JsonStripNullsResult<Expression.RuntimeOf<Base>>>
+    },
+    {
+      kind: "jsonStripNulls",
+      value: base
+    }
+  )
+
+  const jsonPathMatch = <Base extends JsonExpressionLike<any>>(
+    base: Base,
+    query: JsonQueryInput
+  ) => {
+    if (isJsonPathValue(query)) {
+      return buildJsonNodeExpression(
+        [base],
+        {
+          runtime: true as boolean,
+          dbType: profile.boolDb as BoolDb,
+          nullability: "never" as const,
+          sourceNullability: "resolved" as const
+        },
+        {
+          kind: "jsonPathMatch",
+          base,
+          query
+        }
+      )
+    }
+    const queryExpression = jsonQueryExpression(query as StringExpressionInput)
+    return buildJsonNodeExpression(
+      [base, queryExpression] as const,
+      {
+        runtime: true as boolean,
+        dbType: profile.boolDb as BoolDb,
+        nullability: "never" as const,
+        sourceNullability: "resolved" as const
+      },
+      {
+        kind: "jsonPathMatch",
+        base,
+        query: queryExpression
+      }
+    )
+  }
+
+  const json = {
+    key: JsonPath.key,
+    index: JsonPath.index,
+    wildcard: JsonPath.wildcard,
+    slice: JsonPath.slice,
+    descend: JsonPath.descend,
+    path: JsonPath.path,
+    get: jsonGet,
+    access: jsonAccess,
+    traverse: jsonTraverse,
+    text: jsonText,
+    accessText: jsonAccessText,
+    traverseText: jsonTraverseText,
+    contains: jsonContains,
+    containedBy: jsonContainedBy,
+    hasKey: jsonHasKey,
+    keyExists: jsonKeyExists,
+    hasAnyKeys: jsonHasAnyKeys,
+    hasAllKeys: jsonHasAllKeys,
+    delete: jsonDelete,
+    remove: jsonRemove,
+    set: jsonSet,
+    insert: jsonInsert,
+    concat: jsonConcat,
+    merge: jsonMerge,
+    buildObject: jsonBuildObject,
+    buildArray: jsonBuildArray,
+    toJson: jsonToJson,
+    toJsonb: jsonToJsonb,
+    typeOf: jsonTypeOf,
+    length: jsonLength,
+    keys: jsonKeys,
+    stripNulls: jsonStripNulls,
+    pathExists: jsonPathExists,
+    pathMatch: jsonPathMatch
   }
 
   const and = <
@@ -3506,6 +4571,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     literal,
     cast,
     type,
+    json,
     eq,
     neq,
     lt,

@@ -4,6 +4,7 @@ import * as Table from "../table.ts"
 import * as QueryAst from "./query-ast.ts"
 import type { RenderState, SqlDialect } from "./dialect.ts"
 import * as ExpressionAst from "./expression-ast.ts"
+import * as JsonPath from "./json/path.ts"
 import { flattenSelection, type Projection } from "./projections.ts"
 import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.ts"
 
@@ -127,6 +128,444 @@ const renderDropIndexSql = (
   dialect.name === "postgres"
     ? `drop index${ddl.ifExists ? " if exists" : ""} ${dialect.quoteIdentifier(ddl.name)}`
     : `drop index ${dialect.quoteIdentifier(ddl.name)} on ${dialect.quoteIdentifier(targetSource.baseTableName)}`
+
+const isExpression = (value: unknown): value is Expression.Any =>
+  value !== null && typeof value === "object" && Expression.TypeId in value
+
+const isJsonDbType = (dbType: Expression.DbType.Any): boolean =>
+  dbType.kind === "jsonb" || dbType.kind === "json" || ("variant" in dbType && dbType.variant === "json")
+
+const isJsonExpression = (value: unknown): value is Expression.Any =>
+  isExpression(value) && isJsonDbType(value[Expression.TypeId].dbType)
+
+const unsupportedJsonFeature = (
+  dialect: SqlDialect,
+  feature: string
+): never => {
+  const error = new Error(`Unsupported JSON feature for ${dialect.name}: ${feature}`) as Error & {
+    readonly tag: string
+    readonly dialect: string
+    readonly feature: string
+  }
+  Object.assign(error, {
+    tag: `@${dialect.name}/unsupported/json-feature`,
+    dialect: dialect.name,
+    feature
+  })
+  throw error
+}
+
+const extractJsonBase = (node: Record<string, unknown>): unknown =>
+  node.value ?? node.base ?? node.input ?? node.left ?? node.target
+
+const isJsonPathValue = (value: unknown): value is JsonPath.Path<any> =>
+  value !== null && typeof value === "object" && JsonPath.TypeId in value
+
+const extractJsonPathSegments = (node: Record<string, unknown>): ReadonlyArray<JsonPath.AnySegment> => {
+  const path = node.path ?? node.segments ?? node.keys
+  if (isJsonPathValue(path)) {
+    return path.segments
+  }
+  if (Array.isArray(path)) {
+    return path as readonly JsonPath.AnySegment[]
+  }
+  if ("key" in node) {
+    return [JsonPath.key(String(node.key))]
+  }
+  if ("segment" in node) {
+    const segment = node.segment
+    if (typeof segment === "string") {
+      return [JsonPath.key(segment)]
+    }
+    if (typeof segment === "number") {
+      return [JsonPath.index(segment)]
+    }
+    if (segment !== null && typeof segment === "object" && JsonPath.SegmentTypeId in segment) {
+      return [segment as JsonPath.AnySegment]
+    }
+    return []
+  }
+  if ("right" in node && isJsonPathValue(node.right)) {
+    return node.right.segments
+  }
+  return []
+}
+
+const extractJsonValue = (node: Record<string, unknown>): unknown =>
+  node.newValue ?? node.insert ?? node.right
+
+const renderJsonPathSegment = (segment: JsonPath.AnySegment | string | number): string => {
+  if (typeof segment === "string") {
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(segment)
+      ? `.${segment}`
+      : `."${segment.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+  }
+  if (typeof segment === "number") {
+    return `[${segment}]`
+  }
+  switch (segment.kind) {
+    case "key":
+      return /^[A-Za-z_][A-Za-z0-9_]*$/.test(segment.key)
+        ? `.${segment.key}`
+        : `."${segment.key.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+    case "index":
+      return `[${segment.index}]`
+    case "wildcard":
+      return "[*]"
+    case "slice":
+      return `[${segment.start ?? 0} to ${segment.end ?? "last"}]`
+    case "descend":
+      return ".**"
+    default:
+      throw new Error("Unsupported JSON path segment")
+  }
+}
+
+const renderJsonPathStringLiteral = (segments: ReadonlyArray<JsonPath.AnySegment | string | number>): string => {
+  let path = "$"
+  for (const segment of segments) {
+    path += renderJsonPathSegment(segment)
+  }
+  return path
+}
+
+const renderMySqlJsonPath = (
+  segments: ReadonlyArray<JsonPath.AnySegment | string | number>,
+  state: RenderState,
+  dialect: SqlDialect
+): string => dialect.renderLiteral(renderJsonPathStringLiteral(segments), state)
+
+const renderPostgresJsonPathArray = (
+  segments: ReadonlyArray<JsonPath.AnySegment | string | number>,
+  state: RenderState,
+  dialect: SqlDialect
+): string => `array[${segments.map((segment) => {
+  if (typeof segment === "string") {
+    return dialect.renderLiteral(segment, state)
+  }
+  if (typeof segment === "number") {
+    return dialect.renderLiteral(String(segment), state)
+  }
+  switch (segment.kind) {
+    case "key":
+      return dialect.renderLiteral(segment.key, state)
+    case "index":
+      return dialect.renderLiteral(String(segment.index), state)
+    default:
+      throw new Error("Postgres JSON traversal requires exact key/index segments")
+  }
+}).join(", ")}]`
+
+const renderPostgresJsonAccessStep = (
+  segment: JsonPath.AnySegment,
+  textMode: boolean,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  switch (segment.kind) {
+    case "key":
+      return `${textMode ? "->>" : "->"} ${dialect.renderLiteral(segment.key, state)}`
+    case "index":
+      return `${textMode ? "->>" : "->"} ${dialect.renderLiteral(String(segment.index), state)}`
+    default:
+      throw new Error("Postgres exact JSON access requires key/index segments")
+  }
+}
+
+const renderPostgresJsonValue = (
+  value: unknown,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  if (!isExpression(value)) {
+    throw new Error("Expected a JSON expression")
+  }
+  const rendered = renderExpression(value, state, dialect)
+  return value[Expression.TypeId].dbType.kind === "jsonb"
+    ? rendered
+    : `cast(${rendered} as jsonb)`
+}
+
+const renderJsonOpaquePath = (
+  value: unknown,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  if (isJsonPathValue(value)) {
+    return dialect.renderLiteral(renderJsonPathStringLiteral(value.segments), state)
+  }
+  if (typeof value === "string") {
+    return dialect.renderLiteral(value, state)
+  }
+  if (isExpression(value)) {
+    return renderExpression(value, state, dialect)
+  }
+  throw new Error("Unsupported SQL/JSON path input")
+}
+
+const renderJsonExpression = (
+  ast: Record<string, unknown>,
+  state: RenderState,
+  dialect: SqlDialect
+): string | undefined => {
+  const kind = typeof ast.kind === "string" ? ast.kind : undefined
+  if (!kind) {
+    return undefined
+  }
+
+  const base = extractJsonBase(ast)
+  const segments = extractJsonPathSegments(ast)
+  const exact = segments.every((segment) => segment.kind === "key" || segment.kind === "index")
+
+  switch (kind) {
+    case "jsonGet":
+    case "jsonPath":
+    case "jsonAccess":
+    case "jsonTraverse":
+    case "jsonGetText":
+    case "jsonPathText":
+    case "jsonAccessText":
+    case "jsonTraverseText": {
+      if (!isExpression(base) || segments.length === 0) {
+        return undefined
+      }
+      const baseSql = renderExpression(base, state, dialect)
+      const textMode = kind.endsWith("Text") || ast.text === true || ast.asText === true
+      if (dialect.name === "postgres") {
+        if (exact) {
+          return segments.length === 1
+            ? `(${baseSql} ${renderPostgresJsonAccessStep(segments[0]!, textMode, state, dialect)})`
+            : `(${baseSql} ${textMode ? "#>>" : "#>"} ${renderPostgresJsonPathArray(segments, state, dialect)})`
+        }
+        const jsonPathLiteral = dialect.renderLiteral(renderJsonPathStringLiteral(segments), state)
+        const queried = `jsonb_path_query_first(${renderPostgresJsonValue(base, state, dialect)}, ${jsonPathLiteral})`
+        return textMode ? `cast(${queried} as text)` : queried
+      }
+      if (dialect.name === "mysql") {
+        const extracted = `json_extract(${baseSql}, ${renderMySqlJsonPath(segments, state, dialect)})`
+        return textMode ? `json_unquote(${extracted})` : extracted
+      }
+      return undefined
+    }
+    case "jsonHasKey":
+    case "jsonKeyExists":
+    case "jsonHasAnyKeys":
+    case "jsonHasAllKeys": {
+      if (!isExpression(base)) {
+        return undefined
+      }
+      const baseSql = dialect.name === "postgres"
+        ? renderPostgresJsonValue(base, state, dialect)
+        : renderExpression(base, state, dialect)
+      const keys = segments
+      if (keys.length === 0) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        if (kind === "jsonHasAnyKeys") {
+          return `(${baseSql} ?| ${renderPostgresJsonPathArray(keys, state, dialect)})`
+        }
+        if (kind === "jsonHasAllKeys") {
+          return `(${baseSql} ?& ${renderPostgresJsonPathArray(keys, state, dialect)})`
+        }
+        return `(${baseSql} ? ${dialect.renderLiteral(keys[0]!, state)})`
+      }
+      if (dialect.name === "mysql") {
+        const mode = kind === "jsonHasAllKeys" ? "all" : "one"
+        const paths = keys.map((segment) => renderMySqlJsonPath([segment], state, dialect)).join(", ")
+        return `json_contains_path(${baseSql}, ${dialect.renderLiteral(mode, state)}, ${paths})`
+      }
+      return undefined
+    }
+    case "jsonConcat":
+    case "jsonMerge": {
+      if (!isExpression(ast.left) || !isExpression(ast.right)) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        return `(${renderPostgresJsonValue(ast.left, state, dialect)} || ${renderPostgresJsonValue(ast.right, state, dialect)})`
+      }
+      if (dialect.name === "mysql") {
+        return `json_merge_preserve(${renderExpression(ast.left, state, dialect)}, ${renderExpression(ast.right, state, dialect)})`
+      }
+      return undefined
+    }
+    case "jsonBuildObject": {
+      const entries = Array.isArray((ast as { readonly entries?: readonly { readonly key: string; readonly value: Expression.Any }[] }).entries)
+        ? (ast as { readonly entries: readonly { readonly key: string; readonly value: Expression.Any }[] }).entries
+        : []
+      const renderedEntries = entries.flatMap((entry) => [
+        dialect.renderLiteral(entry.key, state),
+        renderExpression(entry.value, state, dialect)
+      ])
+      if (dialect.name === "postgres") {
+        return `jsonb_build_object(${renderedEntries.join(", ")})`
+      }
+      if (dialect.name === "mysql") {
+        return `json_object(${renderedEntries.join(", ")})`
+      }
+      return undefined
+    }
+    case "jsonBuildArray": {
+      const values = Array.isArray((ast as { readonly values?: readonly Expression.Any[] }).values)
+        ? (ast as { readonly values: readonly Expression.Any[] }).values
+        : []
+      const renderedValues = values.map((value) => renderExpression(value, state, dialect)).join(", ")
+      if (dialect.name === "postgres") {
+        return `jsonb_build_array(${renderedValues})`
+      }
+      if (dialect.name === "mysql") {
+        return `json_array(${renderedValues})`
+      }
+      return undefined
+    }
+    case "jsonToJson":
+      if (!isExpression(base)) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        return `to_json(${renderExpression(base, state, dialect)})`
+      }
+      if (dialect.name === "mysql") {
+        return `cast(${renderExpression(base, state, dialect)} as json)`
+      }
+      return undefined
+    case "jsonToJsonb":
+      if (!isExpression(base)) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        return `to_jsonb(${renderExpression(base, state, dialect)})`
+      }
+      if (dialect.name === "mysql") {
+        return `cast(${renderExpression(base, state, dialect)} as json)`
+      }
+      return undefined
+    case "jsonTypeOf":
+      if (!isExpression(base)) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        return `jsonb_typeof(${renderPostgresJsonValue(base, state, dialect)})`
+      }
+      if (dialect.name === "mysql") {
+        return `json_type(${renderExpression(base, state, dialect)})`
+      }
+      return undefined
+    case "jsonLength":
+      if (!isExpression(base)) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        const jsonb = renderPostgresJsonValue(base, state, dialect)
+        return `(case when jsonb_typeof(${jsonb}) = 'array' then jsonb_array_length(${jsonb}) when jsonb_typeof(${jsonb}) = 'object' then jsonb_object_length(${jsonb}) else null end)`
+      }
+      if (dialect.name === "mysql") {
+        return `json_length(${renderExpression(base, state, dialect)})`
+      }
+      return undefined
+    case "jsonKeys":
+      if (!isExpression(base)) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        const jsonb = renderPostgresJsonValue(base, state, dialect)
+        return `(case when jsonb_typeof(${jsonb}) = 'object' then array(select jsonb_object_keys(${jsonb})) else null end)`
+      }
+      if (dialect.name === "mysql") {
+        return `json_keys(${renderExpression(base, state, dialect)})`
+      }
+      return undefined
+    case "jsonStripNulls":
+      if (!isExpression(base)) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        return `jsonb_strip_nulls(${renderPostgresJsonValue(base, state, dialect)})`
+      }
+      unsupportedJsonFeature(dialect, "jsonStripNulls")
+      return undefined
+    case "jsonDelete":
+    case "jsonDeletePath":
+    case "jsonRemove": {
+      if (!isExpression(base) || segments.length === 0) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        const baseSql = renderPostgresJsonValue(base, state, dialect)
+        if (segments.length === 1 && (segments[0]!.kind === "key" || segments[0]!.kind === "index")) {
+          const segment = segments[0]!
+          return `(${baseSql} - ${segment.kind === "key"
+            ? dialect.renderLiteral(segment.key, state)
+            : dialect.renderLiteral(String(segment.index), state)})`
+        }
+        return `(${baseSql} #- ${renderPostgresJsonPathArray(segments, state, dialect)})`
+      }
+      if (dialect.name === "mysql") {
+        return `json_remove(${renderExpression(base, state, dialect)}, ${segments.map((segment) =>
+          renderMySqlJsonPath([segment], state, dialect)
+        ).join(", ")})`
+      }
+      return undefined
+    }
+    case "jsonSet":
+    case "jsonInsert": {
+      if (!isExpression(base) || segments.length === 0) {
+        return undefined
+      }
+      const nextValue = extractJsonValue(ast)
+      if (!isExpression(nextValue)) {
+        return undefined
+      }
+      const createMissing = ast.createMissing === true
+      const insertAfter = ast.insertAfter === true
+      if (dialect.name === "postgres") {
+        const functionName = kind === "jsonInsert" ? "jsonb_insert" : "jsonb_set"
+        const extra =
+          kind === "jsonInsert"
+            ? `, ${insertAfter ? "true" : "false"}`
+            : `, ${createMissing ? "true" : "false"}`
+        return `${functionName}(${renderPostgresJsonValue(base, state, dialect)}, ${renderPostgresJsonPathArray(segments, state, dialect)}, ${renderPostgresJsonValue(nextValue, state, dialect)}${extra})`
+      }
+      if (dialect.name === "mysql") {
+        const functionName = kind === "jsonInsert" ? "json_insert" : "json_set"
+        return `${functionName}(${renderExpression(base, state, dialect)}, ${renderMySqlJsonPath(segments, state, dialect)}, ${renderExpression(nextValue, state, dialect)})`
+      }
+      return undefined
+    }
+    case "jsonPathExists": {
+      if (!isExpression(base)) {
+        return undefined
+      }
+      const path = ast.path ?? ast.query ?? ast.right
+      if (path === undefined) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        return `(${renderPostgresJsonValue(base, state, dialect)} @? ${renderJsonOpaquePath(path, state, dialect)})`
+      }
+      if (dialect.name === "mysql") {
+        return `json_contains_path(${renderExpression(base, state, dialect)}, ${dialect.renderLiteral("one", state)}, ${renderJsonOpaquePath(path, state, dialect)})`
+      }
+      return undefined
+    }
+    case "jsonPathMatch": {
+      if (!isExpression(base)) {
+        return undefined
+      }
+      const path = ast.path ?? ast.query ?? ast.right
+      if (path === undefined) {
+        return undefined
+      }
+      if (dialect.name === "postgres") {
+        return `(${renderPostgresJsonValue(base, state, dialect)} @@ ${renderJsonOpaquePath(path, state, dialect)})`
+      }
+      unsupportedJsonFeature(dialect, "jsonPathMatch")
+    }
+  }
+
+  return undefined
+}
 
 export interface RenderedQueryAst {
   readonly sql: string
@@ -403,9 +842,14 @@ export const renderExpression = (
   state: RenderState,
   dialect: SqlDialect
 ): string => {
-  const ast = (expression as Expression.Any & {
+  const rawAst = (expression as Expression.Any & {
     readonly [ExpressionAst.TypeId]: ExpressionAst.Any
-  })[ExpressionAst.TypeId]
+  })[ExpressionAst.TypeId] as ExpressionAst.Any | Record<string, unknown>
+  const jsonSql = renderJsonExpression(rawAst as Record<string, unknown>, state, dialect)
+  if (jsonSql !== undefined) {
+    return jsonSql
+  }
+  const ast = rawAst as ExpressionAst.Any
   switch (ast.kind) {
     case "column":
       return `${dialect.quoteIdentifier(ast.tableName)}.${dialect.quoteIdentifier(ast.columnName)}`
@@ -440,20 +884,47 @@ export const renderExpression = (
         ? `(${renderExpression(ast.left, state, dialect)} <=> ${renderExpression(ast.right, state, dialect)})`
         : `(${renderExpression(ast.left, state, dialect)} is not distinct from ${renderExpression(ast.right, state, dialect)})`
     case "contains":
-      if (dialect.name !== "postgres") {
-        throw new Error("Unsupported container operator for SQL rendering")
+      if (dialect.name === "postgres") {
+        const left = isJsonExpression(ast.left)
+          ? renderPostgresJsonValue(ast.left, state, dialect)
+          : renderExpression(ast.left, state, dialect)
+        const right = isJsonExpression(ast.right)
+          ? renderPostgresJsonValue(ast.right, state, dialect)
+          : renderExpression(ast.right, state, dialect)
+        return `(${left} @> ${right})`
       }
-      return `(${renderExpression(ast.left, state, dialect)} @> ${renderExpression(ast.right, state, dialect)})`
+      if (dialect.name === "mysql" && isJsonExpression(ast.left) && isJsonExpression(ast.right)) {
+        return `json_contains(${renderExpression(ast.left, state, dialect)}, ${renderExpression(ast.right, state, dialect)})`
+      }
+      throw new Error("Unsupported container operator for SQL rendering")
     case "containedBy":
-      if (dialect.name !== "postgres") {
-        throw new Error("Unsupported container operator for SQL rendering")
+      if (dialect.name === "postgres") {
+        const left = isJsonExpression(ast.left)
+          ? renderPostgresJsonValue(ast.left, state, dialect)
+          : renderExpression(ast.left, state, dialect)
+        const right = isJsonExpression(ast.right)
+          ? renderPostgresJsonValue(ast.right, state, dialect)
+          : renderExpression(ast.right, state, dialect)
+        return `(${left} <@ ${right})`
       }
-      return `(${renderExpression(ast.left, state, dialect)} <@ ${renderExpression(ast.right, state, dialect)})`
+      if (dialect.name === "mysql" && isJsonExpression(ast.left) && isJsonExpression(ast.right)) {
+        return `json_contains(${renderExpression(ast.right, state, dialect)}, ${renderExpression(ast.left, state, dialect)})`
+      }
+      throw new Error("Unsupported container operator for SQL rendering")
     case "overlaps":
-      if (dialect.name !== "postgres") {
-        throw new Error("Unsupported container operator for SQL rendering")
+      if (dialect.name === "postgres") {
+        const left = isJsonExpression(ast.left)
+          ? renderPostgresJsonValue(ast.left, state, dialect)
+          : renderExpression(ast.left, state, dialect)
+        const right = isJsonExpression(ast.right)
+          ? renderPostgresJsonValue(ast.right, state, dialect)
+          : renderExpression(ast.right, state, dialect)
+        return `(${left} && ${right})`
       }
-      return `(${renderExpression(ast.left, state, dialect)} && ${renderExpression(ast.right, state, dialect)})`
+      if (dialect.name === "mysql" && isJsonExpression(ast.left) && isJsonExpression(ast.right)) {
+        return `json_overlaps(${renderExpression(ast.left, state, dialect)}, ${renderExpression(ast.right, state, dialect)})`
+      }
+      throw new Error("Unsupported container operator for SQL rendering")
     case "isNull":
       return `(${renderExpression(ast.value, state, dialect)} is null)`
     case "isNotNull":

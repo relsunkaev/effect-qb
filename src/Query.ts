@@ -5,6 +5,8 @@ import * as Plan from "./plan.ts"
 import * as Table from "./table.ts"
 import * as ExpressionAst from "./internal/expression-ast.ts"
 import * as QueryAst from "./internal/query-ast.ts"
+import type { JsonNode } from "./internal/json/ast.ts"
+import type * as JsonPath from "./internal/json/path.ts"
 import type { QueryCapability } from "./internal/query-requirements.ts"
 import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./internal/case-analysis.ts"
 import type { GuaranteedNonNullKeys, GuaranteedNullKeys } from "./internal/predicate-analysis.ts"
@@ -22,6 +24,37 @@ export type {
   TextCompatibleDbType,
   CastableDbType
 } from "./internal/coercion-analysis.ts"
+export type {
+  CanonicalSegment as JsonPathSegment,
+  DescendSegment as JsonPathDescendSegment,
+  ExactSegment as JsonExactPathSegment,
+  IndexSegment as JsonPathIndexSegment,
+  IsExactPath as IsExactJsonPath,
+  IsExactSegment as IsExactJsonPathSegment,
+  KeySegment as JsonPathKeySegment,
+  Path as JsonPath,
+  SegmentsOf as JsonPathSegments,
+  SliceSegment as JsonPathSliceSegment,
+  WildcardSegment as JsonPathWildcardSegment
+} from "./internal/json/path.ts"
+export type {
+  JsonPathUsageError
+} from "./internal/json/errors.ts"
+export type {
+  JsonConcatResult,
+  JsonDeleteAtPath,
+  JsonInsertAtPath,
+  JsonKeysResult,
+  JsonLengthResult,
+  JsonLiteralInput,
+  JsonPrimitive,
+  JsonSetAtPath,
+  JsonTextResult,
+  JsonTypeName,
+  JsonValue,
+  JsonValueAtPath,
+  NormalizeJsonLiteral
+} from "./internal/json/types.ts"
 export type {
   CoercionKind,
   CoercionKindOf
@@ -238,6 +271,48 @@ type JoinGroupingKeys<Keys extends readonly string[]> = Keys extends readonly []
       ? `${Head},${JoinGroupingKeys<Tail>}`
       : string
 
+type JsonSegmentGroupingKey<Segment> =
+  Segment extends JsonPath.KeySegment<infer Key extends string> ? `key:${Key}` :
+    Segment extends JsonPath.IndexSegment<infer Index extends number> ? `index:${Index}` :
+      Segment extends JsonPath.WildcardSegment ? "wildcard" :
+        Segment extends JsonPath.SliceSegment<infer Start extends number | undefined, infer End extends number | undefined>
+          ? `slice:${Start extends number ? Start : ""}:${End extends number ? End : ""}`
+          : Segment extends JsonPath.DescendSegment
+            ? "descend"
+            : Segment extends string
+              ? `key:${Segment}`
+              : Segment extends number
+                ? `index:${Segment}`
+                : "unknown"
+
+type JsonPathGroupingKey<Segments extends readonly any[]> = Segments extends readonly []
+  ? ""
+  : Segments extends readonly [infer Head]
+    ? JsonSegmentGroupingKey<Head>
+    : Segments extends readonly [infer Head, ...infer Tail extends readonly any[]]
+      ? `${JsonSegmentGroupingKey<Head>},${JsonPathGroupingKey<Tail>}`
+      : string
+
+type JsonOpaquePathGroupingKey<Value> =
+  Value extends JsonPath.Path<infer Segments extends readonly JsonPath.CanonicalSegment[]>
+    ? `jsonpath:${JsonPathGroupingKey<Segments>}` :
+  Value extends string ? `jsonpath:${Value}` :
+    Value extends Expression.Any ? `jsonpath:${GroupingKeyOfExpression<Value>}` :
+      "jsonpath:unknown"
+
+type JsonEntryGroupingKey<Entry> =
+  Entry extends { readonly key: infer Key extends string; readonly value: infer Value extends Expression.Any }
+    ? `${Key}=>${GroupingKeyOfExpression<Value>}`
+    : "entry:unknown"
+
+type JsonEntriesGroupingKey<Entries extends readonly { readonly key: string; readonly value: Expression.Any }[]> = Entries extends readonly []
+  ? ""
+  : Entries extends readonly [infer Head]
+    ? JsonEntryGroupingKey<Head>
+    : Entries extends readonly [infer Head, ...infer Tail extends readonly { readonly key: string; readonly value: Expression.Any }[]]
+      ? `${JsonEntryGroupingKey<Head>}|${JsonEntriesGroupingKey<Tail>}`
+      : string
+
 type BranchGroupingKeys<
   Branches extends readonly ExpressionAst.CaseBranchNode[]
 > = Branches extends readonly []
@@ -266,6 +341,25 @@ type GroupingKeyOfAst<Ast extends ExpressionAst.Any> =
         ? `${Kind}(${JoinGroupingKeys<{
             readonly [K in keyof Values]: Values[K] extends Expression.Any ? GroupingKeyOfExpression<Values[K]> : never
           } & readonly string[]>})`
+        : Ast extends JsonNode<infer Kind>
+          ? Kind extends "jsonGet" | "jsonPath" | "jsonAccess" | "jsonTraverse" | "jsonGetText" | "jsonPathText" | "jsonAccessText" | "jsonTraverseText"
+            ? `json(${Kind},${GroupingKeyOfExpression<Extract<Ast["value"] | Ast["base"] | Ast["left"], Expression.Any>>},${JsonPathGroupingKey<Extract<Ast["segments"] | Ast["path"], readonly any[]>>})`
+            : Kind extends "jsonHasKey" | "jsonKeyExists" | "jsonHasAnyKeys" | "jsonHasAllKeys"
+              ? `json(${Kind},${GroupingKeyOfExpression<Extract<Ast["value"] | Ast["base"] | Ast["left"], Expression.Any>>},${JoinGroupingKeys<Extract<Ast["keys"], readonly string[]> & readonly string[]>})`
+              : Kind extends "jsonConcat" | "jsonMerge" | "jsonDelete" | "jsonDeletePath" | "jsonRemove" | "jsonSet" | "jsonInsert"
+                ? `json(${Kind},${GroupingKeyOfExpression<Extract<Ast["left"] | Ast["base"] | Ast["value"], Expression.Any>>},${GroupingKeyOfExpression<Extract<Ast["right"] | Ast["newValue"] | Ast["insert"], Expression.Any>>},${JsonPathGroupingKey<Extract<Ast["segments"] | Ast["path"], readonly any[]>>})`
+                : Kind extends "jsonPathExists" | "jsonPathMatch"
+                  ? `json(${Kind},${GroupingKeyOfExpression<Extract<Ast["value"] | Ast["base"], Expression.Any>>},${JsonOpaquePathGroupingKey<Ast["query"] | Ast["path"]>})`
+                  : Kind extends "jsonBuildObject"
+                    ? `json(${Kind},${JsonEntriesGroupingKey<Extract<Ast["entries"], readonly { readonly key: string; readonly value: Expression.Any }[]>>})`
+                    : Kind extends "jsonBuildArray"
+                      ? `json(${Kind},${JoinGroupingKeys<{
+                          readonly [K in keyof Extract<Ast["values"], readonly Expression.Any[]>]:
+                            Extract<Ast["values"], readonly Expression.Any[]>[K] extends Expression.Any ? GroupingKeyOfExpression<Extract<Ast["values"], readonly Expression.Any[]>[K]> : never
+                        } & readonly string[]>})`
+                      : Kind extends "jsonToJson" | "jsonToJsonb" | "jsonTypeOf" | "jsonLength" | "jsonKeys" | "jsonStripNulls"
+                        ? `json(${Kind},${GroupingKeyOfExpression<Extract<Ast["value"], Expression.Any>>})`
+                    : never
         : Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
           ? `case(${BranchGroupingKeys<Branches>};else:${GroupingKeyOfExpression<Else>})`
           : Ast extends ExpressionAst.ExistsNode

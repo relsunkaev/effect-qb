@@ -52,6 +52,7 @@ const postgresQuery = makeDialectQuery({
 export const literal = postgresQuery.literal
 export const cast = postgresQuery.cast
 export const type = postgresQuery.type
+export const json = postgresQuery.json
 export const eq = postgresQuery.eq
 export const neq = postgresQuery.neq
 export const lt = postgresQuery.lt

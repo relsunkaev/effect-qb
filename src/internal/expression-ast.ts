@@ -1,5 +1,7 @@
 import type * as Expression from "../expression.ts"
 import type * as Query from "../query.ts"
+import type * as JsonPath from "./json/path.ts"
+import type { JsonNode } from "./json/ast.ts"
 
 /** Symbol used to attach internal expression-AST metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/ExpressionAst")
@@ -143,6 +145,142 @@ export interface WindowNode<
   readonly orderBy: OrderBy
 }
 
+export type JsonSegmentTuple = readonly any[]
+
+export type JsonAccessKind =
+  | "jsonGet"
+  | "jsonPath"
+  | "jsonAccess"
+  | "jsonTraverse"
+  | "jsonGetText"
+  | "jsonPathText"
+  | "jsonAccessText"
+  | "jsonTraverseText"
+
+export interface JsonAccessNode<
+  Kind extends JsonAccessKind = JsonAccessKind,
+  Base extends Expression.Any = Expression.Any,
+  Segments extends JsonSegmentTuple = JsonSegmentTuple
+> {
+  readonly kind: Kind
+  readonly base: Base
+  readonly segments: Segments
+}
+
+export type JsonKeyPredicateKind =
+  | "jsonHasKey"
+  | "jsonKeyExists"
+  | "jsonHasAnyKeys"
+  | "jsonHasAllKeys"
+
+export interface JsonKeyPredicateNode<
+  Kind extends JsonKeyPredicateKind = JsonKeyPredicateKind,
+  Base extends Expression.Any = Expression.Any,
+  Keys extends readonly string[] = readonly string[]
+> {
+  readonly kind: Kind
+  readonly base: Base
+  readonly keys: Keys
+}
+
+export type JsonBinaryKind = "jsonConcat" | "jsonMerge"
+
+export interface JsonBinaryNode<
+  Kind extends JsonBinaryKind = JsonBinaryKind,
+  Left extends Expression.Any = Expression.Any,
+  Right extends Expression.Any = Expression.Any
+> {
+  readonly kind: Kind
+  readonly left: Left
+  readonly right: Right
+}
+
+export type JsonDeleteKind = "jsonDelete" | "jsonDeletePath" | "jsonRemove"
+
+export interface JsonDeleteNode<
+  Kind extends JsonDeleteKind = JsonDeleteKind,
+  Base extends Expression.Any = Expression.Any,
+  Segments extends JsonSegmentTuple = JsonSegmentTuple
+> {
+  readonly kind: Kind
+  readonly base: Base
+  readonly segments: Segments
+}
+
+export interface JsonSetNode<
+  Base extends Expression.Any = Expression.Any,
+  Segments extends JsonSegmentTuple = JsonSegmentTuple,
+  NewValue extends Expression.Any = Expression.Any
+> {
+  readonly kind: "jsonSet"
+  readonly base: Base
+  readonly segments: Segments
+  readonly newValue: NewValue
+  readonly createMissing: boolean
+}
+
+export interface JsonInsertNode<
+  Base extends Expression.Any = Expression.Any,
+  Segments extends JsonSegmentTuple = JsonSegmentTuple,
+  Insert extends Expression.Any = Expression.Any
+> {
+  readonly kind: "jsonInsert"
+  readonly base: Base
+  readonly segments: Segments
+  readonly insert: Insert
+  readonly insertAfter: boolean
+}
+
+export type JsonQueryPredicateKind = "jsonPathExists" | "jsonPathMatch"
+
+export interface JsonQueryPredicateNode<
+  Kind extends JsonQueryPredicateKind = JsonQueryPredicateKind,
+  Base extends Expression.Any = Expression.Any,
+  QueryValue extends Expression.Any | JsonPath.Path<any> | string = Expression.Any | JsonPath.Path<any> | string
+> {
+  readonly kind: Kind
+  readonly base: Base
+  readonly query: QueryValue
+}
+
+export interface JsonBuildObjectEntryNode<
+  Key extends string = string,
+  Value extends Expression.Any = Expression.Any
+> {
+  readonly key: Key
+  readonly value: Value
+}
+
+export interface JsonBuildObjectNode<
+  Entries extends readonly JsonBuildObjectEntryNode[] = readonly JsonBuildObjectEntryNode[]
+> {
+  readonly kind: "jsonBuildObject"
+  readonly entries: Entries
+}
+
+export interface JsonBuildArrayNode<
+  Values extends readonly Expression.Any[] = readonly Expression.Any[]
+> {
+  readonly kind: "jsonBuildArray"
+  readonly values: Values
+}
+
+export interface JsonWrapNode<
+  Kind extends "jsonToJson" | "jsonToJsonb" = "jsonToJson" | "jsonToJsonb",
+  Value extends Expression.Any = Expression.Any
+> {
+  readonly kind: Kind
+  readonly value: Value
+}
+
+export interface JsonUnaryNode<
+  Kind extends "jsonTypeOf" | "jsonLength" | "jsonKeys" | "jsonStripNulls" = "jsonTypeOf" | "jsonLength" | "jsonKeys" | "jsonStripNulls",
+  Value extends Expression.Any = Expression.Any
+> {
+  readonly kind: Kind
+  readonly value: Value
+}
+
 /** Union of all internal expression nodes. */
 export type Any =
   | ColumnNode
@@ -154,3 +292,15 @@ export type Any =
   | CaseNode
   | ExistsNode
   | WindowNode
+  | JsonNode
+  | JsonAccessNode
+  | JsonKeyPredicateNode
+  | JsonBinaryNode
+  | JsonDeleteNode
+  | JsonSetNode
+  | JsonInsertNode
+  | JsonQueryPredicateNode
+  | JsonBuildObjectNode
+  | JsonBuildArrayNode
+  | JsonWrapNode
+  | JsonUnaryNode
