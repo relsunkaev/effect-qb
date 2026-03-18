@@ -337,6 +337,39 @@ type UsersWithActivePostsRow = Q.ResultRow<typeof usersWithActivePosts>
 
 Passing a raw subquery directly to `from(...)` or a join is rejected at the type boundary. The compiler points you to `Q.as(subquery, alias)` so the derived source has an explicit SQL alias and a stable nested output shape.
 
+### Common Table Expressions
+
+CTEs are also available through `Q.with(subquery, alias)`:
+
+```ts
+const activePosts = Q.with(
+  Q.select({
+    userId: posts.userId,
+    title: posts.title
+  }).pipe(
+    Q.from(posts),
+    Q.where(Q.isNotNull(posts.title))
+  ),
+  "active_posts"
+)
+
+const usersWithActivePosts = Q.select({
+  userId: users.id,
+  title: activePosts.title
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(activePosts, Q.eq(users.id, activePosts.userId))
+)
+
+type UsersWithActivePostsRow = Q.ResultRow<typeof usersWithActivePosts>
+// {
+//   userId: string
+//   title: string
+// }
+```
+
+`Q.with(...)` returns a typed source wrapper, so the CTE alias is available everywhere a table-like source is accepted. The CTE definition is hoisted into the rendered SQL automatically.
+
 ### Aggregation and Grouping
 
 ```ts
@@ -628,7 +661,6 @@ This release is focused on typed read-path query construction. Notable gaps:
 - insert / update / delete plan builders
 - DDL workflows
 - set operators such as `union`, `intersect`, and `except`
-- CTEs
 - right joins, full joins, and cross joins
 - window functions
 
