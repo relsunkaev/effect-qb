@@ -228,6 +228,50 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual([5, 10, 11, 1, 0, "%@example.com", "%@EXAMPLE.COM%", 2, 4, 7, 8, 9])
   })
 
+  test("renders the remaining read predicate helpers with postgres-specific syntax", () => {
+    const { users } = makePostgresSocialGraph()
+
+    const plan = Postgres.Query.select({
+      notInIds: Postgres.Query.notIn(users.id, 4, 5, 6),
+      distinctEmail: Postgres.Query.isDistinctFrom(users.email, "alice@example.com"),
+      sameEmail: Postgres.Query.isNotDistinctFrom(users.email, "alice@example.com"),
+      combined: Postgres.Query.all(
+        Postgres.Query.eq(users.id, 1),
+        Postgres.Query.any(
+          Postgres.Query.eq(users.email, "alice@example.com"),
+          Postgres.Query.eq(users.email, "bob@example.com")
+        )
+      ),
+      label: Postgres.Query.match(users.email)
+        .when("alice@example.com", "Alice")
+        .when("bob@example.com", "Bob")
+        .else("Other")
+    }).pipe(
+      Postgres.Query.from(users)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select ("users"."id" not in ($1, $2, $3)) as "notInIds", ("users"."email" is distinct from $4) as "distinctEmail", ("users"."email" is not distinct from $5) as "sameEmail", (("users"."id" = $6) and (("users"."email" = $7) or ("users"."email" = $8))) as "combined", case when ("users"."email" = $9) then $10 when ("users"."email" = $11) then $12 else $13 end as "label" from "users"'
+    )
+    expect(rendered.params).toEqual([
+      4,
+      5,
+      6,
+      "alice@example.com",
+      "alice@example.com",
+      1,
+      "alice@example.com",
+      "bob@example.com",
+      "alice@example.com",
+      "Alice",
+      "bob@example.com",
+      "Bob",
+      "Other"
+    ])
+  })
+
   test("renders searched case expressions with postgres placeholders", () => {
     const { users, posts } = makePostgresSocialGraph()
 

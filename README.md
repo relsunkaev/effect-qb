@@ -297,7 +297,7 @@ Join optionality still feeds the row type. `rightJoin(...)` can demote the alrea
 
 ### Case Expressions
 
-Searched `CASE` is available through a builder:
+Searched `CASE` is available through `case()`, and simple `CASE` is available through `match(...)`:
 
 ```ts
 const normalizedTitles = Q.select({
@@ -313,9 +313,25 @@ type NormalizedTitlesRow = Q.ResultRow<typeof normalizedTitles>
 // {
 //   normalizedTitle: string
 // }
+
+const statusLabels = Q.select({
+  label: Q.match(posts.title)
+    .when("draft", "Draft")
+    .when("published", "Live")
+    .else("Unknown")
+}).pipe(
+  Q.from(posts)
+)
+
+type StatusLabelsRow = Q.ResultRow<typeof statusLabels>
+// {
+//   label: string
+// }
 ```
 
 The outer `where(...)` can make `CASE` branches unreachable, and the return type narrows accordingly when the implication engine can prove it.
+
+Other read-predicate helpers include `notIn(...)`, `isDistinctFrom(...)`, `isNotDistinctFrom(...)`, `all(...)`, and `any(...)`. `all(...)` and `any(...)` are aliases for `and(...)` and `or(...)` with the same type behavior.
 
 ### Exists Subqueries
 

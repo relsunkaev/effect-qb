@@ -151,6 +151,39 @@ const predicateSurfaceApplied = Q.where(Q.and(
 ))(predicateSurfacePlan)
 void predicateSurfaceApplied
 
+const predicateHelpersPlan = Q.select({
+  distinctEmail: Q.isDistinctFrom(users.email, "alice@example.com"),
+  sameEmail: Q.isNotDistinctFrom(users.email, "alice@example.com"),
+  notInIds: Q.notIn(users.id, 4, 5, 6),
+  combined: Q.all(
+    Q.eq(users.id, 1),
+    Q.any(
+      Q.eq(users.email, "alice@example.com"),
+      Q.eq(users.email, "bob@example.com")
+    )
+  ),
+  label: Q.match(users.email)
+    .when("alice@example.com", "Alice")
+    .when("bob@example.com", "Bob")
+    .else("Other")
+}).pipe(
+  Q.from(users)
+)
+
+type PredicateHelpersRow = Q.ResultRow<typeof predicateHelpersPlan>
+const predicateHelpersDistinct: PredicateHelpersRow["distinctEmail"] = true
+const predicateHelpersSame: PredicateHelpersRow["sameEmail"] = true
+const predicateHelpersNotIn: PredicateHelpersRow["notInIds"] = true
+const predicateHelpersCombined: PredicateHelpersRow["combined"] = true
+const predicateHelpersLabelValue: PredicateHelpersRow["label"] = "Other"
+const predicateHelpersLabel: string = predicateHelpersLabelValue
+void predicateHelpersDistinct
+void predicateHelpersSame
+void predicateHelpersNotIn
+void predicateHelpersCombined
+void predicateHelpersLabelValue
+void predicateHelpersLabel
+
 // @ts-expect-error distinct is select-only
 Q.distinct()(Q.delete(users))
 

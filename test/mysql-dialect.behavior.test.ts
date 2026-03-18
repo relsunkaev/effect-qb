@@ -228,6 +228,50 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual([5, 10, 11, 1, 0, "%@example.com", "%@EXAMPLE.COM%", 2, 4, 7, 8, 9])
   })
 
+  test("renders the remaining read predicate helpers with mysql-specific syntax", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.select({
+      notInIds: Mysql.Query.notIn(users.id, 4, 5, 6),
+      distinctEmail: Mysql.Query.isDistinctFrom(users.email, "alice@example.com"),
+      sameEmail: Mysql.Query.isNotDistinctFrom(users.email, "alice@example.com"),
+      combined: Mysql.Query.all(
+        Mysql.Query.eq(users.id, 1),
+        Mysql.Query.any(
+          Mysql.Query.eq(users.email, "alice@example.com"),
+          Mysql.Query.eq(users.email, "bob@example.com")
+        )
+      ),
+      label: Mysql.Query.match(users.email)
+        .when("alice@example.com", "Alice")
+        .when("bob@example.com", "Bob")
+        .else("Other")
+    }).pipe(
+      Mysql.Query.from(users)
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select (`users`.`id` not in (?, ?, ?)) as `notInIds`, (not (`users`.`email` <=> ?)) as `distinctEmail`, (`users`.`email` <=> ?) as `sameEmail`, ((`users`.`id` = ?) and ((`users`.`email` = ?) or (`users`.`email` = ?))) as `combined`, case when (`users`.`email` = ?) then ? when (`users`.`email` = ?) then ? else ? end as `label` from `users`"
+    )
+    expect(rendered.params).toEqual([
+      4,
+      5,
+      6,
+      "alice@example.com",
+      "alice@example.com",
+      1,
+      "alice@example.com",
+      "bob@example.com",
+      "alice@example.com",
+      "Alice",
+      "bob@example.com",
+      "Bob",
+      "Other"
+    ])
+  })
+
   test("renders searched case expressions with mysql placeholders", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

@@ -497,6 +497,47 @@ type CaseBuilder<
   >
 }
 
+type MatchBuilder<
+  Subject extends ExpressionInput,
+  Branches extends readonly [CaseBranch<any, any>, ...CaseBranch<any, any>[]],
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+  > = {
+  when<Compare extends ExpressionInput, Then extends ExpressionInput>(
+    compare: Compare,
+    result: Then
+  ): MatchBuilder<
+    Subject,
+    [...Branches, CaseBranch<
+      Expression.Any,
+      DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    >],
+    Dialect,
+    TextDb,
+    NumericDb,
+    BoolDb,
+    TimestampDb,
+    NullDb
+  >
+  else<Else extends ExpressionInput>(
+    fallback: Else
+  ): AstBackedExpression<
+    Expression.RuntimeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
+    Expression.DbTypeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
+    CaseNullabilityOfUnion<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
+    TupleDialect<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    MergeAggregationTuple<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    TupleSource<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    TupleDependencies<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
+    ExpressionAst.CaseNode<CaseAstBranches<Branches>, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    "resolved"
+  >
+}
+
 type CaseStarter<
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -511,6 +552,33 @@ type CaseStarter<
   ): CaseBuilder<
     [CaseBranch<
       DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    >],
+    Dialect,
+    TextDb,
+    NumericDb,
+    BoolDb,
+    TimestampDb,
+    NullDb
+  >
+}
+
+type MatchStarter<
+  Subject extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = {
+  when<Compare extends ExpressionInput, Then extends ExpressionInput>(
+    compare: Compare,
+    result: Then
+  ): MatchBuilder<
+    Subject,
+    [CaseBranch<
+      Expression.Any,
       DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >],
     Dialect,
@@ -758,11 +826,13 @@ export function makeDialectQuery<
   type BinaryPredicateExpression<
     Left extends ExpressionInput,
     Right extends ExpressionInput,
-    Kind extends ExpressionAst.BinaryKind
+    Kind extends ExpressionAst.BinaryKind,
+    Nullability extends Expression.Nullability = "maybe",
+    SourceNullability extends Expression.SourceNullabilityMode = "propagate"
   > = AstBackedExpression<
     boolean,
     BoolDb,
-    "maybe",
+    Nullability,
     DialectOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     MergeAggregation<AggregationOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>, AggregationOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
     SourceOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | SourceOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -771,7 +841,8 @@ export function makeDialectQuery<
       Kind,
       DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
-    >
+    >,
+    SourceNullability
   >
 
   type VariadicPredicateExpression<
@@ -791,25 +862,29 @@ export function makeDialectQuery<
   const buildBinaryPredicate = <
     Left extends ExpressionInput,
     Right extends ExpressionInput,
-    Kind extends ExpressionAst.BinaryKind
+    Kind extends ExpressionAst.BinaryKind,
+    Nullability extends Expression.Nullability = "maybe",
+    SourceNullability extends Expression.SourceNullabilityMode = "propagate"
   >(
     left: Left,
     right: Right,
-    kind: Kind
-  ): BinaryPredicateExpression<Left, Right, Kind> => {
+    kind: Kind,
+    nullability: Nullability = "maybe" as Nullability,
+    sourceNullability: SourceNullability = "propagate" as SourceNullability
+  ): BinaryPredicateExpression<Left, Right, Kind, Nullability, SourceNullability> => {
     const leftExpression = toDialectExpression(left)
     const rightExpression = toDialectExpression(right)
     return makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
-      nullability: "maybe",
+      nullability,
       dialect: (leftExpression[Expression.TypeId].dialect ?? rightExpression[Expression.TypeId].dialect) as DialectOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       aggregation: mergeAggregationRuntime(
         leftExpression[Expression.TypeId].aggregation,
         rightExpression[Expression.TypeId].aggregation
       ) as MergeAggregation<AggregationOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>, AggregationOf<DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
       source: mergeSources(leftExpression[Expression.TypeId].source, rightExpression[Expression.TypeId].source) as SourceOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | SourceOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      sourceNullability: "propagate" as const,
+      sourceNullability,
       dependencies: mergeDependencies(
         leftExpression[Expression.TypeId].dependencies,
         rightExpression[Expression.TypeId].dependencies
@@ -923,6 +998,24 @@ export function makeDialectQuery<
     right: Right
   ): BinaryPredicateExpression<Left, Right, "ilike"> =>
     buildBinaryPredicate(left, right, "ilike")
+
+  const isDistinctFrom = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "isDistinctFrom", "never", "resolved"> =>
+    buildBinaryPredicate(left, right, "isDistinctFrom", "never", "resolved")
+
+  const isNotDistinctFrom = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "isNotDistinctFrom", "never", "resolved"> =>
+    buildBinaryPredicate(left, right, "isNotDistinctFrom", "never", "resolved")
 
   const isNull = <Value extends ExpressionInput>(
     value: Value
@@ -1137,6 +1230,13 @@ export function makeDialectQuery<
   ): VariadicPredicateExpression<Values, "in"> =>
     buildVariadicPredicate(values, "in")
 
+  const notIn = <
+    Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
+  >(
+    ...values: Values
+  ): VariadicPredicateExpression<Values, "notIn"> =>
+    buildVariadicPredicate(values, "notIn")
+
   const between = <
     Value extends ExpressionInput,
     Lower extends ExpressionInput,
@@ -1185,6 +1285,18 @@ export function makeDialectQuery<
       values: expressions
     })
   }
+
+  const all_ = <
+    Values extends readonly [ExpressionInput, ...ExpressionInput[]]
+  >(
+    ...values: Values
+  ) => and(...values)
+
+  const any_ = <
+    Values extends readonly [ExpressionInput, ...ExpressionInput[]]
+  >(
+    ...values: Values
+  ) => or(...values)
 
   const count = <Value extends ExpressionInput>(
     value: Value
@@ -1440,6 +1552,11 @@ export function makeDialectQuery<
     })
   }
 
+  type RuntimeCaseBranch = {
+    readonly when: Expression.Any
+    readonly then: Expression.Any
+  }
+
   const resolveCaseNullabilityRuntime = (
     values: readonly Expression.Any[]
   ): Expression.Nullability => {
@@ -1464,39 +1581,34 @@ export function makeDialectQuery<
       : sawMaybe ? "maybe" : "always"
   }
 
+  const finalizeCase = (
+    branches: readonly RuntimeCaseBranch[],
+    fallback: Expression.Any
+  ): Expression.Any => {
+    const resultExpressions = [...branches.map((branch) => branch.then), fallback]
+    const allExpressions = [...branches.flatMap((branch) => [branch.when, branch.then]), fallback]
+    const representative = resultExpressions.find((value) =>
+      value[Expression.TypeId].nullability !== "always") ?? fallback
+    return makeExpression({
+      runtime: undefined as never,
+      dbType: representative[Expression.TypeId].dbType,
+      nullability: resolveCaseNullabilityRuntime(resultExpressions),
+      dialect: (allExpressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect),
+      aggregation: mergeAggregationManyRuntime(allExpressions),
+      source: mergeManySources(allExpressions),
+      sourceNullability: "resolved" as const,
+      dependencies: mergeManyDependencies(allExpressions)
+    }, {
+      kind: "case",
+      branches: branches.map((branch) => ({
+        when: branch.when,
+        then: branch.then
+      })),
+      else: fallback
+    })
+  }
+
   const case_ = (): CaseStarter<Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
-    type RuntimeCaseBranch = {
-      readonly when: Expression.Any
-      readonly then: Expression.Any
-    }
-
-    const finalize = (
-      branches: readonly RuntimeCaseBranch[],
-      fallback: Expression.Any
-    ): Expression.Any => {
-      const resultExpressions = [...branches.map((branch) => branch.then), fallback]
-      const allExpressions = [...branches.flatMap((branch) => [branch.when, branch.then]), fallback]
-      const representative = resultExpressions.find((value) =>
-        value[Expression.TypeId].nullability !== "always") ?? fallback
-      return makeExpression({
-        runtime: undefined as never,
-        dbType: representative[Expression.TypeId].dbType,
-        nullability: resolveCaseNullabilityRuntime(resultExpressions),
-        dialect: (allExpressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect),
-        aggregation: mergeAggregationManyRuntime(allExpressions),
-        source: mergeManySources(allExpressions),
-        sourceNullability: "resolved" as const,
-        dependencies: mergeManyDependencies(allExpressions)
-      }, {
-        kind: "case",
-        branches: branches.map((branch) => ({
-          when: branch.when,
-          then: branch.then
-        })),
-        else: fallback
-      })
-    }
-
     const build = (
       branches: readonly RuntimeCaseBranch[]
     ): {
@@ -1513,7 +1625,7 @@ export function makeDialectQuery<
         ])
       },
       else(fallback) {
-        return finalize(branches, toDialectExpression(fallback))
+        return finalizeCase(branches, toDialectExpression(fallback))
       }
     })
 
@@ -1533,9 +1645,56 @@ export function makeDialectQuery<
           BoolDb,
           TimestampDb,
           NullDb
-    >
+        >
+      }
     }
   }
+
+  const match = <Value extends ExpressionInput>(
+    value: Value
+  ): MatchStarter<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
+    const subject = toDialectExpression(value)
+    const build = (
+      branches: readonly RuntimeCaseBranch[]
+    ): {
+      when: (compare: ExpressionInput, result: ExpressionInput) => unknown
+      else: (fallback: ExpressionInput) => Expression.Any
+    } => ({
+      when(compare, result) {
+        return build([
+          ...branches,
+          {
+            when: eq(subject, compare),
+            then: toDialectExpression(result)
+          }
+        ])
+      },
+      else(fallback) {
+        return finalizeCase(branches, toDialectExpression(fallback))
+      }
+    })
+
+    return {
+      when<Compare extends ExpressionInput, Then extends ExpressionInput>(compare: Compare, result: Then) {
+        const predicate = eq(subject, compare)
+        return build([{
+          when: predicate,
+          then: toDialectExpression(result)
+        }]) as unknown as MatchBuilder<
+          Value,
+          [CaseBranch<
+            Expression.Any,
+            DialectAsExpression<typeof result, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+          >],
+          Dialect,
+          TextDb,
+          NumericDb,
+          BoolDb,
+          TimestampDb,
+          NullDb
+        >
+      }
+    }
   }
 
   const toMutationValueExpression = <Value>(
@@ -2838,9 +2997,13 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     and,
     or,
     not,
+    all: all_,
+    any: any_,
     case: case_,
+    match,
     coalesce,
     in: in_,
+    notIn,
     between,
     concat,
     exists,
@@ -2851,6 +3014,8 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     count,
     max,
     min,
+    isDistinctFrom,
+    isNotDistinctFrom,
     as,
     with: with_,
     withRecursive: withRecursive_,
