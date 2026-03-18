@@ -826,13 +826,15 @@ Runtime execution is:
 
 There is no query-result schema decode step.
 
-For transactional work, use the ambient `@effect/sql` service or the convenience helper:
+For transactional work, use the ambient `@effect/sql` service or the convenience helpers:
 
 ```ts
 const transactionalRows = Executor.withTransaction(executor.execute(postsPerUser))
+const savepointRows = Executor.withSavepoint(executor.execute(postsPerUser))
 ```
 
 This preserves the effect's type parameters and only adds the SQL transaction boundary.
+Nested `withTransaction(...)` calls use savepoints under the ambient SQL client.
 
 If the database returns invalid values, `effect-qb` will not reject them at runtime. The expectation is that the database and your query plan agree, and the static contract is the primary safety boundary.
 

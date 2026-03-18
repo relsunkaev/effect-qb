@@ -145,11 +145,16 @@ void postgresMutationRow
 void mysqlMutationRow
 
 const transactionEffect = Executor.withTransaction(Effect.succeed(insertRow))
+const savepointEffect = Executor.withSavepoint(Effect.succeed(insertRow))
 type TransactionEffect = typeof transactionEffect
 const transactionEffectCheck: Effect.Effect<InsertRow, SqlError.SqlError, SqlClient.SqlClient> = transactionEffect
 const transactionEffectValue: TransactionEffect = transactionEffect
+const savepointEffectCheck: Effect.Effect<InsertRow, SqlError.SqlError, SqlClient.SqlClient> = savepointEffect
+const savepointEffectValue: typeof savepointEffect = savepointEffect
 void transactionEffectCheck
 void transactionEffectValue
+void savepointEffectCheck
+void savepointEffectValue
 
 const renderer = Renderer.make("postgres")
 const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(

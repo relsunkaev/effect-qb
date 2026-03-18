@@ -205,3 +205,14 @@ export const withTransaction = <A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
   Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect))
+
+/**
+ * Runs an effect in a nested transaction scope.
+ *
+ * When the ambient `@effect/sql` client is already inside a transaction, the
+ * underlying client implementation uses a savepoint.
+ */
+export const withSavepoint = <A, E, R>(
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
+  Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect))

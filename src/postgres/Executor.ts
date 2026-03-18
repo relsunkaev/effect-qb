@@ -25,6 +25,8 @@ export type PostgresQueryError<PlanValue extends Query.QueryPlan<any, any, any, 
 
 /** Runs an effect within the ambient Postgres SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction
+/** Runs an effect in a nested Postgres SQL transaction scope. */
+export const withSavepoint = CoreExecutor.withSavepoint
 
 /** Postgres executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> {
