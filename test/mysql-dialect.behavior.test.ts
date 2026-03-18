@@ -181,6 +181,31 @@ describe("mysql dialect behavior", () => {
     ])
   })
 
+  test("renders the extended read predicate surface with mysql-specific operators", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.select({
+      notEqual: Mysql.Query.neq(users.id, 5),
+      lessThan: Mysql.Query.lt(users.id, 10),
+      lessThanOrEqual: Mysql.Query.lte(users.id, 11),
+      greaterThan: Mysql.Query.gt(users.id, 1),
+      greaterThanOrEqual: Mysql.Query.gte(users.id, 0),
+      emailLike: Mysql.Query.like(users.email, "%@example.com"),
+      emailInsensitive: Mysql.Query.ilike(users.email, "%@EXAMPLE.COM%"),
+      idRange: Mysql.Query.between(users.id, 2, 4),
+      idSet: Mysql.Query.in(users.id, 7, 8, 9)
+    }).pipe(
+      Mysql.Query.from(users)
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select (`users`.`id` <> ?) as `notEqual`, (`users`.`id` < ?) as `lessThan`, (`users`.`id` <= ?) as `lessThanOrEqual`, (`users`.`id` > ?) as `greaterThan`, (`users`.`id` >= ?) as `greaterThanOrEqual`, (`users`.`email` like ?) as `emailLike`, (lower(`users`.`email`) like lower(?)) as `emailInsensitive`, (`users`.`id` between ? and ?) as `idRange`, (`users`.`id` in (?, ?, ?)) as `idSet` from `users`"
+    )
+    expect(rendered.params).toEqual([5, 10, 11, 1, 0, "%@example.com", "%@EXAMPLE.COM%", 2, 4, 7, 8, 9])
+  })
+
   test("renders searched case expressions with mysql placeholders", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

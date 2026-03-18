@@ -88,6 +88,22 @@ export const renderExpression = (
       return dialect.renderLiteral(ast.value, state)
     case "eq":
       return `(${renderExpression(ast.left, state, dialect)} = ${renderExpression(ast.right, state, dialect)})`
+    case "neq":
+      return `(${renderExpression(ast.left, state, dialect)} <> ${renderExpression(ast.right, state, dialect)})`
+    case "lt":
+      return `(${renderExpression(ast.left, state, dialect)} < ${renderExpression(ast.right, state, dialect)})`
+    case "lte":
+      return `(${renderExpression(ast.left, state, dialect)} <= ${renderExpression(ast.right, state, dialect)})`
+    case "gt":
+      return `(${renderExpression(ast.left, state, dialect)} > ${renderExpression(ast.right, state, dialect)})`
+    case "gte":
+      return `(${renderExpression(ast.left, state, dialect)} >= ${renderExpression(ast.right, state, dialect)})`
+    case "like":
+      return `(${renderExpression(ast.left, state, dialect)} like ${renderExpression(ast.right, state, dialect)})`
+    case "ilike":
+      return dialect.name === "postgres"
+        ? `(${renderExpression(ast.left, state, dialect)} ilike ${renderExpression(ast.right, state, dialect)})`
+        : `(lower(${renderExpression(ast.left, state, dialect)}) like lower(${renderExpression(ast.right, state, dialect)}))`
     case "isNull":
       return `(${renderExpression(ast.value, state, dialect)} is null)`
     case "isNotNull":
@@ -110,6 +126,10 @@ export const renderExpression = (
       return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" or ")})`
     case "coalesce":
       return `coalesce(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")})`
+    case "in":
+      return `(${renderExpression(ast.values[0]!, state, dialect)} in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
+    case "between":
+      return `(${renderExpression(ast.values[0]!, state, dialect)} between ${renderExpression(ast.values[1]!, state, dialect)} and ${renderExpression(ast.values[2]!, state, dialect)})`
     case "concat":
       return dialect.renderConcat(ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)))
     case "case":

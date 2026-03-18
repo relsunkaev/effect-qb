@@ -67,6 +67,29 @@ void innerJoinedTitle
 void innerJoinedPostId
 void innerJoinedNullPostId
 
+const predicateSurfacePlan = Q.select({
+  userId: users.id
+}).pipe(
+  Q.from(users)
+)
+
+type PredicateSurfaceRow = Q.ResultRow<typeof predicateSurfacePlan>
+const predicateSurfaceUserId: PredicateSurfaceRow["userId"] = "user-1"
+void predicateSurfaceUserId
+
+const predicateSurfaceApplied = Q.where(Q.and(
+  Q.neq(users.id, 1),
+  Q.lt(users.id, 2),
+  Q.lte(users.id, 3),
+  Q.gt(users.id, 0),
+  Q.gte(users.id, 0),
+  Q.like(users.email, "%@example.com"),
+  Q.ilike(users.email, "%@EXAMPLE.COM%"),
+  Q.between(users.id, 4, 6),
+  Q.in(users.id, 7, 8, 9)
+))(predicateSurfacePlan)
+void predicateSurfaceApplied
+
 const aliasPlan = Q.select({
   profile: {
     id: Q.as(users.id, "user_identifier"),

@@ -43,7 +43,7 @@ export interface UnaryNode<
 }
 
 /** Binary expression kinds supported by the current query layer. */
-export type BinaryKind = "eq"
+export type BinaryKind = "eq" | "neq" | "lt" | "lte" | "gt" | "gte" | "like" | "ilike"
 
 /** Binary expression node. */
 export interface BinaryNode<
@@ -57,7 +57,7 @@ export interface BinaryNode<
 }
 
 /** Variadic expression kinds supported by the current query layer. */
-export type VariadicKind = "and" | "or" | "coalesce" | "concat"
+export type VariadicKind = "and" | "or" | "coalesce" | "concat" | "in" | "between"
 
 /** Variadic expression node. */
 export interface VariadicNode<

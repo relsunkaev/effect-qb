@@ -521,13 +521,11 @@ export const makeDialectQuery = <
     return Object.keys(expression[Expression.TypeId].dependencies)
   }
 
-  const eq = <
+  type BinaryPredicateExpression<
     Left extends ExpressionInput,
-    Right extends ExpressionInput
-  >(
-    left: Left,
-    right: Right
-  ): AstBackedExpression<
+    Right extends ExpressionInput,
+    Kind extends ExpressionAst.BinaryKind
+  > = AstBackedExpression<
     boolean,
     BoolDb,
     "maybe",
@@ -536,11 +534,35 @@ export const makeDialectQuery = <
     SourceOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | SourceOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     ExpressionAst.BinaryNode<
-      "eq",
+      Kind,
       DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >
-  > => {
+  >
+
+  type VariadicPredicateExpression<
+    Values extends readonly ExpressionInput[],
+    Kind extends ExpressionAst.VariadicKind
+  > = AstBackedExpression<
+    boolean,
+    BoolDb,
+    "maybe",
+    TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    MergeAggregationTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    TupleSource<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    ExpressionAst.VariadicNode<Kind, DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+  >
+
+  const buildBinaryPredicate = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput,
+    Kind extends ExpressionAst.BinaryKind
+  >(
+    left: Left,
+    right: Right,
+    kind: Kind
+  ): BinaryPredicateExpression<Left, Right, Kind> => {
     const leftExpression = toDialectExpression(left)
     const rightExpression = toDialectExpression(right)
     return makeExpression({
@@ -559,11 +581,114 @@ export const makeDialectQuery = <
         rightExpression[Expression.TypeId].dependencies
       ) as DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
     }, {
-      kind: "eq",
+      kind,
       left: leftExpression,
       right: rightExpression
     })
   }
+
+  const buildVariadicPredicate = <
+    Values extends readonly ExpressionInput[],
+    Kind extends ExpressionAst.VariadicKind
+  >(
+    values: Values,
+    kind: Kind
+  ): VariadicPredicateExpression<Values, Kind> => {
+    const expressions = values.map((value) => toDialectExpression(value)) as DialectExpressionTuple<
+      Values,
+      Dialect,
+      TextDb,
+      NumericDb,
+      BoolDb,
+      TimestampDb,
+      NullDb
+    >
+    return makeExpression({
+      runtime: true as boolean,
+      dbType: profile.boolDb as BoolDb,
+      nullability: "maybe",
+      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      aggregation: mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      source: mergeManySources(expressions) as TupleSource<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      sourceNullability: "propagate" as const,
+      dependencies: mergeManyDependencies(expressions) as TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+    }, {
+      kind,
+      values: expressions
+    })
+  }
+
+  const eq = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "eq"> =>
+    buildBinaryPredicate(left, right, "eq")
+
+  const neq = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "neq"> =>
+    buildBinaryPredicate(left, right, "neq")
+
+  const lt = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "lt"> =>
+    buildBinaryPredicate(left, right, "lt")
+
+  const lte = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "lte"> =>
+    buildBinaryPredicate(left, right, "lte")
+
+  const gt = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "gt"> =>
+    buildBinaryPredicate(left, right, "gt")
+
+  const gte = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "gte"> =>
+    buildBinaryPredicate(left, right, "gte")
+
+  const like = <
+    Left extends StringExpressionInput,
+    Right extends StringExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "like"> =>
+    buildBinaryPredicate(left, right, "like")
+
+  const ilike = <
+    Left extends StringExpressionInput,
+    Right extends StringExpressionInput
+  >(
+    left: Left,
+    right: Right
+  ): BinaryPredicateExpression<Left, Right, "ilike"> =>
+    buildBinaryPredicate(left, right, "ilike")
 
   const isNull = <Value extends ExpressionInput>(
     value: Value
@@ -770,6 +895,24 @@ export const makeDialectQuery = <
       value: expression
     })
   }
+
+  const in_ = <
+    Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
+  >(
+    ...values: Values
+  ): VariadicPredicateExpression<Values, "in"> =>
+    buildVariadicPredicate(values, "in")
+
+  const between = <
+    Value extends ExpressionInput,
+    Lower extends ExpressionInput,
+    Upper extends ExpressionInput
+  >(
+    value: Value,
+    lower: Lower,
+    upper: Upper
+  ): VariadicPredicateExpression<[Value, Lower, Upper], "between"> =>
+    buildVariadicPredicate([value, lower, upper], "between")
 
   const concat = <
     Values extends readonly [StringExpressionInput, StringExpressionInput, ...StringExpressionInput[]]
@@ -1412,15 +1555,24 @@ export const makeDialectQuery = <
   return {
     literal,
     eq,
+    neq,
+    lt,
+    lte,
+    gt,
+    gte,
     isNull,
     isNotNull,
     upper,
     lower,
+    like,
+    ilike,
     and,
     or,
     not,
     case: case_,
     coalesce,
+    in: in_,
+    between,
     concat,
     exists,
     count,

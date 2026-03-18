@@ -213,17 +213,17 @@ type GroupingKeyOfAst<Ast extends ExpressionAst.Any> =
       ? `literal:${LiteralGroupingKey<Value>}`
       : Ast extends ExpressionAst.UnaryNode<infer Kind extends ExpressionAst.UnaryKind, infer Value extends Expression.Any>
         ? `${Kind}(${GroupingKeyOfExpression<Value>})`
-        : Ast extends ExpressionAst.BinaryNode<infer Kind extends ExpressionAst.BinaryKind, infer Left extends Expression.Any, infer Right extends Expression.Any>
-          ? `${Kind}(${GroupingKeyOfExpression<Left>},${GroupingKeyOfExpression<Right>})`
-          : Ast extends ExpressionAst.VariadicNode<infer Kind extends ExpressionAst.VariadicKind, infer Values extends readonly Expression.Any[]>
-            ? `${Kind}(${JoinGroupingKeys<{
-                readonly [K in keyof Values]: Values[K] extends Expression.Any ? GroupingKeyOfExpression<Values[K]> : never
-              } & readonly string[]>})`
-            : Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
-              ? `case(${BranchGroupingKeys<Branches>};else:${GroupingKeyOfExpression<Else>})`
-              : Ast extends ExpressionAst.ExistsNode
-                ? "exists(subquery)"
-              : never
+    : Ast extends ExpressionAst.BinaryNode<infer Kind extends ExpressionAst.BinaryKind, infer Left extends Expression.Any, infer Right extends Expression.Any>
+      ? `${Kind}(${GroupingKeyOfExpression<Left>},${GroupingKeyOfExpression<Right>})`
+      : Ast extends ExpressionAst.VariadicNode<infer Kind extends ExpressionAst.VariadicKind, infer Values extends readonly Expression.Any[]>
+        ? `${Kind}(${JoinGroupingKeys<{
+            readonly [K in keyof Values]: Values[K] extends Expression.Any ? GroupingKeyOfExpression<Values[K]> : never
+          } & readonly string[]>})`
+        : Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
+          ? `case(${BranchGroupingKeys<Branches>};else:${GroupingKeyOfExpression<Else>})`
+          : Ast extends ExpressionAst.ExistsNode
+            ? "exists(subquery)"
+          : never
 
 /** Canonical grouping identity for an expression AST. */
 export type GroupingKeyOfExpression<Value extends Expression.Any> = GroupingKeyOfAst<AstOf<Value>>

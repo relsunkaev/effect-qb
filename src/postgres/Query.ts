@@ -36,15 +36,24 @@ const postgresQuery = makeDialectQuery({
 
 export const literal = postgresQuery.literal
 export const eq = postgresQuery.eq
+export const neq = postgresQuery.neq
+export const lt = postgresQuery.lt
+export const lte = postgresQuery.lte
+export const gt = postgresQuery.gt
+export const gte = postgresQuery.gte
 export const isNull = postgresQuery.isNull
 export const isNotNull = postgresQuery.isNotNull
 export const upper = postgresQuery.upper
 export const lower = postgresQuery.lower
+export const like = postgresQuery.like
+export const ilike = postgresQuery.ilike
 export const and = postgresQuery.and
 export const or = postgresQuery.or
 export const not = postgresQuery.not
 const case_ = postgresQuery.case
 export const coalesce = postgresQuery.coalesce
+export const in_ = postgresQuery.in
+export const between = postgresQuery.between
 export const concat = postgresQuery.concat
 export const exists = postgresQuery.exists
 export const count = postgresQuery.count
@@ -60,6 +69,7 @@ export const leftJoin = postgresQuery.leftJoin
 export const orderBy = postgresQuery.orderBy
 export const groupBy = postgresQuery.groupBy
 export { case_ as case }
+export { in_ as in }
 
 export type {
   CapabilitiesOfPlan,

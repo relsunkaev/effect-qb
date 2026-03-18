@@ -181,6 +181,31 @@ describe("postgres dialect behavior", () => {
     ])
   })
 
+  test("renders the extended read predicate surface with postgres-specific operators", () => {
+    const { users } = makePostgresSocialGraph()
+
+    const plan = Postgres.Query.select({
+      notEqual: Postgres.Query.neq(users.id, 5),
+      lessThan: Postgres.Query.lt(users.id, 10),
+      lessThanOrEqual: Postgres.Query.lte(users.id, 11),
+      greaterThan: Postgres.Query.gt(users.id, 1),
+      greaterThanOrEqual: Postgres.Query.gte(users.id, 0),
+      emailLike: Postgres.Query.like(users.email, "%@example.com"),
+      emailInsensitive: Postgres.Query.ilike(users.email, "%@EXAMPLE.COM%"),
+      idRange: Postgres.Query.between(users.id, 2, 4),
+      idSet: Postgres.Query.in(users.id, 7, 8, 9)
+    }).pipe(
+      Postgres.Query.from(users)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select ("users"."id" <> $1) as "notEqual", ("users"."id" < $2) as "lessThan", ("users"."id" <= $3) as "lessThanOrEqual", ("users"."id" > $4) as "greaterThan", ("users"."id" >= $5) as "greaterThanOrEqual", ("users"."email" like $6) as "emailLike", ("users"."email" ilike $7) as "emailInsensitive", ("users"."id" between $8 and $9) as "idRange", ("users"."id" in ($10, $11, $12)) as "idSet" from "users"'
+    )
+    expect(rendered.params).toEqual([5, 10, 11, 1, 0, "%@example.com", "%@EXAMPLE.COM%", 2, 4, 7, 8, 9])
+  })
+
   test("renders searched case expressions with postgres placeholders", () => {
     const { users, posts } = makePostgresSocialGraph()
 

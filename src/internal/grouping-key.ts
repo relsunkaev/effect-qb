@@ -39,11 +39,20 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
     case "min":
       return `${ast.kind}(${groupingKeyOfExpression(ast.value)})`
     case "eq":
+    case "neq":
+    case "lt":
+    case "lte":
+    case "gt":
+    case "gte":
+    case "like":
+    case "ilike":
       return `${ast.kind}(${groupingKeyOfExpression(ast.left)},${groupingKeyOfExpression(ast.right)})`
     case "and":
     case "or":
     case "coalesce":
     case "concat":
+    case "in":
+    case "between":
       return `${ast.kind}(${ast.values.map(groupingKeyOfExpression).join(",")})`
     case "case":
       return `case(${ast.branches.map((branch: ExpressionAst.CaseBranchNode) =>

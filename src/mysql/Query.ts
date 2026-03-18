@@ -36,15 +36,24 @@ const mysqlQuery = makeDialectQuery({
 
 export const literal = mysqlQuery.literal
 export const eq = mysqlQuery.eq
+export const neq = mysqlQuery.neq
+export const lt = mysqlQuery.lt
+export const lte = mysqlQuery.lte
+export const gt = mysqlQuery.gt
+export const gte = mysqlQuery.gte
 export const isNull = mysqlQuery.isNull
 export const isNotNull = mysqlQuery.isNotNull
 export const upper = mysqlQuery.upper
 export const lower = mysqlQuery.lower
+export const like = mysqlQuery.like
+export const ilike = mysqlQuery.ilike
 export const and = mysqlQuery.and
 export const or = mysqlQuery.or
 export const not = mysqlQuery.not
 const case_ = mysqlQuery.case
 export const coalesce = mysqlQuery.coalesce
+export const in_ = mysqlQuery.in
+export const between = mysqlQuery.between
 export const concat = mysqlQuery.concat
 export const exists = mysqlQuery.exists
 export const count = mysqlQuery.count
@@ -60,6 +69,7 @@ export const leftJoin = mysqlQuery.leftJoin
 export const orderBy = mysqlQuery.orderBy
 export const groupBy = mysqlQuery.groupBy
 export { case_ as case }
+export { in_ as in }
 
 export type {
   CapabilitiesOfPlan,
