@@ -8,6 +8,7 @@ export const number = BaseColumn.mysql.number
 export const boolean = BaseColumn.mysql.boolean
 export const timestamp = BaseColumn.mysql.timestamp
 export const json = BaseColumn.mysql.json
+export const custom = BaseColumn.mysql.custom
 
 export const nullable = BaseColumn.nullable
 export const primaryKey = BaseColumn.primaryKey

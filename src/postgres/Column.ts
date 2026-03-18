@@ -10,6 +10,7 @@ export {
   references,
   text,
   timestamp,
+  custom,
   unique,
   uuid
 } from "../column.ts"

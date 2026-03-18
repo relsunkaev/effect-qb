@@ -13,13 +13,29 @@ type DialectFamilies<Dialect extends KnownDialect> =
   Dialect extends "postgres" ? typeof postgresDatatypeFamilies :
     typeof mysqlDatatypeFamilies
 
+type StripParameterizedKind<Kind extends string> =
+  Kind extends `${infer Base}(${string}`
+    ? StripParameterizedKind<Base>
+    : Kind
+
+type StripArrayKind<Kind extends string> =
+  Kind extends `${infer Base}[]`
+    ? StripArrayKind<Base>
+    : Kind
+
+type BaseKind<Kind extends string> = StripArrayKind<StripParameterizedKind<Kind>>
+
+type IsArrayKind<Kind extends string> = Kind extends `${string}[]` ? true : false
+
 type KnownKindFamily<
   Dialect extends KnownDialect,
   Kind extends string
-> = Kind extends "null"
+> = IsArrayKind<Kind> extends true
+  ? "array"
+  : BaseKind<Kind> extends "null"
   ? "null"
-  : Kind extends keyof DialectKinds<Dialect>
-    ? DialectKinds<Dialect>[Kind] extends { readonly family: infer Family extends string }
+  : BaseKind<Kind> extends keyof DialectKinds<Dialect>
+    ? DialectKinds<Dialect>[BaseKind<Kind>] extends { readonly family: infer Family extends string }
       ? Family
       : never
     : `other:${Dialect}:${Kind}`
@@ -27,10 +43,12 @@ type KnownKindFamily<
 type KnownKindRuntimeTag<
   Dialect extends KnownDialect,
   Kind extends string
-> = Kind extends "null"
+> = IsArrayKind<Kind> extends true
+  ? "array"
+  : BaseKind<Kind> extends "null"
   ? "null"
-  : Kind extends keyof DialectKinds<Dialect>
-    ? DialectKinds<Dialect>[Kind] extends { readonly runtime: infer Runtime extends RuntimeTag }
+  : BaseKind<Kind> extends keyof DialectKinds<Dialect>
+    ? DialectKinds<Dialect>[BaseKind<Kind>] extends { readonly runtime: infer Runtime extends RuntimeTag }
       ? Runtime
       : "unknown"
     : "unknown"
@@ -119,14 +137,14 @@ export type CanCastDbType<
   Dialect extends string
 > = Source extends { readonly dialect: Dialect }
   ? Target extends { readonly dialect: Dialect }
-    ? CompareGroupOfDbType<Target> extends "null"
-      ? false
-      : Source extends Expression.DbType.Base<infer SourceDialect extends KnownDialect, string>
-        ? Target extends Expression.DbType.Base<KnownDialect, string>
-          ? FamilyOfDbType<Target> extends FamilyCastTargets<
-              SourceDialect,
-              Extract<FamilyOfDbType<Source>, string>
-            >
+      ? CompareGroupOfDbType<Target> extends "null"
+        ? false
+        : Source extends Expression.DbType.Base<infer SourceDialect extends KnownDialect, string>
+          ? Target extends Expression.DbType.Base<KnownDialect, string>
+            ? FamilyOfDbType<Target> extends FamilyCastTargets<
+                SourceDialect,
+                Extract<FamilyOfDbType<Source>, string>
+              >
             ? true
             : false
           : false

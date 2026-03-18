@@ -141,6 +141,34 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
+  test("renders parameterized custom datatypes through explicit casts", () => {
+    const plan = Postgres.Query.select({
+      sizedText: Postgres.Query.cast(
+        Postgres.Query.literal("alice@example.com"),
+        Postgres.Query.type.custom("varchar(255)")
+      )
+    })
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe('select cast($1 as varchar(255)) as "sizedText"')
+    expect(rendered.params).toEqual(["alice@example.com"])
+  })
+
+  test("renders array-style custom datatypes through explicit casts", () => {
+    const plan = Postgres.Query.select({
+      textArray: Postgres.Query.cast(
+        Postgres.Query.literal(null),
+        Postgres.Query.type.custom("text[]")
+      )
+    })
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe('select cast(null as text[]) as "textArray"')
+    expect(rendered.params).toEqual([])
+  })
+
   test("renders boolean combinators and clause-level parameter ordering across postgres queries", () => {
     const { users, posts } = makePostgresSocialGraph()
 

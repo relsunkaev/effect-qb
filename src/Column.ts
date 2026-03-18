@@ -144,6 +144,24 @@ type ColumnModule<
   TimestampKind extends string,
   JsonKind extends string
 > = {
+  readonly custom: <
+    SchemaType extends Schema.Schema.Any,
+    Db extends Expression.DbType.Any
+  >(
+    schema: SchemaType,
+    dbType: Db
+  ) => ColumnDefinition<
+    Schema.Schema.Type<SchemaType>,
+    Schema.Schema.Type<SchemaType>,
+    Schema.Schema.Type<SchemaType>,
+    Db,
+    false,
+    false,
+    false,
+    false,
+    false,
+    undefined
+  >
   readonly uuid: () => ColumnDefinition<string, string, string, Expression.DbType.Base<Dialect, UuidKind>, false, false, false, false, false, undefined>
   readonly text: () => ColumnDefinition<string, string, string, Expression.DbType.Base<Dialect, TextKind>, false, false, false, false, false, undefined>
   readonly int: () => ColumnDefinition<number, number, number, Expression.DbType.Base<Dialect, IntKind>, false, false, false, false, false, undefined>
@@ -195,6 +213,19 @@ const makeColumnModule = <
 ): ColumnModule<Dialect, UuidKind, TextKind, IntKind, NumberKind, BooleanKind, TimestampKind, JsonKind> => {
   const dialectType = typeFactory(dialect)
   return {
+    custom: <SchemaType extends Schema.Schema.Any, Db extends Expression.DbType.Any>(
+      schema: SchemaType,
+      dbType: Db
+    ) =>
+      makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+        dbType,
+        nullable: false,
+        hasDefault: false,
+        generated: false,
+        primaryKey: false,
+        unique: false,
+        references: undefined
+      }),
     uuid: () => primitive(Schema.UUID, dialectType(kinds.uuid)),
     text: () => primitive(Schema.String, dialectType(kinds.text)),
     int: () => primitive(Schema.Int, dialectType(kinds.int)),
@@ -251,6 +282,8 @@ export const timestamp = postgres.timestamp
 
 /** Creates a Postgres `json` column backed by an arbitrary Effect schema. */
 export const json = postgres.json
+/** Creates a Postgres column backed by an arbitrary SQL type and Effect schema. */
+export const custom = postgres.custom
 
 /** Marks a column as nullable. Nullable columns decode as `T | null`. */
 export const nullable = <Column extends AnyColumnDefinition>(

@@ -12,6 +12,18 @@ export type CoercionKind =
   | "interval"
   | "uuid"
   | "json"
+  | "xml"
+  | "bit"
+  | "identifier"
+  | "network"
+  | "spatial"
+  | "textsearch"
+  | "range"
+  | "multirange"
+  | "array"
+  | "enum"
+  | "set"
+  | "money"
   | "null"
   | `other:${string}`
 

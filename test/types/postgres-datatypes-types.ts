@@ -42,7 +42,7 @@ void sameTextFamily
 
 const temporalPlan = Q.select({
   sameTemporal: Q.eq(
-    Q.cast("2026-03-18", Q.type.date()),
+    Q.cast("2026-03-18", Q.type.timestamp()),
     Q.cast("2026-03-18T00:00:00Z", Q.type.timestamp())
   )
 })
@@ -50,3 +50,27 @@ const temporalPlan = Q.select({
 type TemporalRow = Q.ResultRow<typeof temporalPlan>
 const sameTemporal: TemporalRow["sameTemporal"] = true
 void sameTemporal
+
+const customPlan = Q.select({
+  sizedEmail: Q.cast(users.email, Q.type.custom("varchar(255)")),
+  sizedMatch: Q.eq(
+    Q.cast(users.email, Q.type.custom("varchar(255)")),
+    Q.cast("alice@example.com", Q.type.custom("varchar(255)"))
+  )
+}).pipe(
+  Q.from(users)
+)
+
+type CustomRow = Q.ResultRow<typeof customPlan>
+const sizedEmail: CustomRow["sizedEmail"] = "alice@example.com"
+const sizedMatch: CustomRow["sizedMatch"] = true
+void sizedEmail
+void sizedMatch
+
+const customArrayPlan = Q.select({
+  textArray: Q.cast("{}", Q.type.custom("text[]"))
+})
+
+type CustomArrayRow = Q.ResultRow<typeof customArrayPlan>
+const textArray: CustomArrayRow["textArray"] = [] as readonly unknown[]
+void textArray

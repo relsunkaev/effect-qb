@@ -141,6 +141,20 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
+  test("renders parameterized custom datatypes through explicit casts", () => {
+    const plan = Mysql.Query.select({
+      scaledValue: Mysql.Query.cast(
+        Mysql.Query.literal(1),
+        Mysql.Query.type.custom("decimal(10,2)")
+      )
+    })
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe("select cast(? as decimal(10,2)) as `scaledValue`")
+    expect(rendered.params).toEqual([1])
+  })
+
   test("renders boolean combinators and clause-level parameter ordering across mysql queries", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

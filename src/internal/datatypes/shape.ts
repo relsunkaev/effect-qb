@@ -5,6 +5,8 @@ export type RuntimeTag =
   | "boolean"
   | "date"
   | "bytes"
+  | "array"
+  | "record"
   | "unknown"
   | "null"
 
@@ -13,8 +15,10 @@ export type RuntimeOfTag<Tag extends RuntimeTag> =
     Tag extends "number" ? number :
       Tag extends "bigint" ? bigint :
         Tag extends "boolean" ? boolean :
-          Tag extends "date" ? Date :
-            Tag extends "bytes" ? Uint8Array :
+        Tag extends "date" ? Date :
+          Tag extends "bytes" ? Uint8Array :
+            Tag extends "array" ? ReadonlyArray<unknown> :
+              Tag extends "record" ? Record<string, unknown> :
               Tag extends "null" ? null :
                 unknown
 
