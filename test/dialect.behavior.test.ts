@@ -71,7 +71,7 @@ describe("dialect behavior", () => {
     )
 
     expect(Postgres.Renderer.make().render(pgPlan).sql).toBe(
-      'select "manager"."id" as "managerId", "report"."name" as "reportName" from "employees" as "manager" left join "employees" as "report" on ("report"."managerId" = "manager"."id")'
+      'select "manager"."id" as "managerId", "report"."name" as "reportName" from "public"."employees" as "manager" left join "public"."employees" as "report" on ("report"."managerId" = "manager"."id")'
     )
     expect(Mysql.Renderer.make().render(myPlan).sql).toBe(
       'select `manager`.`id` as `managerId`, `report`.`name` as `reportName` from `employees` as `manager` left join `employees` as `report` on (`report`.`managerId` = `manager`.`id`)'

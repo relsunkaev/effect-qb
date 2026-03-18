@@ -270,7 +270,7 @@ describe("table definitions", () => {
     const renderer = Renderer.make("postgres")
 
     const rendered = renderer.render(plan)
-    expect(rendered.sql).toBe('select "users"."id" as "userId", "posts"."id" as "postId", upper("posts"."title") as "postTitleUpper" from "users" left join "posts" on true where ("users"."email" = $1)')
+    expect(rendered.sql).toBe('select "users"."id" as "userId", "posts"."id" as "postId", upper("posts"."title") as "postTitleUpper" from "public"."users" left join "public"."posts" on true where ("users"."email" = $1)')
     expect(rendered.dialect).toBe("postgres")
     expect(rendered.params).toEqual(["alice@example.com"])
     expect(rendered.projections).toEqual([
@@ -329,7 +329,7 @@ describe("table definitions", () => {
     const renderer = Renderer.make("postgres")
     const rendered = renderer.render(plan)
 
-    expect(rendered.sql).toBe('select upper("users"."email") as "emailUpper", count("posts"."id") as "postCount", max("posts"."title") as "maxPostTitle", min("posts"."title") as "minPostTitle", coalesce(max("posts"."title"), $1) as "fallbackTitle" from "users" inner join "posts" on (("users"."id" = "posts"."userId") and (not false)) group by upper("users"."email") order by count("posts"."id") desc, upper("users"."email") asc')
+    expect(rendered.sql).toBe('select upper("users"."email") as "emailUpper", count("posts"."id") as "postCount", max("posts"."title") as "maxPostTitle", min("posts"."title") as "minPostTitle", coalesce(max("posts"."title"), $1) as "fallbackTitle" from "public"."users" inner join "public"."posts" on (("users"."id" = "posts"."userId") and (not false)) group by upper("users"."email") order by count("posts"."id") desc, upper("users"."email") asc')
     expect(rendered.params).toEqual(["NONE"])
   })
 
@@ -412,7 +412,7 @@ describe("table definitions", () => {
 
     const renderer = Renderer.make("postgres")
     const driver = Executor.driver("postgres", (query) => {
-      expect(query.sql).toBe('select "users"."id" as "user__id", "users"."email" as "user__email", $1 as "kind" from "users"')
+      expect(query.sql).toBe('select "users"."id" as "user__id", "users"."email" as "user__email", $1 as "kind" from "public"."users"')
       expect(query.params).toEqual(["user"])
       return Effect.succeed([
         {
@@ -456,7 +456,7 @@ describe("table definitions", () => {
     const renderer = Renderer.make("postgres")
     const rendered = renderer.render(plan)
 
-    expect(rendered.sql).toBe('select "users"."id" as "user_identifier", lower("users"."email") as "email_lower", $1 as "kind_label" from "users"')
+    expect(rendered.sql).toBe('select "users"."id" as "user_identifier", lower("users"."email") as "email_lower", $1 as "kind_label" from "public"."users"')
     expect(rendered.projections).toEqual([
       { path: ["profile", "id"], alias: "user_identifier" },
       { path: ["profile", "email"], alias: "email_lower" },
@@ -555,7 +555,7 @@ describe("table definitions", () => {
     const executor = Executor.fromSqlClient(renderer)
     const sql = {
       unsafe<A extends object>(statement: string, params?: ReadonlyArray<any>) {
-        expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "users"')
+        expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "public"."users"')
         expect(params).toEqual([])
         return Effect.succeed([
           {
@@ -641,7 +641,7 @@ describe("table definitions", () => {
 
     const rendered = Renderer.make("postgres").render(plan)
 
-    expect(rendered.sql).toBe('select "manager"."id" as "managerId", "report"."name" as "reportName" from "employees" as "manager" left join "employees" as "report" on ("report"."managerId" = "manager"."id")')
+    expect(rendered.sql).toBe('select "manager"."id" as "managerId", "report"."name" as "reportName" from "public"."employees" as "manager" left join "public"."employees" as "report" on ("report"."managerId" = "manager"."id")')
     expect(rendered.params).toEqual([])
   })
 
@@ -696,7 +696,7 @@ describe("table definitions", () => {
     )
 
     expect(Mysql.Renderer.make().render(mysqlPlan).sql).toBe("select `users`.`id` as `id` from `users`")
-    expect(Postgres.Renderer.make().render(postgresPlan).sql).toBe('select "users"."id" as "id" from "users"')
+    expect(Postgres.Renderer.make().render(postgresPlan).sql).toBe('select "users"."id" as "id" from "public"."users"')
   })
 
   test("mysql query entrypoint specializes literal and operator rendering", () => {

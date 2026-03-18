@@ -78,7 +78,7 @@ describe("postgres errors", () => {
     }
     expect(error.requiredCapabilities).toEqual(["write"])
     expect(error.actualCapabilities).toEqual(["read"])
-    expect(error.query?.sql).toBe('select "users"."id" as "id", "users"."email" as "email" from "users"')
+    expect(error.query?.sql).toBe('select "users"."id" as "id", "users"."email" as "email" from "public"."users"')
     expect(error.cause._tag).toBe("@postgres/integrity-constraint-violation/unique-violation")
     if (!("_tag" in error.cause) || error.cause._tag !== "@postgres/integrity-constraint-violation/unique-violation") {
       throw new Error("Expected wrapped unique violation")

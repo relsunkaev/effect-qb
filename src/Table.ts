@@ -8,7 +8,7 @@ import {
   collectInlineOptions,
   normalizeColumnList,
   resolvePrimaryKeyColumns,
-  type DeclaredTableOptions,
+  type DeclaredTableOptions as InternalDeclaredTableOptions,
   type NormalizeColumns,
   type TableOptionSpec,
   type ValidateKnownColumns,
@@ -70,7 +70,7 @@ type ApplyOption<
   "schema"
 >
 
-type MissingSelfGeneric = "Missing `Self` generic - use `class Self extends Table.Class<Self>(...) {}`"
+export type MissingSelfGeneric = "Missing `Self` generic - use `class Self extends Table.Class<Self>(...) {}`"
 
 /** Bound columns keyed by field name for a particular table. */
 export type BoundColumns<
@@ -95,7 +95,7 @@ interface TableState<
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string,
   Kind extends TableKind = "schema",
-  SchemaName extends string = DefaultSchemaName
+  SchemaName extends string | undefined = DefaultSchemaName
 > {
   readonly name: Name
   readonly baseName: string
@@ -115,16 +115,18 @@ export interface TableSchemaNamespace<SchemaName extends string> {
   >(
     name: Name,
     fields: Fields,
-    ...options: DeclaredTableOptions
+    ...options: InternalDeclaredTableOptions
   ) => TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
 }
+
+export type DeclaredTableOptions = InternalDeclaredTableOptions
 
 export type TableDefinition<
   Name extends string,
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>,
   Kind extends TableKind = "schema",
-  SchemaName extends string = DefaultSchemaName
+  SchemaName extends string | undefined = DefaultSchemaName
 > = Pipeable & {
   readonly name: Name
   readonly columns: BoundColumns<Name, Fields>
@@ -155,7 +157,7 @@ export type TableClassStatic<
   Name extends string,
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>,
-  SchemaName extends string = DefaultSchemaName
+  SchemaName extends string | undefined = DefaultSchemaName
 > = (abstract new (...args: any[]) => any) & Pipeable & {
   readonly columns: BoundColumns<Name, Fields>
   readonly schemas: TableSchemas<Fields, PrimaryKeyColumns>
@@ -214,7 +216,7 @@ type BuildArtifacts<
 const buildArtifacts = <
   Name extends string,
   Fields extends TableFieldMap,
-  SchemaName extends string
+  SchemaName extends string | undefined
 >(
   name: Name,
   fields: Fields,
@@ -242,16 +244,20 @@ const makeTable = <
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string,
   Kind extends TableKind = "schema",
-  SchemaName extends string = DefaultSchemaName
+  SchemaName extends string | undefined = DefaultSchemaName
 >(
   name: Name,
   fields: Fields,
   declaredOptions: readonly TableOptionSpec[],
   baseName: string = name,
   kind: Kind = "schema" as Kind,
-  schemaName: SchemaName = "public" as SchemaName
+  schemaName?: SchemaName,
+  schemaMode: "default" | "explicit" = "default"
 ): TableDefinition<Name, Fields, PrimaryKeyColumns, Kind, SchemaName> => {
-  const artifacts = buildArtifacts(name, fields, declaredOptions, schemaName)
+  const resolvedSchemaName = schemaMode === "explicit"
+    ? schemaName
+    : ("public" as SchemaName)
+  const artifacts = buildArtifacts(name, fields, declaredOptions, resolvedSchemaName)
   const dialect = resolveFieldDialect(fields)
   const table = Object.create(TableProto)
   table.name = name
@@ -260,7 +266,7 @@ const makeTable = <
   table[TypeId] = {
     name,
     baseName,
-    schemaName,
+    schemaName: resolvedSchemaName,
     fields,
     primaryKey: artifacts.primaryKey,
     kind
@@ -365,7 +371,8 @@ const appendOption = <
     [...table[DeclaredOptionsSymbol], option],
     state.baseName,
     state.kind,
-    state.schemaName
+    state.schemaName,
+    "explicit"
   ) as unknown as ApplyOption<Table, Spec>
 }
 
@@ -377,13 +384,28 @@ const makeOption = <Spec extends TableOptionSpec>(option: Spec): TableOption<Spe
 }
 
 /** Creates a table definition from a name and field map. */
-export const make = <
+export function make<
   Name extends string,
-  Fields extends TableFieldMap
+  Fields extends TableFieldMap,
+  SchemaName extends string | undefined = DefaultSchemaName
 >(
   name: Name,
-  fields: Fields
-): TableDefinition<Name, Fields> => makeTable(name, fields, [], name, "schema", "public")
+  fields: Fields,
+  schemaName?: SchemaName
+): TableDefinition<Name, Fields, InlinePrimaryKeyKeys<Fields>, "schema", SchemaName> {
+  const resolvedSchemaName = arguments.length >= 3
+    ? schemaName
+    : ("public" as SchemaName)
+  return makeTable(
+    name,
+    fields,
+    [],
+    name,
+    "schema",
+    resolvedSchemaName,
+    arguments.length >= 3 ? "explicit" : "default"
+  )
+}
 
 /**
  * Creates a namespace-scoped builder for a concrete SQL schema/database.
@@ -399,7 +421,7 @@ export const schema = <SchemaName extends string>(
   >(
     name: Name,
     fields: Fields,
-    ...options: DeclaredTableOptions
+    ...options: InternalDeclaredTableOptions
   ): TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName> =>
     makeTable(
       name,
@@ -407,7 +429,8 @@ export const schema = <SchemaName extends string>(
       extractDeclaredOptions(options),
       name,
       "schema",
-      schemaName
+      schemaName,
+      "explicit"
     ) as TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
 })
 
@@ -479,10 +502,19 @@ export const alias = <
  * The returned base class can be extended and configured with
  * `static readonly [Table.options]`.
  */
-export const Class = <Self = never>(name: string) =>
-  <Fields extends TableFieldMap>(fields: Fields): [Self] extends [never]
+export function Class<
+  Self = never,
+  SchemaName extends string | undefined = DefaultSchemaName
+>(
+  name: string,
+  schemaName?: SchemaName
+) {
+  const resolvedSchemaName = arguments.length >= 2
+    ? schemaName
+    : ("public" as SchemaName)
+  return <Fields extends TableFieldMap>(fields: Fields): [Self] extends [never]
     ? MissingSelfGeneric
-    : TableClassStatic<typeof name, Fields, InlinePrimaryKeyKeys<Fields>, DefaultSchemaName> => {
+    : TableClassStatic<typeof name, Fields, InlinePrimaryKeyKeys<Fields>, SchemaName> => {
       abstract class TableClassBase {
         static readonly tableName = name
 
@@ -500,7 +532,7 @@ export const Class = <Self = never>(name: string) =>
           return {
             name,
             baseName: name,
-            schemaName: "public" as const,
+            schemaName: resolvedSchemaName,
             fields,
             primaryKey: resolvePrimaryKeyColumns(fields, collectInlineOptions(fields)),
             kind: "schema"
@@ -544,6 +576,7 @@ export const Class = <Self = never>(name: string) =>
 
       return TableClassBase as any
     }
+}
 
 /** Declares a table-level primary key. */
 export const primaryKey = <

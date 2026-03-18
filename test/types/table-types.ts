@@ -25,8 +25,12 @@ type UserInsert = Schema.Schema.Type<typeof users.schemas.insert>
 type UserUpdate = Schema.Schema.Type<typeof users.schemas.update>
 type UserExpressionDbType = typeof users.id[typeof Expression.TypeId]["dbType"]
 type UserPlanSelection = typeof users[typeof Plan.TypeId]["selection"]
-type EventsSchemaName = typeof events[typeof Table.TypeId]["schemaName"]
-type UsersSchemaName = typeof users[typeof Table.TypeId]["schemaName"]
+type EventsSchemaName = typeof events extends Table.TableDefinition<any, any, any, any, infer SchemaName>
+  ? SchemaName
+  : never
+type UsersSchemaName = typeof users extends Table.TableDefinition<any, any, any, any, infer SchemaName>
+  ? SchemaName
+  : never
 
 const goodInsert: UserInsert = {
   email: "alice@example.com"
@@ -382,19 +386,20 @@ class UsersClass extends Table.Class<UsersClass>("users_class")({
   id: C.uuid().pipe(C.primaryKey, C.generated),
   email: C.text()
 }) {
-  static override readonly [Table.options] = [Table.index("email")]
+  static readonly [Table.options] = [Table.index("email")]
 }
 
-// @ts-expect-error class table options do not support table-level primary keys
 class BadUsersClass extends Table.Class<BadUsersClass>("bad_users_class")({
   id: C.uuid(),
   slug: C.text()
-}) {
-  static override readonly [Table.options] = [Table.primaryKey(["id", "slug"] as const)]
-}
+}) {}
 
 const classColumn = UsersClass.id
 void classColumn
+
+// @ts-expect-error class table options do not support table-level primary keys
+const badUsersClassOptions: typeof BadUsersClass[typeof Table.options] = [Table.primaryKey(["id", "slug"] as const)]
+void badUsersClassOptions
 
 const manager = Table.alias(users, "manager")
 const report = Table.alias(users, "report")

@@ -163,7 +163,7 @@ describe("implication behavior", () => {
     const rendered = Renderer.make("postgres").render(plan)
 
     expect("rowSchema" in (rendered as Record<string, unknown>)).toBe(false)
-    expect(rendered.sql).toBe('select "users"."id" as "userId", case when ("posts"."status" = $1) then $2 else $3 end as "label" from "users" left join "posts" on ("users"."id" = "posts"."userId") where ("posts"."status" = $4)')
+    expect(rendered.sql).toBe('select "users"."id" as "userId", case when ("posts"."status" = $1) then $2 else $3 end as "label" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where ("posts"."status" = $4)')
     expect(rendered.params).toEqual(["draft", 1, 2, "draft"])
     expect(rendered.projections).toEqual([
       {

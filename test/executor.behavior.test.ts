@@ -146,7 +146,7 @@ describe("executor behavior", () => {
     const executor = Executor.fromSqlClient(Renderer.make("postgres"))
     const sql = {
       unsafe<Row extends object>(statement: string, params?: ReadonlyArray<any>) {
-        expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "users" where ("users"."email" = $1)')
+        expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "public"."users" where ("users"."email" = $1)')
         expect(params).toEqual(["alice@example.com"])
         return Effect.succeed([
           {
@@ -298,7 +298,7 @@ describe("executor behavior", () => {
     const sql = {
       unsafe<Row extends object>(statement: string, params?: ReadonlyArray<any>) {
         expect(statement).toBe(
-          'select case when ("posts"."title" is null) then $1 when (lower("posts"."title") = $2) then $3 else upper(coalesce("posts"."title", $4)) end as "titleState" from "users" left join "posts" on ("users"."id" = "posts"."userId") where ("users"."id" = $5)'
+          'select case when ("posts"."title" is null) then $1 when (lower("posts"."title") = $2) then $3 else upper(coalesce("posts"."title", $4)) end as "titleState" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where ("users"."id" = $5)'
         )
         expect(params).toEqual(["missing", "draft", "draft", "published", userId])
         return Effect.succeed([

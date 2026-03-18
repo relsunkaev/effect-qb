@@ -26,7 +26,7 @@ describe("having", () => {
 
     const rendered = Renderer.make("postgres").render(plan)
 
-    expect(rendered.sql).toBe('select "users"."email" as "email", count("posts"."id") as "postCount" from "users" inner join "posts" on ("users"."id" = "posts"."userId") group by "users"."email" having (count("posts"."id") = $1)')
+    expect(rendered.sql).toBe('select "users"."email" as "email", count("posts"."id") as "postCount" from "public"."users" inner join "public"."posts" on ("users"."id" = "posts"."userId") group by "users"."email" having (count("posts"."id") = $1)')
     expect(rendered.params).toEqual([1])
   })
 })

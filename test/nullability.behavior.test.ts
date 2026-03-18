@@ -85,7 +85,7 @@ describe("nullability behavior", () => {
 
     const rendered = Renderer.make("postgres").render(plan)
 
-    expect(rendered.sql).toBe('select "users"."id" as "userId", count("posts"."id") as "postCount", max("posts"."title") as "maxTitle", min("posts"."title") as "minTitle" from "users" left join "posts" on ("users"."id" = "posts"."userId") group by "users"."id"')
+    expect(rendered.sql).toBe('select "users"."id" as "userId", count("posts"."id") as "postCount", max("posts"."title") as "maxTitle", min("posts"."title") as "minTitle" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") group by "users"."id"')
     expect(rendered.params).toEqual([])
   })
 
@@ -108,7 +108,7 @@ describe("nullability behavior", () => {
 
     const rendered = Renderer.make("postgres").render(plan)
 
-    expect(rendered.sql).toBe('select "users"."id" as "userId", "posts"."id" as "postId", "posts"."title" as "postTitle", upper("posts"."title") as "upperPostTitle" from "users" left join "posts" on ("users"."id" = "posts"."userId") where (("posts"."title" is not null) and ("posts"."id" = $1))')
+    expect(rendered.sql).toBe('select "users"."id" as "userId", "posts"."id" as "postId", "posts"."title" as "postTitle", upper("posts"."title") as "upperPostTitle" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where (("posts"."title" is not null) and ("posts"."id" = $1))')
     expect(rendered.params).toEqual([postId])
 
     const rows = Effect.runSync(Executor.fromDriver(

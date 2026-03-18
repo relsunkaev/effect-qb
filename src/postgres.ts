@@ -12,7 +12,7 @@ export * as Executor from "./postgres/executor.ts"
 export * as Plan from "./plan.ts"
 /** Postgres-specialized query-construction DSL. */
 export * as Query from "./postgres/query.ts"
+/** Postgres-specialized table-definition DSL. */
+export * as Table from "./postgres/table.ts"
 /** Postgres-specialized built-in renderer entrypoint. */
 export * as Renderer from "./postgres/renderer.ts"
-/** Shared table-definition DSL. */
-export * as Table from "./table.ts"

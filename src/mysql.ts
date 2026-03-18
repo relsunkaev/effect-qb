@@ -12,7 +12,7 @@ export * as Executor from "./mysql/executor.ts"
 export * as Plan from "./plan.ts"
 /** MySQL-specialized query-construction DSL. */
 export * as Query from "./mysql/query.ts"
+/** MySQL-specialized table-definition DSL. */
+export * as Table from "./mysql/table.ts"
 /** MySQL-specialized built-in renderer entrypoint. */
 export * as Renderer from "./mysql/renderer.ts"
-/** Shared table-definition DSL. */
-export * as Table from "./table.ts"

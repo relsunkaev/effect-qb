@@ -26,7 +26,7 @@ describe("postgres dialect behavior", () => {
     )
 
     expect(Postgres.Renderer.make().render(plan).sql).toBe(
-      'select "daily""rollup"."event""payload" as "payload""alias" from "audit""logs" as "daily""rollup"'
+      'select "daily""rollup"."event""payload" as "payload""alias" from "public"."audit""logs" as "daily""rollup"'
     )
   })
 
@@ -57,7 +57,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select (lower("users"."email") || $1 || coalesce(max("posts"."title"), $2)) as "emailLabel", min("posts"."title") as "firstTitle", count("posts"."id") as "postCount" from "users" inner join "posts" on ("users"."id" = "posts"."userId") group by lower("users"."email") having (count("posts"."id") = $3) order by count("posts"."id") desc'
+      'select (lower("users"."email") || $1 || coalesce(max("posts"."title"), $2)) as "emailLabel", min("posts"."title") as "firstTitle", count("posts"."id") as "postCount" from "public"."users" inner join "public"."posts" on ("users"."id" = "posts"."userId") group by lower("users"."email") having (count("posts"."id") = $3) order by count("posts"."id") desc'
     )
     expect(rendered.params).toEqual(["-", "missing", 2])
     expect(rendered.projections).toEqual([
@@ -81,7 +81,7 @@ describe("postgres dialect behavior", () => {
     )
 
     expect(Postgres.Renderer.make().render(valid).sql).toBe(
-      'select lower("users"."email") as "loweredEmail", count("posts"."id") as "postCount" from "users" inner join "posts" on ("users"."id" = "posts"."userId") group by lower("users"."email")'
+      'select lower("users"."email") as "loweredEmail", count("posts"."id") as "postCount" from "public"."users" inner join "public"."posts" on ("users"."id" = "posts"."userId") group by lower("users"."email")'
     )
 
     const invalid = Postgres.Query.select({
@@ -125,7 +125,7 @@ describe("postgres dialect behavior", () => {
 
     const rendered = Postgres.Renderer.make().render(plan)
 
-    expect(rendered.sql).toBe('select cast("users"."id" as text) as "idAsText" from "users"')
+    expect(rendered.sql).toBe('select cast("users"."id" as text) as "idAsText" from "public"."users"')
     expect(rendered.params).toEqual([])
   })
 
@@ -254,7 +254,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select (lower("users"."email") || $1 || upper(coalesce("posts"."title", $2))) as "summary", (("posts"."title" is null) or (lower("posts"."title") = $3)) as "draftOrMissing", (("posts"."id" is not null) and (not ("users"."email" = $4))) as "active" from "users" left join "posts" on ("users"."id" = "posts"."userId") where ((("users"."email" = $5) or ("users"."email" = $6)) and (not (coalesce("posts"."title", $7) = $8))) order by upper(coalesce("posts"."title", $9)) desc'
+      'select (lower("users"."email") || $1 || upper(coalesce("posts"."title", $2))) as "summary", (("posts"."title" is null) or (lower("posts"."title") = $3)) as "draftOrMissing", (("posts"."id" is not null) and (not ("users"."email" = $4))) as "active" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where ((("users"."email" = $5) or ("users"."email" = $6)) and (not (coalesce("posts"."title", $7) = $8))) order by upper(coalesce("posts"."title", $9)) desc'
     )
     expect(rendered.params).toEqual([
       "::",
@@ -286,7 +286,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select distinct "users"."email" as "email" from "users" where ("users"."email" like $1) order by "users"."email" asc limit $2 offset $3'
+      'select distinct "users"."email" as "email" from "public"."users" where ("users"."email" like $1) order by "users"."email" asc limit $2 offset $3'
     )
     expect(rendered.params).toEqual(["%@example.com", 5, 10])
   })
@@ -311,7 +311,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("users"."id" <> $1) as "notEqual", ("users"."id" < $2) as "lessThan", ("users"."id" <= $3) as "lessThanOrEqual", ("users"."id" > $4) as "greaterThan", ("users"."id" >= $5) as "greaterThanOrEqual", ("users"."email" like $6) as "emailLike", ("users"."email" ilike $7) as "emailInsensitive", ("users"."id" between $8 and $9) as "idRange", ("users"."id" in ($10, $11, $12)) as "idSet" from "users"'
+      'select ("users"."id" <> $1) as "notEqual", ("users"."id" < $2) as "lessThan", ("users"."id" <= $3) as "lessThanOrEqual", ("users"."id" > $4) as "greaterThan", ("users"."id" >= $5) as "greaterThanOrEqual", ("users"."email" like $6) as "emailLike", ("users"."email" ilike $7) as "emailInsensitive", ("users"."id" between $8 and $9) as "idRange", ("users"."id" in ($10, $11, $12)) as "idSet" from "public"."users"'
     )
     expect(rendered.params).toEqual([5, 10, 11, 1, 0, "%@example.com", "%@EXAMPLE.COM%", 2, 4, 7, 8, 9])
   })
@@ -341,7 +341,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("users"."id" not in ($1, $2, $3)) as "notInIds", ("users"."email" is distinct from $4) as "distinctEmail", ("users"."email" is not distinct from $5) as "sameEmail", (("users"."id" = $6) and (("users"."email" = $7) or ("users"."email" = $8))) as "combined", case when ("users"."email" = $9) then $10 when ("users"."email" = $11) then $12 else $13 end as "label" from "users"'
+      'select ("users"."id" not in ($1, $2, $3)) as "notInIds", ("users"."email" is distinct from $4) as "distinctEmail", ("users"."email" is not distinct from $5) as "sameEmail", (("users"."id" = $6) and (("users"."email" = $7) or ("users"."email" = $8))) as "combined", case when ("users"."email" = $9) then $10 when ("users"."email" = $11) then $12 else $13 end as "label" from "public"."users"'
     )
     expect(rendered.params).toEqual([
       4,
@@ -376,7 +376,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select case when ("posts"."title" is null) then $1 when (lower("posts"."title") = $2) then $3 else upper(coalesce("posts"."title", $4)) end as "titleState" from "users" left join "posts" on ("users"."id" = "posts"."userId")'
+      'select case when ("posts"."title" is null) then $1 when (lower("posts"."title") = $2) then $3 else upper(coalesce("posts"."title", $4)) end as "titleState" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId")'
     )
     expect(rendered.params).toEqual(["missing", "draft", "draft", "published"])
   })
@@ -409,13 +409,13 @@ describe("postgres dialect behavior", () => {
     )
 
     expect(Postgres.Renderer.make().render(rightJoinPlan).sql).toBe(
-      'select "users"."id" as "userId", "posts"."id" as "postId" from "users" right join "posts" on ("users"."id" = "posts"."userId")'
+      'select "users"."id" as "userId", "posts"."id" as "postId" from "public"."users" right join "public"."posts" on ("users"."id" = "posts"."userId")'
     )
     expect(Postgres.Renderer.make().render(fullJoinPlan).sql).toBe(
-      'select "users"."id" as "userId", "posts"."id" as "postId" from "users" full join "posts" on ("users"."id" = "posts"."userId")'
+      'select "users"."id" as "userId", "posts"."id" as "postId" from "public"."users" full join "public"."posts" on ("users"."id" = "posts"."userId")'
     )
     expect(Postgres.Renderer.make().render(crossJoinPlan).sql).toBe(
-      'select "users"."id" as "userId", "posts"."id" as "postId" from "users" cross join "posts"'
+      'select "users"."id" as "userId", "posts"."id" as "postId" from "public"."users" cross join "public"."posts"'
     )
   })
 
@@ -436,7 +436,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select distinct "users"."id" as "userId", "users"."email" as "email" from "users" order by "users"."email" asc limit $1 offset $2'
+      'select distinct "users"."id" as "userId", "users"."email" as "email" from "public"."users" order by "users"."email" asc limit $1 offset $2'
     )
     expect(rendered.params).toEqual([10, 20])
   })
@@ -462,7 +462,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select "users"."email" as "email", exists (select "posts"."id" as "id" from "posts" where ("posts"."title" = $1)) as "hasHelloPost" from "users" where ("users"."email" = $2)'
+      'select "users"."email" as "email", exists (select "posts"."id" as "id" from "public"."posts" where ("posts"."title" = $1)) as "hasHelloPost" from "public"."users" where ("users"."email" = $2)'
     )
     expect(rendered.params).toEqual(["hello", "alice@example.com"])
   })
@@ -488,7 +488,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select "users"."email" as "email", exists (select "posts"."id" as "id" from "posts" where ("posts"."userId" = "users"."id")) as "hasPosts" from "users" where ("users"."email" = $1)'
+      'select "users"."email" as "email", exists (select "posts"."id" as "id" from "public"."posts" where ("posts"."userId" = "users"."id")) as "hasPosts" from "public"."users" where ("users"."email" = $1)'
     )
     expect(rendered.params).toEqual(["alice@example.com"])
   })
@@ -521,7 +521,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select "users"."id" as "userId", row_number() over (partition by "users"."id" order by "posts"."id" asc) as "rowNumber", rank() over (partition by "users"."id" order by lower("posts"."title") desc) as "rankByTitle", count("posts"."id") over (partition by "users"."id" order by "posts"."id" asc) as "postCount", max("posts"."title") over (partition by "users"."id") as "latestTitle" from "users" left join "posts" on ("users"."id" = "posts"."userId")'
+      'select "users"."id" as "userId", row_number() over (partition by "users"."id" order by "posts"."id" asc) as "rowNumber", rank() over (partition by "users"."id" order by lower("posts"."title") desc) as "rankByTitle", count("posts"."id") over (partition by "users"."id" order by "posts"."id" asc) as "postCount", max("posts"."title") over (partition by "users"."id") as "latestTitle" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId")'
     )
     expect(rendered.params).toEqual([])
   })
@@ -550,7 +550,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select "users"."id" as "userId", "active_posts"."title" as "title" from "users" inner join (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) as "active_posts" on ("users"."id" = "active_posts"."userId")'
+      'select "users"."id" as "userId", "active_posts"."title" as "title" from "public"."users" inner join (select "posts"."userId" as "userId", "posts"."title" as "title" from "public"."posts" where ("posts"."title" is not null)) as "active_posts" on ("users"."id" = "active_posts"."userId")'
     )
     expect(rendered.params).toEqual([])
   })
@@ -578,7 +578,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."id" as "userId", "active_posts"."title" as "title" from "users" inner join "active_posts" on ("users"."id" = "active_posts"."userId")'
+      'with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "public"."posts" where ("posts"."title" is not null)) select "users"."id" as "userId", "active_posts"."title" as "title" from "public"."users" inner join "active_posts" on ("users"."id" = "active_posts"."userId")'
     )
   })
 
@@ -613,7 +613,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'with "inserted_users" as (insert into "users" ("id", "email", "bio") values ($1, $2, null) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio") select "inserted_users"."id" as "id", "inserted_users"."email" as "email", "inserted_users"."bio" as "bio" from "inserted_users"'
+      'with "inserted_users" as (insert into "public"."users" ("id", "email", "bio") values ($1, $2, null) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio") select "inserted_users"."id" as "id", "inserted_users"."email" as "email", "inserted_users"."bio" as "bio" from "inserted_users"'
     )
     expect(rendered.params).toEqual([
       userId,
@@ -646,7 +646,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select "users"."id" as "userId", "user_posts"."postId" as "postId" from "users" inner join lateral (select "posts"."id" as "postId", "posts"."userId" as "userId" from "posts" where ("posts"."userId" = "users"."id")) as "user_posts" on true'
+      'select "users"."id" as "userId", "user_posts"."postId" as "postId" from "public"."users" inner join lateral (select "posts"."id" as "postId", "posts"."userId" as "userId" from "public"."posts" where ("posts"."userId" = "users"."id")) as "user_posts" on true'
     )
     expect(rendered.params).toEqual([])
   })
@@ -672,7 +672,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'with recursive "recursive_posts" as (select "posts"."userId" as "userId" from "posts") select "recursive_posts"."userId" as "userId" from "recursive_posts"'
+      'with recursive "recursive_posts" as (select "posts"."userId" as "userId" from "public"."posts") select "recursive_posts"."userId" as "userId" from "recursive_posts"'
     )
     expect(rendered.params).toEqual([])
   })
@@ -698,7 +698,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(upsertPlan)
 
     expect(rendered.sql).toBe(
-      'insert into "users" ("id", "email", "bio") values ($1, $2, null) on conflict ("id") do update set "email" = $3 returning "users"."id" as "id", "users"."email" as "email"'
+      'insert into "public"."users" ("id", "email", "bio") values ($1, $2, null) on conflict ("id") do update set "email" = $3 returning "users"."id" as "id", "users"."email" as "email"'
     )
     expect(rendered.params).toEqual([
       userId,
@@ -720,7 +720,7 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select "users"."id" as "id" from "users" for update nowait skip locked'
+      'select "users"."id" as "id" from "public"."users" for update nowait skip locked'
     )
     expect(rendered.params).toEqual([])
   })
@@ -754,7 +754,7 @@ describe("postgres dialect behavior", () => {
     const exceptPlan = Postgres.Query.except(alice, bob)
 
     expect(Postgres.Renderer.make().render(unionPlan).sql).toBe(
-      '(select "users"."email" as "email" from "users" where ("users"."email" = $1)) union (select "users"."email" as "email" from "users" where ("users"."email" = $2)) union (select "users"."email" as "email" from "users" where ("users"."email" = $3))'
+      '(select "users"."email" as "email" from "public"."users" where ("users"."email" = $1)) union (select "users"."email" as "email" from "public"."users" where ("users"."email" = $2)) union (select "users"."email" as "email" from "public"."users" where ("users"."email" = $3))'
     )
     expect(Postgres.Renderer.make().render(unionPlan).params).toEqual([
       "alice@example.com",
@@ -766,7 +766,7 @@ describe("postgres dialect behavior", () => {
     ])
 
     expect(Postgres.Renderer.make().render(intersectPlan).sql).toBe(
-      '(select "users"."email" as "email" from "users" where ("users"."email" = $1)) intersect (select "users"."email" as "email" from "users" where ("users"."email" = $2))'
+      '(select "users"."email" as "email" from "public"."users" where ("users"."email" = $1)) intersect (select "users"."email" as "email" from "public"."users" where ("users"."email" = $2))'
     )
     expect(Postgres.Renderer.make().render(intersectPlan).params).toEqual([
       "alice@example.com",
@@ -774,7 +774,7 @@ describe("postgres dialect behavior", () => {
     ])
 
     expect(Postgres.Renderer.make().render(exceptPlan).sql).toBe(
-      '(select "users"."email" as "email" from "users" where ("users"."email" = $1)) except (select "users"."email" as "email" from "users" where ("users"."email" = $2))'
+      '(select "users"."email" as "email" from "public"."users" where ("users"."email" = $1)) except (select "users"."email" as "email" from "public"."users" where ("users"."email" = $2))'
     )
     expect(Postgres.Renderer.make().render(exceptPlan).params).toEqual([
       "alice@example.com",
@@ -817,7 +817,7 @@ describe("postgres dialect behavior", () => {
     ))
 
     expect(Postgres.Renderer.make().render(insertPlan).sql).toBe(
-      'insert into "users" ("id", "email", "bio") values ($1, $2, null) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio"'
+      'insert into "public"."users" ("id", "email", "bio") values ($1, $2, null) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio"'
     )
     expect(Postgres.Renderer.make().render(insertPlan).params).toEqual([
       userId,
@@ -825,7 +825,7 @@ describe("postgres dialect behavior", () => {
     ])
 
     expect(Postgres.Renderer.make().render(updatePlan).sql).toBe(
-      'update "users" set "email" = $1, "bio" = null where ("users"."id" = $2) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio"'
+      'update "public"."users" set "email" = $1, "bio" = null where ("users"."id" = $2) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio"'
     )
     expect(Postgres.Renderer.make().render(updatePlan).params).toEqual([
       "updated@example.com",
@@ -833,7 +833,7 @@ describe("postgres dialect behavior", () => {
     ])
 
     expect(Postgres.Renderer.make().render(deletePlan).sql).toBe(
-      'delete from "users" where ("users"."id" = $1) returning "users"."id" as "id"'
+      'delete from "public"."users" where ("users"."id" = $1) returning "users"."id" as "id"'
     )
     expect(Postgres.Renderer.make().render(deletePlan).params).toEqual([userId])
   })
@@ -857,12 +857,12 @@ describe("postgres dialect behavior", () => {
     expect(Postgres.Renderer.make().render(Postgres.Query.createTable(memberships, {
       ifNotExists: true
     })).sql).toBe(
-      'create table if not exists "memberships" ("id" uuid not null, "orgId" uuid not null, "role" text not null, "note" text, primary key ("id"), foreign key ("orgId") references "orgs" ("id"), unique ("orgId", "role"))'
+      'create table if not exists "public"."memberships" ("id" uuid not null, "orgId" uuid not null, "role" text not null, "note" text, primary key ("id"), foreign key ("orgId") references "public"."orgs" ("id"), unique ("orgId", "role"))'
     )
     expect(Postgres.Renderer.make().render(Postgres.Query.createIndex(memberships, ["role", "orgId"] as const, {
       ifNotExists: true
     })).sql).toBe(
-      'create index if not exists "memberships_role_orgId_idx" on "memberships" ("role", "orgId")'
+      'create index if not exists "memberships_role_orgId_idx" on "public"."memberships" ("role", "orgId")'
     )
     expect(Postgres.Renderer.make().render(Postgres.Query.dropIndex(memberships, ["role", "orgId"] as const, {
       ifExists: true
@@ -872,7 +872,7 @@ describe("postgres dialect behavior", () => {
     expect(Postgres.Renderer.make().render(Postgres.Query.dropTable(memberships, {
       ifExists: true
     })).sql).toBe(
-      'drop table if exists "memberships"'
+      'drop table if exists "public"."memberships"'
     )
   })
 
