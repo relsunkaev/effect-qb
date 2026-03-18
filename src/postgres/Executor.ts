@@ -21,7 +21,10 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"po
 export type PostgresExecutorError = PostgresDriverError
 /** Read-query error surface emitted by built-in Postgres executors. */
 export type PostgresQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>> =
-  Query.CapabilitiesOfPlan<PlanValue> extends "write" ? PostgresExecutorError : PostgresReadQueryError
+  Extract<Query.CapabilitiesOfPlan<PlanValue>, "write"> extends never ? PostgresReadQueryError : PostgresExecutorError
+
+/** Runs an effect within the ambient Postgres SQL transaction service. */
+export const withTransaction = CoreExecutor.withTransaction
 
 /** Postgres executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> {
@@ -78,9 +81,12 @@ export const fromDriver = <
         sqlDriver.execute(rendered),
         (rows) => CoreExecutor.remapRows<any>(rendered, rows)
       ),
-      (error) => narrowPostgresDriverErrorForReadQuery(
-        normalizePostgresDriverError(error, rendered)
-      )
+      (error) => {
+        const normalized = normalizePostgresDriverError(error, rendered)
+        return CoreExecutor.hasWriteCapability(plan)
+          ? normalized
+          : narrowPostgresDriverErrorForReadQuery(normalized)
+      }
     ) as Effect.Effect<any, any, Context>
   }
 })

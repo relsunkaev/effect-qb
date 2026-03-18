@@ -54,6 +54,7 @@ import {
   type SetCompatiblePlan,
   type SetCompatibleRightPlan,
   type SchemaTableLike,
+  type SourceCapabilitiesOf,
   type SourceRequiredOf,
   type SourceRequirementError,
   type TableDialectOf,
@@ -1958,7 +1959,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       SourceNameOf<CurrentTable>,
       Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentTable>>,
       AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
+      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
       StatementOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
@@ -1991,7 +1992,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
           }
         } as AddAvailable<{}, SourceNameOf<CurrentTable & SourceLike>>,
         dialect: current.dialect as PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>
-      }, nextAst, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+      }, nextAst, currentQuery.assumptions, currentQuery.capabilities as MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>, currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
   const having = <Predicate extends HavingPredicateInput>(
@@ -2073,7 +2074,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
       AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross">,
       AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
+      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
       StatementOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
@@ -2110,7 +2111,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
           baseTableName: sourceBaseName,
           source: table
         }]
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+      }, currentQuery.assumptions, currentQuery.capabilities as MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>, currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
   const join = <
@@ -2137,7 +2138,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
       AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
       AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
+      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
       StatementOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
@@ -2182,7 +2183,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
           source: table,
           on: onExpression
         }]
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+      }, currentQuery.assumptions, currentQuery.capabilities as MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>, currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
   const orderBy = <Value extends ExpressionInput>(

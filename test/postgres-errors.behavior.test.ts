@@ -88,6 +88,58 @@ describe("postgres errors", () => {
     expect(error.cause.schemaName).toBe("public")
   })
 
+  test("fromDriver preserves write-required failures for write-bearing cte plans", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    const insertedUsers = Postgres.Query.with(
+      Postgres.Query.returning({
+        id: users.id,
+        email: users.email
+      })(Postgres.Query.insert(users, {
+        id: "11111111-1111-1111-1111-111111111111",
+        email: "alice@example.com"
+      })),
+      "inserted_users"
+    )
+
+    const plan = Postgres.Query.select({
+      id: insertedUsers.id,
+      email: insertedUsers.email
+    }).pipe(
+      Postgres.Query.from(insertedUsers)
+    )
+
+    const executor = Postgres.Executor.fromDriver(
+      Postgres.Renderer.make(),
+      Postgres.Executor.driver(() =>
+        Effect.fail({
+          code: "23505",
+          message: "duplicate key value violates unique constraint",
+          detail: 'Key (email)=(alice@example.com) already exists.',
+          schema: "public",
+          table: "users",
+          constraint: "users_email_key",
+          severity: "ERROR"
+        }))
+    )
+
+    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+
+    expect(Either.isLeft(result)).toBe(true)
+    if (Either.isRight(result)) {
+      throw new Error("Expected Postgres failure")
+    }
+    const error = result.left
+    if (!("_tag" in error) || error._tag !== "@postgres/integrity-constraint-violation/unique-violation") {
+      throw new Error(`Expected @postgres/integrity-constraint-violation/unique-violation, got ${String(error)}`)
+    }
+    expect(error.code).toBe("23505")
+    expect(error.constraintName).toBe("users_email_key")
+  })
+
   test("fromSqlClient normalizes syntax errors with structured fields", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)

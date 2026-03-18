@@ -521,6 +521,13 @@ export type AssumptionsOfPlan<PlanValue extends QueryPlan<any, any, any, any, an
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, infer Assumptions, any, any> ? Assumptions : TrueAssumptions
 export type CapabilitiesOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, infer Capabilities, any> ? Capabilities : never
+/** Extracts capabilities contributed by a source wrapper. */
+export type SourceCapabilitiesOf<Source extends SourceLike> =
+  Source extends TableLike<any, any> ? never :
+    Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? CapabilitiesOfPlan<PlanValue> :
+      Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? CapabilitiesOfPlan<PlanValue> :
+        Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? CapabilitiesOfPlan<PlanValue> :
+          never
 /** Extracts the statement kind carried by a query plan. */
 export type StatementOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, infer Statement> ? Statement : never

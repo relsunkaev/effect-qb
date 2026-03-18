@@ -450,6 +450,45 @@ describe("postgres dialect behavior", () => {
     )
   })
 
+  test("renders postgres data-modifying ctes with returning projections", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text(),
+      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    })
+
+    const insertedUsers = Postgres.Query.with(
+      Postgres.Query.returning({
+        id: users.id,
+        email: users.email,
+        bio: users.bio
+      })(Postgres.Query.insert(users, {
+        id: userId,
+        email: "alice@example.com",
+        bio: null
+      })),
+      "inserted_users"
+    )
+
+    const plan = Postgres.Query.select({
+      id: insertedUsers.id,
+      email: insertedUsers.email,
+      bio: insertedUsers.bio
+    }).pipe(
+      Postgres.Query.from(insertedUsers)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'with "inserted_users" as (insert into "users" ("id", "email", "bio") values ($1, $2, null) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio") select "inserted_users"."id" as "id", "inserted_users"."email" as "email", "inserted_users"."bio" as "bio" from "inserted_users"'
+    )
+    expect(rendered.params).toEqual([
+      userId,
+      "alice@example.com"
+    ])
+  })
+
   test("renders postgres lateral joins with correlated outer references", () => {
     const { users, posts } = makePostgresSocialGraph()
 

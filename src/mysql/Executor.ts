@@ -21,7 +21,10 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"my
 export type MysqlExecutorError = MysqlDriverError
 /** Read-query error surface emitted by built-in MySQL executors. */
 export type MysqlQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>> =
-  Query.CapabilitiesOfPlan<PlanValue> extends "write" ? MysqlExecutorError : MysqlReadQueryError
+  Extract<Query.CapabilitiesOfPlan<PlanValue>, "write"> extends never ? MysqlReadQueryError : MysqlExecutorError
+
+/** Runs an effect within the ambient MySQL SQL transaction service. */
+export const withTransaction = CoreExecutor.withTransaction
 
 /** MySQL executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> {
@@ -78,9 +81,12 @@ export const fromDriver = <
         sqlDriver.execute(rendered),
         (rows) => CoreExecutor.remapRows<any>(rendered, rows)
       ),
-      (error) => narrowMysqlDriverErrorForReadQuery(
-        normalizeMysqlDriverError(error, rendered)
-      )
+      (error) => {
+        const normalized = normalizeMysqlDriverError(error, rendered)
+        return CoreExecutor.hasWriteCapability(plan)
+          ? normalized
+          : narrowMysqlDriverErrorForReadQuery(normalized)
+      }
     ) as Effect.Effect<any, any, Context>
   }
 })

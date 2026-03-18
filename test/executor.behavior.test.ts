@@ -410,4 +410,13 @@ describe("executor behavior", () => {
       }
     ])
   })
+
+  test("withTransaction delegates to the ambient SqlClient transaction service", () => {
+    const effect = Executor.withTransaction(Effect.succeed("ok"))
+    const sql = {
+      withTransaction: <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.map(self, (value) => `txn:${String(value)}`)
+    } as unknown as SqlClient.SqlClient
+
+    expect(Effect.runSync(Effect.provideService(effect, SqlClient.SqlClient, sql))).toBe("txn:ok")
+  })
 })

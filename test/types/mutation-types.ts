@@ -1,4 +1,6 @@
 import * as Effect from "effect/Effect"
+import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlError from "@effect/sql/SqlError"
 
 import * as Mysql from "../../src/mysql.ts"
 import * as Postgres from "../../src/postgres.ts"
@@ -61,6 +63,35 @@ const deleteReturning = Q.returning({
   id: users.id
 })(deletePlan)
 
+const insertedUsers = Q.with(insertReturning, "inserted_users")
+
+const insertedUsersPlan = Q.select({
+  id: insertedUsers.id,
+  email: insertedUsers.email,
+  bio: insertedUsers.bio
+}).pipe(
+  Q.from(insertedUsers)
+)
+
+type InsertedUsersRow = Q.ResultRow<typeof insertedUsersPlan>
+type InsertedUsersCapabilities = Q.CapabilitiesOfPlan<typeof insertedUsersPlan>
+type InsertedUsersPostgresError = Postgres.Executor.PostgresQueryError<typeof insertedUsersPlan>
+type InsertedUsersMysqlError = Mysql.Executor.MysqlQueryError<typeof insertedUsersPlan>
+const insertedUsersRow: InsertedUsersRow = {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: null
+}
+const insertedUsersCapabilityRead: InsertedUsersCapabilities = "read"
+const insertedUsersCapabilityWrite: InsertedUsersCapabilities = "write"
+void insertedUsersRow
+void insertedUsersCapabilityRead
+void insertedUsersCapabilityWrite
+const insertedUsersPostgresError: InsertedUsersPostgresError = null as never as Postgres.Executor.PostgresExecutorError
+const insertedUsersMysqlError: InsertedUsersMysqlError = null as never as Mysql.Executor.MysqlExecutorError
+void insertedUsersPostgresError
+void insertedUsersMysqlError
+
 type InsertRow = Q.ResultRow<typeof insertReturning>
 type UpdateRow = Q.ResultRow<typeof updateReturning>
 type DeleteRow = Q.ResultRow<typeof deleteReturning>
@@ -112,6 +143,13 @@ const postgresMutationRow: PostgresMutationRow = { id: "user-id" }
 const mysqlMutationRow: MysqlMutationRow = { id: "user-id" }
 void postgresMutationRow
 void mysqlMutationRow
+
+const transactionEffect = Executor.withTransaction(Effect.succeed(insertRow))
+type TransactionEffect = typeof transactionEffect
+const transactionEffectCheck: Effect.Effect<InsertRow, SqlError.SqlError, SqlClient.SqlClient> = transactionEffect
+const transactionEffectValue: TransactionEffect = transactionEffect
+void transactionEffectCheck
+void transactionEffectValue
 
 const renderer = Renderer.make("postgres")
 const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(

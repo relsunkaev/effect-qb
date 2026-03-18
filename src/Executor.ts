@@ -1,7 +1,9 @@
 import * as Effect from "effect/Effect"
 import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlError from "@effect/sql/SqlError"
 
 import * as Query from "./query.ts"
+import * as QueryAst from "./internal/query-ast.ts"
 import * as Renderer from "./renderer.ts"
 
 /** Flat database row keyed by rendered projection aliases. */
@@ -61,6 +63,50 @@ const setPath = (
     current = next
   }
   current[path[path.length - 1]!] = value
+}
+
+const hasWriteStatement = (statement: QueryAst.QueryStatement): boolean =>
+  statement === "insert" ||
+  statement === "update" ||
+  statement === "delete" ||
+  statement === "createTable" ||
+  statement === "createIndex" ||
+  statement === "dropIndex" ||
+  statement === "dropTable"
+
+const hasWriteCapabilityInSource = (source: unknown): boolean =>
+  typeof source === "object" && source !== null && "plan" in source
+    ? hasWriteCapability((source as { readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> }).plan)
+    : false
+
+export const hasWriteCapability = (
+  plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+): boolean => {
+  const ast = Query.getAst(plan)
+  if (hasWriteStatement(ast.kind)) {
+    return true
+  }
+  if (ast.kind === "set") {
+    if (ast.setBase && hasWriteCapability((ast.setBase as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>))) {
+      return true
+    }
+    if ((ast.setOperations ?? []).some((entry) => hasWriteCapability(entry.query as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>))) {
+      return true
+    }
+  }
+  if (ast.from && hasWriteCapabilityInSource(ast.from.source)) {
+    return true
+  }
+  if (ast.into && hasWriteCapabilityInSource(ast.into.source)) {
+    return true
+  }
+  if (ast.target && hasWriteCapabilityInSource(ast.target.source)) {
+    return true
+  }
+  if ((ast.joins ?? []).some((join) => hasWriteCapabilityInSource(join.source))) {
+    return true
+  }
+  return false
 }
 
 export const remapRows = <Row>(
@@ -153,3 +199,9 @@ export const fromSqlClient = <Dialect extends string>(
   fromDriver(renderer, driver(renderer.dialect, (query) =>
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
       sql.unsafe<FlatRow>(query.sql, [...query.params]))))
+
+/** Runs an effect within the ambient `@effect/sql` transaction service. */
+export const withTransaction = <A, E, R>(
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
+  Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect))
