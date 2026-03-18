@@ -16,7 +16,30 @@ describe("mysql errors", () => {
     expect(descriptor.tag).toBe("@mysql/server/dup-entry")
   })
 
-  test("fromDriver normalizes known server failures by symbol", () => {
+  test("query-requirement mapping marks write-required mysql sqlstate classes explicitly", () => {
+    const writeRequirements = Mysql.Errors.requirements_of_mysql_error(
+      Mysql.Errors.normalizeMysqlDriverError({
+        code: "ER_DUP_ENTRY",
+        errno: 1062,
+        sqlState: "23000",
+        sqlMessage: "Duplicate entry 'alice@example.com' for key 'users.email'"
+      })
+    )
+
+    const readRequirements = Mysql.Errors.requirements_of_mysql_error(
+      Mysql.Errors.normalizeMysqlDriverError({
+        code: "ER_PARSE_ERROR",
+        errno: 1064,
+        sqlState: "42000",
+        sqlMessage: "You have an error in your SQL syntax"
+      })
+    )
+
+    expect(writeRequirements).toEqual(["write"])
+    expect(readRequirements).toEqual([])
+  })
+
+  test("fromDriver remaps write-required server failures behind query-requirements errors", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       email: Mysql.Column.text()
@@ -49,12 +72,18 @@ describe("mysql errors", () => {
       throw new Error("Expected MySQL failure")
     }
     const error = result.left
-    if (!("_tag" in error) || error._tag !== "@mysql/server/dup-entry") {
-      throw new Error(`Expected @mysql/server/dup-entry, got ${String(error)}`)
+    if (!("_tag" in error) || error._tag !== "@mysql/unknown/query-requirements") {
+      throw new Error(`Expected @mysql/unknown/query-requirements, got ${String(error)}`)
     }
-    expect(error.symbol).toBe("ER_DUP_ENTRY")
-    expect(error.number).toBe("1062")
-    expect(error.sqlState).toBe("23000")
+    expect(error.requiredCapabilities).toEqual(["write"])
+    expect(error.actualCapabilities).toEqual(["read"])
+    expect(error.cause._tag).toBe("@mysql/server/dup-entry")
+    if (!("_tag" in error.cause) || error.cause._tag !== "@mysql/server/dup-entry") {
+      throw new Error("Expected wrapped dup-entry")
+    }
+    expect(error.cause.symbol).toBe("ER_DUP_ENTRY")
+    expect(error.cause.number).toBe("1062")
+    expect(error.cause.sqlState).toBe("23000")
   })
 
   test("fromDriver normalizes known client failures by number", () => {
@@ -93,7 +122,7 @@ describe("mysql errors", () => {
     expect(error.fatal).toBe(true)
   })
 
-  test("fromSqlClient normalizes mysql failures through SqlClient", () => {
+  test("fromSqlClient normalizes allowed mysql failures through SqlClient", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
     })
@@ -108,10 +137,10 @@ describe("mysql errors", () => {
     const sql = {
       unsafe<Row extends object>() {
         return Effect.fail({
-          code: "ER_DUP_ENTRY",
-          errno: 1062,
-          sqlState: "23000",
-          sqlMessage: "Duplicate entry '11111111-1111-1111-1111-111111111111' for key 'PRIMARY'"
+          code: "ER_PARSE_ERROR",
+          errno: 1064,
+          sqlState: "42000",
+          sqlMessage: "You have an error in your SQL syntax"
         } as never as ReadonlyArray<Row>)
       }
     } as unknown as SqlClient.SqlClient
@@ -125,8 +154,8 @@ describe("mysql errors", () => {
       throw new Error("Expected MySQL failure")
     }
     const error = result.left
-    if (!("_tag" in error) || error._tag !== "@mysql/server/dup-entry") {
-      throw new Error(`Expected @mysql/server/dup-entry, got ${String(error)}`)
+    if (!("_tag" in error) || error._tag !== "@mysql/server/parse-error") {
+      throw new Error(`Expected @mysql/server/parse-error, got ${String(error)}`)
     }
     expect(error.query?.sql).toBe("select `users`.`id` as `id` from `users`")
   })
@@ -144,6 +173,42 @@ describe("mysql errors", () => {
     }
     expect(error.code).toBe("ER_NOT_IN_OUR_CATALOG")
     expect(error.errno).toBe(999999)
+  })
+
+  test("unknown mysql codes with write-required sqlstate still map to query-requirements for read plans", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    })
+
+    const plan = Mysql.Query.select({
+      id: users.id
+    }).pipe(
+      Mysql.Query.from(users)
+    )
+
+    const executor = Mysql.Executor.fromDriver(
+      Mysql.Renderer.make(),
+      Mysql.Executor.driver(() =>
+        Effect.fail({
+          code: "ER_FUTURE_WRITE_ERROR",
+          errno: 999999,
+          sqlState: "23000",
+          sqlMessage: "future mysql write error"
+        }))
+    )
+
+    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+
+    expect(Either.isLeft(result)).toBe(true)
+    if (Either.isRight(result)) {
+      throw new Error("Expected MySQL failure")
+    }
+    const error = result.left
+    if (!("_tag" in error) || error._tag !== "@mysql/unknown/query-requirements") {
+      throw new Error(`Expected @mysql/unknown/query-requirements, got ${String(error)}`)
+    }
+    expect(error.requiredCapabilities).toEqual(["write"])
+    expect(error.cause._tag).toBe("@mysql/unknown/code")
   })
 
   test("non-MySQL driver failures fall back to the unknown driver namespace", () => {

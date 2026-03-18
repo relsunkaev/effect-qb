@@ -1,6 +1,70 @@
+import * as Query from "../query.ts"
 import * as Expression from "../expression.ts"
+import * as QueryAst from "./query-ast.ts"
 import type { RenderState, SqlDialect } from "./dialect.ts"
 import * as ExpressionAst from "./expression-ast.ts"
+import { flattenSelection, type Projection } from "./projections.ts"
+import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.ts"
+
+export interface RenderedQueryAst {
+  readonly sql: string
+  readonly projections: readonly Projection[]
+}
+
+export const renderQueryAst = (
+  ast: QueryAst.Ast<Record<string, unknown>, any>,
+  state: RenderState,
+  dialect: SqlDialect
+): RenderedQueryAst => {
+  validateAggregationSelection(ast.select as SelectionValue, ast.groupBy)
+  const flattened = flattenSelection(ast.select as Record<string, unknown>)
+  const projections = flattened.map(({ path, alias }) => ({
+    path,
+    alias
+  }))
+  const selectSql = flattened.map(({ expression, alias }) =>
+    `${renderExpression(expression, state, dialect)} as ${dialect.quoteIdentifier(alias)}`).join(", ")
+  const clauses = [`select ${selectSql}`]
+  if (ast.from) {
+    clauses.push(`from ${renderSourceReference(ast.from.source, ast.from.tableName, ast.from.baseTableName, state, dialect)}`)
+  }
+  for (const join of ast.joins) {
+    clauses.push(`${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on, state, dialect)}`)
+  }
+  if (ast.where.length > 0) {
+    clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
+  }
+  if (ast.groupBy.length > 0) {
+    clauses.push(`group by ${ast.groupBy.map((value: QueryAst.Ast["groupBy"][number]) => renderExpression(value, state, dialect)).join(", ")}`)
+  }
+  if (ast.having.length > 0) {
+    clauses.push(`having ${ast.having.map((entry: QueryAst.HavingClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
+  }
+  if (ast.orderBy.length > 0) {
+    clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`)
+  }
+  return {
+    sql: clauses.join(" "),
+    projections
+  }
+}
+
+const renderSourceReference = (
+  source: unknown,
+  tableName: string,
+  baseTableName: string,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  if (typeof source === "object" && source !== null && "kind" in source && (source as { readonly kind?: string }).kind === "derived") {
+    const derived = source as unknown as {
+      readonly name: string
+      readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+    }
+    return `(${renderQueryAst(Query.getAst(derived.plan) as QueryAst.Ast<Record<string, unknown>, any>, state, dialect).sql}) as ${dialect.quoteIdentifier(derived.name)}`
+  }
+  return dialect.renderTableReference(tableName, baseTableName)
+}
 
 /**
  * Renders a scalar expression AST into SQL text.
@@ -52,6 +116,12 @@ export const renderExpression = (
       return `case ${ast.branches.map((branch) =>
         `when ${renderExpression(branch.when, state, dialect)} then ${renderExpression(branch.then, state, dialect)}`
       ).join(" ")} else ${renderExpression(ast.else, state, dialect)} end`
+    case "exists":
+      return `exists (${renderQueryAst(
+        Query.getAst(ast.plan) as QueryAst.Ast<Record<string, unknown>, any>,
+        state,
+        dialect
+      ).sql})`
   }
   throw new Error("Unsupported expression for SQL rendering")
 }

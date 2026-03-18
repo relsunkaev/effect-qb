@@ -85,6 +85,109 @@ const aliasRow: AliasRow = {
 }
 void aliasRow
 
+const existsSubquery = Q.select({
+  id: posts.id
+}).pipe(
+  Q.from(posts)
+)
+
+const existsPlan = Q.select({
+  hasPosts: Q.exists(existsSubquery)
+})
+
+type ExistsRow = Q.ResultRow<typeof existsPlan>
+const existsValue: ExistsRow["hasPosts"] = true
+// @ts-expect-error exists subqueries should resolve to a non-null boolean
+const nullExistsValue: ExistsRow["hasPosts"] = null
+void existsValue
+void nullExistsValue
+
+const correlatedExistsSubquery = Q.select({
+  id: posts.id
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.eq(posts.userId, users.id))
+)
+
+const correlatedExistsPlan = Q.select({
+  userId: users.id,
+  hasPosts: Q.exists(correlatedExistsSubquery)
+}).pipe(
+  Q.from(users)
+)
+
+type CorrelatedExistsRow = Q.ResultRow<typeof correlatedExistsPlan>
+const correlatedExistsValue: CorrelatedExistsRow["hasPosts"] = true
+void correlatedExistsValue
+
+const invalidCorrelatedExistsPlan = Q.select({
+  hasPosts: Q.exists(correlatedExistsSubquery)
+})
+
+type InvalidCorrelatedExistsPlan = Q.CompletePlan<typeof invalidCorrelatedExistsPlan>
+const correlatedMissingSource: InvalidCorrelatedExistsPlan["__effect_qb_missing_sources__"] = "users"
+void correlatedMissingSource
+
+const derivedSourceSubquery = Q.select({
+  userId: posts.userId,
+  title: posts.title
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.isNotNull(posts.title))
+)
+
+const derivedSource = Q.as(derivedSourceSubquery, "active_posts")
+
+const derivedSourcePlan = Q.select({
+  userId: users.id,
+  title: derivedSource.title
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(derivedSource, Q.eq(users.id, derivedSource.userId))
+)
+
+type DerivedSourceRow = Q.ResultRow<typeof derivedSourcePlan>
+const derivedSourceTitle: DerivedSourceRow["title"] = "hello"
+// @ts-expect-error derived subquery output is non-null after the inner where
+const derivedSourceNullTitle: DerivedSourceRow["title"] = null
+void derivedSourceTitle
+void derivedSourceNullTitle
+
+type DerivedSourceCapabilities = Q.CapabilitiesOfPlan<typeof derivedSourcePlan>
+const derivedSourceCapability: DerivedSourceCapabilities = "read"
+void derivedSourceCapability
+
+const invalidDerivedSource = Q.select({
+  userId: posts.userId
+}).pipe(
+  Q.from(posts)
+)
+
+type InvalidDerivedSourceError = Q.DerivedSourceRequiredError<typeof invalidDerivedSource>
+const invalidDerivedSourceHint: InvalidDerivedSourceError["__effect_qb_hint__"] =
+  "Wrap the nested plan in as(subquery, alias) before passing it to from(...) or a join"
+void invalidDerivedSourceHint
+
+Q.select({
+  userId: users.id
+}).pipe(
+  // @ts-expect-error subqueries must be aliased before they can be used as a source
+  Q.from(invalidDerivedSource)
+)
+
+const invalidGroupedExistsSubquery = Q.select({
+  userId: posts.userId,
+  title: posts.title,
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(posts),
+  Q.groupBy(posts.userId)
+)
+
+// @ts-expect-error exists requires aggregation-compatible nested plans
+const invalidGroupedExists = Q.exists(invalidGroupedExistsSubquery)
+void invalidGroupedExists
+
 const aggregatePlan = Q.select({
   email: users.email,
   postCount: Q.count(posts.id)
@@ -94,6 +197,21 @@ const aggregatePlan = Q.select({
   Q.groupBy(users.email),
   Q.having(Q.eq(Q.count(posts.id), 1))
 )
+
+type AggregatePlanCapabilities = Q.CapabilitiesOfPlan<typeof aggregatePlan>
+const aggregateCapability: AggregatePlanCapabilities = "read"
+void aggregateCapability
+
+type ManualCapabilityUnion = Q.MergeCapabilities<"read", "write">
+const manualReadCapability: ManualCapabilityUnion = "read"
+const manualWriteCapability: ManualCapabilityUnion = "write"
+type TupleCapabilityUnion = Q.MergeCapabilityTuple<["read", "write", "read"]>
+const tupleCapabilityRead: TupleCapabilityUnion = "read"
+const tupleCapabilityWrite: TupleCapabilityUnion = "write"
+void manualReadCapability
+void manualWriteCapability
+void tupleCapabilityRead
+void tupleCapabilityWrite
 
 const completeAggregatePlan: Q.CompletePlan<typeof aggregatePlan> = aggregatePlan
 void completeAggregatePlan
@@ -134,7 +252,7 @@ const renderedRow: RenderedRow = {
 }
 void renderedRow
 
-const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any>>(
+const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any>>(
   plan: Q.DialectCompatiblePlan<PlanValue, "postgres">
 ): Effect.Effect<any, never, never> => {
   void plan

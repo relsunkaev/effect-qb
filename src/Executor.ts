@@ -38,7 +38,7 @@ export interface Executor<
   Context = never
 > {
   readonly dialect: Dialect
-  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any>>(
+  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 }
@@ -63,7 +63,7 @@ const setPath = (
   current[path[path.length - 1]!] = value
 }
 
-const remapRows = <Row>(
+export const remapRows = <Row>(
   query: Renderer.RenderedQuery<Row, any>,
   rows: ReadonlyArray<FlatRow>
 ): ReadonlyArray<Row> =>
@@ -86,7 +86,7 @@ export const make = <
   Context = never
 >(
   dialect: Dialect,
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 ): Executor<Dialect, Error, Context> => ({

@@ -1,10 +1,8 @@
 import * as Query from "../query.ts"
-import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.ts"
-import { flattenSelection, type Projection } from "./projections.ts"
 import { type RenderState } from "./dialect.ts"
 import { postgresDialect } from "./postgres-dialect.ts"
-import * as QueryAst from "./query-ast.ts"
-import { renderExpression } from "./sql-expression-renderer.ts"
+import { type Projection } from "./projections.ts"
+import { renderQueryAst } from "./sql-expression-renderer.ts"
 
 /**
  * Minimal rendered-query payload produced by the built-in Postgres renderer.
@@ -21,45 +19,20 @@ export interface PostgresRenderResult {
 /**
  * Renders the current query AST into Postgres SQL plus bind parameters.
  */
-export const renderPostgresPlan = <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any>>(
+export const renderPostgresPlan = <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
   plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
 ): PostgresRenderResult => {
-  const ast = Query.getAst(
-    plan as Query.QueryPlan<any, any, any, any, any, any, any>
-  ) as QueryAst.Ast<Record<string, unknown>, any>
   const state: RenderState = {
     params: []
   }
-  validateAggregationSelection(ast.select as SelectionValue, ast.groupBy)
-  const flattened = flattenSelection(ast.select as Record<string, unknown>)
-  const projections = flattened.map(({ path, alias }) => ({
-    path,
-    alias
-  }))
-  const selectSql = flattened.map(({ expression, alias }) =>
-    `${renderExpression(expression, state, postgresDialect)} as ${postgresDialect.quoteIdentifier(alias)}`).join(", ")
-  const clauses = [`select ${selectSql}`]
-  if (ast.from) {
-    clauses.push(`from ${postgresDialect.renderTableReference(ast.from.tableName, ast.from.baseTableName)}`)
-  }
-  for (const join of ast.joins) {
-    clauses.push(`${join.kind} join ${postgresDialect.renderTableReference(join.tableName, join.baseTableName)} on ${renderExpression(join.on, state, postgresDialect)}`)
-  }
-  if (ast.where.length > 0) {
-    clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, postgresDialect)).join(" and ")}`)
-  }
-  if (ast.groupBy.length > 0) {
-    clauses.push(`group by ${ast.groupBy.map((value: QueryAst.Ast["groupBy"][number]) => renderExpression(value, state, postgresDialect)).join(", ")}`)
-  }
-  if (ast.having.length > 0) {
-    clauses.push(`having ${ast.having.map((entry: QueryAst.HavingClause) => renderExpression(entry.predicate, state, postgresDialect)).join(" and ")}`)
-  }
-  if (ast.orderBy.length > 0) {
-    clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, postgresDialect)} ${entry.direction}`).join(", ")}`)
-  }
+  const rendered = renderQueryAst(
+    Query.getAst(plan as Query.QueryPlan<any, any, any, any, any, any, any, any, any>) as any,
+    state,
+    postgresDialect
+  )
   return {
-    sql: clauses.join(" "),
+    sql: rendered.sql,
     params: state.params,
-    projections
+    projections: rendered.projections
   }
 }

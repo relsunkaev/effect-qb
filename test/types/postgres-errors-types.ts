@@ -42,15 +42,22 @@ const driver = Postgres.Executor.driver(() =>
 const executor = Postgres.Executor.fromDriver(Postgres.Renderer.make(), driver)
 const execution = executor.execute(plan)
 
+type Capabilities = Postgres.Query.CapabilitiesOfPlan<typeof plan>
+const readCapability: Capabilities = "read"
+type QueryError = Postgres.Executor.PostgresQueryError<typeof plan>
 type ExecutionError = Effect.Effect.Error<typeof execution>
 
 declare const executionError: ExecutionError
+declare const queryError: QueryError
+void readCapability
+void queryError
 
 const recovered = execution.pipe(
-  Effect.catchTag("@postgres/integrity-constraint-violation/unique-violation", (error) => {
-    const tag: "@postgres/integrity-constraint-violation/unique-violation" = error._tag
-    const code: "23505" = error.code
-    return Effect.succeed({ tag, code })
+  Effect.catchTag("@postgres/unknown/query-requirements", (error) => {
+    const tag: "@postgres/unknown/query-requirements" = error._tag
+    const requiredCapabilities: readonly Postgres.Errors.PostgresQueryRequirement[] = error.requiredCapabilities
+    const actualCapabilities: readonly string[] = error.actualCapabilities
+    return Effect.succeed({ tag, requiredCapabilities, actualCapabilities })
   })
 )
 
@@ -59,12 +66,20 @@ execution.pipe(Effect.catchTag("@postgres/not-real/tag", () => Effect.succeed(nu
 
 type RecoveredError = Effect.Effect.Error<typeof recovered>
 declare const recoveredError: RecoveredError
-// @ts-expect-error handled unique-violation should be removed from the error channel
-const impossibleUniqueViolation: Extract<RecoveredError, { readonly _tag: "@postgres/integrity-constraint-violation/unique-violation" }> = recoveredError
+// @ts-expect-error handled query-requirements should be removed from the error channel
+const impossibleQueryRequirements: Extract<RecoveredError, { readonly _tag: "@postgres/unknown/query-requirements" }> = recoveredError
 
-if ("_tag" in executionError && executionError._tag === "@postgres/integrity-constraint-violation/unique-violation") {
-  const tag: "@postgres/integrity-constraint-violation/unique-violation" = executionError._tag
-  const code: "23505" = executionError.code
+// @ts-expect-error write-only unique violations are removed from the read-query error channel
+const impossibleUniqueViolation: Extract<
+  ExecutionError,
+  { readonly _tag: "@postgres/integrity-constraint-violation/unique-violation" }
+> = executionError
+
+if ("_tag" in executionError && executionError._tag === "@postgres/unknown/query-requirements") {
+  const tag: "@postgres/unknown/query-requirements" = executionError._tag
+  const requiredCapabilities: readonly Postgres.Errors.PostgresQueryRequirement[] = executionError.requiredCapabilities
+  const actualCapabilities: readonly string[] = executionError.actualCapabilities
   void tag
-  void code
+  void requiredCapabilities
+  void actualCapabilities
 }

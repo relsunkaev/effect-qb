@@ -202,6 +202,87 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual(["missing", "draft", "draft", "published"])
   })
 
+  test("renders exists subqueries with shared postgres parameter ordering", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const postExists = Postgres.Query.select({
+      id: posts.id
+    }).pipe(
+      Postgres.Query.from(posts),
+      Postgres.Query.where(Postgres.Query.eq(posts.title, "hello"))
+    )
+
+    const plan = Postgres.Query.select({
+      email: users.email,
+      hasHelloPost: Postgres.Query.exists(postExists)
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.where(Postgres.Query.eq(users.email, "alice@example.com"))
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select "users"."email" as "email", exists (select "posts"."id" as "id" from "posts" where ("posts"."title" = $1)) as "hasHelloPost" from "users" where ("users"."email" = $2)'
+    )
+    expect(rendered.params).toEqual(["hello", "alice@example.com"])
+  })
+
+  test("renders correlated exists subqueries against outer postgres sources", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const postExists = Postgres.Query.select({
+      id: posts.id
+    }).pipe(
+      Postgres.Query.from(posts),
+      Postgres.Query.where(Postgres.Query.eq(posts.userId, users.id))
+    )
+
+    const plan = Postgres.Query.select({
+      email: users.email,
+      hasPosts: Postgres.Query.exists(postExists)
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.where(Postgres.Query.eq(users.email, "alice@example.com"))
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select "users"."email" as "email", exists (select "posts"."id" as "id" from "posts" where ("posts"."userId" = "users"."id")) as "hasPosts" from "users" where ("users"."email" = $1)'
+    )
+    expect(rendered.params).toEqual(["alice@example.com"])
+  })
+
+  test("renders aliased postgres subqueries as derived tables", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const activePosts = Postgres.Query.select({
+      userId: posts.userId,
+      title: posts.title
+    }).pipe(
+      Postgres.Query.from(posts),
+      Postgres.Query.where(Postgres.Query.isNotNull(posts.title))
+    )
+
+    const derivedPosts = Postgres.Query.as(activePosts, "active_posts")
+
+    const plan = Postgres.Query.select({
+      userId: users.id,
+      title: derivedPosts.title
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.innerJoin(derivedPosts, Postgres.Query.eq(users.id, derivedPosts.userId))
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select "users"."id" as "userId", "active_posts"."title" as "title" from "users" inner join (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) as "active_posts" on ("users"."id" = "active_posts"."userId")'
+    )
+    expect(rendered.params).toEqual([])
+  })
+
   test("decodes nullable joined rows through the postgres executor pipeline", () => {
     const { users, posts } = makePostgresSocialGraph()
 

@@ -21,9 +21,13 @@ import {
   type AggregationOf,
   type AssumptionsOfPlan,
   type AvailableOfPlan,
+  type CapabilitiesOfPlan,
+  type DialectCompatibleNestedPlan,
   type DependenciesOf,
   type DependencyRecord,
   type DialectOf,
+  type DerivedSource,
+  type CompletePlan,
   type ExpressionInput,
   type ExtractDialect,
   type ExtractRequired,
@@ -46,17 +50,20 @@ import {
   type SelectionOfPlan,
   type SelectionShape,
   type SourceOf,
+  type SourceDialectOf,
+  type SourceLike,
+  type SourceNameOf,
   type StringExpressionInput,
-  type TableDialectOf,
   type TableLike,
-  type TableNameOf,
   type TupleDependencies,
   type TupleDialect,
   type TupleSource
 } from "../query.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 import type { AssumeTrue } from "./predicate-analysis.ts"
+import type { TrueFormula } from "./predicate-formula.ts"
 import { dedupeGroupedExpressions } from "./grouping-key.ts"
+import { makeDerivedSource } from "./derived-table.ts"
 import * as ProjectionAlias from "./projection-alias.ts"
 import * as QueryAst from "./query-ast.ts"
 
@@ -305,7 +312,7 @@ type DialectStringExpressionTuple<
 type AvailableNames<Available extends Record<string, Plan.Source>> = Extract<keyof Available, string>
 
 type PlanAssumptionsAfterWhere<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>,
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
   Predicate extends PredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -831,6 +838,39 @@ export const makeDialectQuery = <
     })
   }
 
+  const exists = <
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>
+  >(
+    plan: DialectCompatibleNestedPlan<PlanValue, Dialect>
+  ): AstBackedExpression<
+    boolean,
+    BoolDb,
+    "never",
+    Dialect,
+    "scalar",
+    never,
+    DependencyRecord<OutstandingOfPlan<PlanValue>>,
+    ExpressionAst.ExistsNode<PlanValue>,
+    "resolved"
+  > => {
+    const dependencies = Object.fromEntries(
+      currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
+    ) as DependencyRecord<OutstandingOfPlan<PlanValue>>
+    return makeExpression({
+      runtime: true as boolean,
+      dbType: profile.boolDb as BoolDb,
+      nullability: "never",
+      dialect: profile.dialect as Dialect,
+      aggregation: "scalar",
+      source: undefined as never,
+      sourceNullability: "resolved" as const,
+      dependencies
+    }, {
+      kind: "exists",
+      plan
+    })
+  }
+
   const max = <Value extends Expression.Any>(
     value: Value
   ): AstBackedExpression<
@@ -1033,33 +1073,44 @@ export const makeDialectQuery = <
     }
   }
 
-  const as = <
+  function as<
     Value extends ExpressionInput,
     Alias extends string
   >(
     value: Value,
     alias: Alias
-  ): DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
-    const expression = toDialectExpression(value)
-    const projected = Object.create(Object.getPrototypeOf(expression)) as {
-      [Expression.TypeId]: Expression.State<any, any, any, any, any, any, any, Expression.SourceNullabilityMode>
-      [ExpressionAst.TypeId]: ExpressionAst.Any
-      [ProjectionAlias.TypeId]: ProjectionAlias.State<Alias>
-      schema?: unknown
+  ): DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+  function as<
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+    Alias extends string
+  >(
+    value: CompletePlan<PlanValue>,
+    alias: Alias
+  ): DerivedSource<PlanValue, Alias>
+  function as(value: unknown, alias: string): unknown {
+    if (typeof value !== "object" || value === null || Expression.TypeId in value) {
+      const expression = toDialectExpression(value as ExpressionInput)
+      const projected = Object.create(Object.getPrototypeOf(expression)) as {
+        [Expression.TypeId]: Expression.State<any, any, any, any, any, any, any, Expression.SourceNullabilityMode>
+        [ExpressionAst.TypeId]: ExpressionAst.Any
+        [ProjectionAlias.TypeId]: ProjectionAlias.State<string>
+        schema?: unknown
+      }
+      const runtimeExpression = expression as typeof expression & {
+        readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+        readonly schema?: unknown
+      }
+      projected[Expression.TypeId] = runtimeExpression[Expression.TypeId]
+      projected[ExpressionAst.TypeId] = runtimeExpression[ExpressionAst.TypeId]
+      if ("schema" in runtimeExpression) {
+        projected.schema = runtimeExpression.schema
+      }
+      projected[ProjectionAlias.TypeId] = {
+        alias
+      } satisfies ProjectionAlias.State<string>
+      return projected
     }
-    const runtimeExpression = expression as DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> & {
-      readonly [ExpressionAst.TypeId]: ExpressionAst.Any
-      readonly schema?: unknown
-    }
-    projected[Expression.TypeId] = runtimeExpression[Expression.TypeId]
-    projected[ExpressionAst.TypeId] = runtimeExpression[ExpressionAst.TypeId]
-    if ("schema" in runtimeExpression) {
-      projected.schema = runtimeExpression.schema
-    }
-    projected[ProjectionAlias.TypeId] = {
-      alias
-    } satisfies ProjectionAlias.State<Alias>
-    return projected as unknown as DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    return makeDerivedSource(value as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any>>, alias)
   }
 
   const select = <Selection extends SelectionShape>(
@@ -1071,7 +1122,9 @@ export const makeDialectQuery = <
     ExtractDialect<Selection> extends never ? Dialect : ExtractDialect<Selection>,
     never,
     never,
-    ExtractRequired<Selection>
+    ExtractRequired<Selection>,
+    TrueFormula,
+    "read"
   > =>
     makePlan({
       selection,
@@ -1085,12 +1138,12 @@ export const makeDialectQuery = <
       joins: [],
       groupBy: [],
       orderBy: []
-    })
+    }, undefined as unknown as TrueFormula, "read")
 
   const where = <Predicate extends PredicateInput>(
     predicate: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -1100,7 +1153,8 @@ export const makeDialectQuery = <
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue>,
       AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
-      PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+      PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CapabilitiesOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
@@ -1119,54 +1173,65 @@ export const makeDialectQuery = <
           kind: "where",
           predicate: predicateExpression
         }]
-      }, undefined as unknown as PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>)
+      },
+      undefined as unknown as PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      currentQuery.capabilities)
     }
 
-  const from = <CurrentTable extends TableLike>(
+  const from = <CurrentTable extends SourceLike>(
     table: CurrentTable
   ) =>
-    <PlanValue extends QueryPlan<any, any, {}, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, {}, any, any, any, any, any, any>>(
       plan: PlanValue & (
-        TableNameOf<CurrentTable> extends OutstandingOfPlan<PlanValue> ? unknown : never
+        SourceNameOf<CurrentTable> extends OutstandingOfPlan<PlanValue> ? unknown : never
       )
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
-      Exclude<RequiredOfPlan<PlanValue>, TableNameOf<CurrentTable>>,
-      AddAvailable<{}, TableNameOf<CurrentTable>>,
-      PlanDialectOf<PlanValue> | TableDialectOf<CurrentTable>,
+      Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentTable>>,
+      AddAvailable<{}, SourceNameOf<CurrentTable>>,
+      PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>,
       GroupedOfPlan<PlanValue>,
-      TableNameOf<CurrentTable>,
-      Exclude<OutstandingOfPlan<PlanValue>, TableNameOf<CurrentTable>>
+      SourceNameOf<CurrentTable>,
+      Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentTable>>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
+      const sourceName = "kind" in table && table.kind === "derived"
+        ? table.name
+        : (table as TableLike)[Table.TypeId].name
+      const sourceBaseName = "kind" in table && table.kind === "derived"
+        ? table.baseName
+        : (table as TableLike)[Table.TypeId].baseName
       return makePlan({
         selection: current.selection,
         required: currentRequiredList(current.required).filter((name) =>
-          name !== table[Table.TypeId].name) as Exclude<RequiredOfPlan<PlanValue>, TableNameOf<CurrentTable>>,
+          name !== sourceName) as Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentTable & SourceLike>>,
         available: {
-          [table[Table.TypeId].name]: {
-            name: table[Table.TypeId].name,
+          [sourceName]: {
+            name: sourceName,
             mode: "required",
-            baseName: table[Table.TypeId].baseName
+            baseName: sourceBaseName
           }
-        } as AddAvailable<{}, TableNameOf<CurrentTable>>,
-        dialect: current.dialect as PlanDialectOf<PlanValue> | TableDialectOf<CurrentTable>
+        } as AddAvailable<{}, SourceNameOf<CurrentTable & SourceLike>>,
+        dialect: current.dialect as PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>
       }, {
         ...currentAst,
         from: {
           kind: "from",
-          tableName: table[Table.TypeId].name,
-          baseTableName: table[Table.TypeId].baseName
+          tableName: sourceName,
+          baseTableName: sourceBaseName,
+          source: table
         }
-      }, currentQuery.assumptions)
+      }, currentQuery.assumptions, currentQuery.capabilities)
     }
 
   const having = <Predicate extends HavingPredicateInput>(
     predicate: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -1175,7 +1240,9 @@ export const makeDialectQuery = <
       PlanDialectOf<PlanValue> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>
+      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
@@ -1194,16 +1261,16 @@ export const makeDialectQuery = <
           kind: "having",
           predicate: predicateExpression
         }]
-      }, currentQuery.assumptions)
+      }, currentQuery.assumptions, currentQuery.capabilities)
     }
 
-  const innerJoin = <CurrentTable extends TableLike, Predicate extends PredicateInput>(
+  const innerJoin = <CurrentTable extends SourceLike, Predicate extends PredicateInput>(
     table: CurrentTable,
     on: Predicate
   ) =>
     join("inner", table, on)
 
-  const leftJoin = <CurrentTable extends TableLike, Predicate extends PredicateInput>(
+  const leftJoin = <CurrentTable extends SourceLike, Predicate extends PredicateInput>(
     table: CurrentTable,
     on: Predicate
   ) =>
@@ -1211,62 +1278,71 @@ export const makeDialectQuery = <
 
   const join = <
     Kind extends QueryAst.JoinKind,
-    CurrentTable extends TableLike,
+    CurrentTable extends SourceLike,
     Predicate extends PredicateInput
   >(
     kind: Kind,
     table: CurrentTable,
     on: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue & (
         keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
-        TableNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
+        SourceNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
       )
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
-      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, TableNameOf<CurrentTable>, Predicate>,
-      AddAvailable<AvailableOfPlan<PlanValue>, TableNameOf<CurrentTable>, JoinSourceMode<Kind>>,
-      PlanDialectOf<PlanValue> | TableDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate>,
+      AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, JoinSourceMode<Kind>>,
+      PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue> | TableNameOf<CurrentTable>,
-      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, TableNameOf<CurrentTable>, Predicate>
+      ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
+      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
       const onExpression = toDialectExpression(on)
+      const sourceName = "kind" in table && table.kind === "derived"
+        ? table.name
+        : (table as TableLike)[Table.TypeId].name
+      const sourceBaseName = "kind" in table && table.kind === "derived"
+        ? table.baseName
+        : (table as TableLike)[Table.TypeId].baseName
       const nextAvailable = {
         ...current.available,
-        [table[Table.TypeId].name]: {
-          name: table[Table.TypeId].name,
+        [sourceName]: {
+          name: sourceName,
           mode: (kind === "left" ? "optional" : "required") as JoinSourceMode<Kind>,
-          baseName: table[Table.TypeId].baseName
+          baseName: sourceBaseName
         }
-      } as AddAvailable<AvailableOfPlan<PlanValue>, TableNameOf<CurrentTable>, JoinSourceMode<Kind>>
+      } as AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, JoinSourceMode<Kind>>
       return makePlan({
         selection: current.selection,
         required: [...currentRequiredList(current.required), ...extractRequiredFromDialectInputRuntime(on)].filter((name, index, values) =>
-          !(name in nextAvailable) && values.indexOf(name) === index) as AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, TableNameOf<CurrentTable>, Predicate>,
+          !(name in nextAvailable) && values.indexOf(name) === index) as AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate>,
         available: nextAvailable,
-        dialect: current.dialect as PlanDialectOf<PlanValue> | TableDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+        dialect: current.dialect as PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
       }, {
         ...currentAst,
         joins: [...currentAst.joins, {
           kind,
-          tableName: table[Table.TypeId].name,
-          baseTableName: table[Table.TypeId].baseName,
+          tableName: sourceName,
+          baseTableName: sourceBaseName,
+          source: table,
           on: onExpression
         }]
-      }, currentQuery.assumptions)
+      }, currentQuery.assumptions, currentQuery.capabilities)
     }
 
   const orderBy = <Value extends ExpressionInput>(
     value: Value,
     direction: OrderDirection = "asc"
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -1275,7 +1351,9 @@ export const makeDialectQuery = <
       PlanDialectOf<PlanValue> | DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Value>
+      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Value>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
@@ -1295,13 +1373,13 @@ export const makeDialectQuery = <
           value: expression,
           direction
         }]
-      }, currentQuery.assumptions)
+      }, currentQuery.assumptions, currentQuery.capabilities)
     }
 
   const groupBy = <Values extends readonly [GroupByInput, ...GroupByInput[]]>(
     ...values: Values
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any>>(
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -1310,7 +1388,9 @@ export const makeDialectQuery = <
       PlanDialectOf<PlanValue> | TupleDialect<Values>,
       GroupedOfPlan<PlanValue> | GroupedKeysFromValues<Values>,
       ScopedNamesOfPlan<PlanValue>,
-      Exclude<OutstandingOfPlan<PlanValue> | RequiredFromDependencies<TupleDependencies<Values>>, AvailableNames<AvailableOfPlan<PlanValue>>>
+      Exclude<OutstandingOfPlan<PlanValue> | RequiredFromDependencies<TupleDependencies<Values>>, AvailableNames<AvailableOfPlan<PlanValue>>>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
@@ -1326,7 +1406,7 @@ export const makeDialectQuery = <
       }, {
         ...currentAst,
         groupBy: dedupeGroupedExpressions([...currentAst.groupBy, ...values])
-      }, currentQuery.assumptions)
+      }, currentQuery.assumptions, currentQuery.capabilities)
     }
 
   return {
@@ -1342,6 +1422,7 @@ export const makeDialectQuery = <
     case: case_,
     coalesce,
     concat,
+    exists,
     count,
     max,
     min,

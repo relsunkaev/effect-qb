@@ -159,7 +159,7 @@ void renderedNullPost
 void renderedNullPostTitleUpper
 void renderedFallbackPostTitle
 
-const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any>>(
+const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any>>(
   plan: Q.DialectCompatiblePlan<PlanValue, "postgres">
 ): Effect.Effect<any, never, never> => {
   void plan

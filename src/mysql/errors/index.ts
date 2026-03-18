@@ -1,6 +1,7 @@
 export * from "./catalog.ts"
 export * from "./fields.ts"
 export * from "./normalize.ts"
+export * from "./requirements.ts"
 
 export {
   findMysqlErrorDescriptorsByNumber as findMySqlErrorDescriptorsByNumber,

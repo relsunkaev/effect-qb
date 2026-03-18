@@ -19,7 +19,26 @@ describe("postgres errors", () => {
     expect(descriptor.primaryFields).toContain("constraintName")
   })
 
-  test("fromDriver normalizes known SQLSTATE failures into typed Postgres errors", () => {
+  test("query-requirement mapping marks write-required postgres classes explicitly", () => {
+    const writeRequirements = Postgres.Errors.requirements_of_postgres_error(
+      Postgres.Errors.normalizePostgresDriverError({
+        code: "23505",
+        message: "duplicate key value violates unique constraint"
+      })
+    )
+
+    const readRequirements = Postgres.Errors.requirements_of_postgres_error(
+      Postgres.Errors.normalizePostgresDriverError({
+        code: "42601",
+        message: "syntax error at or near select"
+      })
+    )
+
+    expect(writeRequirements).toEqual(["write"])
+    expect(readRequirements).toEqual([])
+  })
+
+  test("fromDriver remaps write-required SQLSTATE failures behind query-requirements errors", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
       email: Postgres.Column.text()
@@ -53,15 +72,20 @@ describe("postgres errors", () => {
       throw new Error("Expected Postgres failure")
     }
     const error = result.left
-    if (!("_tag" in error) || error._tag !== "@postgres/integrity-constraint-violation/unique-violation") {
-      throw new Error(`Expected @postgres/integrity-constraint-violation/unique-violation, got ${String(error)}`)
+    if (!("_tag" in error) || error._tag !== "@postgres/unknown/query-requirements") {
+      throw new Error(`Expected @postgres/unknown/query-requirements, got ${String(error)}`)
     }
-    expect(error.code).toBe("23505")
-    expect(error.condition).toBe("unique_violation")
-    expect(error.constraintName).toBe("users_email_key")
-    expect(error.tableName).toBe("users")
-    expect(error.schemaName).toBe("public")
+    expect(error.requiredCapabilities).toEqual(["write"])
+    expect(error.actualCapabilities).toEqual(["read"])
     expect(error.query?.sql).toBe('select "users"."id" as "id", "users"."email" as "email" from "users"')
+    expect(error.cause._tag).toBe("@postgres/integrity-constraint-violation/unique-violation")
+    if (!("_tag" in error.cause) || error.cause._tag !== "@postgres/integrity-constraint-violation/unique-violation") {
+      throw new Error("Expected wrapped unique violation")
+    }
+    expect(error.cause.code).toBe("23505")
+    expect(error.cause.constraintName).toBe("users_email_key")
+    expect(error.cause.tableName).toBe("users")
+    expect(error.cause.schemaName).toBe("public")
   })
 
   test("fromSqlClient normalizes syntax errors with structured fields", () => {
@@ -169,6 +193,40 @@ describe("postgres errors", () => {
     }
     expect(error.code).toBe("ZZ999")
     expect(error.message).toBe("future postgres error")
+  })
+
+  test("unknown SQLSTATEs in write-required classes still map to query-requirements for read plans", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    })
+
+    const plan = Postgres.Query.select({
+      id: users.id
+    }).pipe(
+      Postgres.Query.from(users)
+    )
+
+    const executor = Postgres.Executor.fromDriver(
+      Postgres.Renderer.make(),
+      Postgres.Executor.driver(() =>
+        Effect.fail({
+          code: "23ZZZ",
+          message: "future write-class postgres error"
+        }))
+    )
+
+    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+
+    expect(Either.isLeft(result)).toBe(true)
+    if (Either.isRight(result)) {
+      throw new Error("Expected driver failure")
+    }
+    const error = result.left
+    if (!("_tag" in error) || error._tag !== "@postgres/unknown/query-requirements") {
+      throw new Error(`Expected @postgres/unknown/query-requirements, got ${String(error)}`)
+    }
+    expect(error.requiredCapabilities).toEqual(["write"])
+    expect(error.cause._tag).toBe("@postgres/unknown/sqlstate")
   })
 
   test("hasSqlState narrows normalized errors by code", () => {

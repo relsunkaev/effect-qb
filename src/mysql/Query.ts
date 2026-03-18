@@ -1,16 +1,22 @@
 import * as Expression from "../expression.ts"
 import {
+  type CapabilitiesOfPlan,
   type CompletePlan,
   type DialectCompatiblePlan,
+  type DerivedSourceRequiredError,
   type EffectiveNullability,
   type ExpressionInput,
   type GroupByInput,
+  type MergeCapabilities,
+  type MergeCapabilityTuple,
   type HavingPredicateInput,
   type OrderDirection,
   type OutputOfExpression,
   type OutputOfSelection,
   type PredicateInput,
+  type QueryCapability,
   type QueryPlan,
+  type QueryRequirement,
   type ResultRow,
   type ResultRows,
   type RuntimeResultRow,
@@ -40,6 +46,7 @@ export const not = mysqlQuery.not
 const case_ = mysqlQuery.case
 export const coalesce = mysqlQuery.coalesce
 export const concat = mysqlQuery.concat
+export const exists = mysqlQuery.exists
 export const count = mysqlQuery.count
 export const max = mysqlQuery.max
 export const min = mysqlQuery.min
@@ -55,20 +62,28 @@ export const groupBy = mysqlQuery.groupBy
 export { case_ as case }
 
 export type {
+  CapabilitiesOfPlan,
   CompletePlan,
   DialectCompatiblePlan,
+  DerivedSourceRequiredError,
   EffectiveNullability,
   ExpressionInput,
   GroupByInput,
+  MergeCapabilities,
+  MergeCapabilityTuple,
   HavingPredicateInput,
   OrderDirection,
   OutputOfExpression,
   OutputOfSelection,
   PredicateInput,
+  QueryCapability,
   QueryPlan,
+  QueryRequirement,
   ResultRow,
   ResultRows,
   RuntimeResultRow,
   RuntimeResultRows,
   StringExpressionInput
 }
+
+export { union_query_capabilities } from "../query.ts"

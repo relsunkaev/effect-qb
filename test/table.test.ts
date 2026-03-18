@@ -260,7 +260,7 @@ describe("table definitions", () => {
       { path: ["postTitleUpper"], alias: "postTitleUpper" }
     ])
 
-    const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any>>(
+    const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any>>(
       current: Q.DialectCompatiblePlan<PlanValue, "postgres">
     ) =>
       Effect.succeed([

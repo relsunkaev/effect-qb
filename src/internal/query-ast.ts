@@ -10,6 +10,7 @@ export interface FromClause<TableName extends string = string> {
   readonly kind: "from"
   readonly tableName: TableName
   readonly baseTableName: string
+  readonly source: unknown
 }
 
 /** Boolean predicate recorded in a `WHERE` clause. */
@@ -36,6 +37,7 @@ export interface JoinClause<
   readonly kind: Kind
   readonly tableName: TableName
   readonly baseTableName: string
+  readonly source: unknown
   readonly on: On
 }
 

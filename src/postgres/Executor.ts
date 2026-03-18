@@ -5,8 +5,10 @@ import * as CoreExecutor from "../executor.ts"
 import * as Query from "./query.ts"
 import * as Renderer from "./renderer.ts"
 import {
+  narrowPostgresDriverErrorForReadQuery,
   normalizePostgresDriverError,
-  type PostgresDriverError
+  type PostgresDriverError,
+  type PostgresReadQueryError
 } from "./errors/index.ts"
 
 /** Postgres-specialized flat row returned by SQL drivers. */
@@ -17,13 +19,24 @@ export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"postgr
 export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"postgres", Error, Context>
 /** Standard composed error shape for Postgres executors. */
 export type PostgresExecutorError = PostgresDriverError
+/** Read-query error surface emitted by built-in Postgres executors. */
+export type PostgresQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>> =
+  Query.CapabilitiesOfPlan<PlanValue> extends "write" ? PostgresExecutorError : PostgresReadQueryError
+
+/** Postgres executor whose error channel narrows based on the query plan. */
+export interface QueryExecutor<Context = never> {
+  readonly dialect: "postgres"
+  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
+    plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
+  ): Effect.Effect<Query.ResultRows<PlanValue>, PostgresQueryError<PlanValue>, Context>
+}
 
 /** Creates a Postgres-specialized executor from a typed implementation callback. */
 export const make = <
   Error = never,
   Context = never
 >(
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
   ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 ): Executor<Error, Context> => {
@@ -56,15 +69,21 @@ export const fromDriver = <
 >(
   renderer: Renderer.Renderer,
   sqlDriver: Driver<Error, Context>
-): Executor<PostgresExecutorError, Context> => {
-  const normalizedDriver = driver((query) =>
-    Effect.mapError(
-      sqlDriver.execute(query),
-      (error) => normalizePostgresDriverError(error, query)
-    ))
-
-  return CoreExecutor.fromDriver(renderer, normalizedDriver) as Executor<PostgresExecutorError, Context>
-}
+): QueryExecutor<Context> => ({
+  dialect: "postgres",
+  execute(plan) {
+    const rendered = renderer.render(plan)
+    return Effect.mapError(
+      Effect.map(
+        sqlDriver.execute(rendered),
+        (rows) => CoreExecutor.remapRows<any>(rendered, rows)
+      ),
+      (error) => narrowPostgresDriverErrorForReadQuery(
+        normalizePostgresDriverError(error, rendered)
+      )
+    ) as Effect.Effect<any, any, Context>
+  }
+})
 
 /**
  * Creates a Postgres executor backed by `@effect/sql`'s `SqlClient`.
@@ -74,7 +93,7 @@ export const fromDriver = <
  */
 export const fromSqlClient = (
   renderer: Renderer.Renderer
-): Executor<PostgresExecutorError, SqlClient.SqlClient> =>
+): QueryExecutor<SqlClient.SqlClient> =>
   fromDriver(renderer, driver((query) =>
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
       sql.unsafe<FlatRow>(query.sql, [...query.params]))))

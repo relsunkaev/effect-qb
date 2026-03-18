@@ -51,6 +51,20 @@ const driver = Mysql.Executor.driver(() =>
 
 const executor = Mysql.Executor.fromDriver(Mysql.Renderer.make(), driver)
 const execution = executor.execute(plan)
+type Capabilities = Mysql.Query.CapabilitiesOfPlan<typeof plan>
+const readCapability: Capabilities = "read"
+type QueryError = Mysql.Executor.MysqlQueryError<typeof plan>
 type ExecutionError = Effect.Effect.Error<typeof execution>
 declare const executionError: ExecutionError
-void executionError
+declare const queryError: QueryError
+void readCapability
+void queryError
+
+if ("_tag" in executionError && executionError._tag === "@mysql/unknown/query-requirements") {
+  const tag: "@mysql/unknown/query-requirements" = executionError._tag
+  const requiredCapabilities: readonly Mysql.Errors.MysqlQueryRequirement[] = executionError.requiredCapabilities
+  const actualCapabilities: readonly string[] = executionError.actualCapabilities
+  void tag
+  void requiredCapabilities
+  void actualCapabilities
+}

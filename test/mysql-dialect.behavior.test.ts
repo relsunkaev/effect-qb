@@ -201,6 +201,87 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual(["missing", "draft", "draft", "published"])
   })
 
+  test("renders exists subqueries with shared mysql parameter ordering", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const postExists = Mysql.Query.select({
+      id: posts.id
+    }).pipe(
+      Mysql.Query.from(posts),
+      Mysql.Query.where(Mysql.Query.eq(posts.title, "hello"))
+    )
+
+    const plan = Mysql.Query.select({
+      email: users.email,
+      hasHelloPost: Mysql.Query.exists(postExists)
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.where(Mysql.Query.eq(users.email, "alice@example.com"))
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select `users`.`email` as `email`, exists (select `posts`.`id` as `id` from `posts` where (`posts`.`title` = ?)) as `hasHelloPost` from `users` where (`users`.`email` = ?)"
+    )
+    expect(rendered.params).toEqual(["hello", "alice@example.com"])
+  })
+
+  test("renders correlated exists subqueries against outer mysql sources", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const postExists = Mysql.Query.select({
+      id: posts.id
+    }).pipe(
+      Mysql.Query.from(posts),
+      Mysql.Query.where(Mysql.Query.eq(posts.userId, users.id))
+    )
+
+    const plan = Mysql.Query.select({
+      email: users.email,
+      hasPosts: Mysql.Query.exists(postExists)
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.where(Mysql.Query.eq(users.email, "alice@example.com"))
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select `users`.`email` as `email`, exists (select `posts`.`id` as `id` from `posts` where (`posts`.`userId` = `users`.`id`)) as `hasPosts` from `users` where (`users`.`email` = ?)"
+    )
+    expect(rendered.params).toEqual(["alice@example.com"])
+  })
+
+  test("renders aliased mysql subqueries as derived tables", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const activePosts = Mysql.Query.select({
+      userId: posts.userId,
+      title: posts.title
+    }).pipe(
+      Mysql.Query.from(posts),
+      Mysql.Query.where(Mysql.Query.isNotNull(posts.title))
+    )
+
+    const derivedPosts = Mysql.Query.as(activePosts, "active_posts")
+
+    const plan = Mysql.Query.select({
+      userId: users.id,
+      title: derivedPosts.title
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.innerJoin(derivedPosts, Mysql.Query.eq(users.id, derivedPosts.userId))
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select `users`.`id` as `userId`, `active_posts`.`title` as `title` from `users` inner join (select `posts`.`userId` as `userId`, `posts`.`title` as `title` from `posts` where (`posts`.`title` is not null)) as `active_posts` on (`users`.`id` = `active_posts`.`userId`)"
+    )
+    expect(rendered.params).toEqual([])
+  })
+
   test("decodes nullable joined rows through the mysql executor pipeline", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

@@ -5,8 +5,10 @@ import * as CoreExecutor from "../executor.ts"
 import * as Query from "./query.ts"
 import * as Renderer from "./renderer.ts"
 import {
+  narrowMysqlDriverErrorForReadQuery,
   normalizeMysqlDriverError,
-  type MysqlDriverError
+  type MysqlDriverError,
+  type MysqlReadQueryError
 } from "./errors/index.ts"
 
 /** MySQL-specialized flat row returned by SQL drivers. */
@@ -17,13 +19,24 @@ export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"mysql"
 export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"mysql", Error, Context>
 /** Standard composed error shape for MySQL executors. */
 export type MysqlExecutorError = MysqlDriverError
+/** Read-query error surface emitted by built-in MySQL executors. */
+export type MysqlQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>> =
+  Query.CapabilitiesOfPlan<PlanValue> extends "write" ? MysqlExecutorError : MysqlReadQueryError
+
+/** MySQL executor whose error channel narrows based on the query plan. */
+export interface QueryExecutor<Context = never> {
+  readonly dialect: "mysql"
+  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
+    plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
+  ): Effect.Effect<Query.ResultRows<PlanValue>, MysqlQueryError<PlanValue>, Context>
+}
 
 /** Creates a MySQL-specialized executor from a typed implementation callback. */
 export const make = <
   Error = never,
   Context = never
 >(
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
   ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 ): Executor<Error, Context> => {
@@ -56,15 +69,21 @@ export const fromDriver = <
 >(
   renderer: Renderer.Renderer,
   sqlDriver: Driver<Error, Context>
-): Executor<MysqlExecutorError, Context> => {
-  const normalizedDriver = driver((query) =>
-    Effect.mapError(
-      sqlDriver.execute(query),
-      (error) => normalizeMysqlDriverError(error, query)
-    ))
-
-  return CoreExecutor.fromDriver(renderer, normalizedDriver) as Executor<MysqlExecutorError, Context>
-}
+): QueryExecutor<Context> => ({
+  dialect: "mysql",
+  execute(plan) {
+    const rendered = renderer.render(plan)
+    return Effect.mapError(
+      Effect.map(
+        sqlDriver.execute(rendered),
+        (rows) => CoreExecutor.remapRows<any>(rendered, rows)
+      ),
+      (error) => narrowMysqlDriverErrorForReadQuery(
+        normalizeMysqlDriverError(error, rendered)
+      )
+    ) as Effect.Effect<any, any, Context>
+  }
+})
 
 /**
  * Creates a MySQL executor backed by `@effect/sql`'s `SqlClient`.
@@ -74,7 +93,7 @@ export const fromDriver = <
  */
 export const fromSqlClient = (
   renderer: Renderer.Renderer
-): Executor<MysqlExecutorError, SqlClient.SqlClient> =>
+): QueryExecutor<SqlClient.SqlClient> =>
   fromDriver(renderer, driver((query) =>
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
       sql.unsafe<FlatRow>(query.sql, [...query.params]))))

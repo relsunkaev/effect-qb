@@ -1,4 +1,5 @@
 import type * as Expression from "../expression.ts"
+import type * as Query from "../query.ts"
 
 /** Symbol used to attach internal expression-AST metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/ExpressionAst")
@@ -86,6 +87,14 @@ export interface CaseNode<
   readonly else: Else
 }
 
+/** `exists (<subquery>)` expression node. */
+export interface ExistsNode<
+  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+> {
+  readonly kind: "exists"
+  readonly plan: PlanValue
+}
+
 /** Union of all internal expression nodes. */
 export type Any =
   | ColumnNode
@@ -94,3 +103,4 @@ export type Any =
   | BinaryNode
   | VariadicNode
   | CaseNode
+  | ExistsNode

@@ -55,13 +55,13 @@ const pgRowFromMysql: PgRow = null as never as MyRow
 void mysqlRowFromPg
 void pgRowFromMysql
 
-const pgExecutor = Executor.make("postgres", <PlanValue extends RootQuery.QueryPlan<any, any, any, any, any, any, any, any>>(
+const pgExecutor = Executor.make("postgres", <PlanValue extends RootQuery.QueryPlan<any, any, any, any, any, any, any, any, any>>(
   plan: RootQuery.DialectCompatiblePlan<PlanValue, "postgres">
 ): Effect.Effect<any, never, never> => {
   void plan
   return null as never
 })
-const myExecutor = Executor.make("mysql", <PlanValue extends RootQuery.QueryPlan<any, any, any, any, any, any, any, any>>(
+const myExecutor = Executor.make("mysql", <PlanValue extends RootQuery.QueryPlan<any, any, any, any, any, any, any, any, any>>(
   plan: RootQuery.DialectCompatiblePlan<PlanValue, "mysql">
 ): Effect.Effect<any, never, never> => {
   void plan
