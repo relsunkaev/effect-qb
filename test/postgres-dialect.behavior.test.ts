@@ -7,6 +7,7 @@ import { postgresDialect } from "../src/internal/postgres-dialect.ts"
 import { renderExpression } from "../src/internal/sql-expression-renderer.ts"
 import * as Postgres from "../src/postgres.ts"
 import { makePostgresSocialGraph } from "./fixtures/schema.ts"
+import { buildGroupedConcatPlan } from "./helpers/dialect-matrix.ts"
 import { unsafeNever } from "./helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
@@ -51,21 +52,7 @@ describe("postgres dialect behavior", () => {
 
   test("renders postgres concat syntax across grouped queries", () => {
     const { users, posts } = makePostgresSocialGraph()
-
-    const selected = Postgres.Query.select({
-      emailLabel: Postgres.Query.concat(
-        Postgres.Query.lower(users.email),
-        "-",
-        Postgres.Query.coalesce(Postgres.Query.max(posts.title), "missing")
-      ),
-      firstTitle: Postgres.Query.min(posts.title),
-      postCount: Postgres.Query.count(posts.id)
-    })
-    const fromUsers = Postgres.Query.from(users)(unsafeNever(selected))
-    const joined = Postgres.Query.innerJoin(posts, Postgres.Query.eq(users.id, posts.userId))(fromUsers)
-    const grouped = Postgres.Query.groupBy(Postgres.Query.lower(users.email))(joined)
-    const filtered = Postgres.Query.having(Postgres.Query.eq(Postgres.Query.count(posts.id), 2))(grouped)
-    const plan = Postgres.Query.orderBy(Postgres.Query.count(posts.id), "desc")(filtered)
+    const plan = buildGroupedConcatPlan(Postgres, users, posts)
 
     const rendered = Postgres.Renderer.make().render(plan)
 

@@ -7,7 +7,7 @@ import { mysqlDialect } from "../src/internal/mysql-dialect.ts"
 import { renderExpression } from "../src/internal/sql-expression-renderer.ts"
 import * as Mysql from "../src/mysql.ts"
 import { makeMysqlSocialGraph } from "./fixtures/schema.ts"
-import { unsafeNever } from "./helpers/unsafe.ts"
+import { buildGroupedConcatPlan } from "./helpers/dialect-matrix.ts"
 import { unsafeNever } from "./helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
@@ -52,21 +52,7 @@ describe("mysql dialect behavior", () => {
 
   test("renders mysql concat syntax across grouped queries", () => {
     const { users, posts } = makeMysqlSocialGraph()
-
-    const selected = Mysql.Query.select({
-      emailLabel: Mysql.Query.concat(
-        Mysql.Query.lower(users.email),
-        "-",
-        Mysql.Query.coalesce(Mysql.Query.max(posts.title), "missing")
-      ),
-      firstTitle: Mysql.Query.min(posts.title),
-      postCount: Mysql.Query.count(posts.id)
-    })
-    const fromUsers = Mysql.Query.from(users)(unsafeNever(selected))
-    const joined = Mysql.Query.innerJoin(posts, Mysql.Query.eq(users.id, posts.userId))(fromUsers)
-    const grouped = Mysql.Query.groupBy(Mysql.Query.lower(users.email))(joined)
-    const filtered = Mysql.Query.having(Mysql.Query.eq(Mysql.Query.count(posts.id), 2))(grouped)
-    const plan = Mysql.Query.orderBy(Mysql.Query.count(posts.id), "desc")(filtered)
+    const plan = buildGroupedConcatPlan(Mysql, users, posts)
 
     const rendered = Mysql.Renderer.make().render(plan)
 

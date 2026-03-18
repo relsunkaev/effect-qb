@@ -1,6 +1,12 @@
 import type * as Effect from "effect/Effect"
 
 import { Column as C, Executor, Query as Q, Renderer, Table } from "../../src/index.ts"
+import type {
+  BrandedErrorOf,
+  BrandedHintOf,
+  BrandedMissingSourcesOf,
+  BrandedStatementOf
+} from "../helpers/branded-error.ts"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -53,7 +59,7 @@ const invalidCorrelatedExistsPlan = Q.select({
 })
 
 type InvalidCorrelatedExistsPlan = Q.CompletePlan<typeof invalidCorrelatedExistsPlan>
-const correlatedMissingSource: InvalidCorrelatedExistsPlan["__effect_qb_missing_sources__"] = "users"
+const correlatedMissingSource: BrandedMissingSourcesOf<InvalidCorrelatedExistsPlan> = "users"
 void correlatedMissingSource
 
 const derivedSourceSubquery = Q.select({
@@ -127,7 +133,7 @@ const lateralRequired: LateralRequired = "users"
 void lateralRequired
 
 type LateralRequirementError = Q.SourceRequirementError<typeof lateralPosts>
-const lateralRequirementMessage: LateralRequirementError["__effect_qb_error__"] =
+const lateralRequirementMessage: BrandedErrorOf<LateralRequirementError> =
   "effect-qb: correlated source requires outer-scope tables to be in scope first"
 void lateralRequirementMessage
 
@@ -209,9 +215,9 @@ const mismatchedSetOperand = Q.select({
 )
 
 type MismatchedSetOperandError = Q.SetCompatibleRightPlan<typeof activeUsers, typeof mismatchedSetOperand, "postgres">
-const mismatchedSetOperandMessage: MismatchedSetOperandError["__effect_qb_error__"] =
+const mismatchedSetOperandMessage: BrandedErrorOf<MismatchedSetOperandError> =
   "effect-qb: set operator operands must have matching result rows"
-const mismatchedSetOperandHint: MismatchedSetOperandError["__effect_qb_hint__"] =
+const mismatchedSetOperandHint: BrandedHintOf<MismatchedSetOperandError> =
   "Project the same nested object shape and compatible nullability from each operand"
 void mismatchedSetOperandMessage
 void mismatchedSetOperandHint
@@ -222,7 +228,7 @@ const insertedUser = Q.insert(users, {
 })
 
 type InvalidSetOperandStatement = Q.SetCompatiblePlan<typeof insertedUser, "postgres">
-const invalidSetOperandStatement: InvalidSetOperandStatement["__effect_qb_statement__"] = "insert"
+const invalidSetOperandStatement: BrandedStatementOf<InvalidSetOperandStatement> = "insert"
 void invalidSetOperandStatement
 
 const invalidDerivedSource = Q.select({
@@ -232,7 +238,7 @@ const invalidDerivedSource = Q.select({
 )
 
 type InvalidDerivedSourceError = Q.DerivedSourceRequiredError<typeof invalidDerivedSource>
-const invalidDerivedSourceHint: InvalidDerivedSourceError["__effect_qb_hint__"] =
+const invalidDerivedSourceHint: BrandedHintOf<InvalidDerivedSourceError> =
   "Wrap the nested plan in as(subquery, alias) before passing it to from(...) or a join"
 void invalidDerivedSourceHint
 
@@ -322,7 +328,7 @@ const invalidGroupedWindowPlan = Q.select({
 )
 
 type InvalidGroupedWindowPlan = Q.CompletePlan<typeof invalidGroupedWindowPlan>
-const invalidGroupedWindowError: InvalidGroupedWindowPlan["__effect_qb_error__"] =
+const invalidGroupedWindowError: BrandedErrorOf<InvalidGroupedWindowPlan> =
   "effect-qb: invalid grouped selection"
 void invalidGroupedWindowError
 
@@ -366,10 +372,10 @@ const incomplete = Q.select({
 })
 
 type IncompletePlanError = Q.CompletePlan<typeof incomplete>
-const incompletePlanError: IncompletePlanError["__effect_qb_error__"] =
+const incompletePlanError: BrandedErrorOf<IncompletePlanError> =
   "effect-qb: query references sources that are not yet in scope"
-const incompletePlanMissingSource: IncompletePlanError["__effect_qb_missing_sources__"] = "users"
-const incompletePlanHint: IncompletePlanError["__effect_qb_hint__"] =
+const incompletePlanMissingSource: BrandedMissingSourcesOf<IncompletePlanError> = "users"
+const incompletePlanHint: BrandedHintOf<IncompletePlanError> =
   "Add from(...) or a join for each referenced source before render or execute"
 void incompletePlanError
 void incompletePlanMissingSource
