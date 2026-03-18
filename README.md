@@ -14,13 +14,14 @@ Composable, type-safe SQL query construction for PostgreSQL and MySQL with stati
   - [Predicate-Driven Nullability Refinement](#predicate-driven-nullability-refinement)
   - [Left Joins: Static vs Runtime Row Types](#left-joins-static-vs-runtime-row-types)
   - [Join Variants](#join-variants)
-  - [Case Expressions](#case-expressions)
-  - [Exists Subqueries](#exists-subqueries)
-  - [Set Operators](#set-operators)
-  - [Aggregation and Grouping](#aggregation-and-grouping)
-  - [Distinct, Limit, and Offset](#distinct-limit-and-offset)
-  - [Window Functions](#window-functions)
+- [Case Expressions](#case-expressions)
+- [Exists Subqueries](#exists-subqueries)
+- [Set Operators](#set-operators)
+- [Aggregation and Grouping](#aggregation-and-grouping)
+- [Distinct, Limit, and Offset](#distinct-limit-and-offset)
+- [Window Functions](#window-functions)
 - [Mutation Statements](#mutation-statements)
+- [Data-Modifying CTEs](#data-modifying-ctes)
 - [Query Construction Safety](#query-construction-safety)
 - [Rendering](#rendering)
 - [Execution](#execution)
@@ -444,6 +445,44 @@ type UsersWithActivePostsRow = Q.ResultRow<typeof usersWithActivePosts>
 
 `Q.with(...)` returns a typed source wrapper, so the CTE alias is available everywhere a table-like source is accepted. The CTE definition is hoisted into the rendered SQL automatically.
 
+### Data-Modifying CTEs
+
+Returned mutation plans can also be wrapped in `Q.with(...)`, which lets a write feed later reads in the same statement:
+
+```ts
+const insertedUsers = Q.with(
+  Q.returning({
+    id: users.id,
+    email: users.email,
+    bio: users.bio
+  })(Q.insert(users, {
+    id: "user-1",
+    email: "alice@example.com",
+    bio: null
+  })),
+  "inserted_users"
+)
+
+const selectedInsertedUsers = Q.select({
+  id: insertedUsers.id,
+  email: insertedUsers.email,
+  bio: insertedUsers.bio
+}).pipe(
+  Q.from(insertedUsers)
+)
+
+type SelectedInsertedUsersRow = Q.ResultRow<typeof selectedInsertedUsers>
+// {
+//   id: string
+//   email: string
+//   bio: string | null
+// }
+```
+
+This keeps mutation output typed and lets later statements consume the returned rows without leaving the builder.
+
+Because the outer statement now depends on a write-bearing source, the query capability lifts to include `"write"` as well. That keeps the executor error channel honest for mutation-backed CTEs.
+
 ### Set Operators
 
 Compound queries preserve the selection shape of the left-hand side and require a compatible right-hand side:
@@ -786,6 +825,14 @@ Runtime execution is:
 3. remap flat projection aliases into nested objects
 
 There is no query-result schema decode step.
+
+For transactional work, use the ambient `@effect/sql` service or the convenience helper:
+
+```ts
+const transactionalRows = Executor.withTransaction(executor.execute(postsPerUser))
+```
+
+This preserves the effect's type parameters and only adds the SQL transaction boundary.
 
 If the database returns invalid values, `effect-qb` will not reject them at runtime. The expectation is that the database and your query plan agree, and the static contract is the primary safety boundary.
 
