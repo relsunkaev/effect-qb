@@ -585,6 +585,7 @@ Typical benefits:
 - `CASE` expressions can narrow to fewer branches when earlier predicates make others impossible
 - `exists(subquery)` requires a complete nested plan and returns a non-null boolean
 - `as(subquery, alias)` makes derived tables explicit and keeps subquery output paths typed
+- read predicates include equality, inequality, range checks, pattern matches, and membership tests
 - executors return the same `ResultRows<typeof plan>` type the plan implies
 - dialect executors expose a tighter error channel than the raw dialect catalog when the query shape rules out certain failures
 
@@ -626,7 +627,6 @@ This release is focused on typed read-path query construction. Notable gaps:
 
 - insert / update / delete plan builders
 - DDL workflows
-- `like`, `ilike`, and broader comparison operator coverage
 - set operators such as `union`, `intersect`, and `except`
 - CTEs
 - right joins, full joins, and cross joins
