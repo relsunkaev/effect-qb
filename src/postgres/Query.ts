@@ -1,4 +1,5 @@
 import * as Expression from "../expression.ts"
+import { postgresDatatypes } from "./datatypes/index.ts"
 import {
   type CapabilitiesOfPlan,
   type CompletePlan,
@@ -44,7 +45,8 @@ const postgresQuery = makeDialectQuery({
   numericDb: { dialect: "postgres", kind: "numeric" } as Expression.DbType.PgNumeric,
   boolDb: { dialect: "postgres", kind: "bool" } as Expression.DbType.PgBool,
   timestampDb: { dialect: "postgres", kind: "timestamp" } as Expression.DbType.PgTimestamp,
-  nullDb: { dialect: "postgres", kind: "null" } as Expression.DbType.Base<"postgres", "null">
+  nullDb: { dialect: "postgres", kind: "null" } as Expression.DbType.Base<"postgres", "null">,
+  type: postgresDatatypes
 })
 
 export const literal = postgresQuery.literal

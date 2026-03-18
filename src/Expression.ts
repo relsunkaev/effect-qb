@@ -77,31 +77,83 @@ export declare namespace DbType {
 
   export type PgUuid = Base<"postgres", "uuid">
   export type PgText = Base<"postgres", "text">
+  export type PgVarchar = Base<"postgres", "varchar">
+  export type PgChar = Base<"postgres", "char">
+  export type PgCitext = Base<"postgres", "citext">
+  export type PgInt2 = Base<"postgres", "int2">
   export type PgInt4 = Base<"postgres", "int4">
+  export type PgInt8 = Base<"postgres", "int8">
   export type PgNumeric = Base<"postgres", "numeric">
+  export type PgFloat4 = Base<"postgres", "float4">
+  export type PgFloat8 = Base<"postgres", "float8">
   export type PgBool = Base<"postgres", "bool">
+  export type PgDate = Base<"postgres", "date">
+  export type PgTime = Base<"postgres", "time">
   export type PgTimestamp = Base<"postgres", "timestamp">
+  export type PgInterval = Base<"postgres", "interval">
+  export type PgBytea = Base<"postgres", "bytea">
+  export type PgJsonb = Base<"postgres", "jsonb">
 
   export type MySqlUuid = Base<"mysql", "uuid">
   export type MySqlText = Base<"mysql", "text">
+  export type MySqlVarchar = Base<"mysql", "varchar">
+  export type MySqlChar = Base<"mysql", "char">
+  export type MySqlTinyInt = Base<"mysql", "tinyint">
+  export type MySqlSmallInt = Base<"mysql", "smallint">
+  export type MySqlMediumInt = Base<"mysql", "mediumint">
   export type MySqlInt = Base<"mysql", "int">
+  export type MySqlBigInt = Base<"mysql", "bigint">
   export type MySqlNumeric = Base<"mysql", "decimal">
+  export type MySqlFloat = Base<"mysql", "float">
+  export type MySqlDouble = Base<"mysql", "double">
   export type MySqlBool = Base<"mysql", "boolean">
+  export type MySqlDate = Base<"mysql", "date">
+  export type MySqlTime = Base<"mysql", "time">
+  export type MySqlDatetime = Base<"mysql", "datetime">
   export type MySqlTimestamp = Base<"mysql", "timestamp">
+  export type MySqlBinary = Base<"mysql", "binary">
+  export type MySqlVarBinary = Base<"mysql", "varbinary">
+  export type MySqlBlob = Base<"mysql", "blob">
 
   export type Any =
     | PgUuid
     | PgText
+    | PgVarchar
+    | PgChar
+    | PgCitext
+    | PgInt2
     | PgInt4
+    | PgInt8
     | PgNumeric
+    | PgFloat4
+    | PgFloat8
     | PgBool
+    | PgDate
+    | PgTime
     | PgTimestamp
+    | PgInterval
+    | PgBytea
+    | PgJsonb
     | MySqlUuid
     | MySqlText
+    | MySqlVarchar
+    | MySqlChar
+    | MySqlTinyInt
+    | MySqlSmallInt
+    | MySqlMediumInt
     | MySqlInt
+    | MySqlBigInt
     | MySqlNumeric
+    | MySqlFloat
+    | MySqlDouble
     | MySqlBool
+    | MySqlDate
+    | MySqlTime
+    | MySqlDatetime
     | MySqlTimestamp
+    | MySqlBinary
+    | MySqlVarBinary
+    | MySqlBlob
     | Json
     | Base<string, string>
 }
@@ -171,15 +223,23 @@ export type SourceNullabilityOf<Value extends Any> = Value[typeof TypeId]["sourc
 export type RuntimeOfDbType<Db extends DbType.Any> =
   Db extends DbType.Json<any, any> ? unknown :
     Db extends DbType.Base<any, infer Kind extends string>
-      ? Kind extends "text" | "uuid"
+      ? Kind extends "text" | "varchar" | "char" | "citext" | "uuid"
         ? string
-        : Kind extends "int4" | "int" | "numeric" | "decimal"
+        : Kind extends "int2" | "int4" | "int8" | "tinyint" | "smallint" | "mediumint" | "int" | "numeric" | "decimal" | "float4" | "float8" | "float" | "double"
           ? number
-          : Kind extends "bool" | "boolean"
-            ? boolean
-            : Kind extends "timestamp"
-              ? Date
-              : Kind extends "null"
-                ? null
-                : unknown
+        : Kind extends "bigint"
+          ? bigint
+        : Kind extends "bool" | "boolean"
+          ? boolean
+        : Kind extends "date" | "timestamp" | "datetime"
+          ? Date
+        : Kind extends "time" | "interval"
+          ? string
+        : Kind extends "bytea" | "binary" | "varbinary" | "blob"
+          ? Uint8Array
+        : Kind extends "json" | "jsonb"
+          ? unknown
+        : Kind extends "null"
+          ? null
+          : unknown
       : never

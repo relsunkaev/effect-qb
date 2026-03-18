@@ -1,5 +1,7 @@
 /** MySQL-specialized column-definition DSL. */
 export * as Column from "./mysql/column.ts"
+/** MySQL datatype witnesses and coercion families. */
+export * as Datatypes from "./mysql/datatypes/index.ts"
 /** MySQL error catalog and error normalization helpers. */
 export * as Errors from "./mysql/errors/index.ts"
 /** Shared scalar SQL expression interfaces and DB-type descriptors. */

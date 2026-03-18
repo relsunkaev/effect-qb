@@ -98,7 +98,8 @@ export interface QueryDialectProfile<
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
-  NullDb extends Expression.DbType.Any
+  NullDb extends Expression.DbType.Any,
+  TypeWitnesses extends object = object
 > {
   readonly dialect: Dialect
   readonly textDb: TextDb
@@ -106,6 +107,7 @@ export interface QueryDialectProfile<
   readonly boolDb: BoolDb
   readonly timestampDb: TimestampDb
   readonly nullDb: NullDb
+  readonly type: TypeWitnesses
 }
 
 /** Maps a literal runtime value to the corresponding dialect-level DB type. */
@@ -247,12 +249,8 @@ type CastTarget<
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any
 > =
-  | TextDb
-  | NumericDb
-  | BoolDb
-  | TimestampDb
-  | Expression.DbType.Base<Dialect, "uuid">
-  | Expression.DbType.Base<Dialect, "json">
+  | Expression.DbType.Base<Dialect, string>
+  | Expression.DbType.Json<Dialect, string>
 
 type CastResult<
   Value extends ExpressionInput,
@@ -1046,9 +1044,10 @@ export function makeDialectQuery<
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
-  NullDb extends Expression.DbType.Any
+  NullDb extends Expression.DbType.Any,
+  TypeWitnesses extends object = object
 >(
-  profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+  profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, TypeWitnesses>
 ) {
   const literal = <Value extends LiteralValue>(
     value: Value
@@ -1490,14 +1489,7 @@ export function makeDialectQuery<
     }) as CastResult<Value, Target, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   }
 
-  const type = {
-    text: () => profile.textDb,
-    numeric: () => profile.numericDb,
-    boolean: () => profile.boolDb,
-    timestamp: () => profile.timestampDb,
-    uuid: () => ({ dialect: profile.dialect, kind: "uuid" } as Expression.DbType.Base<Dialect, "uuid">),
-    json: () => ({ dialect: profile.dialect, kind: "json" } as Expression.DbType.Base<Dialect, "json">)
-  }
+  const type = profile.type
 
   const and = <
     Values extends readonly [ExpressionInput, ...ExpressionInput[]]

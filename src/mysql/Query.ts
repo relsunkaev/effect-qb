@@ -1,4 +1,5 @@
 import * as Expression from "../expression.ts"
+import { mysqlDatatypes } from "./datatypes/index.ts"
 import {
   type CapabilitiesOfPlan,
   type CompletePlan,
@@ -44,7 +45,8 @@ const mysqlQuery = makeDialectQuery({
   numericDb: { dialect: "mysql", kind: "decimal" } as Expression.DbType.MySqlNumeric,
   boolDb: { dialect: "mysql", kind: "boolean" } as Expression.DbType.MySqlBool,
   timestampDb: { dialect: "mysql", kind: "timestamp" } as Expression.DbType.MySqlTimestamp,
-  nullDb: { dialect: "mysql", kind: "null" } as Expression.DbType.Base<"mysql", "null">
+  nullDb: { dialect: "mysql", kind: "null" } as Expression.DbType.Base<"mysql", "null">,
+  type: mysqlDatatypes
 })
 
 export const literal = mysqlQuery.literal

@@ -1,5 +1,7 @@
 /** Postgres-specialized column-definition DSL. */
 export * as Column from "./postgres/column.ts"
+/** Postgres datatype witnesses and coercion families. */
+export * as Datatypes from "./postgres/datatypes/index.ts"
 /** Postgres SQLSTATE catalog and error normalization helpers. */
 export * as Errors from "./postgres/errors/index.ts"
 /** Shared scalar SQL expression interfaces and DB-type descriptors. */
