@@ -63,7 +63,7 @@ import * as ExpressionAst from "./expression-ast.ts"
 import type { AssumeTrue } from "./predicate-analysis.ts"
 import type { TrueFormula } from "./predicate-formula.ts"
 import { dedupeGroupedExpressions } from "./grouping-key.ts"
-import { makeDerivedSource } from "./derived-table.ts"
+import { makeCteSource, makeDerivedSource } from "./derived-table.ts"
 import * as ProjectionAlias from "./projection-alias.ts"
 import * as QueryAst from "./query-ast.ts"
 
@@ -1256,6 +1256,16 @@ export const makeDialectQuery = <
     return makeDerivedSource(value as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any>>, alias)
   }
 
+  function with_<
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+    Alias extends string
+  >(
+    value: CompletePlan<PlanValue>,
+    alias: Alias
+  ): import("../query.ts").CteSource<PlanValue, Alias> {
+    return makeCteSource(value, alias)
+  }
+
   const select = <Selection extends SelectionShape>(
     selection: Selection
   ): QueryPlan<
@@ -1342,10 +1352,10 @@ export const makeDialectQuery = <
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
-      const sourceName = "kind" in table && table.kind === "derived"
+      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
         ? table.name
         : (table as TableLike)[Table.TypeId].name
-      const sourceBaseName = "kind" in table && table.kind === "derived"
+      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
         ? table.baseName
         : (table as TableLike)[Table.TypeId].baseName
       return makePlan({
@@ -1449,10 +1459,10 @@ export const makeDialectQuery = <
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
       const onExpression = toDialectExpression(on)
-      const sourceName = "kind" in table && table.kind === "derived"
+      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
         ? table.name
         : (table as TableLike)[Table.TypeId].name
-      const sourceBaseName = "kind" in table && table.kind === "derived"
+      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
         ? table.baseName
         : (table as TableLike)[Table.TypeId].baseName
       const nextAvailable = {
@@ -1579,6 +1589,7 @@ export const makeDialectQuery = <
     max,
     min,
     as,
+    with: with_,
     select,
     where,
     having,

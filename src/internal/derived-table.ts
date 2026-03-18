@@ -4,6 +4,7 @@ import * as Expression from "../expression.ts"
 import * as Plan from "../plan.ts"
 import {
   type CompletePlan,
+  type CteSource,
   type DerivedSelectionOf,
   type DerivedSource,
   type QueryPlan,
@@ -100,4 +101,23 @@ export const makeDerivedSource = <
   derived.plan = plan
   derived.columns = columns
   return derived as unknown as DerivedSource<PlanValue, Alias>
+}
+
+export const makeCteSource = <
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+  Alias extends string
+>(
+  plan: CompletePlan<PlanValue>,
+  alias: Alias
+): CteSource<PlanValue, Alias> => {
+  const columns = reboundedColumns(plan, alias)
+  const cte = Object.create(DerivedProto) as Record<string, unknown>
+  Object.assign(cte, columns)
+  cte.kind = "cte"
+  cte.name = alias
+  cte.baseName = alias
+  cte.dialect = plan[Plan.TypeId].dialect
+  cte.plan = plan
+  cte.columns = columns
+  return cte as unknown as CteSource<PlanValue, Alias>
 }

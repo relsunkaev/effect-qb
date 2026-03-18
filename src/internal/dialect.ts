@@ -6,6 +6,11 @@
  */
 export interface RenderState {
   readonly params: unknown[]
+  readonly ctes: {
+    readonly name: string
+    readonly sql: string
+  }[]
+  readonly cteNames: Set<string>
 }
 
 /**

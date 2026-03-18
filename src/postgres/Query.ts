@@ -4,6 +4,7 @@ import {
   type CompletePlan,
   type DialectCompatiblePlan,
   type DerivedSourceRequiredError,
+  type CteSource,
   type EffectiveNullability,
   type ExpressionInput,
   type GroupByInput,
@@ -60,6 +61,7 @@ export const count = postgresQuery.count
 export const max = postgresQuery.max
 export const min = postgresQuery.min
 export const as = postgresQuery.as
+export const with_ = postgresQuery.with
 export const select = postgresQuery.select
 export const where = postgresQuery.where
 export const having = postgresQuery.having
@@ -70,12 +72,14 @@ export const orderBy = postgresQuery.orderBy
 export const groupBy = postgresQuery.groupBy
 export { case_ as case }
 export { in_ as in }
+export { with_ as with }
 
 export type {
   CapabilitiesOfPlan,
   CompletePlan,
   DialectCompatiblePlan,
   DerivedSourceRequiredError,
+  CteSource,
   EffectiveNullability,
   ExpressionInput,
   GroupByInput,

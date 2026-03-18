@@ -23,7 +23,9 @@ export const renderPostgresPlan = <PlanValue extends Query.QueryPlan<any, any, a
   plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
 ): PostgresRenderResult => {
   const state: RenderState = {
-    params: []
+    params: [],
+    ctes: [],
+    cteNames: new Set<string>()
   }
   const rendered = renderQueryAst(
     Query.getAst(plan as Query.QueryPlan<any, any, any, any, any, any, any, any, any>) as any,

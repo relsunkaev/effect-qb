@@ -180,6 +180,28 @@ type DerivedSourceCapabilities = Q.CapabilitiesOfPlan<typeof derivedSourcePlan>
 const derivedSourceCapability: DerivedSourceCapabilities = "read"
 void derivedSourceCapability
 
+const cteSourceSubquery = Q.select({
+  userId: posts.userId,
+  title: posts.title
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.isNotNull(posts.title))
+)
+
+const cteSource = Q.with(cteSourceSubquery, "active_posts")
+
+const cteSourcePlan = Q.select({
+  userId: users.id,
+  title: cteSource.title
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(cteSource, Q.eq(users.id, cteSource.userId))
+)
+
+type CteSourceRow = Q.ResultRow<typeof cteSourcePlan>
+const cteSourceTitle: CteSourceRow["title"] = "hello"
+void cteSourceTitle
+
 const invalidDerivedSource = Q.select({
   userId: posts.userId
 }).pipe(

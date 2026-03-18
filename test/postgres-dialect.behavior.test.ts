@@ -308,6 +308,33 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
+  test("renders postgres common table expressions as aliased sources", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const activePostsSubquery = Postgres.Query.select({
+      userId: posts.userId,
+      title: posts.title
+    }).pipe(
+      Postgres.Query.from(posts),
+      Postgres.Query.where(Postgres.Query.isNotNull(posts.title))
+    )
+    const activePosts = Postgres.Query.with(activePostsSubquery, "active_posts")
+
+    const plan = Postgres.Query.select({
+      userId: users.id,
+      title: activePosts.title
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.innerJoin(activePosts, Postgres.Query.eq(users.id, activePosts.userId))
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."id" as "userId", "active_posts"."title" as "title" from "users" inner join "active_posts" on ("users"."id" = "active_posts"."userId")'
+    )
+  })
+
   test("decodes nullable joined rows through the postgres executor pipeline", () => {
     const { users, posts } = makePostgresSocialGraph()
 

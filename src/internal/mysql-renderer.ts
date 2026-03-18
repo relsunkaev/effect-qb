@@ -20,7 +20,9 @@ export const renderMysqlPlan = <PlanValue extends Query.QueryPlan<any, any, any,
   plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
 ): MysqlRenderResult => {
   const state: RenderState = {
-    params: []
+    params: [],
+    ctes: [],
+    cteNames: new Set<string>()
   }
   const rendered = renderQueryAst(
     Query.getAst(plan as Query.QueryPlan<any, any, any, any, any, any, any, any, any>) as any,

@@ -43,8 +43,15 @@ export const renderQueryAst = (
   if (ast.orderBy.length > 0) {
     clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`)
   }
+  const sql = clauses.join(" ")
+  if (state.ctes.length === 0) {
+    return {
+      sql,
+      projections
+    }
+  }
   return {
-    sql: clauses.join(" "),
+    sql: `with ${state.ctes.map((entry) => `${dialect.quoteIdentifier(entry.name)} as (${entry.sql})`).join(", ")} ${sql}`,
     projections
   }
 }
@@ -56,10 +63,28 @@ const renderSourceReference = (
   state: RenderState,
   dialect: SqlDialect
 ): string => {
+  if (typeof source === "object" && source !== null && "kind" in source && (source as { readonly kind?: string }).kind === "cte") {
+    const cte = source as unknown as {
+      readonly name: string
+      readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+    }
+    if (!state.cteNames.has(cte.name)) {
+      state.cteNames.add(cte.name)
+      const rendered = renderQueryAst(Query.getAst(cte.plan) as QueryAst.Ast<Record<string, unknown>, any>, state, dialect)
+      state.ctes.push({
+        name: cte.name,
+        sql: rendered.sql
+      })
+    }
+    return dialect.quoteIdentifier(cte.name)
+  }
   if (typeof source === "object" && source !== null && "kind" in source && (source as { readonly kind?: string }).kind === "derived") {
     const derived = source as unknown as {
       readonly name: string
       readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+    }
+    if (!state.cteNames.has(derived.name)) {
+      // derived tables are inlined, so no CTE registration is needed
     }
     return `(${renderQueryAst(Query.getAst(derived.plan) as QueryAst.Ast<Record<string, unknown>, any>, state, dialect).sql}) as ${dialect.quoteIdentifier(derived.name)}`
   }

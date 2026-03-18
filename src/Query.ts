@@ -290,9 +290,31 @@ export type DerivedSource<
   readonly columns: DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias>
 }
 
+/** Wrapper returned by `with(subquery, alias)` for common table expression composition. */
+export type CteSource<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+  Alias extends string
+> = DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias> & {
+  readonly kind: "cte"
+  readonly name: Alias
+  readonly baseName: Alias
+  readonly dialect: PlanDialectOf<PlanValue>
+  readonly plan: CompletePlan<PlanValue>
+  readonly columns: DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias>
+}
+
 /** Accepts either a physical table or a derived table source. */
 type DerivedSourceShape = {
   readonly kind: "derived"
+  readonly name: string
+  readonly baseName: string
+  readonly dialect: string
+  readonly plan: QueryPlan<any, any, any, any, any, any, any, any, any>
+  readonly columns: Record<string, unknown>
+}
+
+type CteSourceShape = {
+  readonly kind: "cte"
   readonly name: string
   readonly baseName: string
   readonly dialect: string
@@ -305,24 +327,28 @@ type DerivedSourceAliasError = DerivedSourceRequiredError<QueryPlan<any, any, an
 export type SourceLike =
   | TableLike<any, any>
   | DerivedSourceShape
+  | CteSourceShape
   | DerivedSourceAliasError
 
 /** Extracts a source name from either a table or a derived source. */
 export type SourceNameOf<Source extends SourceLike> =
   Source extends TableLike<infer Name, any> ? Name :
     Source extends { readonly kind: "derived"; readonly name: infer Alias extends string } ? Alias :
+      Source extends { readonly kind: "cte"; readonly name: infer Alias extends string } ? Alias :
       never
 
 /** Extracts the effective dialect from a source. */
 export type SourceDialectOf<Source extends SourceLike> =
   Source extends TableLike<any, infer Dialect> ? Dialect :
     Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
+      Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
       never
 
 /** Extracts the base table name from a source. */
 export type SourceBaseNameOf<Source extends SourceLike> =
   Source extends TableLike<any, any> ? Source[typeof Table.TypeId]["baseName"] :
     Source extends { readonly kind: "derived"; readonly baseName: infer BaseName extends string } ? BaseName :
+      Source extends { readonly kind: "cte"; readonly baseName: infer BaseName extends string } ? BaseName :
       never
 
 /** Helper type used when a raw plan is passed where `as(...)` is required. */

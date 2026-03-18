@@ -4,6 +4,7 @@ import {
   type CompletePlan,
   type DialectCompatiblePlan,
   type DerivedSourceRequiredError,
+  type CteSource,
   type EffectiveNullability,
   type ExpressionInput,
   type GroupByInput,
@@ -60,6 +61,7 @@ export const count = mysqlQuery.count
 export const max = mysqlQuery.max
 export const min = mysqlQuery.min
 export const as = mysqlQuery.as
+export const with_ = mysqlQuery.with
 export const select = mysqlQuery.select
 export const where = mysqlQuery.where
 export const having = mysqlQuery.having
@@ -70,12 +72,14 @@ export const orderBy = mysqlQuery.orderBy
 export const groupBy = mysqlQuery.groupBy
 export { case_ as case }
 export { in_ as in }
+export { with_ as with }
 
 export type {
   CapabilitiesOfPlan,
   CompletePlan,
   DialectCompatiblePlan,
   DerivedSourceRequiredError,
+  CteSource,
   EffectiveNullability,
   ExpressionInput,
   GroupByInput,

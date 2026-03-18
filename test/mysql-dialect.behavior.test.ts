@@ -307,6 +307,33 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
+  test("renders mysql common table expressions as aliased sources", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const activePostsSubquery = Mysql.Query.select({
+      userId: posts.userId,
+      title: posts.title
+    }).pipe(
+      Mysql.Query.from(posts),
+      Mysql.Query.where(Mysql.Query.isNotNull(posts.title))
+    )
+    const activePosts = Mysql.Query.with(activePostsSubquery, "active_posts")
+
+    const plan = Mysql.Query.select({
+      userId: users.id,
+      title: activePosts.title
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.innerJoin(activePosts, Mysql.Query.eq(users.id, activePosts.userId))
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "with `active_posts` as (select `posts`.`userId` as `userId`, `posts`.`title` as `title` from `posts` where (`posts`.`title` is not null)) select `users`.`id` as `userId`, `active_posts`.`title` as `title` from `users` inner join `active_posts` on (`users`.`id` = `active_posts`.`userId`)"
+    )
+  })
+
   test("decodes nullable joined rows through the mysql executor pipeline", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
