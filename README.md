@@ -378,6 +378,39 @@ type UsersWithActivePostsRow = Q.ResultRow<typeof usersWithActivePosts>
 
 Passing a raw subquery directly to `from(...)` or a join is rejected at the type boundary. The compiler points you to `Q.as(subquery, alias)` so the derived source has an explicit SQL alias and a stable nested output shape.
 
+### Lateral Joins
+
+Correlated subqueries can be wrapped with `Q.lateral(...)` and joined once their outer sources are in scope:
+
+```ts
+const postsByUser = Q.lateral(
+  Q.select({
+    postId: posts.id,
+    userId: posts.userId
+  }).pipe(
+    Q.from(posts),
+    Q.where(Q.eq(posts.userId, users.id))
+  ),
+  "user_posts"
+)
+
+const usersWithLateralPosts = Q.select({
+  userId: users.id,
+  postId: postsByUser.postId
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(postsByUser, true)
+)
+
+type UsersWithLateralPostsRow = Q.ResultRow<typeof usersWithLateralPosts>
+// {
+//   userId: string
+//   postId: string
+// }
+```
+
+The compiler prevents starting a plan from a correlated source. If you try to `from(...)` a lateral source before its outer tables are in scope, you get a branded `SourceRequirementError` instead of a vague inference failure.
+
 ### Common Table Expressions
 
 CTEs are also available through `Q.with(subquery, alias)`:
