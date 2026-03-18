@@ -28,6 +28,7 @@ export type TableOptionSpec =
       readonly columns: ColumnList
       readonly references: () => {
         readonly tableName: string
+        readonly schemaName?: string
         readonly columns: ColumnList
         readonly knownColumns?: readonly string[]
       }
@@ -120,6 +121,7 @@ export const collectInlineOptions = <Fields extends TableFieldMap>(
           const bound = targetColumn[BoundColumnTypeId]
           return {
             tableName: bound.baseTableName,
+            schemaName: bound.schemaName,
             columns: [bound.columnName]
           }
         }

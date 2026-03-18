@@ -95,7 +95,7 @@ const renderCreateTableSql = (
       case "foreignKey": {
         const reference = option.references()
         definitions.push(
-          `foreign key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")}) references ${dialect.quoteIdentifier(reference.tableName)} (${reference.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+          `foreign key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")}) references ${dialect.renderTableReference(reference.tableName, reference.tableName, reference.schemaName)} (${reference.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
         )
         break
       }
@@ -108,26 +108,28 @@ const renderCreateTableSql = (
         break
     }
   }
-  return `create table${ifNotExists ? " if not exists" : ""} ${dialect.quoteIdentifier(targetSource.baseTableName)} (${definitions.join(", ")})`
+  return `create table${ifNotExists ? " if not exists" : ""} ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)} (${definitions.join(", ")})`
 }
 
 const renderCreateIndexSql = (
   targetSource: QueryAst.FromClause,
   ddl: Extract<QueryAst.DdlClause, { readonly kind: "createIndex" }>,
+  state: RenderState,
   dialect: SqlDialect
 ): string => {
   const maybeIfNotExists = dialect.name === "postgres" && ddl.ifNotExists ? " if not exists" : ""
-  return `create${ddl.unique ? " unique" : ""} index${maybeIfNotExists} ${dialect.quoteIdentifier(ddl.name)} on ${dialect.quoteIdentifier(targetSource.baseTableName)} (${ddl.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+  return `create${ddl.unique ? " unique" : ""} index${maybeIfNotExists} ${dialect.quoteIdentifier(ddl.name)} on ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)} (${ddl.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
 }
 
 const renderDropIndexSql = (
   targetSource: QueryAst.FromClause,
   ddl: Extract<QueryAst.DdlClause, { readonly kind: "dropIndex" }>,
+  state: RenderState,
   dialect: SqlDialect
 ): string =>
   dialect.name === "postgres"
     ? `drop index${ddl.ifExists ? " if exists" : ""} ${dialect.quoteIdentifier(ddl.name)}`
-    : `drop index ${dialect.quoteIdentifier(ddl.name)} on ${dialect.quoteIdentifier(targetSource.baseTableName)}`
+    : `drop index ${dialect.quoteIdentifier(ddl.name)} on ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)}`
 
 const isExpression = (value: unknown): value is Expression.Any =>
   value !== null && typeof value === "object" && Expression.TypeId in value
@@ -751,7 +753,7 @@ export const renderQueryAst = (
     case "dropTable": {
       const dropTableAst = ast as QueryAst.Ast<Record<string, unknown>, any, "dropTable">
       const ifExists = dropTableAst.ddl?.kind === "dropTable" && dropTableAst.ddl.ifExists
-      sql = `drop table${ifExists ? " if exists" : ""} ${dialect.quoteIdentifier(dropTableAst.target!.baseTableName)}`
+      sql = `drop table${ifExists ? " if exists" : ""} ${renderSourceReference(dropTableAst.target!.source, dropTableAst.target!.tableName, dropTableAst.target!.baseTableName, state, dialect)}`
       break
     }
     case "createIndex": {
@@ -759,6 +761,7 @@ export const renderQueryAst = (
       sql = renderCreateIndexSql(
         createIndexAst.target!,
         createIndexAst.ddl as Extract<QueryAst.DdlClause, { readonly kind: "createIndex" }>,
+        state,
         dialect
       )
       break
@@ -768,6 +771,7 @@ export const renderQueryAst = (
       sql = renderDropIndexSql(
         dropIndexAst.target!,
         dropIndexAst.ddl as Extract<QueryAst.DdlClause, { readonly kind: "dropIndex" }>,
+        state,
         dialect
       )
       break
@@ -827,7 +831,10 @@ const renderSourceReference = (
     }
     return `lateral (${renderQueryAst(Query.getAst(lateral.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect).sql}) as ${dialect.quoteIdentifier(lateral.name)}`
   }
-  return dialect.renderTableReference(tableName, baseTableName)
+  const schemaName = typeof source === "object" && source !== null && Table.TypeId in source
+    ? (source as Table.AnyTable)[Table.TypeId].schemaName
+    : undefined
+  return dialect.renderTableReference(tableName, baseTableName, schemaName)
 }
 
 /**

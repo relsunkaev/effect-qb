@@ -15,10 +15,18 @@ const users = Table.make("users", {
   Table.index(["email", "createdAt"] as const)
 )
 
+const analytics = Table.schema("analytics")
+const events = analytics.table("events", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid()
+})
+
 type UserInsert = Schema.Schema.Type<typeof users.schemas.insert>
 type UserUpdate = Schema.Schema.Type<typeof users.schemas.update>
 type UserExpressionDbType = typeof users.id[typeof Expression.TypeId]["dbType"]
 type UserPlanSelection = typeof users[typeof Plan.TypeId]["selection"]
+type EventsSchemaName = typeof events[typeof Table.TypeId]["schemaName"]
+type UsersSchemaName = typeof users[typeof Table.TypeId]["schemaName"]
 
 const goodInsert: UserInsert = {
   email: "alice@example.com"
@@ -38,8 +46,12 @@ void goodUpdate
 
 const uuidKind: UserExpressionDbType["kind"] = "uuid"
 const selectedId = (null as never as UserPlanSelection).id
+const analyticsSchemaName: EventsSchemaName = "analytics"
+const publicSchemaName: UsersSchemaName = "public"
 void uuidKind
 void selectedId
+void analyticsSchemaName
+void publicSchemaName
 
 const query = Q.select({
   id: users.id,

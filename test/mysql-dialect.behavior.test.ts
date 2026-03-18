@@ -820,6 +820,32 @@ describe("mysql dialect behavior", () => {
     )
   })
 
+  test("renders schema-qualified mysql tables in queries and ddl", () => {
+    const analytics = Mysql.Table.schema("analytics")
+    const users = analytics.table("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    })
+    const events = analytics.table("events", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      userId: Mysql.Column.uuid().pipe(Mysql.Column.references(() => users.id))
+    })
+
+    const plan = Mysql.Query.select({
+      eventId: events.id
+    }).pipe(
+      Mysql.Query.from(events)
+    )
+
+    expect(Mysql.Renderer.make().render(plan).sql).toBe(
+      "select `events`.`id` as `eventId` from `analytics`.`events`"
+    )
+    expect(Mysql.Renderer.make().render(Mysql.Query.createTable(events, {
+      ifNotExists: true
+    })).sql).toBe(
+      "create table if not exists `analytics`.`events` (`id` char(36) not null, `userId` char(36) not null, primary key (`id`), foreign key (`userId`) references `analytics`.`users` (`id`))"
+    )
+  })
+
   test("decodes nullable joined rows through the mysql executor pipeline", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

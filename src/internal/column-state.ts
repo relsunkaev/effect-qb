@@ -128,6 +128,7 @@ export interface BoundColumn<
     readonly tableName: TableName
     readonly columnName: ColumnName
     readonly baseTableName: BaseTableName
+    readonly schemaName?: string
   }
   readonly [Expression.TypeId]: Expression.State<
     Select,
@@ -257,12 +258,14 @@ export const bindColumn = <
   TableName extends string,
   ColumnName extends string,
   BaseTableName extends string,
+  SchemaName extends string | undefined,
   Column extends AnyColumnDefinition
 >(
   tableName: TableName,
   columnName: ColumnName,
   column: Column,
-  baseTableName: BaseTableName
+  baseTableName: BaseTableName,
+  schemaName?: SchemaName
 ): BoundColumnFrom<Column, TableName, ColumnName, BaseTableName> => {
   const bound = Object.create(ColumnProto)
   bound.schema = column.schema
@@ -292,7 +295,8 @@ export const bindColumn = <
   bound[BoundColumnTypeId] = {
     tableName,
     columnName,
-    baseTableName
+    baseTableName,
+    schemaName
   }
   return bound
 }

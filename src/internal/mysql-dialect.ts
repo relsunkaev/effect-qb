@@ -25,10 +25,13 @@ export const mysqlDialect: SqlDialect<"mysql"> = {
   name: "mysql",
   quoteIdentifier,
   renderLiteral,
-  renderTableReference(tableName, baseTableName) {
+  renderTableReference(tableName, baseTableName, schemaName) {
+    const renderedBase = schemaName && schemaName !== "public"
+      ? `${quoteIdentifier(schemaName)}.${quoteIdentifier(baseTableName)}`
+      : quoteIdentifier(baseTableName)
     return tableName === baseTableName
-      ? quoteIdentifier(baseTableName)
-      : `${quoteIdentifier(baseTableName)} as ${quoteIdentifier(tableName)}`
+      ? renderedBase
+      : `${renderedBase} as ${quoteIdentifier(tableName)}`
   },
   renderConcat(values) {
     return `concat(${values.join(", ")})`

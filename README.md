@@ -127,6 +127,18 @@ const posts = Table.make("posts", {
 
 Table definitions still carry schema information for table modeling. Query result rows are inferred from the query plan itself.
 
+Schema-qualified tables are available when you need them:
+
+```ts
+const analytics = Table.schema("analytics")
+const events = analytics.table("events", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid()
+})
+```
+
+`Table.make(...)` defaults to the `public` schema for compatibility.
+
 ## Build Queries
 
 ### Select and Infer the Result Shape

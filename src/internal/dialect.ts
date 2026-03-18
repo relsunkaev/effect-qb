@@ -25,6 +25,6 @@ export interface SqlDialect<Name extends string = string> {
   readonly name: Name
   quoteIdentifier(value: string): string
   renderLiteral(value: unknown, state: RenderState): string
-  renderTableReference(tableName: string, baseTableName: string): string
+  renderTableReference(tableName: string, baseTableName: string, schemaName?: string): string
   renderConcat(values: readonly string[]): string
 }

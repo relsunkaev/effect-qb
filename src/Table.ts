@@ -39,19 +39,20 @@ type InlinePrimaryKeyKeys<Fields extends TableFieldMap> = Extract<{
 
 type TableDialect<Fields extends TableFieldMap> = Fields[keyof Fields][typeof import("./internal/column-state.ts").ColumnTypeId]["dbType"]["dialect"]
 type TableKind = "schema" | "alias"
+type DefaultSchemaName = "public"
 type ClassOptionSpec = Exclude<TableOptionSpec, { readonly kind: "primaryKey" }>
 type ClassTableOption = TableOption<ClassOptionSpec>
 type ClassDeclaredTableOptions = readonly ClassTableOption[]
 
 type BuildPrimaryKey<
-  Table extends TableDefinition<any, any, any, "schema">,
+  Table extends TableDefinition<any, any, any, "schema", any>,
   Spec extends TableOptionSpec
 > = Spec extends { readonly kind: "primaryKey"; readonly columns: infer Columns extends readonly string[] }
   ? Columns[number] & keyof Table[typeof TypeId]["fields"] & string
   : Table[typeof TypeId]["primaryKey"][number]
 
 type OptionInputTable<
-  Table extends TableDefinition<any, any, any, "schema">,
+  Table extends TableDefinition<any, any, any, "schema", any>,
   Spec extends TableOptionSpec
 > = Spec extends { readonly kind: "primaryKey"; readonly columns: infer Columns extends readonly string[] }
   ? ValidatePrimaryKeyColumns<Table[typeof TypeId]["fields"], Columns> extends never ? never : Table
@@ -60,7 +61,7 @@ type OptionInputTable<
     : Table
 
 type ApplyOption<
-  Table extends TableDefinition<any, any, any, "schema">,
+  Table extends TableDefinition<any, any, any, "schema", any>,
   Spec extends TableOptionSpec
 > = TableDefinition<
   Table[typeof TypeId]["name"],
@@ -93,25 +94,42 @@ interface TableState<
   Name extends string,
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string,
-  Kind extends TableKind = "schema"
+  Kind extends TableKind = "schema",
+  SchemaName extends string = DefaultSchemaName
 > {
   readonly name: Name
   readonly baseName: string
+  readonly schemaName: SchemaName
   readonly fields: Fields
   readonly primaryKey: readonly PrimaryKeyColumns[]
   readonly kind: Kind
+}
+
+/** Namespace-scoped table builder. */
+export interface TableSchemaNamespace<SchemaName extends string> {
+  readonly schemaName: SchemaName
+  readonly table: <
+    Name extends string,
+    Fields extends TableFieldMap,
+    PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
+  >(
+    name: Name,
+    fields: Fields,
+    ...options: DeclaredTableOptions
+  ) => TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
 }
 
 export type TableDefinition<
   Name extends string,
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>,
-  Kind extends TableKind = "schema"
+  Kind extends TableKind = "schema",
+  SchemaName extends string = DefaultSchemaName
 > = Pipeable & {
   readonly name: Name
   readonly columns: BoundColumns<Name, Fields>
   readonly schemas: TableSchemas<Fields, PrimaryKeyColumns>
-  readonly [TypeId]: TableState<Name, Fields, PrimaryKeyColumns, Kind>
+  readonly [TypeId]: TableState<Name, Fields, PrimaryKeyColumns, Kind, SchemaName>
   readonly [Plan.TypeId]: Plan.State<
     BoundColumns<Name, Fields>,
     never,
@@ -136,11 +154,12 @@ export type TableDefinition<
 export type TableClassStatic<
   Name extends string,
   Fields extends TableFieldMap,
-  PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
+  PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>,
+  SchemaName extends string = DefaultSchemaName
 > = (abstract new (...args: any[]) => any) & Pipeable & {
   readonly columns: BoundColumns<Name, Fields>
   readonly schemas: TableSchemas<Fields, PrimaryKeyColumns>
-  readonly [TypeId]: TableState<Name, Fields, PrimaryKeyColumns>
+  readonly [TypeId]: TableState<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
   readonly [Plan.TypeId]: Plan.State<
     BoundColumns<Name, Fields>,
     never,
@@ -159,7 +178,7 @@ export type TableClassStatic<
   >
 
 /** Minimal structural table-like contract used across helper APIs. */
-export type AnyTable = TableDefinition<any, any, any, any> | TableClassStatic<any, any, any>
+export type AnyTable = TableDefinition<any, any, any, any, any> | TableClassStatic<any, any, any, any>
 
 /** Public table-option builder type used by `Table.index`, `Table.primaryKey`, and friends. */
 export type TableOption<
@@ -170,8 +189,8 @@ export type TableOption<
     Fields extends TableFieldMap,
     PrimaryKeyColumns extends keyof Fields & string
   >(
-    table: OptionInputTable<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema">, Spec>
-  ): ApplyOption<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema">, Spec>
+    table: OptionInputTable<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", any>, Spec>
+  ): ApplyOption<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", any>, Spec>
   readonly option: Spec
 }
 
@@ -194,18 +213,20 @@ type BuildArtifacts<
 
 const buildArtifacts = <
   Name extends string,
-  Fields extends TableFieldMap
+  Fields extends TableFieldMap,
+  SchemaName extends string
 >(
   name: Name,
   fields: Fields,
-  declaredOptions: readonly TableOptionSpec[]
+  declaredOptions: readonly TableOptionSpec[],
+  schemaName: SchemaName
 ): BuildArtifacts<Name, Fields, keyof Fields & string> => {
   const normalizedOptions = [...collectInlineOptions(fields), ...declaredOptions]
   validateFieldDialects(name, fields)
   validateOptions(name, fields, declaredOptions)
   const primaryKey = resolvePrimaryKeyColumns(fields, declaredOptions) as readonly (keyof Fields & string)[]
   const columns = Object.fromEntries(
-    Object.entries(fields).map(([key, column]) => [key, bindColumn(name, key, column, name)])
+    Object.entries(fields).map(([key, column]) => [key, bindColumn(name, key, column, name, schemaName)])
   ) as BoundColumns<Name, Fields>
   const schemas = deriveSchemas(fields, primaryKey)
   return {
@@ -220,15 +241,17 @@ const makeTable = <
   Name extends string,
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string,
-  Kind extends TableKind = "schema"
+  Kind extends TableKind = "schema",
+  SchemaName extends string = DefaultSchemaName
 >(
   name: Name,
   fields: Fields,
   declaredOptions: readonly TableOptionSpec[],
   baseName: string = name,
-  kind: Kind = "schema" as Kind
-): TableDefinition<Name, Fields, PrimaryKeyColumns, Kind> => {
-  const artifacts = buildArtifacts(name, fields, declaredOptions)
+  kind: Kind = "schema" as Kind,
+  schemaName: SchemaName = "public" as SchemaName
+): TableDefinition<Name, Fields, PrimaryKeyColumns, Kind, SchemaName> => {
+  const artifacts = buildArtifacts(name, fields, declaredOptions, schemaName)
   const dialect = resolveFieldDialect(fields)
   const table = Object.create(TableProto)
   table.name = name
@@ -237,6 +260,7 @@ const makeTable = <
   table[TypeId] = {
     name,
     baseName,
+    schemaName,
     fields,
     primaryKey: artifacts.primaryKey,
     kind
@@ -314,7 +338,8 @@ const ensureClassArtifacts = <
   const artifacts = buildArtifacts(
     state.name,
     state.fields,
-    declaredOptions
+    declaredOptions,
+    state.schemaName
   ) as BuildArtifacts<Name, Fields, PrimaryKeyColumns>
   Object.defineProperty(self, CacheSymbol, {
     configurable: true,
@@ -324,7 +349,7 @@ const ensureClassArtifacts = <
 }
 
 const appendOption = <
-  Table extends TableDefinition<any, any, any, "schema">,
+  Table extends TableDefinition<any, any, any, "schema", any>,
   Spec extends TableOptionSpec
 >(
   table: Table,
@@ -334,11 +359,18 @@ const appendOption = <
   if (state.kind !== "schema") {
     throw new Error("Table options can only be applied to schema tables, not aliased query sources")
   }
-  return makeTable(state.name, state.fields, [...table[DeclaredOptionsSymbol], option], state.baseName) as unknown as ApplyOption<Table, Spec>
+  return makeTable(
+    state.name,
+    state.fields,
+    [...table[DeclaredOptionsSymbol], option],
+    state.baseName,
+    state.kind,
+    state.schemaName
+  ) as unknown as ApplyOption<Table, Spec>
 }
 
 const makeOption = <Spec extends TableOptionSpec>(option: Spec): TableOption<Spec> => {
-  const builder = ((table: TableDefinition<any, any, any, "schema">) =>
+  const builder = ((table: TableDefinition<any, any, any, "schema", any>) =>
     appendOption(table, option)) as unknown as TableOption<Spec>
   ;(builder as { option: Spec }).option = option
   return builder
@@ -351,7 +383,33 @@ export const make = <
 >(
   name: Name,
   fields: Fields
-): TableDefinition<Name, Fields> => makeTable(name, fields, [])
+): TableDefinition<Name, Fields> => makeTable(name, fields, [], name, "schema", "public")
+
+/**
+ * Creates a namespace-scoped builder for a concrete SQL schema/database.
+ */
+export const schema = <SchemaName extends string>(
+  schemaName: SchemaName
+): TableSchemaNamespace<SchemaName> => ({
+  schemaName,
+  table: <
+    Name extends string,
+    Fields extends TableFieldMap,
+    PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
+  >(
+    name: Name,
+    fields: Fields,
+    ...options: DeclaredTableOptions
+  ): TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName> =>
+    makeTable(
+      name,
+      fields,
+      extractDeclaredOptions(options),
+      name,
+      "schema",
+      schemaName
+    ) as TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
+})
 
 /**
  * Creates an aliased source from an existing table definition.
@@ -364,19 +422,21 @@ export const alias = <
   Name extends string,
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string,
+  SchemaName extends string,
   AliasName extends string
 >(
-  table: TableDefinition<Name, Fields, PrimaryKeyColumns> | TableClassStatic<Name, Fields, PrimaryKeyColumns>,
+  table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, SchemaName> | TableClassStatic<Name, Fields, PrimaryKeyColumns, SchemaName>,
   aliasName: AliasName
 ): TableDefinition<
   AliasName,
   Fields,
   PrimaryKeyColumns,
-  "alias"
+  "alias",
+  SchemaName
 > => {
   const state = table[TypeId]
   const columns = Object.fromEntries(
-    Object.entries(state.fields).map(([key, column]) => [key, bindColumn(aliasName, key, column as AnyColumnDefinition, state.baseName)])
+    Object.entries(state.fields).map(([key, column]) => [key, bindColumn(aliasName, key, column as AnyColumnDefinition, state.baseName, state.schemaName)])
   ) as BoundColumns<AliasName, Fields>
   const aliased = Object.create(TableProto)
   aliased.name = aliasName
@@ -385,6 +445,7 @@ export const alias = <
   aliased[TypeId] = {
     name: aliasName,
     baseName: state.baseName,
+    schemaName: state.schemaName,
     fields: state.fields,
     primaryKey: state.primaryKey,
     kind: "alias"
@@ -421,7 +482,7 @@ export const alias = <
 export const Class = <Self = never>(name: string) =>
   <Fields extends TableFieldMap>(fields: Fields): [Self] extends [never]
     ? MissingSelfGeneric
-    : TableClassStatic<typeof name, Fields> => {
+    : TableClassStatic<typeof name, Fields, InlinePrimaryKeyKeys<Fields>, DefaultSchemaName> => {
       abstract class TableClassBase {
         static readonly tableName = name
 
@@ -439,6 +500,7 @@ export const Class = <Self = never>(name: string) =>
           return {
             name,
             baseName: name,
+            schemaName: "public" as const,
             fields,
             primaryKey: resolvePrimaryKeyColumns(fields, collectInlineOptions(fields)),
             kind: "schema"
@@ -536,6 +598,7 @@ export const foreignKey = <
   readonly columns: NormalizeColumns<LocalColumns>
   readonly references: () => {
     readonly tableName: string
+    readonly schemaName?: string
     readonly columns: NormalizeColumns<TargetColumns>
     readonly knownColumns: readonly string[]
   }
@@ -544,6 +607,7 @@ export const foreignKey = <
   columns: normalizeColumnList(columns) as NormalizeColumns<LocalColumns>,
   references: () => ({
     tableName: target()[TypeId].baseName,
+    schemaName: target()[TypeId].schemaName,
     columns: normalizeColumnList(referencedColumns) as NormalizeColumns<TargetColumns>,
     knownColumns: Object.keys(target()[TypeId].fields)
   })

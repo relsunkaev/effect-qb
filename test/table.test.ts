@@ -48,6 +48,22 @@ describe("table definitions", () => {
     expect(options.map((option) => option.kind)).toEqual(["primaryKey", "unique", "index"])
   })
 
+  test("table schema namespaces preserve physical schema metadata", () => {
+    const analytics = Table.schema("analytics")
+    const events = analytics.table("events", {
+      id: C.uuid().pipe(C.primaryKey),
+      userId: C.uuid()
+    })
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey)
+    })
+
+    expect(analytics.schemaName).toBe("analytics")
+    expect(events[Table.TypeId].schemaName).toBe("analytics")
+    expect(events[Table.TypeId].baseName).toBe("events")
+    expect(users[Table.TypeId].schemaName).toBe("public")
+  })
+
   test("class tables expose inherited static columns and schemas", () => {
     class Users extends Table.Class<Users>("users")({
       id: C.uuid().pipe(C.primaryKey, C.generated),
@@ -80,6 +96,7 @@ describe("table definitions", () => {
     }
     expect(foreignKey.references()).toEqual({
       tableName: "orgs",
+      schemaName: "public",
       columns: ["id"]
     })
   })
@@ -111,6 +128,7 @@ describe("table definitions", () => {
 
     expect(foreignKey.references()).toEqual({
       tableName: "orgs",
+      schemaName: "public",
       columns: ["id"],
       knownColumns: ["id", "slug"]
     })

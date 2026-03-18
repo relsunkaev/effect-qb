@@ -876,6 +876,32 @@ describe("postgres dialect behavior", () => {
     )
   })
 
+  test("renders schema-qualified postgres tables in queries and ddl", () => {
+    const analytics = Postgres.Table.schema("analytics")
+    const users = analytics.table("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    })
+    const events = analytics.table("events", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      userId: Postgres.Column.uuid().pipe(Postgres.Column.references(() => users.id))
+    })
+
+    const plan = Postgres.Query.select({
+      eventId: events.id
+    }).pipe(
+      Postgres.Query.from(events)
+    )
+
+    expect(Postgres.Renderer.make().render(plan).sql).toBe(
+      'select "events"."id" as "eventId" from "analytics"."events"'
+    )
+    expect(Postgres.Renderer.make().render(Postgres.Query.createTable(events, {
+      ifNotExists: true
+    })).sql).toBe(
+      'create table if not exists "analytics"."events" ("id" uuid not null, "userId" uuid not null, primary key ("id"), foreign key ("userId") references "analytics"."users" ("id"))'
+    )
+  })
+
   test("decodes nullable joined rows through the postgres executor pipeline", () => {
     const { users, posts } = makePostgresSocialGraph()
 
