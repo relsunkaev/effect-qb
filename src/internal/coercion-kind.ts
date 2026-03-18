@@ -1,4 +1,5 @@
 import type * as Expression from "../expression.ts"
+import type { FamilyOfDbType } from "./datatypes/lookup.ts"
 
 export type CoercionKind =
   | "text"
@@ -14,85 +15,4 @@ export type CoercionKind =
   | "null"
   | `other:${string}`
 
-type NormalizeKind<
-  Dialect extends string,
-  Kind extends string
-> =
-  Kind extends "null"
-    ? "null"
-    : Kind extends "text"
-      ? "text"
-      : Kind extends "varchar" | "char" | "citext"
-        ? "text"
-        : Kind extends "uuid"
-          ? "uuid"
-          : Kind extends "json" | "jsonb"
-            ? "json"
-            : Kind extends "bytea" | "binary" | "varbinary" | "blob"
-              ? "binary"
-              : Kind extends "date"
-                ? "date"
-                : Kind extends "time"
-                  ? "time"
-                  : Kind extends "timestamp" | "datetime"
-                    ? "timestamp"
-                    : Kind extends "interval"
-                      ? "interval"
-                      : Kind extends "bool" | "boolean"
-                        ? "boolean"
-                        : Kind extends "int2" | "int4" | "int8" | "tinyint" | "smallint" | "mediumint" | "int" | "bigint" | "numeric" | "decimal" | "float4" | "float8" | "float" | "double"
-                          ? "numeric"
-                          : Dialect extends "postgres"
-                            ? Kind extends "jsonb"
-                              ? "json"
-                              : Kind extends "uuid"
-                                ? "uuid"
-                                : Kind extends "int4" | "numeric"
-                                  ? "numeric"
-                                  : Kind extends "bool"
-                                    ? "boolean"
-                                    : Kind extends "timestamp"
-                                      ? "timestamp"
-                                      : Kind extends "bytea"
-                                        ? "binary"
-                                        : `other:${Dialect}:${Kind}`
-                            : Dialect extends "mysql"
-                              ? Kind extends "decimal" | "float" | "double" | "int" | "bigint" | "tinyint" | "smallint" | "mediumint"
-                                ? "numeric"
-                                : Kind extends "boolean"
-                                  ? "boolean"
-                                  : Kind extends "date"
-                                    ? "date"
-                                    : Kind extends "time"
-                                      ? "time"
-                                      : Kind extends "datetime" | "timestamp"
-                                        ? "timestamp"
-                                        : Kind extends "binary" | "varbinary" | "blob"
-                                          ? "binary"
-                                          : Kind extends "uuid"
-                                            ? "uuid"
-                                            : Kind extends "json"
-                                              ? "json"
-                                              : `other:${Dialect}:${Kind}`
-                              : Kind extends "numeric" | "decimal" | "int" | "int4" | "int2" | "int8" | "tinyint" | "smallint" | "mediumint" | "float4" | "float8" | "float" | "double"
-                                ? "numeric"
-                                : Kind extends "bool" | "boolean"
-                                  ? "boolean"
-                                  : Kind extends "date"
-                                    ? "date"
-                                    : Kind extends "time"
-                                      ? "time"
-                                      : Kind extends "timestamp" | "datetime"
-                                        ? "timestamp"
-                                        : Kind extends "uuid"
-                                          ? "uuid"
-                                          : Kind extends "json" | "jsonb"
-                                            ? "json"
-                                            : Kind extends "bytea" | "binary" | "varbinary" | "blob"
-                                              ? "binary"
-                                              : `other:${Dialect}:${Kind}`
-
-export type CoercionKindOf<Db extends Expression.DbType.Any> =
-  Db extends Expression.DbType.Base<infer Dialect extends string, infer Kind extends string>
-    ? NormalizeKind<Dialect, Kind>
-    : never
+export type CoercionKindOf<Db extends Expression.DbType.Any> = FamilyOfDbType<Db>

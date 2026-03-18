@@ -1,42 +1,19 @@
 import type * as Expression from "../expression.ts"
-import type { CoercionKindOf } from "./coercion-kind.ts"
-
-type SameKind<
-  Left extends string,
-  Right extends string
-> = [Left] extends [Right]
-  ? ([Right] extends [Left] ? true : false)
-  : false
+import type { CanCastDbType as LookupCanCastDbType, CanCompareDbTypes as LookupCanCompareDbTypes, CanTextuallyCoerceDbType as LookupCanTextuallyCoerceDbType } from "./datatypes/lookup.ts"
 
 export type CanCompareDbTypes<
   Left extends Expression.DbType.Any,
   Right extends Expression.DbType.Any,
   Dialect extends string
-> = Left extends { readonly dialect: Dialect }
-  ? Right extends { readonly dialect: Dialect }
-    ? CoercionKindOf<Left> extends "null"
-      ? false
-      : CoercionKindOf<Right> extends "null"
-        ? false
-        : SameKind<CoercionKindOf<Left>, CoercionKindOf<Right>>
-    : false
-  : false
+> = LookupCanCompareDbTypes<Left, Right, Dialect>
 
 export type CanTextuallyCoerceDbType<
   Db extends Expression.DbType.Any,
   Dialect extends string
-> = Db extends { readonly dialect: Dialect }
-  ? CoercionKindOf<Db> extends "text"
-    ? true
-    : false
-  : false
+> = LookupCanTextuallyCoerceDbType<Db, Dialect>
 
 export type CanCastDbType<
   Source extends Expression.DbType.Any,
   Target extends Expression.DbType.Any,
   Dialect extends string
-> = Source extends { readonly dialect: Dialect }
-  ? Target extends { readonly dialect: Dialect }
-    ? CoercionKindOf<Target> extends "null" ? false : true
-    : false
-  : false
+> = LookupCanCastDbType<Source, Target, Dialect>

@@ -1,4 +1,5 @@
 import type { Pipeable } from "effect/Pipeable"
+import type { RuntimeOfDbType as RuntimeOfDbTypeLookup } from "./internal/datatypes/lookup.ts"
 
 /** Symbol used to attach expression metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Expression")
@@ -220,26 +221,4 @@ export type DependenciesOf<Value extends Any> = Value[typeof TypeId]["dependenci
 export type SourceNullabilityOf<Value extends Any> = Value[typeof TypeId]["sourceNullability"]
 
 /** Maps a database type descriptor back to its decoded runtime type. */
-export type RuntimeOfDbType<Db extends DbType.Any> =
-  Db extends DbType.Json<any, any> ? unknown :
-    Db extends DbType.Base<any, infer Kind extends string>
-      ? Kind extends "text" | "varchar" | "char" | "citext" | "uuid"
-        ? string
-        : Kind extends "int2" | "int4" | "int8" | "tinyint" | "smallint" | "mediumint" | "int" | "numeric" | "decimal" | "float4" | "float8" | "float" | "double"
-          ? number
-        : Kind extends "bigint"
-          ? bigint
-        : Kind extends "bool" | "boolean"
-          ? boolean
-        : Kind extends "date" | "timestamp" | "datetime"
-          ? Date
-        : Kind extends "time" | "interval"
-          ? string
-        : Kind extends "bytea" | "binary" | "varbinary" | "blob"
-          ? Uint8Array
-        : Kind extends "json" | "jsonb"
-          ? unknown
-        : Kind extends "null"
-          ? null
-          : unknown
-      : never
+export type RuntimeOfDbType<Db extends DbType.Any> = RuntimeOfDbTypeLookup<Db>

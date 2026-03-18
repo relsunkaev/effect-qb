@@ -36,3 +36,14 @@ const comparablePlan = Q.select({
 type ComparableRow = Q.ResultRow<typeof comparablePlan>
 const sameTextFamily: ComparableRow["sameTextFamily"] = true
 void sameTextFamily
+
+const temporalPlan = Q.select({
+  sameTemporal: Q.eq(
+    Q.cast("2026-03-18", Q.type.date()),
+    Q.cast("2026-03-18T10:00:00Z", Q.type.datetime())
+  )
+})
+
+type TemporalRow = Q.ResultRow<typeof temporalPlan>
+const sameTemporal: TemporalRow["sameTemporal"] = true
+void sameTemporal
