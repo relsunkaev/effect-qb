@@ -7,6 +7,7 @@ import { postgresDialect } from "../src/internal/postgres-dialect.ts"
 import { renderExpression } from "../src/internal/sql-expression-renderer.ts"
 import * as Postgres from "../src/postgres.ts"
 import { makePostgresSocialGraph } from "./fixtures/schema.ts"
+import { unsafeNever } from "./helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
@@ -60,7 +61,7 @@ describe("postgres dialect behavior", () => {
       firstTitle: Postgres.Query.min(posts.title),
       postCount: Postgres.Query.count(posts.id)
     })
-    const fromUsers = Postgres.Query.from(users)(selected as never)
+    const fromUsers = Postgres.Query.from(users)(unsafeNever(selected))
     const joined = Postgres.Query.innerJoin(posts, Postgres.Query.eq(users.id, posts.userId))(fromUsers)
     const grouped = Postgres.Query.groupBy(Postgres.Query.lower(users.email))(joined)
     const filtered = Postgres.Query.having(Postgres.Query.eq(Postgres.Query.count(posts.id), 2))(grouped)
@@ -105,7 +106,7 @@ describe("postgres dialect behavior", () => {
       Postgres.Query.groupBy(Postgres.Query.lower(users.email))
     )
 
-    expect(() => Postgres.Renderer.make().render(invalid as never)).toThrow(
+    expect(() => Postgres.Renderer.make().render(unsafeNever(invalid))).toThrow(
       "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
     )
   })

@@ -7,6 +7,8 @@ import { mysqlDialect } from "../src/internal/mysql-dialect.ts"
 import { renderExpression } from "../src/internal/sql-expression-renderer.ts"
 import * as Mysql from "../src/mysql.ts"
 import { makeMysqlSocialGraph } from "./fixtures/schema.ts"
+import { unsafeNever } from "./helpers/unsafe.ts"
+import { unsafeNever } from "./helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
@@ -60,7 +62,7 @@ describe("mysql dialect behavior", () => {
       firstTitle: Mysql.Query.min(posts.title),
       postCount: Mysql.Query.count(posts.id)
     })
-    const fromUsers = Mysql.Query.from(users)(selected as never)
+    const fromUsers = Mysql.Query.from(users)(unsafeNever(selected))
     const joined = Mysql.Query.innerJoin(posts, Mysql.Query.eq(users.id, posts.userId))(fromUsers)
     const grouped = Mysql.Query.groupBy(Mysql.Query.lower(users.email))(joined)
     const filtered = Mysql.Query.having(Mysql.Query.eq(Mysql.Query.count(posts.id), 2))(grouped)
@@ -105,7 +107,7 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.groupBy(Mysql.Query.lower(users.email))
     )
 
-    expect(() => Mysql.Renderer.make().render(invalid as never)).toThrow(
+    expect(() => Mysql.Renderer.make().render(unsafeNever(invalid))).toThrow(
       "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
     )
   })
@@ -326,7 +328,7 @@ describe("mysql dialect behavior", () => {
         .when(Mysql.Query.eq(Mysql.Query.lower(posts.title), "draft"), "draft")
         .else(Mysql.Query.upper(Mysql.Query.coalesce(posts.title, "published")))
     })
-    const fromUsers = Mysql.Query.from(users)(selected as never)
+    const fromUsers = Mysql.Query.from(users)(unsafeNever(selected))
     const plan = Mysql.Query.leftJoin(posts, Mysql.Query.eq(users.id, posts.userId))(fromUsers)
 
     const rendered = Mysql.Renderer.make().render(plan)

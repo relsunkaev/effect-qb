@@ -4,6 +4,7 @@ import * as Either from "effect/Either"
 import * as Effect from "effect/Effect"
 
 import * as Postgres from "../src/postgres.ts"
+import { unsafeAny } from "./helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
@@ -154,13 +155,13 @@ describe("postgres errors", () => {
     const executor = Postgres.Executor.fromSqlClient(Postgres.Renderer.make())
     const sql = {
       unsafe<Row extends object>() {
-        return Effect.fail({
+        return unsafeAny(Effect.fail({
           code: "42601",
           message: "syntax error at or near \"fromm\"",
           position: "15",
           hint: "Perhaps you meant FROM.",
           severity: "ERROR"
-        } as never as ReadonlyArray<Row>)
+        }))
       }
     } as unknown as SqlClient.SqlClient
 

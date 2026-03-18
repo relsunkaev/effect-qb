@@ -4,6 +4,7 @@ import * as Either from "effect/Either"
 import * as Effect from "effect/Effect"
 
 import * as Mysql from "../src/mysql.ts"
+import { unsafeAny } from "./helpers/unsafe.ts"
 
 describe("mysql errors", () => {
   test("catalog descriptors expose official MySQL metadata", () => {
@@ -188,12 +189,12 @@ describe("mysql errors", () => {
     const executor = Mysql.Executor.fromSqlClient(Mysql.Renderer.make())
     const sql = {
       unsafe<Row extends object>() {
-        return Effect.fail({
+        return unsafeAny(Effect.fail({
           code: "ER_PARSE_ERROR",
           errno: 1064,
           sqlState: "42000",
           sqlMessage: "You have an error in your SQL syntax"
-        } as never as ReadonlyArray<Row>)
+        }))
       }
     } as unknown as SqlClient.SqlClient
 

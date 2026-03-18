@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
 import { Column as C, Expression, Table } from "../src/index.ts"
+import { unsafeAny, unsafeNever } from "./helpers/unsafe.ts"
 
 describe("table behavior", () => {
   test("rejects conflicting inline and table-level primary keys", () => {
@@ -49,10 +50,10 @@ describe("table behavior", () => {
 
   test("rejects nullable columns in composite primary keys", () => {
     expect(() => Table.primaryKey(["orgId", "slug"] as const)(
-      Table.make("memberships", {
+      unsafeNever(Table.make("memberships", {
         orgId: C.uuid(),
         slug: C.text().pipe(C.nullable)
-      }) as never
+      }))
     )).toThrow("Primary key column 'slug' cannot be nullable")
   })
 
@@ -66,7 +67,7 @@ describe("table behavior", () => {
     )
 
     const onceAliased = Table.alias(users, "u1")
-    const twiceAliased = Table.alias(onceAliased as never, "u2") as any
+    const twiceAliased = unsafeAny(Table.alias(unsafeNever(onceAliased), "u2"))
 
     expect(twiceAliased[Table.TypeId]).toMatchObject({
       name: "u2",
@@ -74,11 +75,11 @@ describe("table behavior", () => {
       kind: "alias",
       primaryKey: ["id"]
     })
-    expect(twiceAliased.id![Expression.TypeId].source as any).toEqual({
+    expect(unsafeAny(twiceAliased.id![Expression.TypeId].source)).toEqual({
       tableName: "u2",
       columnName: "id",
       baseTableName: "users"
-    } as any)
+    })
     expect(twiceAliased[Table.OptionsSymbol]).toEqual(users[Table.OptionsSymbol])
   })
 

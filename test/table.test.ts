@@ -7,6 +7,7 @@ import * as Mysql from "../src/mysql.ts"
 import * as Postgres from "../src/postgres.ts"
 import { renderMysqlPlan } from "../src/internal/mysql-renderer.ts"
 import { Column as C, Executor, Expression, Plan, Query as Q, Renderer, Table } from "../src/index.ts"
+import { unsafeAny, unsafeNever } from "./helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
@@ -124,7 +125,7 @@ describe("table definitions", () => {
       orgId: C.uuid(),
       slug: C.text()
     }).pipe(
-      Table.foreignKey(["orgId", "slug"], () => orgs, "id") as never
+      unsafeAny(Table.foreignKey(["orgId", "slug"], () => orgs, "id"))
     )).toThrow("Foreign key on table 'broken_memberships_arity' must reference the same number of columns")
   })
 
@@ -137,7 +138,7 @@ describe("table definitions", () => {
       id: C.uuid(),
       slug: C.text()
     }) {
-      static override readonly [Table.options] = [Table.primaryKey(["id", "slug"] as const) as never]
+      static override readonly [Table.options] = [unsafeAny(Table.primaryKey(["id", "slug"] as const))]
     }
 
     expect(() => BadClassTable.schemas).toThrow("Table.Class does not support table-level primary keys; declare primary keys inline on columns")
@@ -149,7 +150,7 @@ describe("table definitions", () => {
       email: C.text()
     })
 
-    expect(() => Table.index("email")(Table.alias(users, "users_alias") as never)).toThrow(
+    expect(() => Table.index("email")(unsafeAny(Table.alias(users, "users_alias")))).toThrow(
       "Table options can only be applied to schema tables, not aliased query sources"
     )
   })
@@ -333,7 +334,7 @@ describe("table definitions", () => {
       Q.leftJoin(posts, true)
     )
 
-    expect(() => Renderer.make("postgres").render(invalid as never)).toThrow(
+    expect(() => Renderer.make("postgres").render(unsafeNever(invalid))).toThrow(
       "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
     )
   })
@@ -367,10 +368,10 @@ describe("table definitions", () => {
       Q.groupBy(users.email)
     )
 
-    expect(() => Renderer.make("postgres").render(groupedByDerived as never)).toThrow(
+    expect(() => Renderer.make("postgres").render(unsafeNever(groupedByDerived))).toThrow(
       "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
     )
-    expect(() => Renderer.make("postgres").render(groupedByBase as never)).toThrow(
+    expect(() => Renderer.make("postgres").render(unsafeNever(groupedByBase))).toThrow(
       "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
     )
   })
@@ -579,12 +580,12 @@ describe("table definitions", () => {
       Q.leftJoin(report, Q.eq(report.managerId, manager.id))
     )
 
-    expect(manager.id[Expression.TypeId].source as any).toEqual({
+    expect(unsafeAny(manager.id[Expression.TypeId].source)).toEqual({
       tableName: "manager",
       columnName: "id",
       baseTableName: "employees"
     })
-    expect(report.id[Expression.TypeId].source as any).toEqual({
+    expect(unsafeAny(report.id[Expression.TypeId].source)).toEqual({
       tableName: "report",
       columnName: "id",
       baseTableName: "employees"
@@ -641,7 +642,7 @@ describe("table definitions", () => {
       Mysql.Query.where(Mysql.Query.eq(users.email, "alice@example.com"))
     )
 
-    const rendered = renderMysqlPlan(plan as never)
+    const rendered = renderMysqlPlan(unsafeNever(plan))
 
     expect(rendered.sql).toBe("select `users`.`id` as `id`, concat(lower(`users`.`email`), ?) as `decoratedEmail`, ? as `kind` from `users` where (`users`.`email` = ?)")
     expect(rendered.params).toEqual(["-user", "user", "alice@example.com"])
