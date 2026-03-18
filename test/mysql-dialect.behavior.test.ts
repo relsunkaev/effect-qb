@@ -155,6 +155,24 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual([1])
   })
 
+  test("renders named enum and set casts with mysql syntax", () => {
+    const plan = Mysql.Query.select({
+      enumValue: Mysql.Query.cast(
+        Mysql.Query.literal("draft"),
+        Mysql.Query.type.enum("enum('draft','published')")
+      ),
+      setValue: Mysql.Query.cast(
+        Mysql.Query.literal("admin"),
+        Mysql.Query.type.set("set('admin','editor')")
+      )
+    })
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe("select cast(? as enum('draft','published')) as `enumValue`, cast(? as set('admin','editor')) as `setValue`")
+    expect(rendered.params).toEqual(["draft", "admin"])
+  })
+
   test("renders boolean combinators and clause-level parameter ordering across mysql queries", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

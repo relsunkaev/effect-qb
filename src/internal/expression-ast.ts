@@ -64,6 +64,9 @@ export type BinaryKind =
   | "ilike"
   | "isDistinctFrom"
   | "isNotDistinctFrom"
+  | "contains"
+  | "containedBy"
+  | "overlaps"
 
 /** Binary expression node. */
 export interface BinaryNode<

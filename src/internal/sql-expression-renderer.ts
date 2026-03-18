@@ -439,6 +439,21 @@ export const renderExpression = (
       return dialect.name === "mysql"
         ? `(${renderExpression(ast.left, state, dialect)} <=> ${renderExpression(ast.right, state, dialect)})`
         : `(${renderExpression(ast.left, state, dialect)} is not distinct from ${renderExpression(ast.right, state, dialect)})`
+    case "contains":
+      if (dialect.name !== "postgres") {
+        throw new Error("Unsupported container operator for SQL rendering")
+      }
+      return `(${renderExpression(ast.left, state, dialect)} @> ${renderExpression(ast.right, state, dialect)})`
+    case "containedBy":
+      if (dialect.name !== "postgres") {
+        throw new Error("Unsupported container operator for SQL rendering")
+      }
+      return `(${renderExpression(ast.left, state, dialect)} <@ ${renderExpression(ast.right, state, dialect)})`
+    case "overlaps":
+      if (dialect.name !== "postgres") {
+        throw new Error("Unsupported container operator for SQL rendering")
+      }
+      return `(${renderExpression(ast.left, state, dialect)} && ${renderExpression(ast.right, state, dialect)})`
     case "isNull":
       return `(${renderExpression(ast.value, state, dialect)} is null)`
     case "isNotNull":

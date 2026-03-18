@@ -136,6 +136,19 @@ export const postgresDatatypeFamilies = {
     castTargets: ["multirange", "text"],
     traits: {}
   },
+  enum: {
+    compareGroup: "enum",
+    castTargets: ["enum", "text"],
+    traits: {
+      textual: true,
+      ordered: true
+    }
+  },
+  record: {
+    compareGroup: "record",
+    castTargets: ["record", "text"],
+    traits: {}
+  },
   array: {
     compareGroup: "array",
     castTargets: ["array", "text"],

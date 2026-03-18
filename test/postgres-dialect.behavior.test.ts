@@ -169,6 +169,65 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
+  test("renders structured datatype casts with postgres syntax", () => {
+    const plan = Postgres.Query.select({
+      arrayValue: Postgres.Query.cast(
+        Postgres.Query.literal("{}"),
+        Postgres.Query.type.array(Postgres.Query.type.text())
+      ),
+      rangeValue: Postgres.Query.cast(
+        Postgres.Query.literal("int4range(1,10)"),
+        Postgres.Query.type.range("int4range", Postgres.Query.type.int4())
+      ),
+      recordValue: Postgres.Query.cast(
+        Postgres.Query.literal("{}"),
+        Postgres.Query.type.record("user_profile", {
+          displayName: Postgres.Query.type.text(),
+          age: Postgres.Query.type.int4()
+        })
+      ),
+      domainValue: Postgres.Query.cast(
+        Postgres.Query.literal("alice@example.com"),
+        Postgres.Query.type.domain("email_domain", Postgres.Query.type.text())
+      ),
+      enumValue: Postgres.Query.cast(
+        Postgres.Query.literal("status_enum"),
+        Postgres.Query.type.enum("status_enum")
+      )
+    })
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select cast($1 as text[]) as "arrayValue", cast($2 as int4range) as "rangeValue", cast($3 as user_profile) as "recordValue", cast($4 as email_domain) as "domainValue", cast($5 as status_enum) as "enumValue"'
+    )
+    expect(rendered.params).toEqual(["{}", "int4range(1,10)", "{}", "alice@example.com", "status_enum"])
+  })
+
+  test("renders array and range container operators with postgres syntax", () => {
+    const plan = Postgres.Query.select({
+      arrayContains: Postgres.Query.contains(
+        Postgres.Query.cast(Postgres.Query.literal("{}"), Postgres.Query.type.array(Postgres.Query.type.text())),
+        Postgres.Query.cast(Postgres.Query.literal("{}"), Postgres.Query.type.array(Postgres.Query.type.text()))
+      ),
+      arrayContainedBy: Postgres.Query.containedBy(
+        Postgres.Query.cast(Postgres.Query.literal("{}"), Postgres.Query.type.array(Postgres.Query.type.text())),
+        Postgres.Query.cast(Postgres.Query.literal("{}"), Postgres.Query.type.array(Postgres.Query.type.text()))
+      ),
+      rangeOverlap: Postgres.Query.overlaps(
+        Postgres.Query.cast(Postgres.Query.literal("int4range(1,10)"), Postgres.Query.type.range("int4range", Postgres.Query.type.int4())),
+        Postgres.Query.cast(Postgres.Query.literal("int4range(5,15)"), Postgres.Query.type.range("int4range", Postgres.Query.type.int4()))
+      )
+    })
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select (cast($1 as text[]) @> cast($2 as text[])) as "arrayContains", (cast($3 as text[]) <@ cast($4 as text[])) as "arrayContainedBy", (cast($5 as int4range) && cast($6 as int4range)) as "rangeOverlap"'
+    )
+    expect(rendered.params).toEqual(["{}", "{}", "{}", "{}", "int4range(1,10)", "int4range(5,15)"])
+  })
+
   test("renders boolean combinators and clause-level parameter ordering across postgres queries", () => {
     const { users, posts } = makePostgresSocialGraph()
 

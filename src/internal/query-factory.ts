@@ -3,7 +3,7 @@ import * as Plan from "../plan.ts"
 import * as Table from "../table.ts"
 import type { CastTargetError, OperandCompatibilityError } from "./coercion-errors.ts"
 import type { RuntimeOfDbType } from "./coercion-analysis.ts"
-import type { CanCastDbType, CanCompareDbTypes, CanTextuallyCoerceDbType } from "./coercion-rules.ts"
+import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "./coercion-rules.ts"
 import {
   currentRequiredList,
   extractRequiredRuntime,
@@ -248,9 +248,7 @@ type CastTarget<
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any
-> =
-  | Expression.DbType.Base<Dialect, string>
-  | Expression.DbType.Json<Dialect, string>
+> = Expression.DbType.Any
 
 type CastResult<
   Value extends ExpressionInput,
@@ -404,6 +402,42 @@ type ComparableArgs<
 > = ComparableGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
   ? readonly [left: Left, right: Right]
   : readonly [ComparableGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
+
+type ContainmentGuard<
+  Left extends ExpressionInput,
+  Right extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = CanContainDbTypes<
+  DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Dialect
+> extends true ? true : OperandCompatibilityError<
+  Operator,
+  DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+  Dialect,
+  "the same container kind"
+>
+
+type ContainmentArgs<
+  Left extends ExpressionInput,
+  Right extends ExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any,
+  Operator extends string
+> = ContainmentGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
+  ? readonly [left: Left, right: Right]
+  : readonly [ContainmentGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
 
 type TextArgs<
   Left extends ExpressionInput,
@@ -1489,7 +1523,76 @@ export function makeDialectQuery<
     }) as CastResult<Value, Target, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   }
 
-  const type = profile.type
+  const array = <Element extends Expression.DbType.Any>(
+    element: Element
+  ): Expression.DbType.Array<Dialect, Element, `${Element["kind"]}[]`> => ({
+    dialect: profile.dialect,
+    kind: `${element.kind}[]`,
+    element
+  })
+
+  const range = <Kind extends string, Subtype extends Expression.DbType.Any>(
+    kind: Kind,
+    subtype: Subtype
+  ): Expression.DbType.Range<Dialect, Subtype, Kind> => ({
+    dialect: profile.dialect,
+    kind,
+    subtype
+  })
+
+  const multirange = <Kind extends string, Subtype extends Expression.DbType.Any>(
+    kind: Kind,
+    subtype: Subtype
+  ): Expression.DbType.Multirange<Dialect, Subtype, Kind> => ({
+    dialect: profile.dialect,
+    kind,
+    subtype
+  })
+
+  const record = <Kind extends string, Fields extends Record<string, Expression.DbType.Any>>(
+    kind: Kind,
+    fields: Fields
+  ): Expression.DbType.Composite<Dialect, Fields, Kind> => ({
+    dialect: profile.dialect,
+    kind,
+    fields
+  })
+
+  const domain = <Kind extends string, Base extends Expression.DbType.Any>(
+    kind: Kind,
+    base: Base
+  ): Expression.DbType.Domain<Dialect, Base, Kind> => ({
+    dialect: profile.dialect,
+    kind,
+    base
+  })
+
+  const enum_ = <Kind extends string>(
+    kind: Kind
+  ): Expression.DbType.Enum<Dialect, Kind> => ({
+    dialect: profile.dialect,
+    kind,
+    variant: "enum"
+  })
+
+  const set = <Kind extends string>(
+    kind: Kind
+  ): Expression.DbType.Set<Dialect, Kind> => ({
+    dialect: profile.dialect,
+    kind,
+    variant: "set"
+  })
+
+  const type = {
+    ...profile.type,
+    array,
+    range,
+    multirange,
+    record,
+    domain,
+    enum: enum_,
+    set
+  }
 
   const and = <
     Values extends readonly [ExpressionInput, ...ExpressionInput[]]
@@ -1633,6 +1736,36 @@ export function makeDialectQuery<
     ...values: BetweenArgs<Value, Lower, Upper, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   ): VariadicPredicateExpression<[Value, Lower, Upper], "between"> =>
     buildVariadicPredicate(values as [Value, Lower, Upper], "between")
+
+  const contains = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    ...args: ContainmentArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "contains">
+  ): BinaryPredicateExpression<Left, Right, "contains"> => {
+    const [left, right] = args as unknown as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "contains")
+  }
+
+  const containedBy = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    ...args: ContainmentArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "containedBy">
+  ): BinaryPredicateExpression<Left, Right, "containedBy"> => {
+    const [left, right] = args as unknown as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "containedBy")
+  }
+
+  const overlaps = <
+    Left extends ExpressionInput,
+    Right extends ExpressionInput
+  >(
+    ...args: ContainmentArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "overlaps">
+  ): BinaryPredicateExpression<Left, Right, "overlaps"> => {
+    const [left, right] = args as unknown as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "overlaps")
+  }
 
   const concat = <
     Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
@@ -2043,7 +2176,7 @@ export function makeDialectQuery<
     const build = (
       branches: readonly RuntimeCaseBranch[]
     ): {
-      when<Compare extends ExpressionInput>(compare: Compare & ComparableInput<Value, Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">, result: ExpressionInput): unknown
+      when(compare: ExpressionInput, result: ExpressionInput): unknown
       else: (fallback: ExpressionInput) => Expression.Any
     } => ({
       when(compare, result) {
@@ -2061,8 +2194,8 @@ export function makeDialectQuery<
     })
 
     return {
-      when<Compare extends ExpressionInput, Then extends ExpressionInput>(
-        compare: ComparableInput<Value, Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
+      when<Then extends ExpressionInput>(
+        compare: ExpressionInput,
         result: Then
       ) {
         const predicate = buildBinaryPredicate(subject as ExpressionInput, compare as ExpressionInput, "eq")
@@ -3396,6 +3529,9 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     in: in_,
     notIn,
     between,
+    contains,
+    containedBy,
+    overlaps,
     concat,
     exists,
     over,

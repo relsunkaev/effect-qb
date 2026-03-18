@@ -21,6 +21,8 @@ export type CoercionKind =
   | "range"
   | "multirange"
   | "array"
+  | "record"
+  | "domain"
   | "enum"
   | "set"
   | "money"

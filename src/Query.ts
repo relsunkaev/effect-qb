@@ -28,7 +28,8 @@ export type {
 } from "./internal/coercion-kind.ts"
 export type {
   CanCastDbType,
-  CanCompareDbTypes
+  CanCompareDbTypes,
+  CanContainDbTypes
 } from "./internal/coercion-rules.ts"
 export type {
   ConflictClause,

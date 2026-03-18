@@ -74,7 +74,70 @@ export declare namespace DbType {
     Dialect extends string = "postgres",
     SchemaName extends string = "json"
   > extends Base<Dialect, SchemaName>
-  {}
+  {
+    readonly variant: "json"
+  }
+
+  /** Array database type. */
+  export interface Array<
+    Dialect extends string = string,
+    Element extends Any = any,
+    Kind extends string = string
+  > extends Base<Dialect, Kind> {
+    readonly element: Element
+  }
+
+  /** Range database type. */
+  export interface Range<
+    Dialect extends string = string,
+    Subtype extends Any = any,
+    Kind extends string = string
+  > extends Base<Dialect, Kind> {
+    readonly subtype: Subtype
+  }
+
+  /** Multirange database type. */
+  export interface Multirange<
+    Dialect extends string = string,
+    Subtype extends Any = any,
+    Kind extends string = string
+  > extends Base<Dialect, Kind> {
+    readonly subtype: Subtype
+  }
+
+  /** Composite/record database type. */
+  export interface Composite<
+    Dialect extends string = string,
+    Fields extends Record<string, Any> = Record<string, any>,
+    Kind extends string = string
+  > extends Base<Dialect, Kind> {
+    readonly fields: Fields
+  }
+
+  /** Named domain database type. */
+  export interface Domain<
+    Dialect extends string = string,
+    BaseType extends Any = any,
+    Kind extends string = string
+  > extends Base<Dialect, Kind> {
+    readonly base: BaseType
+  }
+
+  /** Enumeration database type. */
+  export interface Enum<
+    Dialect extends string = string,
+    Kind extends string = string
+  > extends Base<Dialect, Kind> {
+    readonly variant: "enum"
+  }
+
+  /** Set database type. */
+  export interface Set<
+    Dialect extends string = string,
+    Kind extends string = string
+  > extends Base<Dialect, Kind> {
+    readonly variant: "set"
+  }
 
   export type PgUuid = Base<"postgres", "uuid">
   export type PgText = Base<"postgres", "text">
@@ -94,6 +157,11 @@ export declare namespace DbType {
   export type PgInterval = Base<"postgres", "interval">
   export type PgBytea = Base<"postgres", "bytea">
   export type PgJsonb = Base<"postgres", "jsonb">
+  export type PgArray<Element extends Any = any> = Array<"postgres", Element, string>
+  export type PgRange<Subtype extends Any = any, Kind extends string = string> = Range<"postgres", Subtype, Kind>
+  export type PgMultirange<Subtype extends Any = any, Kind extends string = string> = Multirange<"postgres", Subtype, Kind>
+  export type PgComposite<Fields extends Record<string, Any> = Record<string, any>, Kind extends string = string> = Composite<"postgres", Fields, Kind>
+  export type PgDomain<BaseType extends Any = any, Kind extends string = string> = Domain<"postgres", BaseType, Kind>
 
   export type MySqlUuid = Base<"mysql", "uuid">
   export type MySqlText = Base<"mysql", "text">
@@ -115,6 +183,9 @@ export declare namespace DbType {
   export type MySqlBinary = Base<"mysql", "binary">
   export type MySqlVarBinary = Base<"mysql", "varbinary">
   export type MySqlBlob = Base<"mysql", "blob">
+  export type MySqlArray<Element extends Any = any> = Array<"mysql", Element, string>
+  export type MySqlComposite<Fields extends Record<string, Any> = Record<string, any>, Kind extends string = string> = Composite<"mysql", Fields, Kind>
+  export type MySqlDomain<BaseType extends Any = any, Kind extends string = string> = Domain<"mysql", BaseType, Kind>
 
   export type Any =
     | PgUuid
@@ -135,6 +206,11 @@ export declare namespace DbType {
     | PgInterval
     | PgBytea
     | PgJsonb
+    | PgArray
+    | PgRange
+    | PgMultirange
+    | PgComposite
+    | PgDomain
     | MySqlUuid
     | MySqlText
     | MySqlVarchar
@@ -155,9 +231,19 @@ export declare namespace DbType {
     | MySqlBinary
     | MySqlVarBinary
     | MySqlBlob
+    | MySqlArray
+    | MySqlComposite
+    | MySqlDomain
     | Json
     | Base<string, string>
-}
+    | Array<string, any, string>
+    | Range<string, any, string>
+    | Multirange<string, any, string>
+    | Composite<string, Record<string, any>, string>
+    | Domain<string, any, string>
+    | Enum<string, string>
+    | Set<string, string>
+  }
 
 /** Canonical static metadata stored on an expression. */
 export interface State<

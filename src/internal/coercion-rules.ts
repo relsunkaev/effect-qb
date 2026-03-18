@@ -1,11 +1,17 @@
 import type * as Expression from "../expression.ts"
-import type { CanCastDbType as LookupCanCastDbType, CanCompareDbTypes as LookupCanCompareDbTypes, CanTextuallyCoerceDbType as LookupCanTextuallyCoerceDbType } from "./datatypes/lookup.ts"
+import type { CanCastDbType as LookupCanCastDbType, CanCompareDbTypes as LookupCanCompareDbTypes, CanContainDbTypes as LookupCanContainDbTypes, CanTextuallyCoerceDbType as LookupCanTextuallyCoerceDbType } from "./datatypes/lookup.ts"
 
 export type CanCompareDbTypes<
   Left extends Expression.DbType.Any,
   Right extends Expression.DbType.Any,
   Dialect extends string
 > = LookupCanCompareDbTypes<Left, Right, Dialect>
+
+export type CanContainDbTypes<
+  Left extends Expression.DbType.Any,
+  Right extends Expression.DbType.Any,
+  Dialect extends string
+> = LookupCanContainDbTypes<Left, Right, Dialect>
 
 export type CanTextuallyCoerceDbType<
   Db extends Expression.DbType.Any,

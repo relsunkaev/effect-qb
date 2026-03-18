@@ -234,7 +234,10 @@ const makeColumnModule = <
     timestamp: () => primitive(Schema.Date, dialectType(kinds.timestamp)),
     json: <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
       makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
-        dbType: dialectType(kinds.json) as Expression.DbType.Json<Dialect, JsonKind>,
+        dbType: {
+          ...dialectType(kinds.json),
+          variant: "json"
+        } as Expression.DbType.Json<Dialect, JsonKind>,
         nullable: false,
         hasDefault: false,
         generated: false,
