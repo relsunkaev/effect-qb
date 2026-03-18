@@ -449,6 +449,110 @@ describe("mysql dialect behavior", () => {
     )
   })
 
+  test("renders mysql lateral joins with correlated outer references", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const lateralPosts = Mysql.Query.lateral(
+      Mysql.Query.select({
+        postId: posts.id,
+        userId: posts.userId
+      }).pipe(
+        Mysql.Query.from(posts),
+        Mysql.Query.where(Mysql.Query.eq(posts.userId, users.id))
+      ),
+      "user_posts"
+    )
+
+    const plan = Mysql.Query.select({
+      userId: users.id,
+      postId: lateralPosts.postId
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.innerJoin(lateralPosts, true)
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select `users`.`id` as `userId`, `user_posts`.`postId` as `postId` from `users` inner join lateral (select `posts`.`id` as `postId`, `posts`.`userId` as `userId` from `posts` where (`posts`.`userId` = `users`.`id`)) as `user_posts` on true"
+    )
+    expect(rendered.params).toEqual([])
+  })
+
+  test("renders mysql recursive ctes with the recursive keyword", () => {
+    const { posts } = makeMysqlSocialGraph()
+
+    const recursivePosts = Mysql.Query.withRecursive(
+      Mysql.Query.select({
+        userId: posts.userId
+      }).pipe(
+        Mysql.Query.from(posts)
+      ),
+      "recursive_posts"
+    )
+
+    const plan = Mysql.Query.select({
+      userId: recursivePosts.userId
+    }).pipe(
+      Mysql.Query.from(recursivePosts)
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "with recursive `recursive_posts` as (select `posts`.`userId` as `userId` from `posts`) select `recursive_posts`.`userId` as `userId` from `recursive_posts`"
+    )
+    expect(rendered.params).toEqual([])
+  })
+
+  test("renders mysql upsert statements with duplicate-key updates and returning projections", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+
+    const upsertPlan = Mysql.Query.returning({
+      id: users.id,
+      email: users.email
+    })(Mysql.Query.upsert(users, {
+      id: userId,
+      email: "alice@example.com",
+      bio: null
+    }, ["id"] as const, {
+      email: "alice@new.example.com"
+    }))
+
+    const rendered = Mysql.Renderer.make().render(upsertPlan)
+
+    expect(rendered.sql).toBe(
+      "insert into `users` (`id`, `email`, `bio`) values (?, ?, null) on duplicate key update `email` = ? returning `users`.`id` as `id`, `users`.`email` as `email`"
+    )
+    expect(rendered.params).toEqual([
+      userId,
+      "alice@example.com",
+      "alice@new.example.com"
+    ])
+  })
+
+  test("renders mysql locking clauses at the end of select queries", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.select({
+      id: users.id
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.lock("update", { nowait: true, skipLocked: true })
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select `users`.`id` as `id` from `users` for update nowait skip locked"
+    )
+    expect(rendered.params).toEqual([])
+  })
+
   test("renders mysql set operators with stable operand ordering", () => {
     const { users } = makeMysqlSocialGraph()
 

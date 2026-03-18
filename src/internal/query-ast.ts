@@ -67,6 +67,22 @@ export type DdlClause =
       readonly ifExists: boolean
     }
 
+/** Locking mode attached to a select statement. */
+export interface LockClause {
+  readonly kind: "lock"
+  readonly mode: "update" | "share"
+  readonly nowait?: boolean
+  readonly skipLocked?: boolean
+}
+
+/** Conflict clause attached to an insert statement. */
+export interface ConflictClause {
+  readonly kind: "conflict"
+  readonly columns: readonly [string, ...string[]]
+  readonly action: "doNothing" | "doUpdate"
+  readonly values?: readonly AssignmentClause[]
+}
+
 /** Join kinds supported by the current query layer. */
 export type JoinKind = "inner" | "left" | "right" | "full" | "cross"
 
@@ -119,12 +135,15 @@ export interface Ast<
   readonly select: Selection
   readonly distinct?: boolean
   readonly setBase?: unknown
+  readonly recursive?: boolean
   readonly from?: FromClause
   readonly into?: FromClause
   readonly target?: FromClause
   readonly values?: readonly AssignmentClause[]
   readonly set?: readonly AssignmentClause[]
   readonly ddl?: DdlClause
+  readonly lock?: LockClause
+  readonly conflict?: ConflictClause
   readonly where: readonly WhereClause[]
   readonly having: readonly HavingClause[]
   readonly joins: readonly JoinClause[]

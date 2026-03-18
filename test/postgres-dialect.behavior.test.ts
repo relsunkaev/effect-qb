@@ -450,6 +450,110 @@ describe("postgres dialect behavior", () => {
     )
   })
 
+  test("renders postgres lateral joins with correlated outer references", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const lateralPosts = Postgres.Query.lateral(
+      Postgres.Query.select({
+        postId: posts.id,
+        userId: posts.userId
+      }).pipe(
+        Postgres.Query.from(posts),
+        Postgres.Query.where(Postgres.Query.eq(posts.userId, users.id))
+      ),
+      "user_posts"
+    )
+
+    const plan = Postgres.Query.select({
+      userId: users.id,
+      postId: lateralPosts.postId
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.innerJoin(lateralPosts, true)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select "users"."id" as "userId", "user_posts"."postId" as "postId" from "users" inner join lateral (select "posts"."id" as "postId", "posts"."userId" as "userId" from "posts" where ("posts"."userId" = "users"."id")) as "user_posts" on true'
+    )
+    expect(rendered.params).toEqual([])
+  })
+
+  test("renders recursive postgres ctes with the recursive keyword", () => {
+    const { posts } = makePostgresSocialGraph()
+
+    const recursivePosts = Postgres.Query.withRecursive(
+      Postgres.Query.select({
+        userId: posts.userId
+      }).pipe(
+        Postgres.Query.from(posts)
+      ),
+      "recursive_posts"
+    )
+
+    const plan = Postgres.Query.select({
+      userId: recursivePosts.userId
+    }).pipe(
+      Postgres.Query.from(recursivePosts)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'with recursive "recursive_posts" as (select "posts"."userId" as "userId" from "posts") select "recursive_posts"."userId" as "userId" from "recursive_posts"'
+    )
+    expect(rendered.params).toEqual([])
+  })
+
+  test("renders postgres upsert statements with conflict targets and returning projections", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text(),
+      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    })
+
+    const upsertPlan = Postgres.Query.returning({
+      id: users.id,
+      email: users.email
+    })(Postgres.Query.upsert(users, {
+      id: userId,
+      email: "alice@example.com",
+      bio: null
+    }, ["id"] as const, {
+      email: "alice@new.example.com"
+    }))
+
+    const rendered = Postgres.Renderer.make().render(upsertPlan)
+
+    expect(rendered.sql).toBe(
+      'insert into "users" ("id", "email", "bio") values ($1, $2, null) on conflict ("id") do update set "email" = $3 returning "users"."id" as "id", "users"."email" as "email"'
+    )
+    expect(rendered.params).toEqual([
+      userId,
+      "alice@example.com",
+      "alice@new.example.com"
+    ])
+  })
+
+  test("renders postgres locking clauses at the end of select queries", () => {
+    const { users } = makePostgresSocialGraph()
+
+    const plan = Postgres.Query.select({
+      id: users.id
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.lock("update", { nowait: true, skipLocked: true })
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select "users"."id" as "id" from "users" for update nowait skip locked'
+    )
+    expect(rendered.params).toEqual([])
+  })
+
   test("renders postgres set operators with stable operand ordering", () => {
     const { users } = makePostgresSocialGraph()
 

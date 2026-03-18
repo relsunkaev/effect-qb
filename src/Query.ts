@@ -17,6 +17,8 @@ export type {
   QueryRequirement
 } from "./internal/query-requirements.ts"
 export type {
+  ConflictClause,
+  LockClause,
   QueryStatement,
   SetOperatorKind as SetOperator
 } from "./internal/query-ast.ts"
@@ -320,6 +322,7 @@ export type DerivedSource<
   readonly baseName: Alias
   readonly dialect: PlanDialectOf<PlanValue>
   readonly plan: CompletePlan<PlanValue>
+  readonly required?: never
   readonly columns: DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias>
 }
 
@@ -333,6 +336,21 @@ export type CteSource<
   readonly baseName: Alias
   readonly dialect: PlanDialectOf<PlanValue>
   readonly plan: CompletePlan<PlanValue>
+  readonly recursive?: boolean
+  readonly columns: DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias>
+}
+
+/** Wrapper returned by `lateral(subquery, alias)` for correlated derived sources. */
+export type LateralSource<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  Alias extends string
+> = DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias> & {
+  readonly kind: "lateral"
+  readonly name: Alias
+  readonly baseName: Alias
+  readonly dialect: PlanDialectOf<PlanValue>
+  readonly plan: PlanValue
+  readonly required: RequiredOfPlan<PlanValue>
   readonly columns: DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias>
 }
 
@@ -352,6 +370,18 @@ type CteSourceShape = {
   readonly baseName: string
   readonly dialect: string
   readonly plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  readonly recursive?: boolean
+  readonly required?: never
+  readonly columns: Record<string, unknown>
+}
+
+type LateralSourceShape = {
+  readonly kind: "lateral"
+  readonly name: string
+  readonly baseName: string
+  readonly dialect: string
+  readonly plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  readonly required: string
   readonly columns: Record<string, unknown>
 }
 
@@ -361,6 +391,7 @@ export type SourceLike =
   | TableLike<any, any>
   | DerivedSourceShape
   | CteSourceShape
+  | LateralSourceShape
   | DerivedSourceAliasError
 
 /** Concrete table sources that can be targeted by mutation statements. */
@@ -378,6 +409,7 @@ export type SourceDialectOf<Source extends SourceLike> =
   Source extends TableLike<any, infer Dialect> ? Dialect :
     Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
       Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
+        Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
       never
 
 /** Extracts the base table name from a source. */
@@ -385,7 +417,25 @@ export type SourceBaseNameOf<Source extends SourceLike> =
   Source extends TableLike<any, any> ? Source[typeof Table.TypeId]["baseName"] :
     Source extends { readonly kind: "derived"; readonly baseName: infer BaseName extends string } ? BaseName :
       Source extends { readonly kind: "cte"; readonly baseName: infer BaseName extends string } ? BaseName :
+        Source extends { readonly kind: "lateral"; readonly baseName: infer BaseName extends string } ? BaseName :
       never
+
+/** Extracts the outer-scope requirements carried by a source. */
+export type SourceRequiredOf<Source extends SourceLike> =
+  Source extends TableLike<any, any> ? never :
+    Source extends { readonly kind: "derived" } ? never :
+      Source extends { readonly kind: "cte" } ? never :
+        Source extends { readonly kind: "lateral"; readonly required: infer Required extends string } ? Required :
+          never
+
+/** Helper type used when a correlated source is used before its outer dependencies are in scope. */
+export type SourceRequirementError<
+  Source extends SourceLike
+> = Source & {
+  readonly __effect_qb_error__: "effect-qb: correlated source requires outer-scope tables to be in scope first"
+  readonly __effect_qb_required_sources__: SourceRequiredOf<Source>
+  readonly __effect_qb_hint__: "Join the outer tables first, then wrap the correlated plan in lateral(...)"
+}
 
 /** Helper type used when a raw plan is passed where `as(...)` is required. */
 export type DerivedSourceRequiredError<

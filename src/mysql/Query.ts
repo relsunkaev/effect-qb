@@ -30,6 +30,8 @@ import {
   type RuntimeResultRow,
   type RuntimeResultRows,
   type SchemaTableLike,
+  type SourceRequiredOf,
+  type SourceRequirementError,
   type StatementOfPlan,
   type StringExpressionInput
 } from "../query.ts"
@@ -75,9 +77,12 @@ export const max = mysqlQuery.max
 export const min = mysqlQuery.min
 export const as = mysqlQuery.as
 export const with_ = mysqlQuery.with
+export const withRecursive = mysqlQuery.withRecursive
+export const lateral = mysqlQuery.lateral
 export const returning = mysqlQuery.returning
 export const insert = mysqlQuery.insert
 export const update = mysqlQuery.update
+export const upsert = mysqlQuery.upsert
 export const delete_ = mysqlQuery.delete
 export const createTable = mysqlQuery.createTable
 export const dropTable = mysqlQuery.dropTable
@@ -98,6 +103,7 @@ export const crossJoin = mysqlQuery.crossJoin
 export const distinct = mysqlQuery.distinct
 export const limit = mysqlQuery.limit
 export const offset = mysqlQuery.offset
+export const lock = mysqlQuery.lock
 export const orderBy = mysqlQuery.orderBy
 export const groupBy = mysqlQuery.groupBy
 export { case_ as case }
@@ -136,6 +142,8 @@ export type {
   RuntimeResultRow,
   RuntimeResultRows,
   SchemaTableLike,
+  SourceRequiredOf,
+  SourceRequirementError,
   StatementOfPlan,
   StringExpressionInput
 }

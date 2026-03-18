@@ -7,6 +7,7 @@ import {
   type CteSource,
   type DerivedSelectionOf,
   type DerivedSource,
+  type LateralSource,
   type QueryPlan,
   getAst,
   makeExpression,
@@ -47,7 +48,7 @@ const reboundedColumns = <
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
   Alias extends string
 >(
-  plan: CompletePlan<PlanValue>,
+  plan: PlanValue,
   alias: Alias
 ): DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias> => {
   const ast = getAst(plan)
@@ -99,6 +100,7 @@ export const makeDerivedSource = <
   derived.baseName = alias
   derived.dialect = plan[Plan.TypeId].dialect
   derived.plan = plan
+  derived.required = undefined as never
   derived.columns = columns
   return derived as unknown as DerivedSource<PlanValue, Alias>
 }
@@ -108,7 +110,8 @@ export const makeCteSource = <
   Alias extends string
 >(
   plan: CompletePlan<PlanValue>,
-  alias: Alias
+  alias: Alias,
+  recursive = false
 ): CteSource<PlanValue, Alias> => {
   const columns = reboundedColumns(plan, alias)
   const cte = Object.create(DerivedProto) as Record<string, unknown>
@@ -118,6 +121,28 @@ export const makeCteSource = <
   cte.baseName = alias
   cte.dialect = plan[Plan.TypeId].dialect
   cte.plan = plan
+  cte.recursive = recursive
+  cte.required = undefined as never
   cte.columns = columns
   return cte as unknown as CteSource<PlanValue, Alias>
+}
+
+export const makeLateralSource = <
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+  Alias extends string
+>(
+  plan: PlanValue,
+  alias: Alias
+): LateralSource<PlanValue, Alias> => {
+  const columns = reboundedColumns(plan, alias)
+  const lateral = Object.create(DerivedProto) as Record<string, unknown>
+  Object.assign(lateral, columns)
+  lateral.kind = "lateral"
+  lateral.name = alias
+  lateral.baseName = alias
+  lateral.dialect = plan[Plan.TypeId].dialect
+  lateral.plan = plan
+  lateral.required = undefined as never
+  lateral.columns = columns
+  return lateral as unknown as LateralSource<PlanValue, Alias>
 }

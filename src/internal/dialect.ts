@@ -9,6 +9,7 @@ export interface RenderState {
   readonly ctes: {
     readonly name: string
     readonly sql: string
+    readonly recursive?: boolean
   }[]
   readonly cteNames: Set<string>
 }

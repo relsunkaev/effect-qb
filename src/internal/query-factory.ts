@@ -54,10 +54,13 @@ import {
   type SetCompatiblePlan,
   type SetCompatibleRightPlan,
   type SchemaTableLike,
+  type SourceRequiredOf,
+  type SourceRequirementError,
   type TableDialectOf,
   type StatementOfPlan,
   type MutationInputOf,
   type MutationTargetLike,
+  type MergeCapabilities,
   type SourceOf,
   type SourceDialectOf,
   type SourceLike,
@@ -72,7 +75,7 @@ import * as ExpressionAst from "./expression-ast.ts"
 import type { AssumeTrue } from "./predicate-analysis.ts"
 import type { TrueFormula } from "./predicate-formula.ts"
 import { dedupeGroupedExpressions } from "./grouping-key.ts"
-import { makeCteSource, makeDerivedSource } from "./derived-table.ts"
+import { makeCteSource, makeDerivedSource, makeLateralSource } from "./derived-table.ts"
 import * as ProjectionAlias from "./projection-alias.ts"
 import * as QueryAst from "./query-ast.ts"
 import { normalizeColumnList } from "./table-options.ts"
@@ -1606,6 +1609,11 @@ type ValidateDdlColumns<
   Columns extends readonly string[]
 > = Exclude<Columns[number], SchemaColumnNames<Target>> extends never ? Columns : never
 
+type ValidateTargetColumns<
+  Target extends MutationTargetLike,
+  Columns extends readonly string[]
+> = Exclude<Columns[number], Extract<keyof Target[typeof Table.TypeId]["fields"], string>> extends never ? Columns : never
+
 type CreateIndexOptions = {
   readonly name?: string
   readonly unique?: boolean
@@ -1623,6 +1631,15 @@ type CreateTableOptions = {
 
 type DropTableOptions = {
   readonly ifExists?: boolean
+}
+
+type LockOptions = {
+  readonly nowait?: boolean
+  readonly skipLocked?: boolean
+}
+
+type UpsertConflictOptions = {
+  readonly update?: Record<string, unknown>
 }
 
 type RequireSelectStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
@@ -1690,6 +1707,26 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     alias: Alias
   ): import("../query.ts").CteSource<PlanValue, Alias> {
     return makeCteSource(value, alias)
+  }
+
+  function withRecursive_<
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    Alias extends string
+  >(
+    value: CompletePlan<PlanValue>,
+    alias: Alias
+  ): import("../query.ts").CteSource<PlanValue, Alias> {
+    return makeCteSource(value, alias, true)
+  }
+
+  function lateral<
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    Alias extends string
+  >(
+    value: PlanValue,
+    alias: Alias
+  ): import("../query.ts").LateralSource<PlanValue, Alias> {
+    return makeLateralSource(value, alias)
   }
 
   const select = <Selection extends SelectionShape>(
@@ -1909,6 +1946,8 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     <PlanValue extends QueryPlan<any, any, {}, any, any, any, any, any, any>>(
       plan: PlanValue & RequireSelectStatement<PlanValue> & (
         SourceNameOf<CurrentTable> extends OutstandingOfPlan<PlanValue> ? unknown : never
+      ) & (
+        SourceRequiredOf<CurrentTable> extends never ? unknown : SourceRequirementError<CurrentTable>
       )
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
@@ -1925,10 +1964,10 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
-      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
+      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
         ? table.name
         : (table as TableLike)[Table.TypeId].name
-      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
+      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
         ? table.baseName
         : (table as TableLike)[Table.TypeId].baseName
       const nextAst = {
@@ -2040,10 +2079,10 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
-      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
+      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
         ? table.name
         : (table as TableLike)[Table.TypeId].name
-      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
+      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
         ? table.baseName
         : (table as TableLike)[Table.TypeId].baseName
       const nextAvailable = Object.assign(
@@ -2105,10 +2144,10 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
       const onExpression = toDialectExpression(on)
-      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
+      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
         ? table.name
         : (table as TableLike)[Table.TypeId].name
-      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
+      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
         ? table.baseName
         : (table as TableLike)[Table.TypeId].baseName
       const baseAvailable = (kind === "right" || kind === "full"
@@ -2182,6 +2221,43 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
           value: expression,
           direction
         }]
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+    }
+
+  const lock = (
+    mode: "update" | "share",
+    options: LockOptions = {}
+  ) =>
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & RequireSelectStatement<PlanValue>
+    ): QueryPlan<
+      SelectionOfPlan<PlanValue>,
+      RequiredOfPlan<PlanValue>,
+      AvailableOfPlan<PlanValue>,
+      PlanDialectOf<PlanValue>,
+      GroupedOfPlan<PlanValue>,
+      ScopedNamesOfPlan<PlanValue>,
+      OutstandingOfPlan<PlanValue>,
+      AssumptionsOfPlan<PlanValue>,
+      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, "transaction">,
+      StatementOfPlan<PlanValue>
+    > => {
+      const current = plan[Plan.TypeId]
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      return makePlan({
+        selection: current.selection,
+        required: current.required as RequiredOfPlan<PlanValue>,
+        available: current.available,
+        dialect: current.dialect as PlanDialectOf<PlanValue>
+      }, {
+        ...currentAst,
+        lock: {
+          kind: "lock",
+          mode,
+          nowait: options.nowait ?? false,
+          skipLocked: options.skipLocked ?? false
+        }
       }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
@@ -2390,6 +2466,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
         source: target
       },
       values: assignments,
+      conflict: undefined,
       where: [],
       having: [],
       joins: [],
@@ -2430,11 +2507,11 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
         }
       } as AddAvailable<{}, SourceNameOf<Target>>,
       dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
-    }, {
-      kind: "update",
-      select: {},
-      target: {
-        kind: "from",
+      }, {
+        kind: "update",
+        select: {},
+        target: {
+          kind: "from",
         tableName: sourceName,
         baseTableName: sourceBaseName,
         source: target
@@ -2445,7 +2522,71 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined as unknown as TrueFormula, "write", "update")
+      }, undefined as unknown as TrueFormula, "write", "update")
+  }
+
+  const upsert = <
+    Target extends MutationTargetLike,
+    Values extends MutationInputOf<Table.InsertOf<Target>>,
+    Columns extends DdlColumnInput,
+    UpdateValues extends MutationInputOf<Table.UpdateOf<Target>>
+  >(
+    target: Target,
+    values: Values,
+    conflictColumns: ValidateTargetColumns<Target, NormalizeDdlColumns<Columns>>,
+    updateValues?: UpdateValues
+  ): QueryPlan<
+    {},
+    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<UpdateValues>, SourceNameOf<Target>>,
+    AddAvailable<{}, SourceNameOf<Target>>,
+    TableDialectOf<Target>,
+    never,
+    SourceNameOf<Target>,
+    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<UpdateValues>, SourceNameOf<Target>>,
+    TrueFormula,
+    "write",
+    "insert"
+  > => {
+    const { sourceName, sourceBaseName } = targetSourceDetails(target)
+    const assignments = buildMutationAssignments(target, values)
+    const updateAssignments = updateValues ? buildMutationAssignments(target, updateValues) : []
+    const required = [
+      ...assignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies)),
+      ...updateAssignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies))
+    ]
+    return makePlan({
+      selection: {},
+      required: required.filter((name, index, list) => name !== sourceName && list.indexOf(name) === index) as unknown as Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<UpdateValues>, SourceNameOf<Target>>,
+      available: {
+        [sourceName]: {
+          name: sourceName,
+          mode: "required",
+          baseName: sourceBaseName
+        }
+      } as AddAvailable<{}, SourceNameOf<Target>>,
+      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+    }, {
+      kind: "insert",
+      select: {},
+      into: {
+        kind: "from",
+        tableName: sourceName,
+        baseTableName: sourceBaseName,
+        source: target
+      },
+      values: assignments,
+      conflict: {
+        kind: "conflict",
+        columns: normalizeColumnList(conflictColumns as string | readonly string[]) as readonly [string, ...string[]],
+        action: updateAssignments.length > 0 ? "doUpdate" : "doNothing",
+        values: updateAssignments.length > 0 ? updateAssignments : undefined
+      },
+      where: [],
+      having: [],
+      joins: [],
+      groupBy: [],
+      orderBy: []
+    }, undefined as unknown as TrueFormula, "write", "insert")
   }
 
   const delete_ = <
@@ -2711,9 +2852,12 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     min,
     as,
     with: with_,
+    withRecursive: withRecursive_,
+    lateral,
     returning,
     insert,
     update,
+    upsert,
     delete: delete_,
     createTable,
     dropTable,
@@ -2734,6 +2878,7 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     distinct,
     limit,
     offset,
+    lock,
     orderBy,
     groupBy
   }

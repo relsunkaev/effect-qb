@@ -277,6 +277,71 @@ type CteSourceRow = Q.ResultRow<typeof cteSourcePlan>
 const cteSourceTitle: CteSourceRow["title"] = "hello"
 void cteSourceTitle
 
+const recursiveCteSource = Q.withRecursive(cteSourceSubquery, "recursive_posts")
+const recursiveCteFlag: typeof recursiveCteSource["recursive"] = true
+void recursiveCteFlag
+
+const lateralPosts = Q.lateral(
+  Q.select({
+    postId: posts.id,
+    userId: posts.userId
+  }).pipe(
+    Q.from(posts),
+    Q.where(Q.eq(posts.userId, users.id))
+  ),
+  "user_posts"
+)
+
+type LateralRequired = Q.SourceRequiredOf<typeof lateralPosts>
+const lateralRequired: LateralRequired = "users"
+void lateralRequired
+
+type LateralRequirementError = Q.SourceRequirementError<typeof lateralPosts>
+const lateralRequirementMessage: LateralRequirementError["__effect_qb_error__"] =
+  "effect-qb: correlated source requires outer-scope tables to be in scope first"
+void lateralRequirementMessage
+
+Q.select({
+  userId: users.id
+}).pipe(
+  // @ts-expect-error correlated sources cannot start a query
+  Q.from(lateralPosts)
+)
+
+const lockPlan = Q.select({
+  userId: users.id
+}).pipe(
+  Q.from(users),
+  Q.lock("update", { nowait: true, skipLocked: true })
+)
+
+type LockPlanCapabilities = Q.CapabilitiesOfPlan<typeof lockPlan>
+const lockPlanCapability: LockPlanCapabilities = "transaction"
+void lockPlanCapability
+
+const upsertPlan = Q.upsert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}, ["id"] as const, {
+  email: "alice@example.com"
+})
+
+type UpsertStatement = Q.StatementOfPlan<typeof upsertPlan>
+const upsertStatement: UpsertStatement = "insert"
+type UpsertCapability = Q.CapabilitiesOfPlan<typeof upsertPlan>
+const upsertCapability: UpsertCapability = "write"
+void upsertStatement
+void upsertCapability
+
+Q.upsert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}, 
+// @ts-expect-error upsert conflict columns must exist on the target table
+["missing"] as const, {
+  email: "alice@example.com"
+})
+
 const activeUsers = Q.select({
   email: users.email
 }).pipe(

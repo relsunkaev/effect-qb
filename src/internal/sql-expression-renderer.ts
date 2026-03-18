@@ -175,6 +175,11 @@ export const renderQueryAst = (
       if (ast.offset) {
         clauses.push(`offset ${renderExpression(ast.offset, state, dialect)}`)
       }
+      if (ast.lock) {
+        clauses.push(
+          `${ast.lock.mode === "update" ? "for update" : "for share"}${ast.lock.nowait ? " nowait" : ""}${ast.lock.skipLocked ? " skip locked" : ""}`
+        )
+      }
       sql = clauses.join(" ")
       break
     }
@@ -218,6 +223,21 @@ export const renderQueryAst = (
         sql += ` (${columns}) values (${values})`
       } else {
         sql += " default values"
+      }
+      if (insertAst.conflict) {
+        const updateValues = (insertAst.conflict.values ?? []).map((entry) =>
+          `${dialect.quoteIdentifier(entry.columnName)} = ${renderExpression(entry.value, state, dialect)}`
+        ).join(", ")
+        if (dialect.name === "postgres") {
+          sql += ` on conflict (${insertAst.conflict.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+          sql += insertAst.conflict.action === "doNothing"
+            ? " do nothing"
+            : ` do update set ${updateValues}`
+        } else if (insertAst.conflict.action === "doNothing") {
+          sql = sql.replace(/^insert/, "insert ignore")
+        } else {
+          sql += ` on duplicate key update ${updateValues}`
+        }
       }
       const returning = renderSelectionList(insertAst.select as Record<string, unknown>, state, dialect, false)
       projections = returning.projections
@@ -296,7 +316,7 @@ export const renderQueryAst = (
     }
   }
   return {
-    sql: `with ${state.ctes.map((entry) => `${dialect.quoteIdentifier(entry.name)} as (${entry.sql})`).join(", ")} ${sql}`,
+    sql: `with${state.ctes.some((entry) => entry.recursive) ? " recursive" : ""} ${state.ctes.map((entry) => `${dialect.quoteIdentifier(entry.name)} as (${entry.sql})`).join(", ")} ${sql}`,
     projections
   }
 }
@@ -312,13 +332,15 @@ const renderSourceReference = (
     const cte = source as unknown as {
       readonly name: string
       readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+      readonly recursive?: boolean
     }
     if (!state.cteNames.has(cte.name)) {
       state.cteNames.add(cte.name)
       const rendered = renderQueryAst(Query.getAst(cte.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect)
       state.ctes.push({
         name: cte.name,
-        sql: rendered.sql
+        sql: rendered.sql,
+        recursive: cte.recursive
       })
     }
     return dialect.quoteIdentifier(cte.name)
@@ -332,6 +354,13 @@ const renderSourceReference = (
       // derived tables are inlined, so no CTE registration is needed
     }
     return `(${renderQueryAst(Query.getAst(derived.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect).sql}) as ${dialect.quoteIdentifier(derived.name)}`
+  }
+  if (typeof source === "object" && source !== null && "kind" in source && (source as { readonly kind?: string }).kind === "lateral") {
+    const lateral = source as unknown as {
+      readonly name: string
+      readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+    }
+    return `lateral (${renderQueryAst(Query.getAst(lateral.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect).sql}) as ${dialect.quoteIdentifier(lateral.name)}`
   }
   return dialect.renderTableReference(tableName, baseTableName)
 }

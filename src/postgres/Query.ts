@@ -30,6 +30,8 @@ import {
   type RuntimeResultRow,
   type RuntimeResultRows,
   type SchemaTableLike,
+  type SourceRequiredOf,
+  type SourceRequirementError,
   type StatementOfPlan,
   type StringExpressionInput
 } from "../query.ts"
@@ -75,9 +77,12 @@ export const max = postgresQuery.max
 export const min = postgresQuery.min
 export const as = postgresQuery.as
 export const with_ = postgresQuery.with
+export const withRecursive = postgresQuery.withRecursive
+export const lateral = postgresQuery.lateral
 export const returning = postgresQuery.returning
 export const insert = postgresQuery.insert
 export const update = postgresQuery.update
+export const upsert = postgresQuery.upsert
 export const delete_ = postgresQuery.delete
 export const createTable = postgresQuery.createTable
 export const dropTable = postgresQuery.dropTable
@@ -98,6 +103,7 @@ export const crossJoin = postgresQuery.crossJoin
 export const distinct = postgresQuery.distinct
 export const limit = postgresQuery.limit
 export const offset = postgresQuery.offset
+export const lock = postgresQuery.lock
 export const orderBy = postgresQuery.orderBy
 export const groupBy = postgresQuery.groupBy
 export { case_ as case }
@@ -136,6 +142,8 @@ export type {
   RuntimeResultRow,
   RuntimeResultRows,
   SchemaTableLike,
+  SourceRequiredOf,
+  SourceRequirementError,
   StatementOfPlan,
   StringExpressionInput
 }
