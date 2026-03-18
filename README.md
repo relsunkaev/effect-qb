@@ -13,9 +13,13 @@ Composable, type-safe SQL query construction for PostgreSQL and MySQL with stati
   - [Select and Infer the Result Shape](#select-and-infer-the-result-shape)
   - [Predicate-Driven Nullability Refinement](#predicate-driven-nullability-refinement)
   - [Left Joins: Static vs Runtime Row Types](#left-joins-static-vs-runtime-row-types)
+  - [Join Variants](#join-variants)
   - [Case Expressions](#case-expressions)
   - [Exists Subqueries](#exists-subqueries)
+  - [Set Operators](#set-operators)
   - [Aggregation and Grouping](#aggregation-and-grouping)
+  - [Distinct, Limit, and Offset](#distinct-limit-and-offset)
+  - [Window Functions](#window-functions)
 - [Mutation Statements](#mutation-statements)
 - [Query Construction Safety](#query-construction-safety)
 - [Rendering](#rendering)
@@ -254,6 +258,42 @@ Why the split:
 
 This is intentional. The library no longer validates database rows against query result schemas at runtime.
 
+### Join Variants
+
+`rightJoin(...)`, `fullJoin(...)`, and `crossJoin(...)` are also available:
+
+```ts
+const postsWithUsers = Q.select({
+  userId: users.id,
+  postId: posts.id
+}).pipe(
+  Q.from(users),
+  Q.rightJoin(posts, Q.eq(users.id, posts.userId))
+)
+
+type PostsWithUsersRow = Q.ResultRow<typeof postsWithUsers>
+// {
+//   userId: string | null
+//   postId: string
+// }
+
+const allUserPostPairs = Q.select({
+  userId: users.id,
+  postId: posts.id
+}).pipe(
+  Q.from(users),
+  Q.crossJoin(posts)
+)
+
+type AllUserPostPairsRow = Q.ResultRow<typeof allUserPostPairs>
+// {
+//   userId: string
+//   postId: string
+// }
+```
+
+Join optionality still feeds the row type. `rightJoin(...)` can demote the already-in-scope side to nullable, and `fullJoin(...)` makes both sides nullable until later predicates refine them.
+
 ### Case Expressions
 
 Searched `CASE` is available through a builder:
@@ -371,6 +411,33 @@ type UsersWithActivePostsRow = Q.ResultRow<typeof usersWithActivePosts>
 
 `Q.with(...)` returns a typed source wrapper, so the CTE alias is available everywhere a table-like source is accepted. The CTE definition is hoisted into the rendered SQL automatically.
 
+### Set Operators
+
+Compound queries preserve the selection shape of the left-hand side and require a compatible right-hand side:
+
+```ts
+const activeUserIds = Q.select({
+  userId: users.id
+}).pipe(
+  Q.from(users)
+)
+
+const authorIds = Q.select({
+  userId: posts.userId
+}).pipe(
+  Q.from(posts)
+)
+
+const combinedUserIds = Q.union(activeUserIds, authorIds)
+
+type CombinedUserIdsRow = Q.ResultRow<typeof combinedUserIds>
+// {
+//   userId: string
+// }
+```
+
+`Q.union(...)`, `Q.intersect(...)`, and `Q.except(...)` require compatible selection shapes and dialects before render or execute.
+
 ### Aggregation and Grouping
 
 ```ts
@@ -397,6 +464,59 @@ Grouped queries stay type-checked:
 - grouped scalar selections must be covered by `groupBy(...)`
 - aggregate expressions like `count(...)`, `max(...)`, and `min(...)` remain legal
 - incompatible aggregate/scalar mixes are rejected before render or execute
+
+### Distinct, Limit, and Offset
+
+Pagination and duplicate elimination stay in the same immutable plan chain:
+
+```ts
+const pagedUsers = Q.select({
+  userId: users.id,
+  email: users.email
+}).pipe(
+  Q.from(users),
+  Q.distinct(),
+  Q.orderBy(users.email),
+  Q.limit(10),
+  Q.offset(20)
+)
+
+type PagedUsersRow = Q.ResultRow<typeof pagedUsers>
+// {
+//   userId: string
+//   email: string
+// }
+```
+
+These clauses do not change the row shape. They stay select-only and preserve the same source, dialect, and nullability guarantees as the underlying query.
+
+### Window Functions
+
+Window functions stay distinct from grouped aggregates in the type system:
+
+```ts
+const rankedPosts = Q.select({
+  userId: posts.userId,
+  rowNumber: Q.rowNumber({
+    partitionBy: [posts.userId],
+    orderBy: [{ value: posts.id, direction: "asc" }]
+  }),
+  postCount: Q.over(Q.count(posts.id), {
+    partitionBy: [posts.userId]
+  })
+}).pipe(
+  Q.from(posts)
+)
+
+type RankedPostsRow = Q.ResultRow<typeof rankedPosts>
+// {
+//   userId: string
+//   rowNumber: number
+//   postCount: number
+// }
+```
+
+The current surface exposes `Q.rowNumber(...)`, `Q.rank(...)`, `Q.denseRank(...)`, and `Q.over(aggregate, spec)`.
 
 Example of an invalid grouped selection:
 
@@ -724,9 +844,6 @@ const mysqlRenderer = Mysql.Renderer.make()
 This release is focused on typed query construction. Notable gaps:
 
 - DDL workflows
-- set operators such as `union`, `intersect`, and `except`
-- right joins, full joins, and cross joins
-- window functions
 
 See the behavior and type test suites for the exact supported surface.
 
