@@ -14,14 +14,18 @@ import {
   type OrderDirection,
   type OutputOfExpression,
   type OutputOfSelection,
+  type MutationInputOf,
+  type MutationTargetLike,
   type PredicateInput,
   type QueryCapability,
   type QueryPlan,
   type QueryRequirement,
+  type QueryStatement,
   type ResultRow,
   type ResultRows,
   type RuntimeResultRow,
   type RuntimeResultRows,
+  type StatementOfPlan,
   type StringExpressionInput
 } from "../query.ts"
 import { makeDialectQuery } from "../internal/query-factory.ts"
@@ -62,6 +66,10 @@ export const max = mysqlQuery.max
 export const min = mysqlQuery.min
 export const as = mysqlQuery.as
 export const with_ = mysqlQuery.with
+export const returning = mysqlQuery.returning
+export const insert = mysqlQuery.insert
+export const update = mysqlQuery.update
+export const delete_ = mysqlQuery.delete
 export const select = mysqlQuery.select
 export const where = mysqlQuery.where
 export const having = mysqlQuery.having
@@ -73,6 +81,7 @@ export const groupBy = mysqlQuery.groupBy
 export { case_ as case }
 export { in_ as in }
 export { with_ as with }
+export { delete_ as delete }
 
 export type {
   CapabilitiesOfPlan,
@@ -89,14 +98,18 @@ export type {
   OrderDirection,
   OutputOfExpression,
   OutputOfSelection,
+  MutationInputOf,
+  MutationTargetLike,
   PredicateInput,
   QueryCapability,
   QueryPlan,
+  QueryStatement,
   QueryRequirement,
   ResultRow,
   ResultRows,
   RuntimeResultRow,
   RuntimeResultRows,
+  StatementOfPlan,
   StringExpressionInput
 }
 

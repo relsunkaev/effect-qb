@@ -16,6 +16,7 @@ Composable, type-safe SQL query construction for PostgreSQL and MySQL with stati
   - [Case Expressions](#case-expressions)
   - [Exists Subqueries](#exists-subqueries)
   - [Aggregation and Grouping](#aggregation-and-grouping)
+- [Mutation Statements](#mutation-statements)
 - [Query Construction Safety](#query-construction-safety)
 - [Rendering](#rendering)
 - [Execution](#execution)
@@ -419,6 +420,52 @@ type InvalidGroupedPlan = Q.CompletePlan<typeof invalidGroupedPlan>
 // }
 ```
 
+## Mutation Statements
+
+Mutation builders are statement-specific and keep their own type contract:
+
+```ts
+const insertUser = Q.insert(users, {
+  id: "user-1",
+  email: "alice@example.com",
+  bio: null
+})
+
+const updatedUser = Q.update(users, {
+  email: "updated@example.com"
+})
+
+const deletedUser = Q.delete(users)
+
+type InsertStatement = Q.StatementOfPlan<typeof insertUser>
+type UpdateStatement = Q.StatementOfPlan<typeof updatedUser>
+type DeleteStatement = Q.StatementOfPlan<typeof deletedUser>
+
+// "insert"
+const insertKind: InsertStatement = "insert"
+// "update"
+const updateKind: UpdateStatement = "update"
+// "delete"
+const deleteKind: DeleteStatement = "delete"
+```
+
+Mutations can optionally `returning(...)` projected rows:
+
+```ts
+const insertWithReturning = Q.returning({
+  id: users.id,
+  email: users.email
+})(insertUser)
+
+type InsertWithReturningRow = Q.ResultRow<typeof insertWithReturning>
+// {
+//   id: string
+//   email: string
+// }
+```
+
+The statement kind stays in the plan type, so `where(...)`/`from(...)`/joins are restricted to the right statement shape. For example, `where(...)` applies to `select`, `update`, and `delete`, while `from(...)` and joins remain select-only.
+
 ## Query Construction Safety
 
 The builders allow partial plans while you assemble a query. The strict check happens when a plan must be complete, such as:
@@ -518,6 +565,22 @@ type ValidUsersWithPostsRow = Q.ResultRow<typeof validUsersWithPosts>
 // }
 ```
 
+Mutation statements participate in the same plan checks:
+
+```ts
+const updateWithWhere = Q.where(Q.eq(users.id, "user-1"))(
+  Q.update(users, {
+    email: "updated@example.com"
+  })
+)
+
+// @ts-expect-error from(...) is select-only
+Q.from(users)(updateWithWhere)
+
+// @ts-expect-error returning(...) is mutation-only
+Q.returning({ id: users.id })(Q.select({ id: users.id }).pipe(Q.from(users)))
+```
+
 ## Rendering
 
 ```ts
@@ -609,6 +672,7 @@ What the type system catches:
 - optional joined sources becoming required when predicates prove presence
 - exact nested projection result shapes
 - impossible write-only dialect errors removed from read-query executor error channels
+- statement-specific builder restrictions for `insert`, `update`, `delete`, and `returning`
 
 Typical benefits:
 
@@ -621,6 +685,7 @@ Typical benefits:
 - read predicates include equality, inequality, range checks, pattern matches, and membership tests
 - executors return the same `ResultRows<typeof plan>` type the plan implies
 - dialect executors expose a tighter error channel than the raw dialect catalog when the query shape rules out certain failures
+- mutation plans keep their statement kind in the type system, which makes the wrong builder combinations fail early and readably
 
 Capability composition helpers are also exported for future nested-plan features:
 
@@ -656,9 +721,8 @@ const mysqlRenderer = Mysql.Renderer.make()
 
 ## Unsupported Features
 
-This release is focused on typed read-path query construction. Notable gaps:
+This release is focused on typed query construction. Notable gaps:
 
-- insert / update / delete plan builders
 - DDL workflows
 - set operators such as `union`, `intersect`, and `except`
 - right joins, full joins, and cross joins

@@ -11,39 +11,116 @@ export interface RenderedQueryAst {
   readonly projections: readonly Projection[]
 }
 
-export const renderQueryAst = (
-  ast: QueryAst.Ast<Record<string, unknown>, any>,
+const renderSelectionList = (
+  selection: Record<string, unknown>,
   state: RenderState,
-  dialect: SqlDialect
+  dialect: SqlDialect,
+  validateAggregation: boolean
 ): RenderedQueryAst => {
-  validateAggregationSelection(ast.select as SelectionValue, ast.groupBy)
-  const flattened = flattenSelection(ast.select as Record<string, unknown>)
+  if (validateAggregation) {
+    validateAggregationSelection(selection as SelectionValue, [])
+  }
+  const flattened = flattenSelection(selection)
   const projections = flattened.map(({ path, alias }) => ({
     path,
     alias
   }))
-  const selectSql = flattened.map(({ expression, alias }) =>
+  const sql = flattened.map(({ expression, alias }) =>
     `${renderExpression(expression, state, dialect)} as ${dialect.quoteIdentifier(alias)}`).join(", ")
-  const clauses = [`select ${selectSql}`]
-  if (ast.from) {
-    clauses.push(`from ${renderSourceReference(ast.from.source, ast.from.tableName, ast.from.baseTableName, state, dialect)}`)
+  return {
+    sql,
+    projections
   }
-  for (const join of ast.joins) {
-    clauses.push(`${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on, state, dialect)}`)
+}
+
+export const renderQueryAst = (
+  ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
+  state: RenderState,
+  dialect: SqlDialect
+): RenderedQueryAst => {
+  let sql = ""
+  let projections: readonly Projection[] = []
+
+  switch (ast.kind) {
+    case "select": {
+      validateAggregationSelection(ast.select as SelectionValue, ast.groupBy)
+      const rendered = renderSelectionList(ast.select as Record<string, unknown>, state, dialect, false)
+      projections = rendered.projections
+      const clauses = [`select ${rendered.sql}`]
+      if (ast.from) {
+        clauses.push(`from ${renderSourceReference(ast.from.source, ast.from.tableName, ast.from.baseTableName, state, dialect)}`)
+      }
+      for (const join of ast.joins) {
+        clauses.push(`${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on, state, dialect)}`)
+      }
+      if (ast.where.length > 0) {
+        clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
+      }
+      if (ast.groupBy.length > 0) {
+        clauses.push(`group by ${ast.groupBy.map((value: QueryAst.Ast["groupBy"][number]) => renderExpression(value, state, dialect)).join(", ")}`)
+      }
+      if (ast.having.length > 0) {
+        clauses.push(`having ${ast.having.map((entry: QueryAst.HavingClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
+      }
+      if (ast.orderBy.length > 0) {
+        clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`)
+      }
+      sql = clauses.join(" ")
+      break
+    }
+    case "insert": {
+      const insertAst = ast as QueryAst.Ast<Record<string, unknown>, any, "insert">
+      const targetSource = insertAst.into!
+      const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
+      const columns = insertAst.values!.map((entry) => dialect.quoteIdentifier(entry.columnName)).join(", ")
+      const values = insertAst.values!.map((entry) => renderExpression(entry.value, state, dialect)).join(", ")
+      sql = `insert into ${target}`
+      if (insertAst.values!.length > 0) {
+        sql += ` (${columns}) values (${values})`
+      } else {
+        sql += " default values"
+      }
+      const returning = renderSelectionList(insertAst.select as Record<string, unknown>, state, dialect, false)
+      projections = returning.projections
+      if (returning.sql.length > 0) {
+        sql += ` returning ${returning.sql}`
+      }
+      break
+    }
+    case "update": {
+      const updateAst = ast as QueryAst.Ast<Record<string, unknown>, any, "update">
+      const targetSource = updateAst.target!
+      const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
+      const assignments = updateAst.set!.map((entry) =>
+        `${dialect.quoteIdentifier(entry.columnName)} = ${renderExpression(entry.value, state, dialect)}`).join(", ")
+      sql = `update ${target} set ${assignments}`
+      if (updateAst.where.length > 0) {
+        sql += ` where ${updateAst.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`
+      }
+      const returning = renderSelectionList(updateAst.select as Record<string, unknown>, state, dialect, false)
+      projections = returning.projections
+      if (returning.sql.length > 0) {
+        sql += ` returning ${returning.sql}`
+      }
+      break
+    }
+    case "delete": {
+      const deleteAst = ast as QueryAst.Ast<Record<string, unknown>, any, "delete">
+      const targetSource = deleteAst.target!
+      const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
+      sql = `delete from ${target}`
+      if (deleteAst.where.length > 0) {
+        sql += ` where ${deleteAst.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`
+      }
+      const returning = renderSelectionList(deleteAst.select as Record<string, unknown>, state, dialect, false)
+      projections = returning.projections
+      if (returning.sql.length > 0) {
+        sql += ` returning ${returning.sql}`
+      }
+      break
+    }
   }
-  if (ast.where.length > 0) {
-    clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
-  }
-  if (ast.groupBy.length > 0) {
-    clauses.push(`group by ${ast.groupBy.map((value: QueryAst.Ast["groupBy"][number]) => renderExpression(value, state, dialect)).join(", ")}`)
-  }
-  if (ast.having.length > 0) {
-    clauses.push(`having ${ast.having.map((entry: QueryAst.HavingClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
-  }
-  if (ast.orderBy.length > 0) {
-    clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`)
-  }
-  const sql = clauses.join(" ")
+
   if (state.ctes.length === 0) {
     return {
       sql,
@@ -70,7 +147,7 @@ const renderSourceReference = (
     }
     if (!state.cteNames.has(cte.name)) {
       state.cteNames.add(cte.name)
-      const rendered = renderQueryAst(Query.getAst(cte.plan) as QueryAst.Ast<Record<string, unknown>, any>, state, dialect)
+      const rendered = renderQueryAst(Query.getAst(cte.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect)
       state.ctes.push({
         name: cte.name,
         sql: rendered.sql
@@ -86,7 +163,7 @@ const renderSourceReference = (
     if (!state.cteNames.has(derived.name)) {
       // derived tables are inlined, so no CTE registration is needed
     }
-    return `(${renderQueryAst(Query.getAst(derived.plan) as QueryAst.Ast<Record<string, unknown>, any>, state, dialect).sql}) as ${dialect.quoteIdentifier(derived.name)}`
+    return `(${renderQueryAst(Query.getAst(derived.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect).sql}) as ${dialect.quoteIdentifier(derived.name)}`
   }
   return dialect.renderTableReference(tableName, baseTableName)
 }
@@ -163,7 +240,7 @@ export const renderExpression = (
       ).join(" ")} else ${renderExpression(ast.else, state, dialect)} end`
     case "exists":
       return `exists (${renderQueryAst(
-        Query.getAst(ast.plan) as QueryAst.Ast<Record<string, unknown>, any>,
+        Query.getAst(ast.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
         state,
         dialect
       ).sql})`

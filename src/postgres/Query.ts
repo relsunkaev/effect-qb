@@ -14,14 +14,18 @@ import {
   type OrderDirection,
   type OutputOfExpression,
   type OutputOfSelection,
+  type MutationInputOf,
+  type MutationTargetLike,
   type PredicateInput,
   type QueryCapability,
   type QueryPlan,
   type QueryRequirement,
+  type QueryStatement,
   type ResultRow,
   type ResultRows,
   type RuntimeResultRow,
   type RuntimeResultRows,
+  type StatementOfPlan,
   type StringExpressionInput
 } from "../query.ts"
 import { makeDialectQuery } from "../internal/query-factory.ts"
@@ -62,6 +66,10 @@ export const max = postgresQuery.max
 export const min = postgresQuery.min
 export const as = postgresQuery.as
 export const with_ = postgresQuery.with
+export const returning = postgresQuery.returning
+export const insert = postgresQuery.insert
+export const update = postgresQuery.update
+export const delete_ = postgresQuery.delete
 export const select = postgresQuery.select
 export const where = postgresQuery.where
 export const having = postgresQuery.having
@@ -73,6 +81,7 @@ export const groupBy = postgresQuery.groupBy
 export { case_ as case }
 export { in_ as in }
 export { with_ as with }
+export { delete_ as delete }
 
 export type {
   CapabilitiesOfPlan,
@@ -89,14 +98,18 @@ export type {
   OrderDirection,
   OutputOfExpression,
   OutputOfSelection,
+  MutationInputOf,
+  MutationTargetLike,
   PredicateInput,
   QueryCapability,
   QueryPlan,
+  QueryStatement,
   QueryRequirement,
   ResultRow,
   ResultRows,
   RuntimeResultRow,
   RuntimeResultRows,
+  StatementOfPlan,
   StringExpressionInput
 }
 

@@ -335,6 +335,62 @@ describe("postgres dialect behavior", () => {
     )
   })
 
+  test("renders postgres insert update and delete mutations with returning projections", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text(),
+      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    })
+
+    const insertPlan = Postgres.Query.returning({
+      id: users.id,
+      email: users.email,
+      bio: users.bio
+    })(Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com",
+      bio: null
+    }))
+
+    const updatePlan = Postgres.Query.returning({
+      id: users.id,
+      email: users.email,
+      bio: users.bio
+    })(Postgres.Query.where(Postgres.Query.eq(users.id, userId))(
+      Postgres.Query.update(users, {
+        email: "updated@example.com",
+        bio: null
+      })
+    ))
+
+    const deletePlan = Postgres.Query.returning({
+      id: users.id
+    })(Postgres.Query.where(Postgres.Query.eq(users.id, userId))(
+      Postgres.Query.delete(users)
+    ))
+
+    expect(Postgres.Renderer.make().render(insertPlan).sql).toBe(
+      'insert into "users" ("id", "email", "bio") values ($1, $2, null) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio"'
+    )
+    expect(Postgres.Renderer.make().render(insertPlan).params).toEqual([
+      userId,
+      "alice@example.com"
+    ])
+
+    expect(Postgres.Renderer.make().render(updatePlan).sql).toBe(
+      'update "users" set "email" = $1, "bio" = null where ("users"."id" = $2) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio"'
+    )
+    expect(Postgres.Renderer.make().render(updatePlan).params).toEqual([
+      "updated@example.com",
+      userId
+    ])
+
+    expect(Postgres.Renderer.make().render(deletePlan).sql).toBe(
+      'delete from "users" where ("users"."id" = $1) returning "users"."id" as "id"'
+    )
+    expect(Postgres.Renderer.make().render(deletePlan).params).toEqual([userId])
+  })
+
   test("decodes nullable joined rows through the postgres executor pipeline", () => {
     const { users, posts } = makePostgresSocialGraph()
 

@@ -334,6 +334,62 @@ describe("mysql dialect behavior", () => {
     )
   })
 
+  test("renders mysql insert update and delete mutations with returning projections", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+
+    const insertPlan = Mysql.Query.returning({
+      id: users.id,
+      email: users.email,
+      bio: users.bio
+    })(Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com",
+      bio: null
+    }))
+
+    const updatePlan = Mysql.Query.returning({
+      id: users.id,
+      email: users.email,
+      bio: users.bio
+    })(Mysql.Query.where(Mysql.Query.eq(users.id, userId))(
+      Mysql.Query.update(users, {
+        email: "updated@example.com",
+        bio: null
+      })
+    ))
+
+    const deletePlan = Mysql.Query.returning({
+      id: users.id
+    })(Mysql.Query.where(Mysql.Query.eq(users.id, userId))(
+      Mysql.Query.delete(users)
+    ))
+
+    expect(Mysql.Renderer.make().render(insertPlan).sql).toBe(
+      "insert into `users` (`id`, `email`, `bio`) values (?, ?, null) returning `users`.`id` as `id`, `users`.`email` as `email`, `users`.`bio` as `bio`"
+    )
+    expect(Mysql.Renderer.make().render(insertPlan).params).toEqual([
+      userId,
+      "alice@example.com"
+    ])
+
+    expect(Mysql.Renderer.make().render(updatePlan).sql).toBe(
+      "update `users` set `email` = ?, `bio` = null where (`users`.`id` = ?) returning `users`.`id` as `id`, `users`.`email` as `email`, `users`.`bio` as `bio`"
+    )
+    expect(Mysql.Renderer.make().render(updatePlan).params).toEqual([
+      "updated@example.com",
+      userId
+    ])
+
+    expect(Mysql.Renderer.make().render(deletePlan).sql).toBe(
+      "delete from `users` where (`users`.`id` = ?) returning `users`.`id` as `id`"
+    )
+    expect(Mysql.Renderer.make().render(deletePlan).params).toEqual([userId])
+  })
+
   test("decodes nullable joined rows through the mysql executor pipeline", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

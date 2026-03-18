@@ -5,6 +5,9 @@ export const TypeId: unique symbol = Symbol.for("effect-qb/QueryAst")
 
 export type TypeId = typeof TypeId
 
+/** Statement kinds supported by the current query AST. */
+export type QueryStatement = "select" | "insert" | "update" | "delete"
+
 /** Base `FROM` clause recorded by the query AST. */
 export interface FromClause<TableName extends string = string> {
   readonly kind: "from"
@@ -23,6 +26,12 @@ export interface WhereClause<Predicate extends Expression.Any = Expression.Any> 
 export interface HavingClause<Predicate extends Expression.Any = Expression.Any> {
   readonly kind: "having"
   readonly predicate: Predicate
+}
+
+/** Assignment recorded in a mutation statement. */
+export interface AssignmentClause<Value extends Expression.Any = Expression.Any> {
+  readonly columnName: string
+  readonly value: Value
 }
 
 /** Join kinds supported by the current query layer. */
@@ -58,9 +67,18 @@ export interface OrderByClause<Value extends Expression.Any = Expression.Any> {
  * and dialect. This AST captures the clause ordering needed to eventually
  * render or optimize a SQL query.
  */
-export interface Ast<Selection = unknown, Grouped extends string = never> {
+export interface Ast<
+  Selection = unknown,
+  Grouped extends string = never,
+  Statement extends QueryStatement = "select"
+> {
+  readonly kind: Statement
   readonly select: Selection
   readonly from?: FromClause
+  readonly into?: FromClause
+  readonly target?: FromClause
+  readonly values?: readonly AssignmentClause[]
+  readonly set?: readonly AssignmentClause[]
   readonly where: readonly WhereClause[]
   readonly having: readonly HavingClause[]
   readonly joins: readonly JoinClause[]
