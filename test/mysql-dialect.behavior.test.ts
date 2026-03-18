@@ -181,6 +181,28 @@ describe("mysql dialect behavior", () => {
     ])
   })
 
+  test("renders distinct, limit, and offset with mysql parameter ordering", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.select({
+      email: users.email
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.where(Mysql.Query.like(users.email, "%@example.com")),
+      Mysql.Query.distinct(),
+      Mysql.Query.orderBy(users.email),
+      Mysql.Query.limit(5),
+      Mysql.Query.offset(10)
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select distinct `users`.`email` as `email` from `users` where (`users`.`email` like ?) order by `users`.`email` asc limit ? offset ?"
+    )
+    expect(rendered.params).toEqual(["%@example.com", 5, 10])
+  })
+
   test("renders the extended read predicate surface with mysql-specific operators", () => {
     const { users } = makeMysqlSocialGraph()
 
@@ -224,6 +246,66 @@ describe("mysql dialect behavior", () => {
       "select case when (`posts`.`title` is null) then ? when (lower(`posts`.`title`) = ?) then ? else upper(coalesce(`posts`.`title`, ?)) end as `titleState` from `users` left join `posts` on (`users`.`id` = `posts`.`userId`)"
     )
     expect(rendered.params).toEqual(["missing", "draft", "draft", "published"])
+  })
+
+  test("renders right, full, and cross joins with mysql syntax", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const rightJoinPlan = Mysql.Query.select({
+      userId: users.id,
+      postId: posts.id
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.rightJoin(posts, Mysql.Query.eq(users.id, posts.userId))
+    )
+
+    const fullJoinPlan = Mysql.Query.select({
+      userId: users.id,
+      postId: posts.id
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.fullJoin(posts, Mysql.Query.eq(users.id, posts.userId))
+    )
+
+    const crossJoinPlan = Mysql.Query.select({
+      userId: users.id,
+      postId: posts.id
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.crossJoin(posts)
+    )
+
+    expect(Mysql.Renderer.make().render(rightJoinPlan).sql).toBe(
+      "select `users`.`id` as `userId`, `posts`.`id` as `postId` from `users` right join `posts` on (`users`.`id` = `posts`.`userId`)"
+    )
+    expect(Mysql.Renderer.make().render(fullJoinPlan).sql).toBe(
+      "select `users`.`id` as `userId`, `posts`.`id` as `postId` from `users` full join `posts` on (`users`.`id` = `posts`.`userId`)"
+    )
+    expect(Mysql.Renderer.make().render(crossJoinPlan).sql).toBe(
+      "select `users`.`id` as `userId`, `posts`.`id` as `postId` from `users` cross join `posts`"
+    )
+  })
+
+  test("renders distinct, limit, and offset with mysql placeholders", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.select({
+      userId: users.id,
+      email: users.email
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.distinct(),
+      Mysql.Query.orderBy(users.email),
+      Mysql.Query.limit(10),
+      Mysql.Query.offset(20)
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select distinct `users`.`id` as `userId`, `users`.`email` as `email` from `users` order by `users`.`email` asc limit ? offset ?"
+    )
+    expect(rendered.params).toEqual([10, 20])
   })
 
   test("renders exists subqueries with shared mysql parameter ordering", () => {
@@ -276,6 +358,39 @@ describe("mysql dialect behavior", () => {
       "select `users`.`email` as `email`, exists (select `posts`.`id` as `id` from `posts` where (`posts`.`userId` = `users`.`id`)) as `hasPosts` from `users` where (`users`.`email` = ?)"
     )
     expect(rendered.params).toEqual(["alice@example.com"])
+  })
+
+  test("renders window functions and windowed aggregates with mysql syntax", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.select({
+      userId: users.id,
+      rowNumber: Mysql.Query.rowNumber({
+        partitionBy: [users.id],
+        orderBy: [{ value: posts.id, direction: "asc" }]
+      }),
+      rankByTitle: Mysql.Query.rank({
+        partitionBy: [users.id],
+        orderBy: [{ value: Mysql.Query.lower(posts.title), direction: "desc" }]
+      }),
+      postCount: Mysql.Query.over(Mysql.Query.count(posts.id), {
+        partitionBy: [users.id],
+        orderBy: [{ value: posts.id, direction: "asc" }]
+      }),
+      latestTitle: Mysql.Query.over(Mysql.Query.max(posts.title), {
+        partitionBy: [users.id]
+      })
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.leftJoin(posts, Mysql.Query.eq(users.id, posts.userId))
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select `users`.`id` as `userId`, row_number() over (partition by `users`.`id` order by `posts`.`id` asc) as `rowNumber`, rank() over (partition by `users`.`id` order by lower(`posts`.`title`) desc) as `rankByTitle`, count(`posts`.`id`) over (partition by `users`.`id` order by `posts`.`id` asc) as `postCount`, max(`posts`.`title`) over (partition by `users`.`id`) as `latestTitle` from `users` left join `posts` on (`users`.`id` = `posts`.`userId`)"
+    )
+    expect(rendered.params).toEqual([])
   })
 
   test("renders aliased mysql subqueries as derived tables", () => {
@@ -334,6 +449,63 @@ describe("mysql dialect behavior", () => {
     )
   })
 
+  test("renders mysql set operators with stable operand ordering", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    const alice = Mysql.Query.select({
+      email: users.email
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.where(Mysql.Query.eq(users.email, "alice@example.com"))
+    )
+
+    const bob = Mysql.Query.select({
+      email: users.email
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.where(Mysql.Query.eq(users.email, "bob@example.com"))
+    )
+
+    const carol = Mysql.Query.select({
+      email: users.email
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.where(Mysql.Query.eq(users.email, "carol@example.com"))
+    )
+
+    const unionPlan = Mysql.Query.union(Mysql.Query.union(alice, bob), carol)
+    const intersectPlan = Mysql.Query.intersect(alice, bob)
+    const exceptPlan = Mysql.Query.except(alice, bob)
+
+    expect(Mysql.Renderer.make().render(unionPlan).sql).toBe(
+      "(select `users`.`email` as `email` from `users` where (`users`.`email` = ?)) union (select `users`.`email` as `email` from `users` where (`users`.`email` = ?)) union (select `users`.`email` as `email` from `users` where (`users`.`email` = ?))"
+    )
+    expect(Mysql.Renderer.make().render(unionPlan).params).toEqual([
+      "alice@example.com",
+      "bob@example.com",
+      "carol@example.com"
+    ])
+    expect(Mysql.Renderer.make().render(unionPlan).projections).toEqual([
+      { path: ["email"], alias: "email" }
+    ])
+
+    expect(Mysql.Renderer.make().render(intersectPlan).sql).toBe(
+      "(select `users`.`email` as `email` from `users` where (`users`.`email` = ?)) intersect (select `users`.`email` as `email` from `users` where (`users`.`email` = ?))"
+    )
+    expect(Mysql.Renderer.make().render(intersectPlan).params).toEqual([
+      "alice@example.com",
+      "bob@example.com"
+    ])
+
+    expect(Mysql.Renderer.make().render(exceptPlan).sql).toBe(
+      "(select `users`.`email` as `email` from `users` where (`users`.`email` = ?)) except (select `users`.`email` as `email` from `users` where (`users`.`email` = ?))"
+    )
+    expect(Mysql.Renderer.make().render(exceptPlan).params).toEqual([
+      "alice@example.com",
+      "bob@example.com"
+    ])
+  })
+
   test("renders mysql insert update and delete mutations with returning projections", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
@@ -390,6 +562,44 @@ describe("mysql dialect behavior", () => {
     expect(Mysql.Renderer.make().render(deletePlan).params).toEqual([userId])
   })
 
+  test("renders mysql ddl statements from schema tables", () => {
+    const orgs = Mysql.Table.make("orgs", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      slug: Mysql.Column.text().pipe(Mysql.Column.unique)
+    })
+    const memberships = Mysql.Table.make("memberships", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      orgId: Mysql.Column.uuid(),
+      role: Mysql.Column.text(),
+      note: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    }).pipe(
+      Mysql.Table.foreignKey("orgId", () => orgs, "id"),
+      Mysql.Table.unique(["orgId", "role"] as const),
+      Mysql.Table.index(["role", "orgId"] as const)
+    )
+
+    expect(Mysql.Renderer.make().render(Mysql.Query.createTable(memberships, {
+      ifNotExists: true
+    })).sql).toBe(
+      'create table if not exists `memberships` (`id` char(36) not null, `orgId` char(36) not null, `role` text not null, `note` text, primary key (`id`), foreign key (`orgId`) references `orgs` (`id`), unique (`orgId`, `role`))'
+    )
+    expect(Mysql.Renderer.make().render(Mysql.Query.createIndex(memberships, ["role", "orgId"] as const, {
+      ifNotExists: true
+    })).sql).toBe(
+      'create index `memberships_role_orgId_idx` on `memberships` (`role`, `orgId`)'
+    )
+    expect(Mysql.Renderer.make().render(Mysql.Query.dropIndex(memberships, ["role", "orgId"] as const, {
+      ifExists: true
+    })).sql).toBe(
+      'drop index `memberships_role_orgId_idx` on `memberships`'
+    )
+    expect(Mysql.Renderer.make().render(Mysql.Query.dropTable(memberships, {
+      ifExists: true
+    })).sql).toBe(
+      'drop table if exists `memberships`'
+    )
+  })
+
   test("decodes nullable joined rows through the mysql executor pipeline", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
@@ -443,7 +653,7 @@ describe("mysql dialect behavior", () => {
 
     const unsupportedExpression = {
       [ExpressionAst.TypeId]: {
-        kind: "window"
+        kind: "unsupported"
       }
     } as unknown as Mysql.Expression.Any
 

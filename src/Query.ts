@@ -16,7 +16,10 @@ export type {
   QueryCapability,
   QueryRequirement
 } from "./internal/query-requirements.ts"
-export type { QueryStatement } from "./internal/query-ast.ts"
+export type {
+  QueryStatement,
+  SetOperatorKind as SetOperator
+} from "./internal/query-ast.ts"
 export { union_query_capabilities } from "./internal/query-requirements.ts"
 
 /**
@@ -98,6 +101,18 @@ type LiteralExpression<Value extends LiteralValue> = Expression.Expression<
  * operator boundary.
  */
 export type ExpressionInput = Expression.Any | LiteralValue
+
+/** Input accepted by numeric clauses such as `limit(...)` and `offset(...)`. */
+export type NumericExpressionInput = Expression.Expression<
+  number,
+  Expression.DbType.Any,
+  Expression.Nullability,
+  string,
+  "scalar",
+  any,
+  Expression.SourceDependencies,
+  Expression.SourceNullabilityMode
+> | number
 
 /** Values accepted by mutation payload fields. */
 export type MutationValueInput<Value> =
@@ -285,6 +300,11 @@ export type TableLike<Name extends string = string, Dialect extends string = str
   }
 }
 
+/** Concrete schema table accepted by DDL builders. */
+export type SchemaTableLike =
+  | Table.TableDefinition<any, any, any, "schema">
+  | Table.TableClassStatic<any, any, any>
+
 /**
  * Wrapper returned by `as(subquery, alias)` for derived-table composition.
  *
@@ -467,7 +487,30 @@ export type AddAvailable<
 > = Available & Record<Name, Plan.Source<Name, Mode>>
 
 /** Join mode projected into the plan's source-scope mode lattice. */
-export type JoinSourceMode<Kind extends QueryAst.JoinKind> = Kind extends "left" ? "optional" : "required"
+export type JoinSourceMode<Kind extends QueryAst.JoinKind> = Kind extends "left" | "full"
+  ? "optional"
+  : "required"
+
+type DemoteAllAvailable<
+  Available extends Record<string, Plan.Source>
+> = {
+  readonly [K in keyof Available]: Available[K] extends Plan.Source<infer Name extends string, any>
+    ? Plan.Source<Name, "optional">
+    : never
+}
+
+export type ExistingAvailableAfterJoin<
+  Available extends Record<string, Plan.Source>,
+  Kind extends QueryAst.JoinKind
+> = Kind extends "right" | "full"
+  ? DemoteAllAvailable<Available>
+  : Available
+
+export type AvailableAfterJoin<
+  Available extends Record<string, Plan.Source>,
+  JoinedName extends string,
+  Kind extends QueryAst.JoinKind
+> = AddAvailable<ExistingAvailableAfterJoin<Available, Kind>, JoinedName, JoinSourceMode<Kind>>
 
 /**
  * Computes the next `required` set after introducing an additional expression.
@@ -490,10 +533,11 @@ export type AddJoinRequired<
   Required,
   Available extends Record<string, Plan.Source>,
   JoinedName extends string,
-  Predicate extends PredicateInput
+  Predicate extends PredicateInput | never,
+  Kind extends QueryAst.JoinKind = "inner"
 > = Exclude<
-  Required | RequiredFromInput<Predicate>,
-  AvailableNames<AddAvailable<Available, JoinedName, "required">>
+  Required | (Predicate extends never ? never : RequiredFromInput<Predicate>),
+  AvailableNames<AvailableAfterJoin<Available, JoinedName, Kind>>
 >
 
 /** Merges two aggregation kinds through a derived expression. */
@@ -855,6 +899,52 @@ export type DialectCompatibleNestedPlan<
 > = IsDialectCompatible<PlanValue[typeof Plan.TypeId]["dialect"], EngineDialect> extends true
   ? AggregationCompatiblePlan<PlanValue>
   : DialectCompatibilityError<PlanValue, EngineDialect>
+
+type SetOperandStatement = "select" | "set"
+
+type SetOperandStatementError<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = PlanValue & {
+  readonly __effect_qb_error__: "effect-qb: set operators only accept select-like query plans"
+  readonly __effect_qb_statement__: StatementOfPlan<PlanValue>
+  readonly __effect_qb_hint__: "Use select(...) or another set operator as each operand"
+}
+
+type SetOperandShapeError<
+  Left extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  Right extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = Right & {
+  readonly __effect_qb_error__: "effect-qb: set operator operands must have matching result rows"
+  readonly __effect_qb_expected_selection__: SelectionOfPlan<Left>
+  readonly __effect_qb_actual_selection__: SelectionOfPlan<Right>
+  readonly __effect_qb_hint__: "Project the same nested object shape and compatible nullability from each operand"
+}
+
+type IsSameSelection<
+  Left extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  Right extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = [SelectionOfPlan<Left>] extends [SelectionOfPlan<Right>]
+  ? [SelectionOfPlan<Right>] extends [SelectionOfPlan<Left>] ? true : false
+  : false
+
+/** Set-operator compatibility used by `union(...)`, `intersect(...)`, and `except(...)`. */
+export type SetCompatiblePlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  EngineDialect extends string
+> = StatementOfPlan<PlanValue> extends SetOperandStatement
+  ? DialectCompatiblePlan<PlanValue, EngineDialect>
+  : SetOperandStatementError<PlanValue>
+
+/** Right-hand operand compatibility for set operators. */
+export type SetCompatibleRightPlan<
+  Left extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  Right extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  EngineDialect extends string
+> = StatementOfPlan<Right> extends SetOperandStatement
+  ? IsSameSelection<Left, Right> extends true
+    ? DialectCompatiblePlan<Right, EngineDialect>
+    : SetOperandShapeError<Left, Right>
+  : SetOperandStatementError<Right>
 
 /** True when any of an expression's dependencies are optional in the current scope. */
 type HasOptionalSource<

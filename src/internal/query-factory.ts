@@ -16,6 +16,7 @@ import {
   mergeNullabilityManyRuntime,
   mergeSources,
   type AddAvailable,
+  type AvailableAfterJoin,
   type AddExpressionRequired,
   type AddJoinRequired,
   type AggregationOf,
@@ -39,6 +40,7 @@ import {
   type LiteralValue,
   type MergeAggregation,
   type MergeNullabilityTuple,
+  type NumericExpressionInput,
   type OrderDirection,
   type OutstandingOfPlan,
   type PlanDialectOf,
@@ -49,6 +51,9 @@ import {
   type ScopedNamesOfPlan,
   type SelectionOfPlan,
   type SelectionShape,
+  type SetCompatiblePlan,
+  type SetCompatibleRightPlan,
+  type SchemaTableLike,
   type TableDialectOf,
   type StatementOfPlan,
   type MutationInputOf,
@@ -70,6 +75,7 @@ import { dedupeGroupedExpressions } from "./grouping-key.ts"
 import { makeCteSource, makeDerivedSource } from "./derived-table.ts"
 import * as ProjectionAlias from "./projection-alias.ts"
 import * as QueryAst from "./query-ast.ts"
+import { normalizeColumnList } from "./table-options.ts"
 
 /**
  * Dialect-specific DB type profile used to specialize the shared query
@@ -159,6 +165,19 @@ type DialectAsStringExpression<
   ? Value
   : DialectLiteralExpression<Extract<Value, string>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 
+/** Normalizes a numeric-clause input into the expression form used internally. */
+type DialectAsNumericExpression<
+  Value extends NumericExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Value extends Expression.Any
+  ? Value
+  : DialectLiteralExpression<Extract<Value, number>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+
 /** Provenance carried by a dialect-specialized scalar input. */
 type SourceOfDialectInput<
   Value extends ExpressionInput,
@@ -246,6 +265,39 @@ type NullabilityOfDialectStringInput<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = Expression.NullabilityOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+
+/** Dialect carried by a numeric-clause input after coercion. */
+type DialectOfDialectNumericInput<
+  Value extends NumericExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = DialectOf<DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+
+/** Dependency map carried by a numeric-clause input after coercion. */
+type DependenciesOfDialectNumericInput<
+  Value extends NumericExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = DependenciesOf<DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+
+/** Required source names carried by a numeric-clause input after coercion. */
+type RequiredFromDialectNumericInput<
+  Value extends NumericExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = RequiredFromDependencies<DependenciesOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 /** Folds aggregation kinds across a tuple of expressions. */
 type MergeAggregationTuple<
@@ -466,6 +518,139 @@ type CaseStarter<
   >
 }
 
+type WindowPartitionInput = Expression.Expression<
+  any,
+  Expression.DbType.Any,
+  Expression.Nullability,
+  string,
+  "scalar",
+  any,
+  Expression.SourceDependencies,
+  Expression.SourceNullabilityMode
+>
+
+type WindowOrderInput = WindowPartitionInput
+
+type WindowOrderTermInput<Value extends WindowOrderInput = WindowOrderInput> = {
+  readonly value: Value
+  readonly direction?: OrderDirection
+}
+
+type NonEmptyWindowOrderTerms = readonly [
+  WindowOrderTermInput,
+  ...WindowOrderTermInput[]
+]
+
+type WindowSpecInput<
+  PartitionBy extends readonly WindowPartitionInput[] = readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[] = readonly WindowOrderTermInput[]
+> = {
+  readonly partitionBy?: PartitionBy
+  readonly orderBy?: OrderBy
+}
+
+type OrderedWindowSpecInput<
+  PartitionBy extends readonly WindowPartitionInput[] = readonly WindowPartitionInput[],
+  OrderBy extends NonEmptyWindowOrderTerms = NonEmptyWindowOrderTerms
+> = {
+  readonly partitionBy?: PartitionBy
+  readonly orderBy: OrderBy
+}
+
+type WindowOrderExpressionTuple<
+  Values extends readonly WindowOrderTermInput[]
+> = {
+  readonly [K in keyof Values]: Values[K] extends WindowOrderTermInput<infer Value extends WindowOrderInput> ? Value : never
+} & readonly Expression.Any[]
+
+type WindowNodeOf<
+  Kind extends ExpressionAst.WindowKind,
+  Value extends Expression.Any | undefined,
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[]
+> = ExpressionAst.WindowNode<
+  Kind,
+  Value,
+  PartitionBy,
+  {
+    readonly [K in keyof OrderBy]: OrderBy[K] extends WindowOrderTermInput<infer OrderValue extends WindowOrderInput>
+      ? ExpressionAst.WindowOrderByNode<OrderValue>
+      : never
+  } & readonly ExpressionAst.WindowOrderByNode[]
+>
+
+type WindowDialectOf<
+  Value extends Expression.Any,
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[]
+> = DialectOf<Value> | TupleDialect<PartitionBy> | TupleDialect<WindowOrderExpressionTuple<OrderBy>>
+
+type WindowSourceOf<
+  Value extends Expression.Any,
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[]
+> = SourceOf<Value> | TupleSource<PartitionBy> | TupleSource<WindowOrderExpressionTuple<OrderBy>>
+
+type WindowDependenciesOf<
+  Value extends Expression.Any,
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[]
+> = DependencyRecord<
+  RequiredFromDependencies<DependenciesOf<Value>>
+  | RequiredFromDependencies<TupleDependencies<PartitionBy>>
+  | RequiredFromDependencies<TupleDependencies<WindowOrderExpressionTuple<OrderBy>>>
+>
+
+type NumberWindowDialectOf<
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[]
+> = TupleDialect<PartitionBy> | TupleDialect<WindowOrderExpressionTuple<OrderBy>>
+
+type NumberWindowSourceOf<
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[]
+> = TupleSource<PartitionBy> | TupleSource<WindowOrderExpressionTuple<OrderBy>>
+
+type NumberWindowDependenciesOf<
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[]
+> = DependencyRecord<
+  RequiredFromDependencies<TupleDependencies<PartitionBy>>
+  | RequiredFromDependencies<TupleDependencies<WindowOrderExpressionTuple<OrderBy>>>
+>
+
+type WindowedExpression<
+  Value extends Expression.Any,
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends readonly WindowOrderTermInput[]
+> = AstBackedExpression<
+  Expression.RuntimeOf<Value>,
+  Expression.DbTypeOf<Value>,
+  Expression.NullabilityOf<Value>,
+  WindowDialectOf<Value, PartitionBy, OrderBy>,
+  "window",
+  WindowSourceOf<Value, PartitionBy, OrderBy>,
+  WindowDependenciesOf<Value, PartitionBy, OrderBy>,
+  WindowNodeOf<"over", Value, PartitionBy, OrderBy>,
+  "resolved"
+>
+
+type NumberWindowExpression<
+  Kind extends Extract<ExpressionAst.WindowKind, "rowNumber" | "rank" | "denseRank">,
+  PartitionBy extends readonly WindowPartitionInput[],
+  OrderBy extends NonEmptyWindowOrderTerms
+> = AstBackedExpression<
+  number,
+  Expression.DbType.Any,
+  "never",
+  NumberWindowDialectOf<PartitionBy, OrderBy>,
+  "window",
+  NumberWindowSourceOf<PartitionBy, OrderBy>,
+  NumberWindowDependenciesOf<PartitionBy, OrderBy>,
+  WindowNodeOf<Kind, undefined, PartitionBy, OrderBy>,
+  "resolved"
+>
+
 /**
  * Builds a dialect-specialized query namespace from the shared query core.
  *
@@ -520,8 +705,49 @@ export function makeDialectQuery<
       ? literal(value)
       : value) as DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 
+  const toDialectNumericExpression = <Value extends NumericExpressionInput>(
+    value: Value
+  ): DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
+    (typeof value === "number"
+      ? literal(value)
+      : value) as DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+
   const extractRequiredFromDialectInputRuntime = (value: ExpressionInput): readonly string[] => {
     const expression = toDialectExpression(value)
+    return Object.keys(expression[Expression.TypeId].dependencies)
+  }
+
+  const normalizeWindowSpec = <
+    PartitionBy extends readonly WindowPartitionInput[],
+    OrderBy extends readonly WindowOrderTermInput[]
+  >(
+    spec: WindowSpecInput<PartitionBy, OrderBy> | OrderedWindowSpecInput<PartitionBy, Extract<OrderBy, NonEmptyWindowOrderTerms>> | undefined
+  ) => {
+    const partitionBy = [...(spec?.partitionBy ?? [])] as unknown as PartitionBy
+    const orderBy = (spec?.orderBy ?? []).map((term) => ({
+      value: term.value,
+      direction: term.direction ?? "asc"
+    })) as {
+      readonly [K in keyof OrderBy]: OrderBy[K] extends WindowOrderTermInput<infer Value extends WindowOrderInput>
+        ? { readonly value: Value; readonly direction: OrderDirection }
+        : never
+    } & readonly { readonly value: WindowOrderInput; readonly direction: OrderDirection }[]
+    return {
+      partitionBy,
+      orderBy
+    }
+  }
+
+  const mergeWindowExpressions = (
+    value: Expression.Any | undefined,
+    partitionBy: readonly Expression.Any[],
+    orderBy: readonly { readonly value: Expression.Any }[]
+  ): readonly Expression.Any[] => value === undefined
+    ? [...partitionBy, ...orderBy.map((term) => term.value)]
+    : [value, ...partitionBy, ...orderBy.map((term) => term.value)]
+
+  const extractRequiredFromDialectNumericInputRuntime = (value: NumericExpressionInput): readonly string[] => {
+    const expression = toDialectNumericExpression(value)
     return Object.keys(expression[Expression.TypeId].dependencies)
   }
 
@@ -1018,6 +1244,94 @@ export function makeDialectQuery<
     })
   }
 
+  const over = <
+    Value extends Expression.Expression<
+      any,
+      Expression.DbType.Any,
+      Expression.Nullability,
+      string,
+      "aggregate",
+      any,
+      Expression.SourceDependencies,
+      Expression.SourceNullabilityMode
+    >,
+    PartitionBy extends readonly WindowPartitionInput[] = [],
+    OrderBy extends readonly WindowOrderTermInput[] = []
+  >(
+    value: Value,
+    spec: WindowSpecInput<PartitionBy, OrderBy> = {}
+  ): WindowedExpression<Value, PartitionBy, OrderBy> => {
+    const normalized = normalizeWindowSpec(spec)
+    const expressions = mergeWindowExpressions(value, normalized.partitionBy, normalized.orderBy)
+    return makeExpression({
+      runtime: undefined as Expression.RuntimeOf<Value>,
+      dbType: value[Expression.TypeId].dbType as Expression.DbTypeOf<Value>,
+      nullability: value[Expression.TypeId].nullability as Expression.NullabilityOf<Value>,
+      dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as WindowDialectOf<Value, PartitionBy, OrderBy>,
+      aggregation: "window",
+      source: mergeManySources(expressions) as WindowSourceOf<Value, PartitionBy, OrderBy>,
+      sourceNullability: "resolved" as const,
+      dependencies: mergeManyDependencies(expressions) as WindowDependenciesOf<Value, PartitionBy, OrderBy>
+    }, {
+      kind: "window",
+      function: "over",
+      value,
+      partitionBy: normalized.partitionBy,
+      orderBy: normalized.orderBy
+    })
+  }
+
+  const buildNumberWindow = <
+    Kind extends Extract<ExpressionAst.WindowKind, "rowNumber" | "rank" | "denseRank">,
+    PartitionBy extends readonly WindowPartitionInput[],
+    OrderBy extends NonEmptyWindowOrderTerms
+  >(
+    kind: Kind,
+    spec: OrderedWindowSpecInput<PartitionBy, OrderBy>
+  ): NumberWindowExpression<Kind, PartitionBy, OrderBy> => {
+    const normalized = normalizeWindowSpec(spec)
+    const expressions = mergeWindowExpressions(undefined, normalized.partitionBy, normalized.orderBy)
+    return makeExpression({
+      runtime: 0 as number,
+      dbType: profile.numericDb as Expression.DbType.Any,
+      nullability: "never",
+      dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as NumberWindowDialectOf<PartitionBy, OrderBy>,
+      aggregation: "window",
+      source: mergeManySources(expressions) as NumberWindowSourceOf<PartitionBy, OrderBy>,
+      sourceNullability: "resolved" as const,
+      dependencies: mergeManyDependencies(expressions) as NumberWindowDependenciesOf<PartitionBy, OrderBy>
+    }, {
+      kind: "window",
+      function: kind,
+      partitionBy: normalized.partitionBy,
+      orderBy: normalized.orderBy
+    })
+  }
+
+  const rowNumber = <
+    PartitionBy extends readonly WindowPartitionInput[] = [],
+    OrderBy extends NonEmptyWindowOrderTerms = NonEmptyWindowOrderTerms
+  >(
+    spec: OrderedWindowSpecInput<PartitionBy, OrderBy>
+  ): NumberWindowExpression<"rowNumber", PartitionBy, OrderBy> =>
+    buildNumberWindow("rowNumber", spec)
+
+  const rank = <
+    PartitionBy extends readonly WindowPartitionInput[] = [],
+    OrderBy extends NonEmptyWindowOrderTerms = NonEmptyWindowOrderTerms
+  >(
+    spec: OrderedWindowSpecInput<PartitionBy, OrderBy>
+  ): NumberWindowExpression<"rank", PartitionBy, OrderBy> =>
+    buildNumberWindow("rank", spec)
+
+  const denseRank = <
+    PartitionBy extends readonly WindowPartitionInput[] = [],
+    OrderBy extends NonEmptyWindowOrderTerms = NonEmptyWindowOrderTerms
+  >(
+    spec: OrderedWindowSpecInput<PartitionBy, OrderBy>
+  ): NumberWindowExpression<"denseRank", PartitionBy, OrderBy> =>
+    buildNumberWindow("denseRank", spec)
+
   const max = <Value extends Expression.Any>(
     value: Value
   ): AstBackedExpression<
@@ -1242,7 +1556,7 @@ export function makeDialectQuery<
     })
   }
 
-  const targetSourceDetails = (table: MutationTargetLike) => {
+  const targetSourceDetails = (table: MutationTargetLike | SchemaTableLike) => {
     const sourceName = (table as unknown as TableLike)[Table.TypeId].name
     const sourceBaseName = (table as unknown as TableLike)[Table.TypeId].baseName
     return {
@@ -1262,13 +1576,60 @@ export function makeDialectQuery<
     }))
   }
 
+  const defaultIndexName = (
+    tableName: string,
+    columns: readonly string[],
+    unique: boolean
+  ): string => `${tableName}_${columns.join("_")}_${unique ? "uniq" : "idx"}`
+
 type MutationStatement = "insert" | "update" | "delete"
+
+type DdlStatement = "createTable" | "createIndex" | "dropIndex" | "dropTable"
+
+type DdlColumnInput = string | readonly string[]
+
+type NormalizeDdlColumns<Columns extends DdlColumnInput> =
+  Columns extends readonly [infer Head extends string, ...infer Tail extends string[]]
+    ? readonly [Head, ...Tail]
+    : Columns extends readonly string[]
+      ? Columns extends readonly [string, ...string[]]
+        ? Columns
+        : never
+      : Columns extends string
+        ? readonly [Columns]
+        : never
+
+type SchemaColumnNames<Target extends SchemaTableLike> = Extract<keyof Target[typeof Table.TypeId]["fields"], string>
+
+type ValidateDdlColumns<
+  Target extends SchemaTableLike,
+  Columns extends readonly string[]
+> = Exclude<Columns[number], SchemaColumnNames<Target>> extends never ? Columns : never
+
+type CreateIndexOptions = {
+  readonly name?: string
+  readonly unique?: boolean
+  readonly ifNotExists?: boolean
+}
+
+type DropIndexOptions = {
+  readonly name?: string
+  readonly ifExists?: boolean
+}
+
+type CreateTableOptions = {
+  readonly ifNotExists?: boolean
+}
+
+type DropTableOptions = {
+  readonly ifExists?: boolean
+}
 
 type RequireSelectStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   StatementOfPlan<PlanValue> extends "select" ? unknown : never
 
-type RequireNonInsertStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  StatementOfPlan<PlanValue> extends "insert" ? never : unknown
+type RequireWhereStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+  StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
 
 type RequireMutationStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   StatementOfPlan<PlanValue> extends MutationStatement ? unknown : never
@@ -1360,11 +1721,153 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       orderBy: []
     }, undefined as unknown as TrueFormula, "read", "select")
 
+  const buildSetOperation = <
+    Operator extends QueryAst.SetOperatorKind,
+    LeftPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    RightPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  >(
+    kind: Operator,
+    left: SetCompatiblePlan<LeftPlanValue, Dialect>,
+    right: SetCompatibleRightPlan<LeftPlanValue, RightPlanValue, Dialect>
+  ): QueryPlan<
+    SelectionOfPlan<LeftPlanValue>,
+    never,
+    {},
+    PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>,
+    GroupedOfPlan<LeftPlanValue>,
+    never,
+    never,
+    TrueFormula,
+    CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
+    "set"
+  > => {
+    const leftState = left[Plan.TypeId]
+    const leftAst = getAst(left)
+    const basePlan = leftAst.kind === "set"
+      ? leftAst.setBase ?? left
+      : left
+    const leftOperations = leftAst.kind === "set"
+      ? [...(leftAst.setOperations ?? [])]
+      : []
+    return makePlan({
+      selection: leftState.selection as SelectionOfPlan<LeftPlanValue>,
+      required: undefined as never,
+      available: {},
+      dialect: (leftState.dialect ?? right[Plan.TypeId].dialect) as PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>
+    }, {
+      kind: "set",
+      select: leftState.selection,
+      where: [],
+      having: [],
+      joins: [],
+      groupBy: [],
+      orderBy: [],
+      setBase: basePlan,
+      setOperations: [
+        ...leftOperations,
+        {
+          kind,
+          query: right
+        }
+      ]
+    }, undefined as unknown as TrueFormula, undefined as unknown as CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>, "set")
+  }
+
+  const union = <
+    LeftPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    RightPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  >(
+    left: SetCompatiblePlan<LeftPlanValue, Dialect>,
+    right: SetCompatibleRightPlan<LeftPlanValue, RightPlanValue, Dialect>
+  ): QueryPlan<
+    SelectionOfPlan<LeftPlanValue>,
+    never,
+    {},
+    PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>,
+    GroupedOfPlan<LeftPlanValue>,
+    never,
+    never,
+    TrueFormula,
+    CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
+    "set"
+  > => buildSetOperation("union", left as never, right as never) as QueryPlan<
+    SelectionOfPlan<LeftPlanValue>,
+    never,
+    {},
+    PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>,
+    GroupedOfPlan<LeftPlanValue>,
+    never,
+    never,
+    TrueFormula,
+    CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
+    "set"
+  >
+
+  const intersect = <
+    LeftPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    RightPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  >(
+    left: SetCompatiblePlan<LeftPlanValue, Dialect>,
+    right: SetCompatibleRightPlan<LeftPlanValue, RightPlanValue, Dialect>
+  ): QueryPlan<
+    SelectionOfPlan<LeftPlanValue>,
+    never,
+    {},
+    PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>,
+    GroupedOfPlan<LeftPlanValue>,
+    never,
+    never,
+    TrueFormula,
+    CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
+    "set"
+  > => buildSetOperation("intersect", left as never, right as never) as QueryPlan<
+    SelectionOfPlan<LeftPlanValue>,
+    never,
+    {},
+    PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>,
+    GroupedOfPlan<LeftPlanValue>,
+    never,
+    never,
+    TrueFormula,
+    CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
+    "set"
+  >
+
+  const except = <
+    LeftPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    RightPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  >(
+    left: SetCompatiblePlan<LeftPlanValue, Dialect>,
+    right: SetCompatibleRightPlan<LeftPlanValue, RightPlanValue, Dialect>
+  ): QueryPlan<
+    SelectionOfPlan<LeftPlanValue>,
+    never,
+    {},
+    PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>,
+    GroupedOfPlan<LeftPlanValue>,
+    never,
+    never,
+    TrueFormula,
+    CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
+    "set"
+  > => buildSetOperation("except", left as never, right as never) as QueryPlan<
+    SelectionOfPlan<LeftPlanValue>,
+    never,
+    {},
+    PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>,
+    GroupedOfPlan<LeftPlanValue>,
+    never,
+    never,
+    TrueFormula,
+    CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
+    "set"
+  >
+
   const where = <Predicate extends PredicateInput>(
     predicate: Predicate
   ) =>
     <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-      plan: PlanValue & RequireNonInsertStatement<PlanValue>
+      plan: PlanValue & RequireWhereStatement<PlanValue>
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
       AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
@@ -1501,6 +2004,76 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
   ) =>
     join("left", table, on)
 
+  const rightJoin = <CurrentTable extends SourceLike, Predicate extends PredicateInput>(
+    table: CurrentTable,
+    on: Predicate
+  ) =>
+    join("right", table, on)
+
+  const fullJoin = <CurrentTable extends SourceLike, Predicate extends PredicateInput>(
+    table: CurrentTable,
+    on: Predicate
+  ) =>
+    join("full", table, on)
+
+  const crossJoin = <CurrentTable extends SourceLike>(
+    table: CurrentTable
+  ) =>
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & RequireSelectStatement<PlanValue> & (
+        keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
+      ) & (
+        SourceNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
+      )
+    ): QueryPlan<
+      SelectionOfPlan<PlanValue>,
+      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross">,
+      AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, "required">,
+      PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>,
+      GroupedOfPlan<PlanValue>,
+      ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
+      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross">,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>,
+      StatementOfPlan<PlanValue>
+    > => {
+      const current = plan[Plan.TypeId]
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
+        ? table.name
+        : (table as TableLike)[Table.TypeId].name
+      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
+        ? table.baseName
+        : (table as TableLike)[Table.TypeId].baseName
+      const nextAvailable = Object.assign(
+        {},
+        current.available as AvailableOfPlan<PlanValue>,
+        {
+          [sourceName]: {
+            name: sourceName,
+            mode: "required",
+            baseName: sourceBaseName
+          }
+        }
+      ) as AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, "required">
+      return makePlan({
+        selection: current.selection,
+        required: currentRequiredList(current.required).filter((name) =>
+          !(name in nextAvailable)) as AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross">,
+        available: nextAvailable,
+        dialect: current.dialect as PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>
+      }, {
+        ...currentAst,
+        joins: [...currentAst.joins, {
+          kind: "cross",
+          tableName: sourceName,
+          baseTableName: sourceBaseName,
+          source: table
+        }]
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+    }
+
   const join = <
     Kind extends QueryAst.JoinKind,
     CurrentTable extends SourceLike,
@@ -1518,12 +2091,12 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       )
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
-      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate>,
-      AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, JoinSourceMode<Kind>>,
+      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
+      AvailableAfterJoin<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Kind>,
       PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
-      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate>,
+      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
       AssumptionsOfPlan<PlanValue>,
       CapabilitiesOfPlan<PlanValue>,
       StatementOfPlan<PlanValue>
@@ -1538,18 +2111,27 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
       const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte")
         ? table.baseName
         : (table as TableLike)[Table.TypeId].baseName
+      const baseAvailable = (kind === "right" || kind === "full"
+        ? Object.fromEntries(
+          Object.entries(current.available as Record<string, Plan.Source>).map(([name, source]) => [name, {
+            name: source.name,
+            mode: "optional" as const,
+            baseName: source.baseName
+          }])
+        )
+        : current.available) as AvailableOfPlan<PlanValue>
       const nextAvailable = {
-        ...current.available,
+        ...baseAvailable,
         [sourceName]: {
           name: sourceName,
-          mode: (kind === "left" ? "optional" : "required") as JoinSourceMode<Kind>,
+          mode: (kind === "left" || kind === "full" ? "optional" : "required") as JoinSourceMode<Kind>,
           baseName: sourceBaseName
         }
-      } as AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, JoinSourceMode<Kind>>
+      } as AvailableAfterJoin<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Kind>
       return makePlan({
         selection: current.selection,
         required: [...currentRequiredList(current.required), ...extractRequiredFromDialectInputRuntime(on)].filter((name, index, values) =>
-          !(name in nextAvailable) && values.indexOf(name) === index) as AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate>,
+          !(name in nextAvailable) && values.indexOf(name) === index) as AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
         available: nextAvailable,
         dialect: current.dialect as PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
       }, {
@@ -1600,6 +2182,103 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
           value: expression,
           direction
         }]
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+    }
+
+  const distinct = () =>
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & RequireSelectStatement<PlanValue>
+    ): QueryPlan<
+      SelectionOfPlan<PlanValue>,
+      RequiredOfPlan<PlanValue>,
+      AvailableOfPlan<PlanValue>,
+      PlanDialectOf<PlanValue>,
+      GroupedOfPlan<PlanValue>,
+      ScopedNamesOfPlan<PlanValue>,
+      OutstandingOfPlan<PlanValue>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>,
+      StatementOfPlan<PlanValue>
+    > => {
+      const current = plan[Plan.TypeId]
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      return makePlan({
+        selection: current.selection,
+        required: current.required as RequiredOfPlan<PlanValue>,
+        available: current.available,
+        dialect: current.dialect as PlanDialectOf<PlanValue>
+      }, {
+        ...currentAst,
+        distinct: true
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+    }
+
+  const limit = <Value extends NumericExpressionInput>(
+    value: Value
+  ) =>
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & RequireSelectStatement<PlanValue>
+    ): QueryPlan<
+      SelectionOfPlan<PlanValue>,
+      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      AvailableOfPlan<PlanValue>,
+      PlanDialectOf<PlanValue> | DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      GroupedOfPlan<PlanValue>,
+      ScopedNamesOfPlan<PlanValue>,
+      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>,
+      StatementOfPlan<PlanValue>
+    > => {
+      const current = plan[Plan.TypeId]
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      const expression = toDialectNumericExpression(value)
+      const required = extractRequiredFromDialectNumericInputRuntime(value)
+      return makePlan({
+        selection: current.selection,
+        required: [...currentRequiredList(current.required), ...required].filter((name, index, values) =>
+          !(name in current.available) && values.indexOf(name) === index) as AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+        available: current.available,
+        dialect: current.dialect as PlanDialectOf<PlanValue> | DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+      }, {
+        ...currentAst,
+        limit: expression
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+    }
+
+  const offset = <Value extends NumericExpressionInput>(
+    value: Value
+  ) =>
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & RequireSelectStatement<PlanValue>
+    ): QueryPlan<
+      SelectionOfPlan<PlanValue>,
+      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      AvailableOfPlan<PlanValue>,
+      PlanDialectOf<PlanValue> | DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      GroupedOfPlan<PlanValue>,
+      ScopedNamesOfPlan<PlanValue>,
+      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>,
+      StatementOfPlan<PlanValue>
+    > => {
+      const current = plan[Plan.TypeId]
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      const expression = toDialectNumericExpression(value)
+      const required = extractRequiredFromDialectNumericInputRuntime(value)
+      return makePlan({
+        selection: current.selection,
+        required: [...currentRequiredList(current.required), ...required].filter((name, index, values) =>
+          !(name in current.available) && values.indexOf(name) === index) as AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+        available: current.available,
+        dialect: current.dialect as PlanDialectOf<PlanValue> | DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+      }, {
+        ...currentAst,
+        offset: expression
       }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
@@ -1814,6 +2493,192 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     }, undefined as unknown as TrueFormula, "write", "delete")
   }
 
+  const createTable = <
+    Target extends SchemaTableLike
+  >(
+    target: Target,
+    options: CreateTableOptions = {}
+  ): QueryPlan<
+    {},
+    never,
+    {},
+    TableDialectOf<Target>,
+    never,
+    never,
+    never,
+    TrueFormula,
+    "ddl",
+    "createTable"
+  > => {
+    const { sourceName, sourceBaseName } = targetSourceDetails(target)
+    return makePlan({
+      selection: {},
+      required: [] as never,
+      available: {},
+      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+    }, {
+      kind: "createTable",
+      select: {},
+      target: {
+        kind: "from",
+        tableName: sourceName,
+        baseTableName: sourceBaseName,
+        source: target
+      },
+      ddl: {
+        kind: "createTable",
+        ifNotExists: options.ifNotExists ?? false
+      },
+      where: [],
+      having: [],
+      joins: [],
+      groupBy: [],
+      orderBy: []
+    }, undefined as unknown as TrueFormula, "ddl", "createTable")
+  }
+
+  const dropTable = <
+    Target extends SchemaTableLike
+  >(
+    target: Target,
+    options: DropTableOptions = {}
+  ): QueryPlan<
+    {},
+    never,
+    {},
+    TableDialectOf<Target>,
+    never,
+    never,
+    never,
+    TrueFormula,
+    "ddl",
+    "dropTable"
+  > => {
+    const { sourceName, sourceBaseName } = targetSourceDetails(target)
+    return makePlan({
+      selection: {},
+      required: [] as never,
+      available: {},
+      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+    }, {
+      kind: "dropTable",
+      select: {},
+      target: {
+        kind: "from",
+        tableName: sourceName,
+        baseTableName: sourceBaseName,
+        source: target
+      },
+      ddl: {
+        kind: "dropTable",
+        ifExists: options.ifExists ?? false
+      },
+      where: [],
+      having: [],
+      joins: [],
+      groupBy: [],
+      orderBy: []
+    }, undefined as unknown as TrueFormula, "ddl", "dropTable")
+  }
+
+  const createIndex = <
+    Target extends SchemaTableLike,
+    Columns extends DdlColumnInput
+  >(
+    target: Target,
+    columns: ValidateDdlColumns<Target, NormalizeDdlColumns<Columns>>,
+    options: CreateIndexOptions = {}
+  ): QueryPlan<
+    {},
+    never,
+    {},
+    TableDialectOf<Target>,
+    never,
+    never,
+    never,
+    TrueFormula,
+    "ddl",
+    "createIndex"
+  > => {
+    const normalizedColumns = normalizeColumnList(columns as string | readonly string[])
+    const { sourceName, sourceBaseName } = targetSourceDetails(target)
+    return makePlan({
+      selection: {},
+      required: [] as never,
+      available: {},
+      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+    }, {
+      kind: "createIndex",
+      select: {},
+      target: {
+        kind: "from",
+        tableName: sourceName,
+        baseTableName: sourceBaseName,
+        source: target
+      },
+      ddl: {
+        kind: "createIndex",
+        name: options.name ?? defaultIndexName(sourceBaseName, normalizedColumns, options.unique ?? false),
+        columns: normalizedColumns,
+        unique: options.unique ?? false,
+        ifNotExists: options.ifNotExists ?? false
+      },
+      where: [],
+      having: [],
+      joins: [],
+      groupBy: [],
+      orderBy: []
+    }, undefined as unknown as TrueFormula, "ddl", "createIndex")
+  }
+
+  const dropIndex = <
+    Target extends SchemaTableLike,
+    Columns extends DdlColumnInput
+  >(
+    target: Target,
+    columns: ValidateDdlColumns<Target, NormalizeDdlColumns<Columns>>,
+    options: DropIndexOptions = {}
+  ): QueryPlan<
+    {},
+    never,
+    {},
+    TableDialectOf<Target>,
+    never,
+    never,
+    never,
+    TrueFormula,
+    "ddl",
+    "dropIndex"
+  > => {
+    const normalizedColumns = normalizeColumnList(columns as string | readonly string[])
+    const { sourceName, sourceBaseName } = targetSourceDetails(target)
+    return makePlan({
+      selection: {},
+      required: [] as never,
+      available: {},
+      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+    }, {
+      kind: "dropIndex",
+      select: {},
+      target: {
+        kind: "from",
+        tableName: sourceName,
+        baseTableName: sourceBaseName,
+        source: target
+      },
+      ddl: {
+        kind: "dropIndex",
+        name: options.name ?? defaultIndexName(sourceBaseName, normalizedColumns, false),
+        ifExists: options.ifExists ?? false
+      },
+      where: [],
+      having: [],
+      joins: [],
+      groupBy: [],
+      orderBy: []
+    }, undefined as unknown as TrueFormula, "ddl", "dropIndex")
+  }
+
   const api = {
     literal,
     eq,
@@ -1837,6 +2702,10 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     between,
     concat,
     exists,
+    over,
+    rowNumber,
+    rank,
+    denseRank,
     count,
     max,
     min,
@@ -1846,12 +2715,25 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     insert,
     update,
     delete: delete_,
+    createTable,
+    dropTable,
+    createIndex,
+    dropIndex,
+    union,
+    intersect,
+    except,
     select,
     where,
     having,
     from,
     innerJoin,
     leftJoin,
+    rightJoin,
+    fullJoin,
+    crossJoin,
+    distinct,
+    limit,
+    offset,
     orderBy,
     groupBy
   }

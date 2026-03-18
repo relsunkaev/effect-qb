@@ -16,15 +16,20 @@ import {
   type OutputOfSelection,
   type MutationInputOf,
   type MutationTargetLike,
+  type NumericExpressionInput,
   type PredicateInput,
   type QueryCapability,
   type QueryPlan,
   type QueryRequirement,
+  type SetCompatiblePlan,
+  type SetCompatibleRightPlan,
+  type SetOperator,
   type QueryStatement,
   type ResultRow,
   type ResultRows,
   type RuntimeResultRow,
   type RuntimeResultRows,
+  type SchemaTableLike,
   type StatementOfPlan,
   type StringExpressionInput
 } from "../query.ts"
@@ -61,6 +66,10 @@ export const in_ = mysqlQuery.in
 export const between = mysqlQuery.between
 export const concat = mysqlQuery.concat
 export const exists = mysqlQuery.exists
+export const over = mysqlQuery.over
+export const rowNumber = mysqlQuery.rowNumber
+export const rank = mysqlQuery.rank
+export const denseRank = mysqlQuery.denseRank
 export const count = mysqlQuery.count
 export const max = mysqlQuery.max
 export const min = mysqlQuery.min
@@ -70,12 +79,25 @@ export const returning = mysqlQuery.returning
 export const insert = mysqlQuery.insert
 export const update = mysqlQuery.update
 export const delete_ = mysqlQuery.delete
+export const createTable = mysqlQuery.createTable
+export const dropTable = mysqlQuery.dropTable
+export const createIndex = mysqlQuery.createIndex
+export const dropIndex = mysqlQuery.dropIndex
+export const union = mysqlQuery.union
+export const intersect = mysqlQuery.intersect
+export const except = mysqlQuery.except
 export const select = mysqlQuery.select
 export const where = mysqlQuery.where
 export const having = mysqlQuery.having
 export const from = mysqlQuery.from
 export const innerJoin = mysqlQuery.innerJoin
 export const leftJoin = mysqlQuery.leftJoin
+export const rightJoin = mysqlQuery.rightJoin
+export const fullJoin = mysqlQuery.fullJoin
+export const crossJoin = mysqlQuery.crossJoin
+export const distinct = mysqlQuery.distinct
+export const limit = mysqlQuery.limit
+export const offset = mysqlQuery.offset
 export const orderBy = mysqlQuery.orderBy
 export const groupBy = mysqlQuery.groupBy
 export { case_ as case }
@@ -100,15 +122,20 @@ export type {
   OutputOfSelection,
   MutationInputOf,
   MutationTargetLike,
+  NumericExpressionInput,
   PredicateInput,
   QueryCapability,
   QueryPlan,
   QueryStatement,
   QueryRequirement,
+  SetCompatiblePlan,
+  SetCompatibleRightPlan,
+  SetOperator,
   ResultRow,
   ResultRows,
   RuntimeResultRow,
   RuntimeResultRows,
+  SchemaTableLike,
   StatementOfPlan,
   StringExpressionInput
 }

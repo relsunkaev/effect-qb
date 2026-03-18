@@ -95,6 +95,31 @@ export interface ExistsNode<
   readonly plan: PlanValue
 }
 
+/** Ordering term inside a window specification. */
+export interface WindowOrderByNode<
+  Value extends Expression.Any = Expression.Any
+> {
+  readonly value: Value
+  readonly direction: "asc" | "desc"
+}
+
+/** Window function kinds supported by the query layer. */
+export type WindowKind = "rowNumber" | "rank" | "denseRank" | "over"
+
+/** Window function expression node. */
+export interface WindowNode<
+  Kind extends WindowKind = WindowKind,
+  Value extends Expression.Any | undefined = Expression.Any | undefined,
+  PartitionBy extends readonly Expression.Any[] = readonly Expression.Any[],
+  OrderBy extends readonly WindowOrderByNode[] = readonly WindowOrderByNode[]
+> {
+  readonly kind: "window"
+  readonly function: Kind
+  readonly value?: Value
+  readonly partitionBy: PartitionBy
+  readonly orderBy: OrderBy
+}
+
 /** Union of all internal expression nodes. */
 export type Any =
   | ColumnNode
@@ -104,3 +129,4 @@ export type Any =
   | VariadicNode
   | CaseNode
   | ExistsNode
+  | WindowNode

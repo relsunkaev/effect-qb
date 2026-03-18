@@ -1,5 +1,5 @@
 /** Query capabilities directly modeled by the current plan AST. */
-export type QueryCapability = "read" | "write"
+export type QueryCapability = "read" | "write" | "ddl"
 
 /**
  * Capability or query-mode requirement associated with a dialect error.

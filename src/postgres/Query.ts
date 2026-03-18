@@ -16,15 +16,20 @@ import {
   type OutputOfSelection,
   type MutationInputOf,
   type MutationTargetLike,
+  type NumericExpressionInput,
   type PredicateInput,
   type QueryCapability,
   type QueryPlan,
   type QueryRequirement,
+  type SetCompatiblePlan,
+  type SetCompatibleRightPlan,
+  type SetOperator,
   type QueryStatement,
   type ResultRow,
   type ResultRows,
   type RuntimeResultRow,
   type RuntimeResultRows,
+  type SchemaTableLike,
   type StatementOfPlan,
   type StringExpressionInput
 } from "../query.ts"
@@ -61,6 +66,10 @@ export const in_ = postgresQuery.in
 export const between = postgresQuery.between
 export const concat = postgresQuery.concat
 export const exists = postgresQuery.exists
+export const over = postgresQuery.over
+export const rowNumber = postgresQuery.rowNumber
+export const rank = postgresQuery.rank
+export const denseRank = postgresQuery.denseRank
 export const count = postgresQuery.count
 export const max = postgresQuery.max
 export const min = postgresQuery.min
@@ -70,12 +79,25 @@ export const returning = postgresQuery.returning
 export const insert = postgresQuery.insert
 export const update = postgresQuery.update
 export const delete_ = postgresQuery.delete
+export const createTable = postgresQuery.createTable
+export const dropTable = postgresQuery.dropTable
+export const createIndex = postgresQuery.createIndex
+export const dropIndex = postgresQuery.dropIndex
+export const union = postgresQuery.union
+export const intersect = postgresQuery.intersect
+export const except = postgresQuery.except
 export const select = postgresQuery.select
 export const where = postgresQuery.where
 export const having = postgresQuery.having
 export const from = postgresQuery.from
 export const innerJoin = postgresQuery.innerJoin
 export const leftJoin = postgresQuery.leftJoin
+export const rightJoin = postgresQuery.rightJoin
+export const fullJoin = postgresQuery.fullJoin
+export const crossJoin = postgresQuery.crossJoin
+export const distinct = postgresQuery.distinct
+export const limit = postgresQuery.limit
+export const offset = postgresQuery.offset
 export const orderBy = postgresQuery.orderBy
 export const groupBy = postgresQuery.groupBy
 export { case_ as case }
@@ -100,15 +122,20 @@ export type {
   OutputOfSelection,
   MutationInputOf,
   MutationTargetLike,
+  NumericExpressionInput,
   PredicateInput,
   QueryCapability,
   QueryPlan,
   QueryStatement,
   QueryRequirement,
+  SetCompatiblePlan,
+  SetCompatibleRightPlan,
+  SetOperator,
   ResultRow,
   ResultRows,
   RuntimeResultRow,
   RuntimeResultRows,
+  SchemaTableLike,
   StatementOfPlan,
   StringExpressionInput
 }

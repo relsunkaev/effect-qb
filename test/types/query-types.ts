@@ -67,6 +67,54 @@ void innerJoinedTitle
 void innerJoinedPostId
 void innerJoinedNullPostId
 
+const rightJoined = Q.select({
+  userId: users.id,
+  postId: posts.id
+}).pipe(
+  Q.from(users),
+  Q.rightJoin(posts, Q.eq(users.id, posts.userId))
+)
+
+type RightJoinedRow = Q.ResultRow<typeof rightJoined>
+const rightJoinedUserId: RightJoinedRow["userId"] = null
+const rightJoinedPostId: RightJoinedRow["postId"] = "post-id"
+// @ts-expect-error right joins should keep the joined source non-null
+const rightJoinedNullPostId: RightJoinedRow["postId"] = null
+void rightJoinedUserId
+void rightJoinedPostId
+void rightJoinedNullPostId
+
+const fullJoined = Q.select({
+  userId: users.id,
+  postId: posts.id
+}).pipe(
+  Q.from(users),
+  Q.fullJoin(posts, Q.eq(users.id, posts.userId))
+)
+
+type FullJoinedRow = Q.ResultRow<typeof fullJoined>
+const fullJoinedUserId: FullJoinedRow["userId"] = null
+const fullJoinedPostId: FullJoinedRow["postId"] = null
+void fullJoinedUserId
+void fullJoinedPostId
+
+const crossJoined = Q.select({
+  userId: users.id,
+  postId: posts.id
+}).pipe(
+  Q.from(users),
+  Q.crossJoin(posts)
+)
+
+type CrossJoinedRow = Q.ResultRow<typeof crossJoined>
+const crossJoinedUserId: CrossJoinedRow["userId"] = "user-id"
+const crossJoinedPostId: CrossJoinedRow["postId"] = "post-id"
+// @ts-expect-error cross joins should not introduce nullable joined fields
+const crossJoinedNullPostId: CrossJoinedRow["postId"] = null
+void crossJoinedUserId
+void crossJoinedPostId
+void crossJoinedNullPostId
+
 const predicateSurfacePlan = Q.select({
   userId: users.id
 }).pipe(
@@ -76,6 +124,19 @@ const predicateSurfacePlan = Q.select({
 type PredicateSurfaceRow = Q.ResultRow<typeof predicateSurfacePlan>
 const predicateSurfaceUserId: PredicateSurfaceRow["userId"] = "user-1"
 void predicateSurfaceUserId
+
+const paginatedPlan = Q.select({
+  userId: users.id
+}).pipe(
+  Q.from(users),
+  Q.distinct(),
+  Q.limit(5),
+  Q.offset(10)
+)
+
+type PaginatedRow = Q.ResultRow<typeof paginatedPlan>
+const paginatedUserId: PaginatedRow["userId"] = "user-1"
+void paginatedUserId
 
 const predicateSurfaceApplied = Q.where(Q.and(
   Q.neq(users.id, 1),
@@ -89,6 +150,20 @@ const predicateSurfaceApplied = Q.where(Q.and(
   Q.in(users.id, 7, 8, 9)
 ))(predicateSurfacePlan)
 void predicateSurfaceApplied
+
+// @ts-expect-error distinct is select-only
+Q.distinct()(Q.delete(users))
+
+// @ts-expect-error limit is select-only
+Q.limit(5)(Q.update(users, {
+  email: "updated@example.com"
+}))
+
+// @ts-expect-error offset is select-only
+Q.offset(10)(Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com"
+}))
 
 const aliasPlan = Q.select({
   profile: {
@@ -202,6 +277,59 @@ type CteSourceRow = Q.ResultRow<typeof cteSourcePlan>
 const cteSourceTitle: CteSourceRow["title"] = "hello"
 void cteSourceTitle
 
+const activeUsers = Q.select({
+  email: users.email
+}).pipe(
+  Q.from(users),
+  Q.where(Q.like(users.email, "%@example.com"))
+)
+
+const archivedUsers = Q.select({
+  email: users.email
+}).pipe(
+  Q.from(users),
+  Q.where(Q.eq(users.email, "archived@example.com"))
+)
+
+const unionPlan = Q.union(activeUsers, archivedUsers)
+const intersectPlan = Q.intersect(activeUsers, archivedUsers)
+const exceptPlan = Q.except(activeUsers, archivedUsers)
+
+type UnionRow = Q.ResultRow<typeof unionPlan>
+const unionEmail: UnionRow["email"] = "alice@example.com"
+type UnionStatement = Q.StatementOfPlan<typeof unionPlan>
+const unionStatement: UnionStatement = "set"
+type UnionCapability = Q.CapabilitiesOfPlan<typeof unionPlan>
+const unionCapability: UnionCapability = "read"
+void unionEmail
+void unionStatement
+void unionCapability
+void intersectPlan
+void exceptPlan
+
+const mismatchedSetOperand = Q.select({
+  postId: posts.id
+}).pipe(
+  Q.from(posts)
+)
+
+type MismatchedSetOperandError = Q.SetCompatibleRightPlan<typeof activeUsers, typeof mismatchedSetOperand, "postgres">
+const mismatchedSetOperandMessage: MismatchedSetOperandError["__effect_qb_error__"] =
+  "effect-qb: set operator operands must have matching result rows"
+const mismatchedSetOperandHint: MismatchedSetOperandError["__effect_qb_hint__"] =
+  "Project the same nested object shape and compatible nullability from each operand"
+void mismatchedSetOperandMessage
+void mismatchedSetOperandHint
+
+const insertedUser = Q.insert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+})
+
+type InvalidSetOperandStatement = Q.SetCompatiblePlan<typeof insertedUser, "postgres">
+const invalidSetOperandStatement: InvalidSetOperandStatement["__effect_qb_statement__"] = "insert"
+void invalidSetOperandStatement
+
 const invalidDerivedSource = Q.select({
   userId: posts.userId
 }).pipe(
@@ -246,6 +374,74 @@ const aggregatePlan = Q.select({
 type AggregatePlanCapabilities = Q.CapabilitiesOfPlan<typeof aggregatePlan>
 const aggregateCapability: AggregatePlanCapabilities = "read"
 void aggregateCapability
+
+const windowPlan = Q.select({
+  userId: users.id,
+  rowNumber: Q.rowNumber({
+    partitionBy: [users.id],
+    orderBy: [{ value: posts.id, direction: "asc" }]
+  }),
+  rankedTitle: Q.rank({
+    partitionBy: [users.id],
+    orderBy: [{ value: Q.lower(posts.title), direction: "desc" }]
+  }),
+  postCount: Q.over(Q.count(posts.id), {
+    partitionBy: [users.id],
+    orderBy: [{ value: posts.id, direction: "asc" }]
+  }),
+  latestTitle: Q.over(Q.max(posts.title), {
+    partitionBy: [users.id]
+  })
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
+)
+
+type WindowRow = Q.ResultRow<typeof windowPlan>
+const windowRowNumber: WindowRow["rowNumber"] = 1
+const windowRankedTitle: WindowRow["rankedTitle"] = 2
+const windowPostCount: WindowRow["postCount"] = 3
+const nullableWindowTitle: WindowRow["latestTitle"] = null
+// @ts-expect-error row_number should be non-null
+const nullWindowRowNumber: WindowRow["rowNumber"] = null
+void windowRowNumber
+void windowRankedTitle
+void windowPostCount
+void nullableWindowTitle
+void nullWindowRowNumber
+
+type WindowRuntimeRow = Q.RuntimeResultRow<typeof windowPlan>
+const runtimeWindowTitle: WindowRuntimeRow["latestTitle"] = null
+void runtimeWindowTitle
+
+const invalidGroupedWindowPlan = Q.select({
+  email: users.email,
+  rowNumber: Q.rowNumber({
+    orderBy: [{ value: users.id, direction: "asc" }]
+  }),
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(users.email)
+)
+
+type InvalidGroupedWindowPlan = Q.CompletePlan<typeof invalidGroupedWindowPlan>
+const invalidGroupedWindowError: InvalidGroupedWindowPlan["__effect_qb_error__"] =
+  "effect-qb: invalid grouped selection"
+void invalidGroupedWindowError
+
+// @ts-expect-error over requires an aggregate input
+const invalidWindowAggregate = Q.over(users.email, {
+  partitionBy: [users.id]
+})
+void invalidWindowAggregate
+
+// @ts-expect-error ranking window functions require at least one ordering term
+const invalidRowNumber = Q.rowNumber({
+  partitionBy: [users.id]
+})
+void invalidRowNumber
 
 type ManualCapabilityUnion = Q.MergeCapabilities<"read", "write">
 const manualReadCapability: ManualCapabilityUnion = "read"
@@ -327,3 +523,14 @@ const managerSourceName: typeof aliasedPlan[typeof Plan.TypeId]["available"]["ma
 const reportSourceMode: typeof aliasedPlan[typeof Plan.TypeId]["available"]["report"]["mode"] = "optional"
 void managerSourceName
 void reportSourceMode
+
+const rightJoinUserMode: typeof rightJoined[typeof Plan.TypeId]["available"]["users"]["mode"] = "optional"
+const rightJoinPostMode: typeof rightJoined[typeof Plan.TypeId]["available"]["posts"]["mode"] = "required"
+const fullJoinUserMode: typeof fullJoined[typeof Plan.TypeId]["available"]["users"]["mode"] = "optional"
+const fullJoinPostMode: typeof fullJoined[typeof Plan.TypeId]["available"]["posts"]["mode"] = "optional"
+const crossJoinPostMode: typeof crossJoined[typeof Plan.TypeId]["available"]["posts"]["mode"] = "required"
+void rightJoinUserMode
+void rightJoinPostMode
+void fullJoinUserMode
+void fullJoinPostMode
+void crossJoinPostMode

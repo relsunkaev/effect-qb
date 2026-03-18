@@ -181,6 +181,28 @@ describe("postgres dialect behavior", () => {
     ])
   })
 
+  test("renders distinct, limit, and offset with postgres parameter ordering", () => {
+    const { users } = makePostgresSocialGraph()
+
+    const plan = Postgres.Query.select({
+      email: users.email
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.where(Postgres.Query.like(users.email, "%@example.com")),
+      Postgres.Query.distinct(),
+      Postgres.Query.orderBy(users.email),
+      Postgres.Query.limit(5),
+      Postgres.Query.offset(10)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select distinct "users"."email" as "email" from "users" where ("users"."email" like $1) order by "users"."email" asc limit $2 offset $3'
+    )
+    expect(rendered.params).toEqual(["%@example.com", 5, 10])
+  })
+
   test("renders the extended read predicate surface with postgres-specific operators", () => {
     const { users } = makePostgresSocialGraph()
 
@@ -225,6 +247,66 @@ describe("postgres dialect behavior", () => {
       'select case when ("posts"."title" is null) then $1 when (lower("posts"."title") = $2) then $3 else upper(coalesce("posts"."title", $4)) end as "titleState" from "users" left join "posts" on ("users"."id" = "posts"."userId")'
     )
     expect(rendered.params).toEqual(["missing", "draft", "draft", "published"])
+  })
+
+  test("renders right, full, and cross joins with postgres syntax", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const rightJoinPlan = Postgres.Query.select({
+      userId: users.id,
+      postId: posts.id
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.rightJoin(posts, Postgres.Query.eq(users.id, posts.userId))
+    )
+
+    const fullJoinPlan = Postgres.Query.select({
+      userId: users.id,
+      postId: posts.id
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.fullJoin(posts, Postgres.Query.eq(users.id, posts.userId))
+    )
+
+    const crossJoinPlan = Postgres.Query.select({
+      userId: users.id,
+      postId: posts.id
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.crossJoin(posts)
+    )
+
+    expect(Postgres.Renderer.make().render(rightJoinPlan).sql).toBe(
+      'select "users"."id" as "userId", "posts"."id" as "postId" from "users" right join "posts" on ("users"."id" = "posts"."userId")'
+    )
+    expect(Postgres.Renderer.make().render(fullJoinPlan).sql).toBe(
+      'select "users"."id" as "userId", "posts"."id" as "postId" from "users" full join "posts" on ("users"."id" = "posts"."userId")'
+    )
+    expect(Postgres.Renderer.make().render(crossJoinPlan).sql).toBe(
+      'select "users"."id" as "userId", "posts"."id" as "postId" from "users" cross join "posts"'
+    )
+  })
+
+  test("renders distinct, limit, and offset with postgres placeholders", () => {
+    const { users } = makePostgresSocialGraph()
+
+    const plan = Postgres.Query.select({
+      userId: users.id,
+      email: users.email
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.distinct(),
+      Postgres.Query.orderBy(users.email),
+      Postgres.Query.limit(10),
+      Postgres.Query.offset(20)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select distinct "users"."id" as "userId", "users"."email" as "email" from "users" order by "users"."email" asc limit $1 offset $2'
+    )
+    expect(rendered.params).toEqual([10, 20])
   })
 
   test("renders exists subqueries with shared postgres parameter ordering", () => {
@@ -277,6 +359,39 @@ describe("postgres dialect behavior", () => {
       'select "users"."email" as "email", exists (select "posts"."id" as "id" from "posts" where ("posts"."userId" = "users"."id")) as "hasPosts" from "users" where ("users"."email" = $1)'
     )
     expect(rendered.params).toEqual(["alice@example.com"])
+  })
+
+  test("renders window functions and windowed aggregates with postgres syntax", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const plan = Postgres.Query.select({
+      userId: users.id,
+      rowNumber: Postgres.Query.rowNumber({
+        partitionBy: [users.id],
+        orderBy: [{ value: posts.id, direction: "asc" }]
+      }),
+      rankByTitle: Postgres.Query.rank({
+        partitionBy: [users.id],
+        orderBy: [{ value: Postgres.Query.lower(posts.title), direction: "desc" }]
+      }),
+      postCount: Postgres.Query.over(Postgres.Query.count(posts.id), {
+        partitionBy: [users.id],
+        orderBy: [{ value: posts.id, direction: "asc" }]
+      }),
+      latestTitle: Postgres.Query.over(Postgres.Query.max(posts.title), {
+        partitionBy: [users.id]
+      })
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.leftJoin(posts, Postgres.Query.eq(users.id, posts.userId))
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select "users"."id" as "userId", row_number() over (partition by "users"."id" order by "posts"."id" asc) as "rowNumber", rank() over (partition by "users"."id" order by lower("posts"."title") desc) as "rankByTitle", count("posts"."id") over (partition by "users"."id" order by "posts"."id" asc) as "postCount", max("posts"."title") over (partition by "users"."id") as "latestTitle" from "users" left join "posts" on ("users"."id" = "posts"."userId")'
+    )
+    expect(rendered.params).toEqual([])
   })
 
   test("renders aliased postgres subqueries as derived tables", () => {
@@ -335,6 +450,63 @@ describe("postgres dialect behavior", () => {
     )
   })
 
+  test("renders postgres set operators with stable operand ordering", () => {
+    const { users } = makePostgresSocialGraph()
+
+    const alice = Postgres.Query.select({
+      email: users.email
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.where(Postgres.Query.eq(users.email, "alice@example.com"))
+    )
+
+    const bob = Postgres.Query.select({
+      email: users.email
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.where(Postgres.Query.eq(users.email, "bob@example.com"))
+    )
+
+    const carol = Postgres.Query.select({
+      email: users.email
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.where(Postgres.Query.eq(users.email, "carol@example.com"))
+    )
+
+    const unionPlan = Postgres.Query.union(Postgres.Query.union(alice, bob), carol)
+    const intersectPlan = Postgres.Query.intersect(alice, bob)
+    const exceptPlan = Postgres.Query.except(alice, bob)
+
+    expect(Postgres.Renderer.make().render(unionPlan).sql).toBe(
+      '(select "users"."email" as "email" from "users" where ("users"."email" = $1)) union (select "users"."email" as "email" from "users" where ("users"."email" = $2)) union (select "users"."email" as "email" from "users" where ("users"."email" = $3))'
+    )
+    expect(Postgres.Renderer.make().render(unionPlan).params).toEqual([
+      "alice@example.com",
+      "bob@example.com",
+      "carol@example.com"
+    ])
+    expect(Postgres.Renderer.make().render(unionPlan).projections).toEqual([
+      { path: ["email"], alias: "email" }
+    ])
+
+    expect(Postgres.Renderer.make().render(intersectPlan).sql).toBe(
+      '(select "users"."email" as "email" from "users" where ("users"."email" = $1)) intersect (select "users"."email" as "email" from "users" where ("users"."email" = $2))'
+    )
+    expect(Postgres.Renderer.make().render(intersectPlan).params).toEqual([
+      "alice@example.com",
+      "bob@example.com"
+    ])
+
+    expect(Postgres.Renderer.make().render(exceptPlan).sql).toBe(
+      '(select "users"."email" as "email" from "users" where ("users"."email" = $1)) except (select "users"."email" as "email" from "users" where ("users"."email" = $2))'
+    )
+    expect(Postgres.Renderer.make().render(exceptPlan).params).toEqual([
+      "alice@example.com",
+      "bob@example.com"
+    ])
+  })
+
   test("renders postgres insert update and delete mutations with returning projections", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
@@ -391,6 +563,44 @@ describe("postgres dialect behavior", () => {
     expect(Postgres.Renderer.make().render(deletePlan).params).toEqual([userId])
   })
 
+  test("renders postgres ddl statements from schema tables", () => {
+    const orgs = Postgres.Table.make("orgs", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      slug: Postgres.Column.text().pipe(Postgres.Column.unique)
+    })
+    const memberships = Postgres.Table.make("memberships", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      orgId: Postgres.Column.uuid(),
+      role: Postgres.Column.text(),
+      note: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    }).pipe(
+      Postgres.Table.foreignKey("orgId", () => orgs, "id"),
+      Postgres.Table.unique(["orgId", "role"] as const),
+      Postgres.Table.index(["role", "orgId"] as const)
+    )
+
+    expect(Postgres.Renderer.make().render(Postgres.Query.createTable(memberships, {
+      ifNotExists: true
+    })).sql).toBe(
+      'create table if not exists "memberships" ("id" uuid not null, "orgId" uuid not null, "role" text not null, "note" text, primary key ("id"), foreign key ("orgId") references "orgs" ("id"), unique ("orgId", "role"))'
+    )
+    expect(Postgres.Renderer.make().render(Postgres.Query.createIndex(memberships, ["role", "orgId"] as const, {
+      ifNotExists: true
+    })).sql).toBe(
+      'create index if not exists "memberships_role_orgId_idx" on "memberships" ("role", "orgId")'
+    )
+    expect(Postgres.Renderer.make().render(Postgres.Query.dropIndex(memberships, ["role", "orgId"] as const, {
+      ifExists: true
+    })).sql).toBe(
+      'drop index if exists "memberships_role_orgId_idx"'
+    )
+    expect(Postgres.Renderer.make().render(Postgres.Query.dropTable(memberships, {
+      ifExists: true
+    })).sql).toBe(
+      'drop table if exists "memberships"'
+    )
+  })
+
   test("decodes nullable joined rows through the postgres executor pipeline", () => {
     const { users, posts } = makePostgresSocialGraph()
 
@@ -438,7 +648,7 @@ describe("postgres dialect behavior", () => {
 
     const unsupportedExpression = {
       [ExpressionAst.TypeId]: {
-        kind: "window"
+        kind: "unsupported"
       }
     } as unknown as Postgres.Expression.Any
 

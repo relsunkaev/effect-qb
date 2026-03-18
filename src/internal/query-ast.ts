@@ -6,7 +6,17 @@ export const TypeId: unique symbol = Symbol.for("effect-qb/QueryAst")
 export type TypeId = typeof TypeId
 
 /** Statement kinds supported by the current query AST. */
-export type QueryStatement = "select" | "insert" | "update" | "delete"
+export type QueryStatement =
+  | "select"
+  | "set"
+  | "insert"
+  | "update"
+  | "delete"
+  | "createTable"
+  | "createIndex"
+  | "dropIndex"
+  | "alterTable"
+  | "dropTable"
 
 /** Base `FROM` clause recorded by the query AST. */
 export interface FromClause<TableName extends string = string> {
@@ -34,20 +44,43 @@ export interface AssignmentClause<Value extends Expression.Any = Expression.Any>
   readonly value: Value
 }
 
+/** DDL payload recorded by schema-manipulation statements. */
+export type DdlClause =
+  | {
+      readonly kind: "createTable"
+      readonly ifNotExists: boolean
+    }
+  | {
+      readonly kind: "dropTable"
+      readonly ifExists: boolean
+    }
+  | {
+      readonly kind: "createIndex"
+      readonly name: string
+      readonly columns: readonly [string, ...string[]]
+      readonly unique: boolean
+      readonly ifNotExists: boolean
+    }
+  | {
+      readonly kind: "dropIndex"
+      readonly name: string
+      readonly ifExists: boolean
+    }
+
 /** Join kinds supported by the current query layer. */
-export type JoinKind = "inner" | "left"
+export type JoinKind = "inner" | "left" | "right" | "full" | "cross"
 
 /** Join clause recorded by the query AST. */
 export interface JoinClause<
   TableName extends string = string,
   Kind extends JoinKind = JoinKind,
-  On extends Expression.Any = Expression.Any
+  On extends Expression.Any | undefined = Expression.Any | undefined
 > {
   readonly kind: Kind
   readonly tableName: TableName
   readonly baseTableName: string
   readonly source: unknown
-  readonly on: On
+  readonly on?: On
 }
 
 /** Sort direction recorded by an `ORDER BY` clause. */
@@ -58,6 +91,16 @@ export interface OrderByClause<Value extends Expression.Any = Expression.Any> {
   readonly kind: "orderBy"
   readonly value: Value
   readonly direction: OrderDirection
+}
+
+/** Set-operator kinds supported by compound queries. */
+export type SetOperatorKind = "union" | "intersect" | "except"
+
+/** Compound-query clause recorded by the query AST. */
+export interface SetOperationClause {
+  readonly kind: SetOperatorKind
+  readonly all?: boolean
+  readonly query: unknown
 }
 
 /**
@@ -74,15 +117,21 @@ export interface Ast<
 > {
   readonly kind: Statement
   readonly select: Selection
+  readonly distinct?: boolean
+  readonly setBase?: unknown
   readonly from?: FromClause
   readonly into?: FromClause
   readonly target?: FromClause
   readonly values?: readonly AssignmentClause[]
   readonly set?: readonly AssignmentClause[]
+  readonly ddl?: DdlClause
   readonly where: readonly WhereClause[]
   readonly having: readonly HavingClause[]
   readonly joins: readonly JoinClause[]
   readonly groupBy: readonly Expression.Any[]
   readonly orderBy: readonly OrderByClause[]
+  readonly limit?: Expression.Any
+  readonly offset?: Expression.Any
+  readonly setOperations?: readonly SetOperationClause[]
   readonly groupedSources?: Grouped
 }

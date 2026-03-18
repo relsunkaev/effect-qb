@@ -1,15 +1,117 @@
 import * as Query from "../query.ts"
 import * as Expression from "../expression.ts"
+import * as Table from "../table.ts"
 import * as QueryAst from "./query-ast.ts"
 import type { RenderState, SqlDialect } from "./dialect.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 import { flattenSelection, type Projection } from "./projections.ts"
 import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.ts"
 
+const renderDbType = (
+  dialect: SqlDialect,
+  dbType: Expression.DbType.Any
+): string => {
+  if (dialect.name === "mysql" && dbType.dialect === "mysql" && dbType.kind === "uuid") {
+    return "char(36)"
+  }
+  return dbType.kind
+}
+
+const renderColumnDefinition = (
+  dialect: SqlDialect,
+  columnName: string,
+  column: Table.AnyTable[typeof Table.TypeId]["fields"][string]
+): string => {
+  const clauses = [
+    dialect.quoteIdentifier(columnName),
+    renderDbType(dialect, column.metadata.dbType)
+  ]
+  if (!column.metadata.nullable) {
+    clauses.push("not null")
+  }
+  return clauses.join(" ")
+}
+
+const renderCheckPredicate = (
+  predicate: unknown,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  if (typeof predicate === "string") {
+    return predicate
+  }
+  if (predicate !== null && typeof predicate === "object" && Expression.TypeId in predicate) {
+    return renderExpression(predicate as Expression.Any, state, dialect)
+  }
+  throw new Error("Unsupported check constraint predicate for DDL rendering")
+}
+
+const renderCreateTableSql = (
+  targetSource: QueryAst.FromClause,
+  state: RenderState,
+  dialect: SqlDialect,
+  ifNotExists: boolean
+): string => {
+  const table = targetSource.source as Table.AnyTable
+  const fields = table[Table.TypeId].fields
+  const definitions = Object.entries(fields).map(([columnName, column]) =>
+    renderColumnDefinition(dialect, columnName, column)
+  )
+  for (const option of table[Table.OptionsSymbol]) {
+    switch (option.kind) {
+      case "primaryKey":
+        definitions.push(`primary key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`)
+        break
+      case "unique":
+        definitions.push(`unique (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`)
+        break
+      case "foreignKey": {
+        const reference = option.references()
+        definitions.push(
+          `foreign key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")}) references ${dialect.quoteIdentifier(reference.tableName)} (${reference.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+        )
+        break
+      }
+      case "check":
+        definitions.push(
+          `constraint ${dialect.quoteIdentifier(option.name)} check (${renderCheckPredicate(option.predicate, state, dialect)})`
+        )
+        break
+      case "index":
+        break
+    }
+  }
+  return `create table${ifNotExists ? " if not exists" : ""} ${dialect.quoteIdentifier(targetSource.baseTableName)} (${definitions.join(", ")})`
+}
+
+const renderCreateIndexSql = (
+  targetSource: QueryAst.FromClause,
+  ddl: Extract<QueryAst.DdlClause, { readonly kind: "createIndex" }>,
+  dialect: SqlDialect
+): string => {
+  const maybeIfNotExists = dialect.name === "postgres" && ddl.ifNotExists ? " if not exists" : ""
+  return `create${ddl.unique ? " unique" : ""} index${maybeIfNotExists} ${dialect.quoteIdentifier(ddl.name)} on ${dialect.quoteIdentifier(targetSource.baseTableName)} (${ddl.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+}
+
+const renderDropIndexSql = (
+  targetSource: QueryAst.FromClause,
+  ddl: Extract<QueryAst.DdlClause, { readonly kind: "dropIndex" }>,
+  dialect: SqlDialect
+): string =>
+  dialect.name === "postgres"
+    ? `drop index${ddl.ifExists ? " if exists" : ""} ${dialect.quoteIdentifier(ddl.name)}`
+    : `drop index ${dialect.quoteIdentifier(ddl.name)} on ${dialect.quoteIdentifier(targetSource.baseTableName)}`
+
 export interface RenderedQueryAst {
   readonly sql: string
   readonly projections: readonly Projection[]
 }
+
+const selectionProjections = (selection: Record<string, unknown>): readonly Projection[] =>
+  flattenSelection(selection).map(({ path, alias }) => ({
+    path,
+    alias
+  }))
 
 const renderSelectionList = (
   selection: Record<string, unknown>,
@@ -21,10 +123,7 @@ const renderSelectionList = (
     validateAggregationSelection(selection as SelectionValue, [])
   }
   const flattened = flattenSelection(selection)
-  const projections = flattened.map(({ path, alias }) => ({
-    path,
-    alias
-  }))
+  const projections = selectionProjections(selection)
   const sql = flattened.map(({ expression, alias }) =>
     `${renderExpression(expression, state, dialect)} as ${dialect.quoteIdentifier(alias)}`).join(", ")
   return {
@@ -46,12 +145,17 @@ export const renderQueryAst = (
       validateAggregationSelection(ast.select as SelectionValue, ast.groupBy)
       const rendered = renderSelectionList(ast.select as Record<string, unknown>, state, dialect, false)
       projections = rendered.projections
-      const clauses = [`select ${rendered.sql}`]
+      const clauses = [`select${ast.distinct ? " distinct" : ""} ${rendered.sql}`]
       if (ast.from) {
         clauses.push(`from ${renderSourceReference(ast.from.source, ast.from.tableName, ast.from.baseTableName, state, dialect)}`)
       }
       for (const join of ast.joins) {
-        clauses.push(`${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on, state, dialect)}`)
+        const source = renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)
+        clauses.push(
+          join.kind === "cross"
+            ? `cross join ${source}`
+            : `${join.kind} join ${source} on ${renderExpression(join.on!, state, dialect)}`
+        )
       }
       if (ast.where.length > 0) {
         clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
@@ -65,7 +169,42 @@ export const renderQueryAst = (
       if (ast.orderBy.length > 0) {
         clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`)
       }
+      if (ast.limit) {
+        clauses.push(`limit ${renderExpression(ast.limit, state, dialect)}`)
+      }
+      if (ast.offset) {
+        clauses.push(`offset ${renderExpression(ast.offset, state, dialect)}`)
+      }
       sql = clauses.join(" ")
+      break
+    }
+    case "set": {
+      const setAst = ast as QueryAst.Ast<Record<string, unknown>, any, "set">
+      const base = renderQueryAst(
+        Query.getAst(setAst.setBase as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>) as QueryAst.Ast<
+          Record<string, unknown>,
+          any,
+          QueryAst.QueryStatement
+        >,
+        state,
+        dialect
+      )
+      projections = selectionProjections(setAst.select as Record<string, unknown>)
+      sql = [
+        `(${base.sql})`,
+        ...(setAst.setOperations ?? []).map((entry) => {
+          const rendered = renderQueryAst(
+            Query.getAst(entry.query as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>) as QueryAst.Ast<
+              Record<string, unknown>,
+              any,
+              QueryAst.QueryStatement
+            >,
+            state,
+            dialect
+          )
+          return `${entry.kind} (${rendered.sql})`
+        })
+      ].join(" ")
       break
     }
     case "insert": {
@@ -117,6 +256,35 @@ export const renderQueryAst = (
       if (returning.sql.length > 0) {
         sql += ` returning ${returning.sql}`
       }
+      break
+    }
+    case "createTable": {
+      const createTableAst = ast as QueryAst.Ast<Record<string, unknown>, any, "createTable">
+      sql = renderCreateTableSql(createTableAst.target!, state, dialect, createTableAst.ddl?.kind === "createTable" && createTableAst.ddl.ifNotExists)
+      break
+    }
+    case "dropTable": {
+      const dropTableAst = ast as QueryAst.Ast<Record<string, unknown>, any, "dropTable">
+      const ifExists = dropTableAst.ddl?.kind === "dropTable" && dropTableAst.ddl.ifExists
+      sql = `drop table${ifExists ? " if exists" : ""} ${dialect.quoteIdentifier(dropTableAst.target!.baseTableName)}`
+      break
+    }
+    case "createIndex": {
+      const createIndexAst = ast as QueryAst.Ast<Record<string, unknown>, any, "createIndex">
+      sql = renderCreateIndexSql(
+        createIndexAst.target!,
+        createIndexAst.ddl as Extract<QueryAst.DdlClause, { readonly kind: "createIndex" }>,
+        dialect
+      )
+      break
+    }
+    case "dropIndex": {
+      const dropIndexAst = ast as QueryAst.Ast<Record<string, unknown>, any, "dropIndex">
+      sql = renderDropIndexSql(
+        dropIndexAst.target!,
+        dropIndexAst.ddl as Extract<QueryAst.DdlClause, { readonly kind: "dropIndex" }>,
+        dialect
+      )
       break
     }
   }
@@ -244,6 +412,32 @@ export const renderExpression = (
         state,
         dialect
       ).sql})`
+    case "window": {
+      if (!Array.isArray(ast.partitionBy) || !Array.isArray(ast.orderBy) || typeof ast.function !== "string") {
+        break
+      }
+      const clauses: string[] = []
+      if (ast.partitionBy.length > 0) {
+        clauses.push(`partition by ${ast.partitionBy.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}`)
+      }
+      if (ast.orderBy.length > 0) {
+        clauses.push(`order by ${ast.orderBy.map((entry) =>
+          `${renderExpression(entry.value, state, dialect)} ${entry.direction}`
+        ).join(", ")}`)
+      }
+      const specification = clauses.join(" ")
+      switch (ast.function) {
+        case "rowNumber":
+          return `row_number() over (${specification})`
+        case "rank":
+          return `rank() over (${specification})`
+        case "denseRank":
+          return `dense_rank() over (${specification})`
+        case "over":
+          return `${renderExpression(ast.value!, state, dialect)} over (${specification})`
+      }
+      break
+    }
   }
   throw new Error("Unsupported expression for SQL rendering")
 }
