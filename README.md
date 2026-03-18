@@ -14,6 +14,7 @@ Composable, type-safe SQL query construction for PostgreSQL and MySQL with stati
   - [Predicate-Driven Nullability Refinement](#predicate-driven-nullability-refinement)
   - [Left Joins: Static vs Runtime Row Types](#left-joins-static-vs-runtime-row-types)
   - [Case Expressions](#case-expressions)
+  - [Exists Subqueries](#exists-subqueries)
   - [Aggregation and Grouping](#aggregation-and-grouping)
 - [Query Construction Safety](#query-construction-safety)
 - [Rendering](#rendering)
@@ -274,6 +275,68 @@ type NormalizedTitlesRow = Q.ResultRow<typeof normalizedTitles>
 
 The outer `where(...)` can make `CASE` branches unreachable, and the return type narrows accordingly when the implication engine can prove it.
 
+### Exists Subqueries
+
+`exists(...)` accepts an aggregation-safe nested plan and returns a non-null boolean expression:
+
+```ts
+const postsByAlice = Q.select({
+  id: posts.id
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.eq(posts.userId, users.id))
+)
+
+const usersWithPostsByAlice = Q.select({
+  userId: users.id,
+  hasPosts: Q.exists(postsByAlice)
+}).pipe(
+  Q.from(users)
+)
+
+type UsersWithPostsByAliceRow = Q.ResultRow<typeof usersWithPostsByAlice>
+// {
+//   userId: string
+//   hasPosts: boolean
+// }
+```
+
+Correlated nested plans stay dialect-checked, bubble their outer-source requirements up to the enclosing query, and share the outer render state's parameter ordering.
+
+If the outer query never brings the referenced source into scope, the complete-plan boundary still fails with the usual missing-source diagnostic.
+
+### Derived Tables
+
+Subqueries can also be used as sources, but they must be aliased first with `Q.as(...)`:
+
+```ts
+const activePosts = Q.select({
+  userId: posts.userId,
+  title: posts.title
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.isNotNull(posts.title))
+)
+
+const activePostsSource = Q.as(activePosts, "active_posts")
+
+const usersWithActivePosts = Q.select({
+  userId: users.id,
+  title: activePostsSource.title
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(activePostsSource, Q.eq(users.id, activePostsSource.userId))
+)
+
+type UsersWithActivePostsRow = Q.ResultRow<typeof usersWithActivePosts>
+// {
+//   userId: string
+//   title: string
+// }
+```
+
+Passing a raw subquery directly to `from(...)` or a join is rejected at the type boundary. The compiler points you to `Q.as(subquery, alias)` so the derived source has an explicit SQL alias and a stable nested output shape.
+
 ### Aggregation and Grouping
 
 ```ts
@@ -314,8 +377,13 @@ const invalidGroupedPlan = Q.select({
   Q.groupBy(users.id)
 )
 
-// `postTitle` is neither grouped nor aggregated, so this plan is not
-// renderable/executable as a complete grouped query.
+type InvalidGroupedPlan = Q.CompletePlan<typeof invalidGroupedPlan>
+// carries:
+// {
+//   __effect_qb_error__: "effect-qb: invalid grouped selection"
+//   __effect_qb_hint__:
+//     "Scalar selections must be covered by groupBy(...) when aggregates are present"
+// }
 ```
 
 ## Query Construction Safety
@@ -333,7 +401,15 @@ const invalidMissingFrom = Q.select({
   userId: users.id
 })
 
-// not renderable or executable: `users` never appears in `from(...)`
+type InvalidMissingFrom = Q.CompletePlan<typeof invalidMissingFrom>
+// carries:
+// {
+//   __effect_qb_error__:
+//     "effect-qb: query references sources that are not yet in scope"
+//   __effect_qb_missing_sources__: "users"
+//   __effect_qb_hint__:
+//     "Add from(...) or a join for each referenced source before render or execute"
+// }
 ```
 
 ```ts
@@ -344,7 +420,9 @@ const invalidMissingJoin = Q.select({
   Q.from(users)
 )
 
-// not renderable or executable: `posts` is projected but never joined
+type InvalidMissingJoin = Q.CompletePlan<typeof invalidMissingJoin>
+// carries the same branded error shape, with
+// __effect_qb_missing_sources__: "posts"
 ```
 
 ```ts
@@ -355,7 +433,38 @@ const invalidWhereSource = Q.select({
   Q.where(Q.eq(posts.userId, users.id))
 )
 
-// not renderable or executable: the predicate references `posts` without a join
+type InvalidWhereSource = Q.CompletePlan<typeof invalidWhereSource>
+// carries the same branded error shape, with
+// __effect_qb_missing_sources__: "posts"
+```
+
+Dialect mismatches are also branded:
+
+```ts
+import * as Mysql from "effect-qb/mysql"
+import * as Postgres from "effect-qb/postgres"
+
+const mysqlUsers = Mysql.Table.make("users", {
+  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+})
+
+const mysqlPlan = Mysql.Query.select({
+  id: mysqlUsers.id
+}).pipe(
+  Mysql.Query.from(mysqlUsers)
+)
+
+type MysqlAgainstPostgres =
+  Postgres.Query.DialectCompatiblePlan<typeof mysqlPlan, "postgres">
+// carries:
+// {
+//   __effect_qb_error__:
+//     "effect-qb: plan dialect is not compatible with the target renderer or executor"
+//   __effect_qb_plan_dialect__: "mysql"
+//   __effect_qb_target_dialect__: "postgres"
+//   __effect_qb_hint__:
+//     "Use the matching dialect module or renderer/executor"
+// }
 ```
 
 Valid version:
@@ -412,8 +521,13 @@ const executor = Postgres.Executor.fromSqlClient(renderer)
 const rowsEffect = executor.execute(postsPerUser)
 
 type PostsPerUserRows = Postgres.Query.ResultRows<typeof postsPerUser>
+type PostsPerUserError = Postgres.Executor.PostgresQueryError<typeof postsPerUser>
 type PostsPerUserEffect = typeof rowsEffect
-// Effect.Effect<PostsPerUserRows, unknown, SqlClient.SqlClient>
+// Effect.Effect<
+//   PostsPerUserRows,
+//   PostsPerUserError,
+//   SqlClient.SqlClient
+// >
 ```
 
 Runtime execution is:
@@ -425,6 +539,13 @@ Runtime execution is:
 There is no query-result schema decode step.
 
 If the database returns invalid values, `effect-qb` will not reject them at runtime. The expectation is that the database and your query plan agree, and the static contract is the primary safety boundary.
+
+Dialect executors are also query-sensitive:
+
+- `Postgres.Executor.PostgresQueryError<typeof plan>`
+- `Mysql.Executor.MysqlQueryError<typeof plan>`
+
+For the current read-only query plans, those error types remove known write-required failures from the direct error union. If a driver still returns one of those impossible errors, it is wrapped in `@postgres/unknown/query-requirements` or `@mysql/unknown/query-requirements` with the original normalized dialect error preserved under `cause`.
 
 ## Type Safety and Return Types
 
@@ -438,6 +559,12 @@ Key types:
   - conservative remap-only row shape used to describe the schema-free runtime boundary
 - `Renderer.RowOf<typeof rendered>`
   - row type attached to a rendered query
+- `Q.CapabilitiesOfPlan<typeof plan>`
+  - capability set carried by the plan; current read queries resolve to `"read"`
+- `Q.MergeCapabilities<A, B>` / `Q.MergeCapabilityTuple<[...]>`
+  - helper types for composing capability sets in nested-plan features
+- `Postgres.Executor.PostgresQueryError<typeof plan>` / `Mysql.Executor.MysqlQueryError<typeof plan>`
+  - dialect error union narrowed by the plan's capabilities
 
 What the type system catches:
 
@@ -448,6 +575,7 @@ What the type system catches:
 - nullability changes caused by `where(...)`
 - optional joined sources becoming required when predicates prove presence
 - exact nested projection result shapes
+- impossible write-only dialect errors removed from read-query executor error channels
 
 Typical benefits:
 
@@ -455,7 +583,23 @@ Typical benefits:
 - query return types stay local to the plan definition
 - left joins start conservative and narrow when predicates justify it
 - `CASE` expressions can narrow to fewer branches when earlier predicates make others impossible
+- `exists(subquery)` requires a complete nested plan and returns a non-null boolean
+- `as(subquery, alias)` makes derived tables explicit and keeps subquery output paths typed
 - executors return the same `ResultRows<typeof plan>` type the plan implies
+- dialect executors expose a tighter error channel than the raw dialect catalog when the query shape rules out certain failures
+
+Capability composition helpers are also exported for future nested-plan features:
+
+```ts
+type Capability = Q.CapabilitiesOfPlan<typeof postsPerUser>
+// "read"
+
+type FutureNestedCapability = Q.MergeCapabilities<"read", "write">
+// "read" | "write"
+
+const combined = Q.union_query_capabilities(["read"], ["write", "read"])
+// ["read", "write"]
+```
 
 ## Dialect Notes
 
@@ -485,7 +629,6 @@ This release is focused on typed read-path query construction. Notable gaps:
 - `like`, `ilike`, and broader comparison operator coverage
 - set operators such as `union`, `intersect`, and `except`
 - CTEs
-- subquery-as-source composition
 - right joins, full joins, and cross joins
 - window functions
 
