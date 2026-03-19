@@ -906,23 +906,35 @@ const cityPath = Q.json.path(
   Q.json.key("city")
 )
 
-const updatedPayload = Q.json.set(docs.payload, cityPath, "Paris")
-
 Q.insert(docs, {
   id: "doc-1",
+  payload: Q.json.buildObject({
+    profile: {
+      address: {
+        city: "Paris",
+        postcode: null
+      },
+      tags: ["new"]
+    },
+    note: null
+  })
+})
+
+const updatedPayload = Q.json.set(docs.payload, cityPath, "Paris")
+
+Q.update(docs, {
   payload: updatedPayload
 })
 
 const deletedRequiredField = Q.json.delete(docs.payload, cityPath)
 
-Q.insert(docs, {
-  id: "doc-1",
+Q.update(docs, {
   // @ts-expect-error deleting a required field makes the json output incompatible
   payload: deletedRequiredField
 })
 ```
 
-The same compatibility checks apply to `Q.update(...)`.
+For inserts, build a fresh JSON value that matches the column schema. For updates, JSON operators like `Q.json.set(...)` and `Q.json.delete(...)` are checked against the same schema before the mutation is allowed.
 
 ### Readable Branded Type Errors
 
