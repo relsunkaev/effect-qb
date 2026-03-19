@@ -75,3 +75,21 @@ void promotedUserId
 void promotedPostId
 void badPromotedPostId
 void runtimePromotedPostId
+
+const promotedByEquality = Q.select({
+  userId: users.id,
+  postTitle: posts.title,
+  upperPostTitle: Q.upper(posts.title)
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.eq(posts.title, users.email))
+)
+
+type PromotedByEqualityRow = Q.ResultRow<typeof promotedByEquality>
+const promotedByEqualityUserId: PromotedByEqualityRow["userId"] = "user-id"
+const promotedByEqualityPostTitle: PromotedByEqualityRow["postTitle"] = "hello"
+const promotedByEqualityUpperPostTitle: PromotedByEqualityRow["upperPostTitle"] = "HELLO"
+void promotedByEqualityUserId
+void promotedByEqualityPostTitle
+void promotedByEqualityUpperPostTitle

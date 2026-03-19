@@ -9,7 +9,7 @@ import type { JsonNode } from "./internal/json/ast.ts"
 import type * as JsonPath from "./internal/json/path.ts"
 import type { QueryCapability } from "./internal/query-requirements.ts"
 import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./internal/case-analysis.ts"
-import type { GuaranteedNonNullKeys, GuaranteedNullKeys } from "./internal/predicate-analysis.ts"
+import type { GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./internal/predicate-analysis.ts"
 import type { PredicateFormula, TrueFormula } from "./internal/predicate-formula.ts"
 
 export type {
@@ -1009,7 +1009,7 @@ type NullabilityOfOutput<Output> =
     : "never"
 
 type RequiredTablesFromAssumptions<Assumptions extends PredicateFormula> =
-  GuaranteedNonNullKeys<Assumptions> extends `${infer TableName}.${string}` ? TableName : never
+  GuaranteedSourceNames<Assumptions>
 
 type EffectiveAvailable<
   Available extends Record<string, Plan.Source>,
