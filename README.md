@@ -108,7 +108,6 @@ bun install
 
 Entrypoints:
 
-- `effect-qb`
 - `effect-qb/postgres`
 - `effect-qb/mysql`
 
@@ -270,12 +269,6 @@ type City = Q.OutputOfExpression<typeof city, {
 ```
 
 ### Dialect-specific Entrypoints
-
-The root entrypoint defaults to the Postgres-flavored `Query` and `Table` DSLs:
-
-```ts
-import { Query as Q, Table } from "effect-qb/postgres"
-```
 
 Dialect entrypoints expose dialect-specific builders:
 
@@ -902,7 +895,7 @@ That makes invalid plans easier to inspect in editor tooltips and type aliases.
 
 ### PostgreSQL
 
-- default root entrypoint
+- primary package entrypoint
 - `distinctOn(...)`
 - wider JSON operator surface, including `json.pathMatch(...)`
 - schema-qualified tables default to `public`
