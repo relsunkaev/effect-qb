@@ -33,11 +33,11 @@ const valuesSource = Q.values([
 
 const insertValuesPlan = Q.insertFrom(users, valuesSource)
 
-const insertUnnestPlan = Q.insertFrom(users, Q.insertUnnest({
+const insertUnnestPlan = Q.insertFrom(users, Q.unnest({
   id: ["user-id", "user-id-2"],
   email: ["alice@example.com", "bob@example.com"],
   bio: [null, "writer"]
-}))
+}, "seed"))
 
 const insertSelectPlan = Q.insertFrom(users, Q.select({
   id: users.id,

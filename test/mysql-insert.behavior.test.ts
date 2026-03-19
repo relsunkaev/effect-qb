@@ -33,11 +33,11 @@ describe("mysql insert behavior", () => {
       Mysql.Query.from(users)
     ))
 
-    const insertUnnestPlan = Mysql.Query.insertFrom(users, Mysql.Query.insertUnnest({
+    const insertUnnestPlan = Mysql.Query.insertFrom(users, Mysql.Query.unnest({
       id: [userId, secondUserId],
       email: ["alice@example.com", "bob@example.com"],
       bio: [null, "writer"]
-    }))
+    }, "seed"))
 
     expect(Mysql.Renderer.make().render(multiRowPlan).sql).toBe(
       "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"

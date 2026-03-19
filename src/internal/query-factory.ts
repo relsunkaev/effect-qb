@@ -77,6 +77,7 @@ import {
   type SourceNameOf,
   type ValuesSource,
   type AnyValuesSource,
+  type AnyUnnestSource,
   type UnnestSource,
   type TableFunctionSource,
   type StringExpressionInput,
@@ -3759,12 +3760,12 @@ export function makeDialectQuery<
   } => {
     const entries = Object.entries(values)
     if (entries.length === 0) {
-      throw new Error("insertUnnest(...) requires at least one column array")
+      throw new Error("unnest(...) requires at least one column array")
     }
     const columns = entries.map(([columnName]) => columnName) as [string, ...string[]]
     const normalized = entries.map(([columnName, items]) => {
       if (!Array.isArray(items)) {
-        throw new Error("insertUnnest(...) expects every value to be an array")
+        throw new Error("unnest(...) expects every value to be an array")
       }
       return {
         columnName,
@@ -3773,11 +3774,11 @@ export function makeDialectQuery<
     })
     const expectedLength = normalized[0]!.values.length
     if (normalized.some((entry) => entry.values.length !== expectedLength)) {
-      throw new Error("insertUnnest(...) expects every column array to have the same length")
+      throw new Error("unnest(...) expects every column array to have the same length")
     }
     const knownColumns = new Set(Object.keys(target[Table.TypeId].fields))
     if (columns.some((columnName) => !knownColumns.has(columnName))) {
-      throw new Error("insertUnnest(...) received a column that does not exist on the target table")
+      throw new Error("unnest(...) received a column that does not exist on the target table")
     }
     return {
       columns,
@@ -3891,11 +3892,6 @@ type RequiredKeys<Shape> = Extract<{
 }[keyof Shape], string>
 
 type InsertRowInput<Target extends MutationTargetLike> = MutationInputOf<Table.InsertOf<Target>>
-
-type InsertUnnestSource<Shape extends Record<string, readonly unknown[] | undefined>> = {
-  readonly kind: "insertUnnest"
-  readonly values: Shape
-}
 
 type ValuesRowInput = Record<string, ExpressionInput>
 type ValuesRowsInput = readonly [ValuesRowInput, ...ValuesRowInput[]]
@@ -4025,6 +4021,17 @@ type InsertShapeCompatibilityError<
   readonly __effect_qb_hint__: "Project only known insert columns, include every required column, and make each projected value assignable to the target insert type"
 }
 
+type InsertUnnestSourceInput<
+  Target extends MutationTargetLike,
+  Source extends AnyUnnestSource
+> = IsInsertShapeCompatible<
+  Target,
+  OutputOfSelection<Source["columns"], AddAvailable<{}, SourceNameOf<Source>>, TrueFormula>
+> extends true ? Source : InsertShapeCompatibilityError<
+  Target,
+  OutputOfSelection<Source["columns"], AddAvailable<{}, SourceNameOf<Source>>, TrueFormula>
+>
+
 type IsInsertShapeCompatible<Target extends MutationTargetLike, SourceShape> =
   [InsertShapeExtraKeys<Table.InsertOf<Target>, SourceShape>] extends [never]
     ? [InsertShapeMissingKeys<Table.InsertOf<Target>, SourceShape>] extends [never]
@@ -4063,12 +4070,12 @@ type InsertSourceInput<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> = QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > =
   | AnyValuesSource
-  | InsertUnnestSource<{ readonly [K in keyof Table.InsertOf<Target>]?: readonly Table.InsertOf<Target>[K][] }>
+  | InsertUnnestSourceInput<Target, AnyUnnestSource>
   | InsertSelectSource<Target, PlanValue, Dialect>
 
 type InsertSourceRequired<Source> =
   Source extends AnyValuesSource ? NestedMutationRequiredFromValues<Source["rows"][number]> :
-    Source extends InsertUnnestSource<any> ? never :
+    Source extends UnnestSource<any, any, any> ? never :
       Source extends QueryPlan<any, any, any, any, any, any, any, any, any, any> ? RequiredOfPlan<Source> :
         never
 
@@ -4377,6 +4384,7 @@ type MergeRequiredFromPredicate<
       name: alias,
       baseName: alias,
       dialect: profile.dialect,
+      values: columns,
       arrays: normalizedColumns,
       columns: columnsSelection
     }
@@ -5395,13 +5403,6 @@ type MergeRequiredFromPredicate<
     }, undefined as unknown as TrueFormula, "write", "insert")
   }
 
-  const insertUnnest = <Shape extends Record<string, readonly unknown[]>>(
-    values: Shape
-  ): InsertUnnestSource<Shape> => ({
-    kind: "insertUnnest",
-    values
-  })
-
   function insertFrom<
     Target extends MutationTargetLike,
     Source extends AnyValuesSource
@@ -5422,7 +5423,7 @@ type MergeRequiredFromPredicate<
   >
   function insertFrom<
     Target extends MutationTargetLike,
-    Source extends InsertUnnestSource<any>
+    Source extends AnyUnnestSource
   >(
     target: Target,
     source: Source
@@ -5458,7 +5459,7 @@ type MergeRequiredFromPredicate<
   >
   function insertFrom(
     target: MutationTargetLike,
-    source: AnyValuesSource | InsertUnnestSource<any> | InsertSelectSource<any, any, Dialect>
+    source: AnyValuesSource | AnyUnnestSource | InsertSelectSource<any, any, Dialect>
   ): QueryPlan<any, any, any, any, any, any, any, any, any, "insert"> {
     const { sourceName, sourceBaseName } = targetSourceDetails(target)
     const available = {
@@ -5500,8 +5501,8 @@ type MergeRequiredFromPredicate<
       }, undefined as unknown as TrueFormula, "write", "insert")
     }
 
-    if (typeof source === "object" && source !== null && "kind" in source && source.kind === "insertUnnest") {
-      const unnestSource = source as unknown as InsertUnnestSource<any>
+    if (typeof source === "object" && source !== null && "kind" in source && source.kind === "unnest") {
+      const unnestSource = source as AnyUnnestSource
       const normalized = normalizeInsertUnnestValues(target, unnestSource.values as any)
       return makePlan({
         selection: {},
@@ -6440,7 +6441,6 @@ type MergeRequiredFromPredicate<
     generateSeries,
     returning,
     defaultValues,
-    insertUnnest,
     insertFrom,
     onConflict,
     insert,

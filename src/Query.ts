@@ -507,6 +507,7 @@ export type UnnestSource<
   readonly name: Alias
   readonly baseName: Alias
   readonly dialect: Dialect
+  readonly values: Readonly<Record<string, readonly ExpressionInput[]>>
   readonly arrays: Readonly<Record<string, readonly Expression.Any[]>>
   readonly columns: DerivedSelectionOf<Selection, Alias>
 }
@@ -572,8 +573,20 @@ type UnnestSourceShape = {
   readonly name: string
   readonly baseName: string
   readonly dialect: string
+  readonly values: Readonly<Record<string, readonly ExpressionInput[]>>
   readonly arrays: Readonly<Record<string, readonly Expression.Any[]>>
   readonly columns: Record<string, unknown>
+}
+
+/** Broad structural shape for `unnest(...)` sources when used as composable inputs. */
+export type AnyUnnestSource = {
+  readonly kind: "unnest"
+  readonly name: string
+  readonly baseName: string
+  readonly dialect: string
+  readonly values: Readonly<Record<string, readonly ExpressionInput[]>>
+  readonly arrays: Readonly<Record<string, readonly Expression.Any[]>>
+  readonly columns: Record<string, Expression.Any>
 }
 
 type TableFunctionSourceShape = {

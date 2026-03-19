@@ -931,11 +931,11 @@ describe("postgres dialect behavior", () => {
       Postgres.Query.from(users)
     ))
 
-    const insertUnnestPlan = Postgres.Query.insertFrom(users, Postgres.Query.insertUnnest({
+    const insertUnnestPlan = Postgres.Query.insertFrom(users, Postgres.Query.unnest({
       id: [userId, secondUserId],
       email: ["alice@example.com", "bob@example.com"],
       bio: [null, "writer"]
-    }))
+    }, "seed"))
 
     expect(Postgres.Renderer.make().render(multiRowPlan).sql).toBe(
       'insert into "public"."users" ("id", "email", "bio") values ($1, $2, null), ($3, $4, $5)'
