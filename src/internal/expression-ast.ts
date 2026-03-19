@@ -34,6 +34,14 @@ export interface CastNode<
   readonly target: Target
 }
 
+/** `excluded.column` reference used inside insert conflict handlers. */
+export interface ExcludedNode<
+  ColumnName extends string = string
+> {
+  readonly kind: "excluded"
+  readonly columnName: ColumnName
+}
+
 /** Unary expression kinds supported by the current query layer. */
 export type UnaryKind =
   | "isNull"
@@ -286,6 +294,7 @@ export type Any =
   | ColumnNode
   | LiteralNode
   | CastNode
+  | ExcludedNode
   | UnaryNode
   | BinaryNode
   | VariadicNode

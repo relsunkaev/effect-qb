@@ -48,9 +48,38 @@ export interface HavingClause<Predicate extends Expression.Any = Expression.Any>
 
 /** Assignment recorded in a mutation statement. */
 export interface AssignmentClause<Value extends Expression.Any = Expression.Any> {
+  readonly tableName?: string
   readonly columnName: string
   readonly value: Value
 }
+
+/** One row in a multi-row `values (...)` insert source. */
+export interface InsertValuesRowClause<
+  Values extends readonly AssignmentClause[] = readonly AssignmentClause[]
+> {
+  readonly values: Values
+}
+
+/** Additional insert source kinds beyond a single literal row. */
+export type InsertSourceClause =
+  | {
+      readonly kind: "values"
+      readonly columns: readonly [string, ...string[]]
+      readonly rows: readonly [InsertValuesRowClause, ...InsertValuesRowClause[]]
+    }
+  | {
+      readonly kind: "query"
+      readonly columns: readonly [string, ...string[]]
+      readonly query: unknown
+    }
+  | {
+      readonly kind: "unnest"
+      readonly columns: readonly [string, ...string[]]
+      readonly values: readonly {
+        readonly columnName: string
+        readonly values: readonly unknown[]
+      }[]
+    }
 
 /** One branch inside a `merge` statement. */
 export type MergeMatchedClause<
@@ -92,22 +121,6 @@ export type DdlClause =
       readonly kind: "createTable"
       readonly ifNotExists: boolean
     }
-  | {
-      readonly kind: "dropTable"
-      readonly ifExists: boolean
-    }
-  | {
-      readonly kind: "createIndex"
-      readonly name: string
-      readonly columns: readonly [string, ...string[]]
-      readonly unique: boolean
-      readonly ifNotExists: boolean
-    }
-  | {
-      readonly kind: "dropIndex"
-      readonly name: string
-      readonly ifExists: boolean
-    }
 
 /** Truncate payload recorded by a truncate statement. */
 export interface TruncateClause {
@@ -141,21 +154,50 @@ export type TransactionClause =
       readonly kind: "releaseSavepoint"
       readonly name: string
     }
+  | {
+      readonly kind: "dropTable"
+      readonly ifExists: boolean
+    }
+  | {
+      readonly kind: "createIndex"
+      readonly name: string
+      readonly columns: readonly [string, ...string[]]
+      readonly unique: boolean
+      readonly ifNotExists: boolean
+    }
+  | {
+      readonly kind: "dropIndex"
+      readonly name: string
+      readonly ifExists: boolean
+    }
 
 /** Locking mode attached to a select statement. */
 export interface LockClause {
   readonly kind: "lock"
-  readonly mode: "update" | "share"
+  readonly mode: "update" | "share" | "lowPriority" | "ignore" | "quick"
   readonly nowait?: boolean
   readonly skipLocked?: boolean
 }
 
+/** Conflict target attached to a Postgres insert statement. */
+export type ConflictTargetClause =
+  | {
+      readonly kind: "columns"
+      readonly columns: readonly [string, ...string[]]
+      readonly where?: Expression.Any
+    }
+  | {
+      readonly kind: "constraint"
+      readonly name: string
+    }
+
 /** Conflict clause attached to an insert statement. */
 export interface ConflictClause {
   readonly kind: "conflict"
-  readonly columns: readonly [string, ...string[]]
+  readonly target?: ConflictTargetClause
   readonly action: "doNothing" | "doUpdate"
   readonly values?: readonly AssignmentClause[]
+  readonly where?: Expression.Any
 }
 
 /** Join kinds supported by the current query layer. */
@@ -214,13 +256,15 @@ export interface Ast<
   readonly from?: FromClause
   readonly into?: FromClause
   readonly target?: FromClause
+  readonly targets?: readonly FromClause[]
   readonly using?: FromClause
   readonly values?: readonly AssignmentClause[]
+  readonly insertSource?: InsertSourceClause
   readonly set?: readonly AssignmentClause[]
+  readonly ddl?: DdlClause
   readonly truncate?: TruncateClause
   readonly merge?: MergeClause
   readonly transaction?: TransactionClause
-  readonly ddl?: DdlClause
   readonly lock?: LockClause
   readonly conflict?: ConflictClause
   readonly where: readonly WhereClause[]

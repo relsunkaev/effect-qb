@@ -580,6 +580,60 @@ const selectionProjections = (selection: Record<string, unknown>): readonly Proj
     alias
   }))
 
+const renderMutationAssignment = (
+  entry: QueryAst.AssignmentClause,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  const column = entry.tableName && dialect.name === "mysql"
+    ? `${dialect.quoteIdentifier(entry.tableName)}.${dialect.quoteIdentifier(entry.columnName)}`
+    : dialect.quoteIdentifier(entry.columnName)
+  return `${column} = ${renderExpression(entry.value, state, dialect)}`
+}
+
+const renderJoinSourcesForMutation = (
+  joins: readonly QueryAst.JoinClause[],
+  state: RenderState,
+  dialect: SqlDialect
+): string => joins.map((join) =>
+  renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)
+).join(", ")
+
+const renderJoinPredicatesForMutation = (
+  joins: readonly QueryAst.JoinClause[],
+  state: RenderState,
+  dialect: SqlDialect
+): readonly string[] =>
+  joins.flatMap((join) =>
+    join.kind === "cross" || !join.on
+      ? []
+      : [renderExpression(join.on, state, dialect)]
+  )
+
+const renderDeleteTargets = (
+  targets: readonly QueryAst.FromClause[],
+  dialect: SqlDialect
+): string => targets.map((target) => dialect.quoteIdentifier(target.tableName)).join(", ")
+
+const renderMysqlMutationLock = (
+  lock: QueryAst.LockClause | undefined,
+  statement: "update" | "delete"
+): string => {
+  if (!lock) {
+    return ""
+  }
+  switch (lock.mode) {
+    case "lowPriority":
+      return " low_priority"
+    case "ignore":
+      return " ignore"
+    case "quick":
+      return statement === "delete" ? " quick" : ""
+    default:
+      return ""
+  }
+}
+
 const renderTransactionClause = (
   clause: QueryAst.TransactionClause,
   dialect: SqlDialect
@@ -704,7 +758,7 @@ export const renderQueryAst = (
             state,
             dialect
           )
-          return `${entry.kind} (${rendered.sql})`
+          return `${entry.kind}${entry.all ? " all" : ""} (${rendered.sql})`
         })
       ].join(" ")
       break
@@ -713,23 +767,67 @@ export const renderQueryAst = (
       const insertAst = ast as QueryAst.Ast<Record<string, unknown>, any, "insert">
       const targetSource = insertAst.into!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
-      const columns = insertAst.values!.map((entry) => dialect.quoteIdentifier(entry.columnName)).join(", ")
-      const values = insertAst.values!.map((entry) => renderExpression(entry.value, state, dialect)).join(", ")
       sql = `insert into ${target}`
-      if (insertAst.values!.length > 0) {
-        sql += ` (${columns}) values (${values})`
+      if (insertAst.insertSource?.kind === "values") {
+        const columns = insertAst.insertSource.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
+        const rows = insertAst.insertSource.rows.map((row) =>
+          `(${row.values.map((entry) => renderExpression(entry.value, state, dialect)).join(", ")})`
+        ).join(", ")
+        sql += ` (${columns}) values ${rows}`
+      } else if (insertAst.insertSource?.kind === "query") {
+        const columns = insertAst.insertSource.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
+        const renderedQuery = renderQueryAst(
+          Query.getAst(insertAst.insertSource.query as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>) as QueryAst.Ast<
+            Record<string, unknown>,
+            any,
+            QueryAst.QueryStatement
+          >,
+          state,
+          dialect
+        )
+        sql += ` (${columns}) ${renderedQuery.sql}`
+      } else if (insertAst.insertSource?.kind === "unnest") {
+        const unnestSource = insertAst.insertSource
+        const columns = unnestSource.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
+        if (dialect.name === "postgres") {
+          const table = targetSource.source as Table.AnyTable
+          const fields = table[Table.TypeId].fields
+          const rendered = unnestSource.values.map((entry) =>
+            `cast(${dialect.renderLiteral(entry.values, state)} as ${renderCastType(dialect, fields[entry.columnName]!.metadata.dbType)}[])`
+          ).join(", ")
+          sql += ` (${columns}) select * from unnest(${rendered})`
+        } else {
+          const rowCount = unnestSource.values[0]?.values.length ?? 0
+          const rows = Array.from({ length: rowCount }, (_, index) =>
+            `(${unnestSource.values.map((entry) =>
+              dialect.renderLiteral(entry.values[index], state)
+            ).join(", ")})`
+          ).join(", ")
+          sql += ` (${columns}) values ${rows}`
+        }
       } else {
-        sql += " default values"
+        const columns = (insertAst.values ?? []).map((entry) => dialect.quoteIdentifier(entry.columnName)).join(", ")
+        const values = (insertAst.values ?? []).map((entry) => renderExpression(entry.value, state, dialect)).join(", ")
+        if ((insertAst.values ?? []).length > 0) {
+          sql += ` (${columns}) values (${values})`
+        } else {
+          sql += " default values"
+        }
       }
       if (insertAst.conflict) {
         const updateValues = (insertAst.conflict.values ?? []).map((entry) =>
           `${dialect.quoteIdentifier(entry.columnName)} = ${renderExpression(entry.value, state, dialect)}`
         ).join(", ")
         if (dialect.name === "postgres") {
-          sql += ` on conflict (${insertAst.conflict.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+          const targetSql = insertAst.conflict.target?.kind === "constraint"
+            ? ` on conflict on constraint ${dialect.quoteIdentifier(insertAst.conflict.target.name)}`
+            : insertAst.conflict.target?.kind === "columns"
+              ? ` on conflict (${insertAst.conflict.target.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${insertAst.conflict.target.where ? ` where ${renderExpression(insertAst.conflict.target.where, state, dialect)}` : ""}`
+              : " on conflict"
+          sql += targetSql
           sql += insertAst.conflict.action === "doNothing"
             ? " do nothing"
-            : ` do update set ${updateValues}`
+            : ` do update set ${updateValues}${insertAst.conflict.where ? ` where ${renderExpression(insertAst.conflict.where, state, dialect)}` : ""}`
         } else if (insertAst.conflict.action === "doNothing") {
           sql = sql.replace(/^insert/, "insert ignore")
         } else {
@@ -747,11 +845,38 @@ export const renderQueryAst = (
       const updateAst = ast as QueryAst.Ast<Record<string, unknown>, any, "update">
       const targetSource = updateAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
+      const targets = updateAst.targets ?? [targetSource]
       const assignments = updateAst.set!.map((entry) =>
-        `${dialect.quoteIdentifier(entry.columnName)} = ${renderExpression(entry.value, state, dialect)}`).join(", ")
-      sql = `update ${target} set ${assignments}`
-      if (updateAst.where.length > 0) {
-        sql += ` where ${updateAst.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`
+        renderMutationAssignment(entry, state, dialect)).join(", ")
+      if (dialect.name === "mysql") {
+        const modifiers = renderMysqlMutationLock(updateAst.lock, "update")
+        const joinSources = updateAst.joins.map((join) =>
+          join.kind === "cross"
+            ? `cross join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)}`
+            : `${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on!, state, dialect)}`
+        ).join(" ")
+        const targetList = targets.map((entry) =>
+          renderSourceReference(entry.source, entry.tableName, entry.baseTableName, state, dialect)
+        ).join(", ")
+        sql = `update${modifiers} ${targetList}${joinSources.length > 0 ? ` ${joinSources}` : ""} set ${assignments}`
+      } else {
+        sql = `update ${target} set ${assignments}`
+        if (updateAst.joins.length > 0) {
+          sql += ` from ${renderJoinSourcesForMutation(updateAst.joins, state, dialect)}`
+        }
+      }
+      const whereParts = [
+        ...(dialect.name === "postgres" ? renderJoinPredicatesForMutation(updateAst.joins, state, dialect) : []),
+        ...updateAst.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect))
+      ]
+      if (whereParts.length > 0) {
+        sql += ` where ${whereParts.join(" and ")}`
+      }
+      if (dialect.name === "mysql" && updateAst.orderBy.length > 0) {
+        sql += ` order by ${updateAst.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`
+      }
+      if (dialect.name === "mysql" && updateAst.limit) {
+        sql += ` limit ${renderExpression(updateAst.limit, state, dialect)}`
       }
       const returning = renderSelectionList(updateAst.select as Record<string, unknown>, state, dialect, false)
       projections = returning.projections
@@ -764,9 +889,40 @@ export const renderQueryAst = (
       const deleteAst = ast as QueryAst.Ast<Record<string, unknown>, any, "delete">
       const targetSource = deleteAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
-      sql = `delete from ${target}`
-      if (deleteAst.where.length > 0) {
-        sql += ` where ${deleteAst.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`
+      const targets = deleteAst.targets ?? [targetSource]
+      if (dialect.name === "mysql") {
+        const modifiers = renderMysqlMutationLock(deleteAst.lock, "delete")
+        const hasJoinedSources = deleteAst.joins.length > 0 || targets.length > 1
+        const targetList = renderDeleteTargets(targets, dialect)
+        const fromSources = targets.map((entry) =>
+          renderSourceReference(entry.source, entry.tableName, entry.baseTableName, state, dialect)
+        ).join(", ")
+        const joinSources = deleteAst.joins.map((join) =>
+          join.kind === "cross"
+            ? `cross join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)}`
+            : `${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on!, state, dialect)}`
+        ).join(" ")
+        sql = hasJoinedSources
+          ? `delete${modifiers} ${targetList} from ${fromSources}${joinSources.length > 0 ? ` ${joinSources}` : ""}`
+          : `delete${modifiers} from ${fromSources}`
+      } else {
+        sql = `delete from ${target}`
+        if (deleteAst.joins.length > 0) {
+          sql += ` using ${renderJoinSourcesForMutation(deleteAst.joins, state, dialect)}`
+        }
+      }
+      const whereParts = [
+        ...(dialect.name === "postgres" ? renderJoinPredicatesForMutation(deleteAst.joins, state, dialect) : []),
+        ...deleteAst.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect))
+      ]
+      if (whereParts.length > 0) {
+        sql += ` where ${whereParts.join(" and ")}`
+      }
+      if (dialect.name === "mysql" && deleteAst.orderBy.length > 0) {
+        sql += ` order by ${deleteAst.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`
+      }
+      if (dialect.name === "mysql" && deleteAst.limit) {
+        sql += ` limit ${renderExpression(deleteAst.limit, state, dialect)}`
       }
       const returning = renderSelectionList(deleteAst.select as Record<string, unknown>, state, dialect, false)
       projections = returning.projections
@@ -879,6 +1035,29 @@ const renderSourceReference = (
   state: RenderState,
   dialect: SqlDialect
 ): string => {
+  const renderSelectRows = (
+    rows: readonly Record<string, Expression.Any>[],
+    columnNames: readonly string[]
+  ): string => {
+    const renderedRows = rows.map((row) =>
+      `select ${columnNames.map((columnName) =>
+        `${renderExpression(row[columnName]!, state, dialect)} as ${dialect.quoteIdentifier(columnName)}`
+      ).join(", ")}`
+    )
+    return `(${renderedRows.join(" union all ")}) as ${dialect.quoteIdentifier(tableName)}(${columnNames.map((columnName) => dialect.quoteIdentifier(columnName)).join(", ")})`
+  }
+
+  const renderUnnestRows = (
+    arrays: Readonly<Record<string, readonly Expression.Any[]>>,
+    columnNames: readonly string[]
+  ): string => {
+    const rowCount = arrays[columnNames[0]!]!.length
+    const rows = Array.from({ length: rowCount }, (_, index) =>
+      Object.fromEntries(columnNames.map((columnName) => [columnName, arrays[columnName]![index]!] as const)) as Record<string, Expression.Any>
+    )
+    return renderSelectRows(rows, columnNames)
+  }
+
   if (typeof source === "object" && source !== null && "kind" in source && (source as { readonly kind?: string }).kind === "cte") {
     const cte = source as unknown as {
       readonly name: string
@@ -913,6 +1092,33 @@ const renderSourceReference = (
     }
     return `lateral (${renderQueryAst(Query.getAst(lateral.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect).sql}) as ${dialect.quoteIdentifier(lateral.name)}`
   }
+  if (typeof source === "object" && source !== null && (source as { readonly kind?: string }).kind === "values") {
+    const values = source as unknown as {
+      readonly columns: Record<string, Expression.Any>
+      readonly rows: readonly Record<string, Expression.Any>[]
+    }
+    return renderSelectRows(values.rows, Object.keys(values.columns))
+  }
+  if (typeof source === "object" && source !== null && (source as { readonly kind?: string }).kind === "unnest") {
+    const unnest = source as unknown as {
+      readonly columns: Record<string, Expression.Any>
+      readonly arrays: Readonly<Record<string, readonly Expression.Any[]>>
+    }
+    return renderUnnestRows(unnest.arrays, Object.keys(unnest.columns))
+  }
+  if (typeof source === "object" && source !== null && (source as { readonly kind?: string }).kind === "tableFunction") {
+    const tableFunction = source as unknown as {
+      readonly name: string
+      readonly columns: Record<string, Expression.Any>
+      readonly functionName: string
+      readonly args: readonly Expression.Any[]
+    }
+    if (dialect.name !== "postgres") {
+      throw new Error("Unsupported table function source for SQL rendering")
+    }
+    const columnNames = Object.keys(tableFunction.columns)
+    return `${tableFunction.functionName}(${tableFunction.args.map((arg) => renderExpression(arg, state, dialect)).join(", ")}) as ${dialect.quoteIdentifier(tableFunction.name)}(${columnNames.map((columnName) => dialect.quoteIdentifier(columnName)).join(", ")})`
+  }
   const schemaName = typeof source === "object" && source !== null && Table.TypeId in source
     ? (source as Table.AnyTable)[Table.TypeId].schemaName
     : undefined
@@ -944,6 +1150,10 @@ export const renderExpression = (
       return `${dialect.quoteIdentifier(ast.tableName)}.${dialect.quoteIdentifier(ast.columnName)}`
     case "literal":
       return dialect.renderLiteral(ast.value, state)
+    case "excluded":
+      return dialect.name === "mysql"
+        ? `values(${dialect.quoteIdentifier(ast.columnName)})`
+        : `excluded.${dialect.quoteIdentifier(ast.columnName)}`
     case "cast":
       return `cast(${renderExpression(ast.value, state, dialect)} as ${renderCastType(dialect, ast.target)})`
     case "eq":

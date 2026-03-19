@@ -1,0 +1,103 @@
+import { describe, expect, test } from "bun:test"
+
+import * as Mysql from "../src/mysql.ts"
+
+const userId = "11111111-1111-1111-1111-111111111111"
+const secondUserId = "22222222-2222-2222-2222-222222222222"
+
+describe("mysql insert behavior", () => {
+  test("renders mysql multi-row and source-backed inserts", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+    const archivedUsers = Mysql.Table.make("archived_users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+
+    const multiRowPlan = Mysql.Query.insertMany(users, [
+      { id: userId, email: "alice@example.com", bio: null },
+      { id: secondUserId, email: "bob@example.com", bio: "writer" }
+    ] as const)
+
+    const insertSelectPlan = Mysql.Query.insertFrom(archivedUsers, Mysql.Query.select({
+      id: users.id,
+      email: users.email,
+      bio: users.bio
+    }).pipe(
+      Mysql.Query.from(users)
+    ))
+
+    const insertUnnestPlan = Mysql.Query.insertFrom(users, Mysql.Query.insertUnnest({
+      id: [userId, secondUserId],
+      email: ["alice@example.com", "bob@example.com"],
+      bio: [null, "writer"]
+    }))
+
+    expect(Mysql.Renderer.make().render(multiRowPlan).sql).toBe(
+      "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"
+    )
+    expect(Mysql.Renderer.make().render(multiRowPlan).params).toEqual([
+      userId,
+      "alice@example.com",
+      secondUserId,
+      "bob@example.com",
+      "writer"
+    ])
+
+    expect(Mysql.Renderer.make().render(insertSelectPlan).sql).toBe(
+      "insert into `archived_users` (`id`, `email`, `bio`) select `users`.`id` as `id`, `users`.`email` as `email`, `users`.`bio` as `bio` from `users`"
+    )
+    expect(Mysql.Renderer.make().render(insertSelectPlan).params).toEqual([])
+
+    expect(Mysql.Renderer.make().render(insertUnnestPlan).sql).toBe(
+      "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"
+    )
+    expect(Mysql.Renderer.make().render(insertUnnestPlan).params).toEqual([
+      userId,
+      "alice@example.com",
+      secondUserId,
+      "bob@example.com",
+      "writer"
+    ])
+  })
+
+  test("renders mysql default-values and duplicate-key conflict clauses", () => {
+    const auditLogs = Mysql.Table.make("audit_logs", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey, Mysql.Column.hasDefault),
+      note: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+
+    const defaultValuesPlan = Mysql.Query.defaultValues(auditLogs)
+    const conflictPlan = Mysql.Query.onConflict(["email"] as const, {
+      update: {
+        bio: Mysql.Query.excluded(users.bio)
+      }
+    })(Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com",
+      bio: "writer"
+    }))
+
+    expect(Mysql.Renderer.make().render(defaultValuesPlan).sql).toBe(
+      "insert into `audit_logs` default values"
+    )
+
+    expect(Mysql.Renderer.make().render(conflictPlan).sql).toBe(
+      "insert into `users` (`id`, `email`, `bio`) values (?, ?, ?) on duplicate key update `bio` = values(`bio`)"
+    )
+    expect(Mysql.Renderer.make().render(conflictPlan).params).toEqual([
+      userId,
+      "alice@example.com",
+      "writer"
+    ])
+  })
+})
