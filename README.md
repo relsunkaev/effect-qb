@@ -1,54 +1,64 @@
 # effect-qb
 
-Composable, type-safe SQL query construction for PostgreSQL and MySQL with static result contracts, predicate-driven narrowing, and a schema-free runtime query path.
+Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that carry result shapes, nullability, dialect compatibility, and statement constraints in the type system.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Installation](#installation)
-- [Modules](#modules)
-- [Core Idea](#core-idea)
-- [Define Tables](#define-tables)
-- [Build Queries](#build-queries)
-  - [Select and Infer the Result Shape](#select-and-infer-the-result-shape)
-  - [Predicate-Driven Nullability Refinement](#predicate-driven-nullability-refinement)
-  - [Left Joins: Static vs Runtime Row Types](#left-joins-static-vs-runtime-row-types)
-  - [Join Variants](#join-variants)
-- [Case Expressions](#case-expressions)
-- [JSON Paths and Manipulation](#json-paths-and-manipulation)
-- [Exists Subqueries](#exists-subqueries)
-- [Set Operators](#set-operators)
-- [Aggregation and Grouping](#aggregation-and-grouping)
-- [Distinct, Limit, and Offset](#distinct-limit-and-offset)
-- [Window Functions](#window-functions)
-- [Mutation Statements](#mutation-statements)
-- [Data-Modifying CTEs](#data-modifying-ctes)
-- [Query Construction Safety](#query-construction-safety)
-- [Rendering](#rendering)
-- [Execution](#execution)
-- [Type Safety and Return Types](#type-safety-and-return-types)
-- [Dialect Notes](#dialect-notes)
-- [Unsupported Features](#unsupported-features)
-- [Project Layout](#project-layout)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+  - [Tables And Columns](#tables-and-columns)
+  - [Plans, Not Strings](#plans-not-strings)
+  - [ResultRow vs RuntimeResultRow](#resultrow-vs-runtimeresultrow)
+  - [Schema-backed JSON Columns](#schema-backed-json-columns)
+  - [Dialect-specific Entrypoints](#dialect-specific-entrypoints)
+- [Query Guide](#query-guide)
+  - [Selecting Data](#selecting-data)
+  - [Bringing Sources Into Scope](#bringing-sources-into-scope)
+  - [Filtering Rows](#filtering-rows)
+  - [Shaping Results](#shaping-results)
+  - [Aggregating](#aggregating)
+  - [Combining Queries](#combining-queries)
+  - [Controlling Result Sets](#controlling-result-sets)
+- [Mutations](#mutations)
+  - [Insert](#insert)
+  - [Update](#update)
+  - [Delete](#delete)
+  - [Conflicts And Upserts](#conflicts-and-upserts)
+  - [Returning](#returning)
+  - [Data-modifying CTEs](#data-modifying-ctes)
+- [Rendering And Execution](#rendering-and-execution)
+  - [Renderer](#renderer)
+  - [Executor](#executor)
+  - [Query-sensitive Error Channels](#query-sensitive-error-channels)
+  - [Transaction Helpers](#transaction-helpers)
+- [Type Safety](#type-safety)
+  - [Complete-plan Enforcement](#complete-plan-enforcement)
+  - [Predicate-driven Narrowing](#predicate-driven-narrowing)
+  - [Join Optionality](#join-optionality)
+  - [Grouped Query Validation](#grouped-query-validation)
+  - [Dialect Compatibility](#dialect-compatibility)
+  - [JSON Schema Compatibility In Mutations](#json-schema-compatibility-in-mutations)
+  - [Readable Branded Type Errors](#readable-branded-type-errors)
+- [Dialect Support](#dialect-support)
+  - [PostgreSQL](#postgresql)
+  - [MySQL](#mysql)
+- [Limitations](#limitations)
 - [Contributing](#contributing)
 
 ## Overview
 
-`effect-qb` builds immutable query plans and keeps the interesting parts of SQL in the type system:
+`effect-qb` builds immutable query plans and pushes the interesting parts of SQL into the type system:
 
-- projection shape
-- nullability
+- exact projection shapes
+- nullability and predicate-driven narrowing
 - join optionality
-- aggregate compatibility
+- aggregate and grouping validation
 - dialect compatibility
-- execution return types
+- statement and execution result types
 
-The main contract is compile-time:
-
-- `Query.ResultRow<typeof plan>` is the logical result type after predicate implication and query analysis
-- `Query.RuntimeResultRow<typeof plan>` is the conservative runtime remap shape
-
-At runtime, the library renders SQL, executes it, and remaps flat aliases back into nested objects. It does not build or validate query result schemas.
+The main contract is compile-time. `Query.ResultRow<typeof plan>` is the logical row type after query analysis, while `Query.RuntimeResultRow<typeof plan>` describes the conservative runtime remap shape. At runtime, the library renders SQL, executes it, and remaps aliased columns back into nested objects. It does not build or validate query-result schemas.
 
 ## Installation
 
@@ -56,67 +66,22 @@ At runtime, the library renders SQL, executes it, and remaps flat aliases back i
 bun install
 ```
 
-Exports:
+Entrypoints:
 
 - `effect-qb`
 - `effect-qb/postgres`
 - `effect-qb/mysql`
 
-## Modules
+Use `effect-qb` when Postgres defaults are acceptable. Use the dialect-specific entrypoints when you want dialect-locked table builders, query builders, renderers, executors, datatypes, and error types.
 
-Core entrypoint:
-
-```ts
-import {
-  Query as Q,
-  Table,
-  Column as C,
-  Renderer,
-  Executor,
-  Expression,
-  Plan
-} from "effect-qb"
-```
-
-Dialect-specific entrypoints:
+## Quick Start
 
 ```ts
-import * as Postgres from "effect-qb/postgres"
-import * as Mysql from "effect-qb/mysql"
-```
-
-Notes:
-
-- `effect-qb` exports the Postgres-flavored `Query` DSL by default.
-- Use `effect-qb/mysql` when the query plan should be locked to MySQL.
-- Use dialect-specific renderers/executors when you want built-in engine support for that dialect.
-
-## Core Idea
-
-The query path is split in two:
-
-1. Static query analysis
-   - result typing
-   - nullability refinement
-   - join promotion
-   - aggregate/grouping checks
-   - dialect compatibility
-2. Runtime execution
-   - render SQL
-   - run SQL
-   - remap flat aliases into nested objects
-
-That means the runtime path stays small, while the type contract stays tight.
-
-## Define Tables
-
-```ts
-import { Query as Q, Table, Column as C } from "effect-qb"
+import { Column as C, Query as Q, Renderer, Table } from "effect-qb"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
-  name: C.text(),
-  email: C.text().pipe(C.nullable)
+  email: C.text()
 })
 
 const posts = Table.make("posts", {
@@ -124,69 +89,242 @@ const posts = Table.make("posts", {
   userId: C.uuid(),
   title: C.text().pipe(C.nullable)
 })
+
+const postsPerUser = Q.select({
+  userId: users.id,
+  email: users.email,
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(users.id, users.email),
+  Q.orderBy(users.email)
+)
+
+type PostsPerUserRow = Q.ResultRow<typeof postsPerUser>
+// {
+//   userId: string
+//   email: string
+//   postCount: number
+// }
+
+const rendered = Renderer.make().render(postsPerUser)
+rendered.sql
+rendered.params
 ```
 
-Table definitions still carry schema information for table modeling. Query result rows are inferred from the query plan itself.
+This is the core model: define typed tables, build a plan, let the plan define the row type, then render or execute it.
 
-Schema-qualified tables are available when you need them:
+## Core Concepts
+
+### Tables And Columns
+
+Tables are typed sources, not loose name strings. Columns carry DB types, nullability, defaults, keys, and schema-backed JSON information.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column as C, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  profile: C.json(Schema.Struct({
+    displayName: Schema.String,
+    bio: Schema.NullOr(Schema.String)
+  }))
+})
+```
+
+Schema-qualified tables are also typed:
 
 ```ts
 const analytics = Table.schema("analytics")
+
 const events = analytics.table("events", {
   id: C.uuid().pipe(C.primaryKey),
   userId: C.uuid()
 })
 ```
 
-`Table.make(...)` defaults to the `public` schema for compatibility.
+### Plans, Not Strings
 
-## Build Queries
+`effect-qb` does not build rows from ad hoc string fragments. It builds typed plans. Partial plans are allowed while assembling a query, but rendering and execution require a complete plan.
 
-### Select and Infer the Result Shape
+That distinction is important:
+
+- you can reference sources before they are in scope while composing
+- the type system tracks what is still missing
+- `render(...)`, `execute(...)`, and `Q.CompletePlan<typeof plan>` are the enforcement boundary
+
+### ResultRow vs RuntimeResultRow
+
+`Q.ResultRow<typeof plan>` is the logical result type after static analysis. It includes things like:
+
+- `where(isNotNull(...))` nullability refinement
+- left-join promotion when predicates prove presence
+- grouped-query validation
+- branch pruning for expressions like `case()`
+
+`Q.RuntimeResultRow<typeof plan>` is intentionally more conservative. It describes the schema-free runtime remap path only.
+
+```ts
+const guaranteedPost = Q.select({
+  userId: users.id,
+  postId: posts.id
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.isNotNull(posts.id))
+)
+
+type LogicalRow = Q.ResultRow<typeof guaranteedPost>
+// {
+//   userId: string
+//   postId: string
+// }
+
+type RuntimeRow = Q.RuntimeResultRow<typeof guaranteedPost>
+// {
+//   userId: string
+//   postId: string | null
+// }
+```
+
+### Schema-backed JSON Columns
+
+JSON columns can carry a schema. That schema feeds:
+
+- JSON path typing
+- JSON manipulation result typing
+- insert/update compatibility checks
+
+```ts
+import * as Schema from "effect/Schema"
+
+const docs = Table.make("docs", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.json(Schema.Struct({
+    profile: Schema.Struct({
+      address: Schema.Struct({
+        city: Schema.String,
+        postcode: Schema.NullOr(Schema.String)
+      })
+    })
+  }))
+})
+
+const cityPath = Q.json.path(
+  Q.json.key("profile"),
+  Q.json.key("address"),
+  Q.json.key("city")
+)
+
+const city = Q.json.get(docs.payload, cityPath)
+type City = Q.OutputOfExpression<typeof city, {
+  readonly docs: {
+    readonly name: "docs"
+    readonly mode: "required"
+  }
+}>
+// string
+```
+
+### Dialect-specific Entrypoints
+
+The root entrypoint defaults to the Postgres-flavored `Query` and `Table` DSLs:
+
+```ts
+import { Query as Q, Table } from "effect-qb"
+```
+
+Dialect entrypoints expose dialect-specific builders:
+
+```ts
+import * as Postgres from "effect-qb/postgres"
+import * as Mysql from "effect-qb/mysql"
+```
+
+This matters for:
+
+- dialect-locked tables and columns
+- dialect-only features like Postgres `distinctOn(...)`
+- dialect-specific renderers and executors
+- dialect-specific error unions
+
+## Query Guide
+
+### Selecting Data
+
+Selections define the result type directly. Nested objects stay nested in the row type.
 
 ```ts
 const listUsers = Q.select({
   id: users.id,
   profile: {
-    name: users.name,
     email: users.email
-  }
+  },
+  hasPosts: Q.literal(true)
 }).pipe(
-  Q.from(users),
-  Q.where(Q.eq(users.name, "alice"))
+  Q.from(users)
 )
 
 type ListUsersRow = Q.ResultRow<typeof listUsers>
 // {
 //   id: string
 //   profile: {
-//     name: string
-//     email: string | null
+//     email: string
 //   }
+//   hasPosts: boolean
 // }
-
-const row: ListUsersRow = {
-  id: "user-1",
-  profile: {
-    name: "alice",
-    email: null
-  }
-}
 ```
 
-The result type follows the exact projection shape, including nested objects and nullability.
+Projection typing is local. You usually do not need to define row interfaces yourself.
 
-### Predicate-Driven Nullability Refinement
+### Bringing Sources Into Scope
+
+`from(...)` and joins make referenced sources available to the plan. Derived tables, CTEs, and correlated sources stay typed.
 
 ```ts
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable)
-})
+const activePosts = Q.as(
+  Q.select({
+    userId: posts.userId,
+    title: posts.title
+  }).pipe(
+    Q.from(posts),
+    Q.where(Q.isNotNull(posts.title))
+  ),
+  "active_posts"
+)
 
+const usersWithPosts = Q.select({
+  userId: users.id,
+  title: activePosts.title
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(activePosts, Q.eq(users.id, activePosts.userId))
+)
+
+type UsersWithPostsRow = Q.ResultRow<typeof usersWithPosts>
+// {
+//   userId: string
+//   title: string
+// }
+```
+
+The same source story applies to:
+
+- `Q.with(subquery, alias)`
+- `Q.withRecursive(subquery, alias)`
+- `Q.lateral(subquery, alias)`
+- `Q.values(...)`
+- `Q.unnest(...)`
+
+### Filtering Rows
+
+Predicates do more than render SQL. They can narrow result types.
+
+```ts
 const allPosts = Q.select({
-  id: posts.id,
   title: posts.title,
   upperTitle: Q.upper(posts.title)
 }).pipe(
@@ -195,13 +333,11 @@ const allPosts = Q.select({
 
 type AllPostsRow = Q.ResultRow<typeof allPosts>
 // {
-//   id: string
 //   title: string | null
 //   upperTitle: string | null
 // }
 
 const titledPosts = Q.select({
-  id: posts.id,
   title: posts.title,
   upperTitle: Q.upper(posts.title)
 }).pipe(
@@ -211,148 +347,24 @@ const titledPosts = Q.select({
 
 type TitledPostsRow = Q.ResultRow<typeof titledPosts>
 // {
-//   id: string
 //   title: string
 //   upperTitle: string
 // }
 ```
 
-Without refinement, `title` and `upperTitle` stay nullable. Adding `where(Q.isNotNull(posts.title))` narrows the selected column and derived expressions for the remainder of the plan.
+That same narrowing feeds:
 
-The opposite refinement also works:
+- `coalesce(...)`
+- `case()`
+- `match(...)`
+- joined-source promotion
 
-```ts
-const untitledPosts = Q.select({
-  title: posts.title,
-  upperTitle: Q.upper(posts.title)
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.isNull(posts.title))
-)
+### Shaping Results
 
-type UntitledPostsRow = Q.ResultRow<typeof untitledPosts>
-// {
-//   title: null
-//   upperTitle: null
-// }
-```
-
-Here both the selected column and the derived expression collapse all the way to `null`.
-
-### Left Joins: Static vs Runtime Row Types
-
-```ts
-const usersWithGuaranteedPost = Q.select({
-  userId: users.id,
-  postId: posts.id
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.where(Q.isNotNull(posts.id))
-)
-
-type UsersWithGuaranteedPostRow = Q.ResultRow<typeof usersWithGuaranteedPost>
-// {
-//   userId: string
-//   postId: string
-// }
-
-type UsersWithGuaranteedPostRuntimeRow =
-  Q.RuntimeResultRow<typeof usersWithGuaranteedPost>
-// {
-//   userId: string
-//   postId: string | null
-// }
-```
-
-Why the split:
-
-- `ResultRow` reflects what the query logically guarantees after predicate implication
-- `RuntimeResultRow` reflects the conservative remap-only runtime path
-
-This is intentional. The library no longer validates database rows against query result schemas at runtime.
-
-### Join Variants
-
-`rightJoin(...)`, `fullJoin(...)`, and `crossJoin(...)` are also available:
-
-```ts
-const postsWithUsers = Q.select({
-  userId: users.id,
-  postId: posts.id
-}).pipe(
-  Q.from(users),
-  Q.rightJoin(posts, Q.eq(users.id, posts.userId))
-)
-
-type PostsWithUsersRow = Q.ResultRow<typeof postsWithUsers>
-// {
-//   userId: string | null
-//   postId: string
-// }
-
-const allUserPostPairs = Q.select({
-  userId: users.id,
-  postId: posts.id
-}).pipe(
-  Q.from(users),
-  Q.crossJoin(posts)
-)
-
-type AllUserPostPairsRow = Q.ResultRow<typeof allUserPostPairs>
-// {
-//   userId: string
-//   postId: string
-// }
-```
-
-Join optionality still feeds the row type. `rightJoin(...)` can demote the already-in-scope side to nullable, and `fullJoin(...)` makes both sides nullable until later predicates refine them.
-
-### Case Expressions
-
-Searched `CASE` is available through `case()`, and simple `CASE` is available through `match(...)`:
-
-```ts
-const normalizedTitles = Q.select({
-  normalizedTitle: Q.case()
-    .when(Q.isNull(posts.title), "missing")
-    .else(Q.upper(posts.title))
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.isNotNull(posts.title))
-)
-
-type NormalizedTitlesRow = Q.ResultRow<typeof normalizedTitles>
-// {
-//   normalizedTitle: string
-// }
-
-const statusLabels = Q.select({
-  label: Q.match(posts.title)
-    .when("draft", "Draft")
-    .when("published", "Live")
-    .else("Unknown")
-}).pipe(
-  Q.from(posts)
-)
-
-type StatusLabelsRow = Q.ResultRow<typeof statusLabels>
-// {
-//   label: string
-// }
-```
-
-The outer `where(...)` can make `CASE` branches unreachable, and the return type narrows accordingly when the implication engine can prove it.
-
-Other read-predicate helpers include `notIn(...)`, `isDistinctFrom(...)`, `isNotDistinctFrom(...)`, `all(...)`, and `any(...)`. `all(...)` and `any(...)` are aliases for `and(...)` and `or(...)` with the same type behavior.
-
-### JSON Paths and Manipulation
-
-JSON path objects are first-class values. Build a path once and reuse it across reads, writes, deletes, and path checks:
+The expression surface is large, but the important point is that result-shaping expressions stay typed.
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Query as Q, Table, Column as C } from "effect-qb"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -371,215 +383,41 @@ const cityPath = Q.json.path(
   Q.json.key("city")
 )
 
-const cityJson = Q.json.get(docs.payload, cityPath)
-const cityText = Q.json.text(docs.payload, cityPath)
-const updated = Q.json.set(docs.payload, cityPath, "Paris")
-const removed = Q.json.delete(docs.payload, cityPath)
-const exists = Q.json.pathExists(docs.payload, cityPath)
-```
-
-The same path object flows through every JSON operator, so you do not need to rebuild path strings for each operation.
-
-### Exists Subqueries
-
-`exists(...)` accepts an aggregation-safe nested plan and returns a non-null boolean expression:
-
-```ts
-const postsByAlice = Q.select({
-  id: posts.id
+const shapedDocs = Q.select({
+  title: Q.case()
+    .when(Q.isNull(posts.title), "missing")
+    .else(Q.upper(posts.title)),
+  profileCity: Q.json.text(docs.payload, cityPath),
+  titleAsText: Q.cast(posts.title, Q.type.text())
 }).pipe(
   Q.from(posts),
-  Q.where(Q.eq(posts.userId, users.id))
+  Q.leftJoin(docs, Q.eq(posts.id, docs.id))
 )
-
-const usersWithPostsByAlice = Q.select({
-  userId: users.id,
-  hasPosts: Q.exists(postsByAlice)
-}).pipe(
-  Q.from(users)
-)
-
-type UsersWithPostsByAliceRow = Q.ResultRow<typeof usersWithPostsByAlice>
-// {
-//   userId: string
-//   hasPosts: boolean
-// }
 ```
 
-Correlated nested plans stay dialect-checked, bubble their outer-source requirements up to the enclosing query, and share the outer render state's parameter ordering.
+The same JSON path object can be reused across:
 
-If the outer query never brings the referenced source into scope, the complete-plan boundary still fails with the usual missing-source diagnostic.
+- `Q.json.get(...)`
+- `Q.json.text(...)`
+- `Q.json.set(...)`
+- `Q.json.insert(...)`
+- `Q.json.delete(...)`
+- `Q.json.pathExists(...)`
 
-### Derived Tables
+Comparison and cast safety are dialect-aware. Incompatible operands are rejected unless you make the conversion explicit with `Q.cast(...)`.
 
-Subqueries can also be used as sources, but they must be aliased first with `Q.as(...)`:
+### Aggregating
 
-```ts
-const activePosts = Q.select({
-  userId: posts.userId,
-  title: posts.title
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.isNotNull(posts.title))
-)
-
-const activePostsSource = Q.as(activePosts, "active_posts")
-
-const usersWithActivePosts = Q.select({
-  userId: users.id,
-  title: activePostsSource.title
-}).pipe(
-  Q.from(users),
-  Q.innerJoin(activePostsSource, Q.eq(users.id, activePostsSource.userId))
-)
-
-type UsersWithActivePostsRow = Q.ResultRow<typeof usersWithActivePosts>
-// {
-//   userId: string
-//   title: string
-// }
-```
-
-Passing a raw subquery directly to `from(...)` or a join is rejected at the type boundary. The compiler points you to `Q.as(subquery, alias)` so the derived source has an explicit SQL alias and a stable nested output shape.
-
-### Lateral Joins
-
-Correlated subqueries can be wrapped with `Q.lateral(...)` and joined once their outer sources are in scope:
-
-```ts
-const postsByUser = Q.lateral(
-  Q.select({
-    postId: posts.id,
-    userId: posts.userId
-  }).pipe(
-    Q.from(posts),
-    Q.where(Q.eq(posts.userId, users.id))
-  ),
-  "user_posts"
-)
-
-const usersWithLateralPosts = Q.select({
-  userId: users.id,
-  postId: postsByUser.postId
-}).pipe(
-  Q.from(users),
-  Q.innerJoin(postsByUser, true)
-)
-
-type UsersWithLateralPostsRow = Q.ResultRow<typeof usersWithLateralPosts>
-// {
-//   userId: string
-//   postId: string
-// }
-```
-
-The compiler prevents starting a plan from a correlated source. If you try to `from(...)` a lateral source before its outer tables are in scope, you get a branded `SourceRequirementError` instead of a vague inference failure.
-
-### Common Table Expressions
-
-CTEs are also available through `Q.with(subquery, alias)`:
-
-```ts
-const activePosts = Q.with(
-  Q.select({
-    userId: posts.userId,
-    title: posts.title
-  }).pipe(
-    Q.from(posts),
-    Q.where(Q.isNotNull(posts.title))
-  ),
-  "active_posts"
-)
-
-const usersWithActivePosts = Q.select({
-  userId: users.id,
-  title: activePosts.title
-}).pipe(
-  Q.from(users),
-  Q.innerJoin(activePosts, Q.eq(users.id, activePosts.userId))
-)
-
-type UsersWithActivePostsRow = Q.ResultRow<typeof usersWithActivePosts>
-// {
-//   userId: string
-//   title: string
-// }
-```
-
-`Q.with(...)` returns a typed source wrapper, so the CTE alias is available everywhere a table-like source is accepted. The CTE definition is hoisted into the rendered SQL automatically.
-
-### Data-Modifying CTEs
-
-Returned mutation plans can also be wrapped in `Q.with(...)`, which lets a write feed later reads in the same statement:
-
-```ts
-const insertedUsers = Q.with(
-  Q.returning({
-    id: users.id,
-    email: users.email,
-    bio: users.bio
-  })(Q.insert(users, {
-    id: "user-1",
-    email: "alice@example.com",
-    bio: null
-  })),
-  "inserted_users"
-)
-
-const selectedInsertedUsers = Q.select({
-  id: insertedUsers.id,
-  email: insertedUsers.email,
-  bio: insertedUsers.bio
-}).pipe(
-  Q.from(insertedUsers)
-)
-
-type SelectedInsertedUsersRow = Q.ResultRow<typeof selectedInsertedUsers>
-// {
-//   id: string
-//   email: string
-//   bio: string | null
-// }
-```
-
-This keeps mutation output typed and lets later statements consume the returned rows without leaving the builder.
-
-Because the outer statement now depends on a write-bearing source, the query capability lifts to include `"write"` as well. That keeps the executor error channel honest for mutation-backed CTEs.
-
-### Set Operators
-
-Compound queries preserve the selection shape of the left-hand side and require a compatible right-hand side:
-
-```ts
-const activeUserIds = Q.select({
-  userId: users.id
-}).pipe(
-  Q.from(users)
-)
-
-const authorIds = Q.select({
-  userId: posts.userId
-}).pipe(
-  Q.from(posts)
-)
-
-const combinedUserIds = Q.union(activeUserIds, authorIds)
-
-type CombinedUserIdsRow = Q.ResultRow<typeof combinedUserIds>
-// {
-//   userId: string
-// }
-```
-
-`Q.union(...)`, `Q.intersect(...)`, and `Q.except(...)` require compatible selection shapes and dialects before render or execute.
-
-### Aggregation and Grouping
+Grouped queries are checked structurally, not just by source provenance.
 
 ```ts
 const postsPerUser = Q.select({
   userId: users.id,
   postCount: Q.count(posts.id),
-  latestTitle: Q.max(posts.title)
+  rowNumber: Q.over(Q.rowNumber(), {
+    partitionBy: [users.id],
+    orderBy: [{ value: users.id, direction: "asc" }]
+  })
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -590,23 +428,54 @@ type PostsPerUserRow = Q.ResultRow<typeof postsPerUser>
 // {
 //   userId: string
 //   postCount: number
-//   latestTitle: string | null
+//   rowNumber: number
 // }
 ```
 
-Grouped queries stay type-checked:
+Scalar selections must be covered by `groupBy(...)` when aggregates are present. Invalid grouped selections are rejected at the complete-plan boundary.
 
-- grouped scalar selections must be covered by `groupBy(...)`
-- aggregate expressions like `count(...)`, `max(...)`, and `min(...)` remain legal
-- incompatible aggregate/scalar mixes are rejected before render or execute
+### Combining Queries
 
-### Distinct, Limit, and Offset
-
-Pagination and duplicate elimination stay in the same immutable plan chain:
+Subqueries and set operators stay part of the same typed plan model.
 
 ```ts
-const pagedUsers = Q.select({
+const postsByUser = Q.select({
+  id: posts.id
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.eq(posts.userId, users.id))
+)
+
+const usersWithPosts = Q.select({
   userId: users.id,
+  hasPosts: Q.exists(postsByUser)
+}).pipe(
+  Q.from(users)
+)
+
+type UsersWithPostsRow = Q.ResultRow<typeof usersWithPosts>
+// {
+//   userId: string
+//   hasPosts: boolean
+// }
+```
+
+Set operators require compatible row shapes:
+
+- `Q.union(...)`
+- `Q.unionAll(...)`
+- `Q.intersect(...)`
+- `Q.intersectAll(...)`
+- `Q.except(...)`
+- `Q.exceptAll(...)`
+
+### Controlling Result Sets
+
+Ordering and result-set controls are regular plan transforms:
+
+```ts
+const recentUsers = Q.select({
+  id: users.id,
   email: users.email
 }).pipe(
   Q.from(users),
@@ -615,129 +484,220 @@ const pagedUsers = Q.select({
   Q.limit(10),
   Q.offset(20)
 )
-
-type PagedUsersRow = Q.ResultRow<typeof pagedUsers>
-// {
-//   userId: string
-//   email: string
-// }
 ```
 
-These clauses do not change the row shape. They stay select-only and preserve the same source, dialect, and nullability guarantees as the underlying query.
-
-### Window Functions
-
-Window functions stay distinct from grouped aggregates in the type system:
+Postgres-only `distinct on` is available from the Postgres entrypoint:
 
 ```ts
-const rankedPosts = Q.select({
-  userId: posts.userId,
-  rowNumber: Q.rowNumber({
-    partitionBy: [posts.userId],
-    orderBy: [{ value: posts.id, direction: "asc" }]
-  }),
-  postCount: Q.over(Q.count(posts.id), {
-    partitionBy: [posts.userId]
-  })
-}).pipe(
-  Q.from(posts)
-)
+import * as Postgres from "effect-qb/postgres"
 
-type RankedPostsRow = Q.ResultRow<typeof rankedPosts>
-// {
-//   userId: string
-//   rowNumber: number
-//   postCount: number
-// }
+const recentEmails = Postgres.Query.select({
+  id: users.id,
+  email: users.email
+}).pipe(
+  Postgres.Query.from(users),
+  Postgres.Query.distinctOn(users.email),
+  Postgres.Query.orderBy(users.email)
+)
 ```
 
-The current surface exposes `Q.rowNumber(...)`, `Q.rank(...)`, `Q.denseRank(...)`, and `Q.over(aggregate, spec)`.
+## Mutations
 
-Example of an invalid grouped selection:
+### Insert
 
-```ts
-const invalidGroupedPlan = Q.select({
-  userId: users.id,
-  postTitle: posts.title,
-  postCount: Q.count(posts.id)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id)
-)
-
-type InvalidGroupedPlan = Q.CompletePlan<typeof invalidGroupedPlan>
-// carries:
-// {
-//   __effect_qb_error__: "effect-qb: invalid grouped selection"
-//   __effect_qb_hint__:
-//     "Scalar selections must be covered by groupBy(...) when aggregates are present"
-// }
-```
-
-## Mutation Statements
-
-Mutation builders are statement-specific and keep their own type contract:
+Single-row inserts are direct:
 
 ```ts
 const insertUser = Q.insert(users, {
   id: "user-1",
-  email: "alice@example.com",
-  bio: null
+  email: "alice@example.com"
 })
-
-const updatedUser = Q.update(users, {
-  email: "updated@example.com"
-})
-
-const deletedUser = Q.delete(users)
-
-type InsertStatement = Q.StatementOfPlan<typeof insertUser>
-type UpdateStatement = Q.StatementOfPlan<typeof updatedUser>
-type DeleteStatement = Q.StatementOfPlan<typeof deletedUser>
-
-// "insert"
-const insertKind: InsertStatement = "insert"
-// "update"
-const updateKind: UpdateStatement = "update"
-// "delete"
-const deleteKind: DeleteStatement = "delete"
 ```
 
-Mutations can optionally `returning(...)` projected rows:
+Composable sources are available when the input rows come from elsewhere:
 
 ```ts
-const insertWithReturning = Q.returning({
+const pendingUsers = Q.values([
+  { id: "user-1", email: "alice@example.com" },
+  { id: "user-2", email: "bob@example.com" }
+], "pending_users")
+
+const insertMany = Q.insertFrom(users, pendingUsers)
+```
+
+`insertFrom(...)` also accepts `select(...)`, `unnest(...)`, and other compatible sources.
+
+### Update
+
+Updates stay expression-aware and can use joined sources where the dialect supports it.
+
+```ts
+const updateUsers = Q.innerJoin(posts, Q.eq(posts.userId, users.id))(
+  Q.update(users, {
+    email: "has-posts@example.com"
+  })
+)
+```
+
+The assigned values still have to be type-compatible with the target columns.
+
+### Delete
+
+Deletes keep their own statement kind and can also participate in typed conditions and `returning(...)`.
+
+```ts
+const deleteUser = Q.delete(users).pipe(
+  Q.where(Q.eq(users.id, "user-1"))
+)
+```
+
+### Conflicts And Upserts
+
+Conflict handling is modeled as a composable modifier instead of a string escape hatch.
+
+```ts
+const insertOrIgnore = Q.onConflict(["id"] as const, {
+  action: "doNothing"
+})(Q.insert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}))
+
+const upsertUser = Q.upsert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}, ["id"] as const, {
+  email: "alice@example.com"
+})
+```
+
+Conflict targets are checked against the target table.
+
+### Returning
+
+Mutation plans can project typed rows with `returning(...)`.
+
+```ts
+const insertedUser = Q.returning({
   id: users.id,
   email: users.email
-})(insertUser)
+})(Q.insert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}))
 
-type InsertWithReturningRow = Q.ResultRow<typeof insertWithReturning>
+type InsertedUserRow = Q.ResultRow<typeof insertedUser>
 // {
 //   id: string
 //   email: string
 // }
 ```
 
-The statement kind stays in the plan type, so `where(...)`/`from(...)`/joins are restricted to the right statement shape. For example, `where(...)` applies to `select`, `update`, and `delete`, while `from(...)` and joins remain select-only.
+### Data-modifying CTEs
 
-## Query Construction Safety
-
-The builders allow partial plans while you assemble a query. The strict check happens when a plan must be complete, such as:
-
-- `Renderer.render(...)`
-- `Executor.execute(...)`
-- `Q.CompletePlan<typeof plan>`
-
-If you reference a table in `select(...)`, `where(...)`, or a join predicate, and never bring that source into scope, the complete-plan boundary fails with a readable branded type error that includes the missing source names:
+Write plans can feed later reads in the same statement:
 
 ```ts
-const invalidMissingFrom = Q.select({
+const insertedUsers = Q.with(
+  Q.returning({
+    id: users.id,
+    email: users.email
+  })(Q.insert(users, {
+    id: "user-1",
+    email: "alice@example.com"
+  })),
+  "inserted_users"
+)
+
+const insertedUsersPlan = Q.select({
+  id: insertedUsers.id,
+  email: insertedUsers.email
+}).pipe(
+  Q.from(insertedUsers)
+)
+```
+
+This is one of the places where the capability model matters: write-bearing nested plans keep write-required dialect errors in the executor error channel.
+
+## Rendering And Execution
+
+### Renderer
+
+```ts
+import * as Postgres from "effect-qb/postgres"
+
+const rendered = Postgres.Renderer.make().render(postsPerUser)
+
+rendered.sql
+rendered.params
+rendered.projections
+```
+
+Rendered queries carry:
+
+- SQL text
+- ordered bind params
+- projection metadata
+- the row type as a phantom type
+
+They do not carry a query-result schema.
+
+### Executor
+
+```ts
+import * as Postgres from "effect-qb/postgres"
+
+const renderer = Postgres.Renderer.make()
+const executor = Postgres.Executor.fromSqlClient(renderer)
+
+const rowsEffect = executor.execute(postsPerUser)
+
+type Rows = Postgres.Query.ResultRows<typeof postsPerUser>
+type Error = Postgres.Executor.PostgresQueryError<typeof postsPerUser>
+```
+
+Execution is:
+
+1. render the plan
+2. execute SQL
+3. remap flat aliases into nested objects
+
+There is no query-result schema decode stage.
+
+### Query-sensitive Error Channels
+
+Dialect executors expose query-sensitive error unions:
+
+- `Postgres.Executor.PostgresQueryError<typeof plan>`
+- `Mysql.Executor.MysqlQueryError<typeof plan>`
+
+Those types are narrower than the raw dialect error catalogs. For example, known write-only failures are removed from read-query error channels, while write-bearing plans retain them.
+
+### Transaction Helpers
+
+```ts
+import { Executor } from "effect-qb"
+
+const transactional = Executor.withTransaction(rowsEffect)
+const savepoint = Executor.withSavepoint(rowsEffect)
+```
+
+These preserve the original effect type parameters and add the ambient SQL transaction boundary.
+
+## Type Safety
+
+This is the main reason to use `effect-qb`.
+
+### Complete-plan Enforcement
+
+Partial plans are allowed while composing, but incomplete plans fail at the enforcement boundary.
+
+```ts
+const missingFrom = Q.select({
   userId: users.id
 })
 
-type InvalidMissingFrom = Q.CompletePlan<typeof invalidMissingFrom>
-// carries:
+type MissingFrom = Q.CompletePlan<typeof missingFrom>
 // {
 //   __effect_qb_error__:
 //     "effect-qb: query references sources that are not yet in scope"
@@ -747,33 +707,80 @@ type InvalidMissingFrom = Q.CompletePlan<typeof invalidMissingFrom>
 // }
 ```
 
+The same branded error shape applies when `where(...)`, joins, or projections reference sources that never enter scope.
+
+### Predicate-driven Narrowing
+
+Predicates refine result types, not just SQL.
+
 ```ts
-const invalidMissingJoin = Q.select({
-  userId: users.id,
-  postTitle: posts.title
+const filteredPosts = Q.select({
+  title: posts.title,
+  upperTitle: Q.upper(posts.title)
 }).pipe(
-  Q.from(users)
+  Q.from(posts),
+  Q.where(Q.isNotNull(posts.title))
 )
 
-type InvalidMissingJoin = Q.CompletePlan<typeof invalidMissingJoin>
-// carries the same branded error shape, with
-// __effect_qb_missing_sources__: "posts"
+type FilteredPostsRow = Q.ResultRow<typeof filteredPosts>
+// {
+//   title: string
+//   upperTitle: string
+// }
 ```
 
+This is one of the biggest differences between `ResultRow` and a hand-written row interface.
+
+### Join Optionality
+
+Left joins start conservative. Predicates can promote them.
+
 ```ts
-const invalidWhereSource = Q.select({
-  userId: users.id
+const maybePosts = Q.select({
+  userId: users.id,
+  postId: posts.id
 }).pipe(
   Q.from(users),
-  Q.where(Q.eq(posts.userId, users.id))
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
 )
 
-type InvalidWhereSource = Q.CompletePlan<typeof invalidWhereSource>
-// carries the same branded error shape, with
-// __effect_qb_missing_sources__: "posts"
+type MaybePostsRow = Q.ResultRow<typeof maybePosts>
+// {
+//   userId: string
+//   postId: string | null
+// }
 ```
 
-Dialect mismatches are also branded:
+Add `where(Q.isNotNull(posts.id))` and the logical row type becomes non-null for `postId`.
+
+### Grouped Query Validation
+
+Grouped queries are checked structurally:
+
+```ts
+const invalidGroupedPlan = Q.select({
+  userId: users.id,
+  title: posts.title,
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(users.id)
+)
+
+type InvalidGroupedPlan = Q.CompletePlan<typeof invalidGroupedPlan>
+// {
+//   __effect_qb_error__: "effect-qb: invalid grouped selection"
+//   __effect_qb_hint__:
+//     "Scalar selections must be covered by groupBy(...) when aggregates are present"
+// }
+```
+
+This catches invalid grouped queries before rendering.
+
+### Dialect Compatibility
+
+Plans, tables, renderers, and executors are dialect-branded.
 
 ```ts
 import * as Mysql from "effect-qb/mysql"
@@ -789,9 +796,8 @@ const mysqlPlan = Mysql.Query.select({
   Mysql.Query.from(mysqlUsers)
 )
 
-type MysqlAgainstPostgres =
+type WrongDialect =
   Postgres.Query.DialectCompatiblePlan<typeof mysqlPlan, "postgres">
-// carries:
 // {
 //   __effect_qb_error__:
 //     "effect-qb: plan dialect is not compatible with the target renderer or executor"
@@ -802,211 +808,105 @@ type MysqlAgainstPostgres =
 // }
 ```
 
-Valid version:
+### JSON Schema Compatibility In Mutations
+
+Schema-backed JSON columns are checked on insert and update.
 
 ```ts
-const validUsersWithPosts = Q.select({
-  userId: users.id,
-  postTitle: posts.title
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
+import * as Schema from "effect/Schema"
+
+const docs = Table.make("docs", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.json(Schema.Struct({
+    profile: Schema.Struct({
+      address: Schema.Struct({
+        city: Schema.String,
+        postcode: Schema.NullOr(Schema.String)
+      }),
+      tags: Schema.Array(Schema.String)
+    }),
+    note: Schema.NullOr(Schema.String)
+  }))
+})
+
+const cityPath = Q.json.path(
+  Q.json.key("profile"),
+  Q.json.key("address"),
+  Q.json.key("city")
 )
 
-type ValidUsersWithPostsRow = Q.ResultRow<typeof validUsersWithPosts>
-// {
-//   userId: string
-//   postTitle: string | null
-// }
+const deletedRequiredField = Q.json.delete(docs.payload, cityPath)
+
+Q.insert(docs, {
+  id: "doc-1",
+  // @ts-expect-error deleting a required field makes the json output incompatible
+  payload: deletedRequiredField
+})
 ```
 
-Mutation statements participate in the same plan checks:
+The same compatibility checks apply to `Q.update(...)`.
 
-```ts
-const updateWithWhere = Q.where(Q.eq(users.id, "user-1"))(
-  Q.update(users, {
-    email: "updated@example.com"
-  })
-)
+### Readable Branded Type Errors
 
-// @ts-expect-error from(...) is select-only
-Q.from(users)(updateWithWhere)
+The library favors branded type errors over silent `never` collapse. Typical diagnostics include:
 
-// @ts-expect-error returning(...) is mutation-only
-Q.returning({ id: users.id })(Q.select({ id: users.id }).pipe(Q.from(users)))
-```
+- `__effect_qb_error__`
+- `__effect_qb_hint__`
+- `__effect_qb_missing_sources__`
+- `__effect_qb_plan_dialect__`
+- `__effect_qb_target_dialect__`
 
-## Rendering
+That makes invalid plans easier to inspect in editor tooltips and type aliases.
 
-```ts
-import * as Postgres from "effect-qb/postgres"
+## Dialect Support
 
-const rendered = Postgres.Renderer.make().render(postsPerUser)
+### PostgreSQL
 
-type RenderedRow = Postgres.Renderer.RowOf<typeof rendered>
-// same logical row type as Q.ResultRow<typeof postsPerUser>
-
-rendered.sql
-rendered.params
-rendered.projections
-```
-
-Rendered queries carry:
-
-- SQL text
-- ordered bind parameters
-- projection metadata
-- the row type as a phantom type
-
-They do not carry a query result schema.
-
-## Execution
-
-```ts
-import * as Effect from "effect/Effect"
-import * as Postgres from "effect-qb/postgres"
-
-const renderer = Postgres.Renderer.make()
-const executor = Postgres.Executor.fromSqlClient(renderer)
-
-const rowsEffect = executor.execute(postsPerUser)
-
-type PostsPerUserRows = Postgres.Query.ResultRows<typeof postsPerUser>
-type PostsPerUserError = Postgres.Executor.PostgresQueryError<typeof postsPerUser>
-type PostsPerUserEffect = typeof rowsEffect
-// Effect.Effect<
-//   PostsPerUserRows,
-//   PostsPerUserError,
-//   SqlClient.SqlClient
-// >
-```
-
-Runtime execution is:
-
-1. render the plan
-2. execute SQL
-3. remap flat projection aliases into nested objects
-
-There is no query-result schema decode step.
-
-For transactional work, use the ambient `@effect/sql` service or the convenience helpers:
-
-```ts
-const transactionalRows = Executor.withTransaction(executor.execute(postsPerUser))
-const savepointRows = Executor.withSavepoint(executor.execute(postsPerUser))
-```
-
-This preserves the effect's type parameters and only adds the SQL transaction boundary.
-Nested `withTransaction(...)` calls use savepoints under the ambient SQL client.
-
-If the database returns invalid values, `effect-qb` will not reject them at runtime. The expectation is that the database and your query plan agree, and the static contract is the primary safety boundary.
-
-Dialect executors are also query-sensitive:
-
+- default root entrypoint
+- `distinctOn(...)`
+- wider JSON operator surface, including `json.pathMatch(...)`
+- schema-qualified tables default to `public`
 - `Postgres.Executor.PostgresQueryError<typeof plan>`
+
+### MySQL
+
+- dialect-specific table and query entrypoint via `effect-qb/mysql`
+- `distinctOn(...)` is rejected with a branded type error
+- JSON support is broad but not identical to Postgres
+- schema names map to database-qualified table references
 - `Mysql.Executor.MysqlQueryError<typeof plan>`
 
-For the current read-only query plans, those error types remove known write-required failures from the direct error union. If a driver still returns one of those impossible errors, it is wrapped in `@postgres/unknown/query-requirements` or `@mysql/unknown/query-requirements` with the original normalized dialect error preserved under `cause`.
+Meaningful differences should be expected around:
 
-## Type Safety and Return Types
+- JSON operator support
+- mutation syntax
+- error normalization
+- schema defaults
 
-Key types:
+## Limitations
 
-- `Q.ResultRow<typeof plan>`
-  - logical row type after nullability refinement, branch pruning, join promotion, and grouping checks
-- `Q.ResultRows<typeof plan>`
-  - `ReadonlyArray<Q.ResultRow<typeof plan>>`
-- `Q.RuntimeResultRow<typeof plan>`
-  - conservative remap-only row shape used to describe the schema-free runtime boundary
-- `Renderer.RowOf<typeof rendered>`
-  - row type attached to a rendered query
-- `Q.CapabilitiesOfPlan<typeof plan>`
-  - capability set carried by the plan; current read queries resolve to `"read"`
-- `Q.MergeCapabilities<A, B>` / `Q.MergeCapabilityTuple<[...]>`
-  - helper types for composing capability sets in nested-plan features
-- `Postgres.Executor.PostgresQueryError<typeof plan>` / `Mysql.Executor.MysqlQueryError<typeof plan>`
-  - dialect error union narrowed by the plan's capabilities
+This README is curated. It documents the main workflows and type-safety contract, not every API detail.
 
-What the type system catches:
+Current practical limits:
 
-- missing `from(...)` / join sources
-- predicates that reference sources not present in the plan
-- dialect mismatches between plans and executors
-- invalid aggregate/scalar grouped selections
-- nullability changes caused by `where(...)`
-- optional joined sources becoming required when predicates prove presence
-- exact nested projection result shapes
-- impossible write-only dialect errors removed from read-query executor error channels
-- statement-specific builder restrictions for `insert`, `update`, `delete`, and `returning`
-
-Typical benefits:
-
-- no manual row interfaces for most queries
-- query return types stay local to the plan definition
-- left joins start conservative and narrow when predicates justify it
-- `CASE` expressions can narrow to fewer branches when earlier predicates make others impossible
-- `exists(subquery)` requires a complete nested plan and returns a non-null boolean
-- `as(subquery, alias)` makes derived tables explicit and keeps subquery output paths typed
-- read predicates include equality, inequality, range checks, pattern matches, and membership tests
-- executors return the same `ResultRows<typeof plan>` type the plan implies
-- dialect executors expose a tighter error channel than the raw dialect catalog when the query shape rules out certain failures
-- mutation plans keep their statement kind in the type system, which makes the wrong builder combinations fail early and readably
-
-Capability composition helpers are also exported for future nested-plan features:
-
-```ts
-type Capability = Q.CapabilitiesOfPlan<typeof postsPerUser>
-// "read"
-
-type FutureNestedCapability = Q.MergeCapabilities<"read", "write">
-// "read" | "write"
-
-const combined = Q.union_query_capabilities(["read"], ["write", "read"])
-// ["read", "write"]
-```
-
-## Dialect Notes
-
-- `effect-qb` exports the Postgres query DSL by default.
-- Use `effect-qb/postgres` for Postgres-specific renderer/executor entrypoints.
-- Use `effect-qb/mysql` for MySQL-specific query/render/execute entrypoints.
-- PostgreSQL placeholder syntax uses `$1`, `$2`, ...
-- MySQL placeholder syntax uses `?`
-- Identifier quoting is dialect-specific.
-
-Examples:
-
-```ts
-import * as Postgres from "effect-qb/postgres"
-import * as Mysql from "effect-qb/mysql"
-
-const postgresRenderer = Postgres.Renderer.make()
-const mysqlRenderer = Mysql.Renderer.make()
-```
-
-## Unsupported Features
-
-This release is focused on typed query construction. Notable gaps:
-
-- DDL workflows
-
-See the behavior and type test suites for the exact supported surface.
-
-## Project Layout
-
-- `src/index.ts` - core exports
-- `src/postgres.ts` - Postgres entrypoint
-- `src/mysql.ts` - MySQL entrypoint
-- `src/internal/` - query factories, SQL renderers, projection remapping, and type-level predicate analysis
-- `test/` - behavior tests and type tests
+- some features are dialect-specific by design
+- JSON support is not identical between Postgres and MySQL
+- admin and DDL workflows are not the focus of this README
+- runtime execution is schema-free, so the database is expected to honor the query contract
 
 ## Contributing
 
-Run the full suite from the repository root:
+Useful commands:
 
 ```bash
 bun test
-bunx tsc -p tsconfig.type-tests.json
+bunx tsc -p tsconfig.type-tests.json --pretty false
 ```
 
-The project prefers behavior-first tests and explicit type tests for static guarantees.
+Useful places to start:
+
+- [src/query.ts](/Users/ramazan/Code/oss/effect-db/src/query.ts)
+- [src/internal/query-factory.ts](/Users/ramazan/Code/oss/effect-db/src/internal/query-factory.ts)
+- [test/types/query-composition-types.ts](/Users/ramazan/Code/oss/effect-db/test/types/query-composition-types.ts)
+
+The codebase is organized around typed plans, dialect-specialized entrypoints, and behavior-first tests.
