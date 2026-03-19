@@ -757,15 +757,47 @@ The same branded error shape applies when `where(...)`, joins, or projections re
 Predicates refine result types, not just SQL.
 
 ```ts
-const filteredPosts = Q.select({
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  title: C.text().pipe(C.nullable)
+})
+
+const allPosts = Q.select({
   title: posts.title,
   lowerTitle: Q.lower(posts.title)
 }).pipe(
-  Q.from(posts),
+  Q.from(posts)
+)
+
+type AllPostsRow = Q.ResultRow<typeof allPosts>
+// {
+//   title: string | null
+//   lowerTitle: string | null
+// }
+
+const filteredPosts = allPosts.pipe(
   Q.where(Q.eq(posts.title, "Hello"))
 )
 
 type FilteredPostsRow = Q.ResultRow<typeof filteredPosts>
+// {
+//   title: string
+//   lowerTitle: string
+// }
+```
+
+The same idea applies to explicit null checks:
+
+```ts
+const nonNullPosts = Q.select({
+  title: posts.title,
+  lowerTitle: Q.lower(posts.title)
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.isNotNull(posts.title))
+)
+
+type NonNullPostsRow = Q.ResultRow<typeof nonNullPosts>
 // {
 //   title: string
 //   lowerTitle: string
