@@ -1,4 +1,4 @@
-import type * as Expression from "../expression.ts"
+import type * as Expression from "./expression.ts"
 import type * as ExpressionAst from "./expression-ast.ts"
 import type { PredicateFormula } from "./predicate-formula.ts"
 import type { AssumeFormulaFalse, AssumeFormulaTrue, Contradicts, Implies } from "./predicate-analysis.ts"

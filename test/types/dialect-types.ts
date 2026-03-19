@@ -2,9 +2,9 @@ import type * as Effect from "effect/Effect"
 
 import * as Mysql from "../../src/mysql.ts"
 import * as Postgres from "../../src/postgres.ts"
-import * as Executor from "../../src/executor.ts"
-import * as RootQuery from "../../src/query.ts"
-import * as Renderer from "../../src/renderer.ts"
+import * as Executor from "../../src/internal/executor.ts"
+import * as RootQuery from "../../src/internal/query.ts"
+import * as Renderer from "../../src/internal/renderer.ts"
 
 const pgUsers = Postgres.Table.make("users", {
   id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
@@ -23,12 +23,12 @@ const myPredicate = Mysql.Query.eq(myUsers.email, "alice@example.com")
 const pgConcat = Postgres.Query.concat(Postgres.Query.lower(pgUsers.email), "-user")
 const myConcat = Mysql.Query.concat(Mysql.Query.lower(myUsers.email), "-user")
 
-const pgLiteralDialect: typeof pgLiteral[typeof Postgres.Expression.TypeId]["dbType"]["dialect"] = "postgres"
-const myLiteralDialect: typeof myLiteral[typeof Mysql.Expression.TypeId]["dbType"]["dialect"] = "mysql"
-const pgPredicateDialect: typeof pgPredicate[typeof Postgres.Expression.TypeId]["dbType"]["dialect"] = "postgres"
-const myPredicateDialect: typeof myPredicate[typeof Mysql.Expression.TypeId]["dbType"]["dialect"] = "mysql"
-const pgConcatDialect: typeof pgConcat[typeof Postgres.Expression.TypeId]["dbType"]["dialect"] = "postgres"
-const myConcatDialect: typeof myConcat[typeof Mysql.Expression.TypeId]["dbType"]["dialect"] = "mysql"
+const pgLiteralDialect: Postgres.Expression.DbTypeOf<typeof pgLiteral>["dialect"] = "postgres"
+const myLiteralDialect: Mysql.Expression.DbTypeOf<typeof myLiteral>["dialect"] = "mysql"
+const pgPredicateDialect: Postgres.Expression.DbTypeOf<typeof pgPredicate>["dialect"] = "postgres"
+const myPredicateDialect: Mysql.Expression.DbTypeOf<typeof myPredicate>["dialect"] = "mysql"
+const pgConcatDialect: Postgres.Expression.DbTypeOf<typeof pgConcat>["dialect"] = "postgres"
+const myConcatDialect: Mysql.Expression.DbTypeOf<typeof myConcat>["dialect"] = "mysql"
 void pgLiteralDialect
 void myLiteralDialect
 void pgPredicateDialect

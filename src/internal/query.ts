@@ -3,27 +3,27 @@ import { pipeArguments } from "effect/Pipeable"
 import * as Expression from "./expression.ts"
 import * as Plan from "./plan.ts"
 import * as Table from "./table.ts"
-import * as ExpressionAst from "./internal/expression-ast.ts"
-import * as QueryAst from "./internal/query-ast.ts"
-import type { JsonNode } from "./internal/json/ast.ts"
-import type * as JsonPath from "./internal/json/path.ts"
-import type { QueryCapability } from "./internal/query-requirements.ts"
-import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./internal/case-analysis.ts"
-import type { GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./internal/predicate-analysis.ts"
-import type { PredicateFormula, TrueFormula } from "./internal/predicate-formula.ts"
+import * as ExpressionAst from "./expression-ast.ts"
+import * as QueryAst from "./query-ast.ts"
+import type { JsonNode } from "./json/ast.ts"
+import type * as JsonPath from "./json/path.ts"
+import type { QueryCapability } from "./query-requirements.ts"
+import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./case-analysis.ts"
+import type { GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate-analysis.ts"
+import type { PredicateFormula, TrueFormula } from "./predicate-formula.ts"
 
 export type {
   MergeCapabilities,
   MergeCapabilityTuple,
   QueryCapability,
   QueryRequirement
-} from "./internal/query-requirements.ts"
+} from "./query-requirements.ts"
 export type {
   ComparableDbType,
   RuntimeOfDbType,
   TextCompatibleDbType,
   CastableDbType
-} from "./internal/coercion-analysis.ts"
+} from "./coercion-analysis.ts"
 export type {
   CanonicalSegment as JsonPathSegment,
   DescendSegment as JsonPathDescendSegment,
@@ -36,10 +36,10 @@ export type {
   SegmentsOf as JsonPathSegments,
   SliceSegment as JsonPathSliceSegment,
   WildcardSegment as JsonPathWildcardSegment
-} from "./internal/json/path.ts"
+} from "./json/path.ts"
 export type {
   JsonPathUsageError
-} from "./internal/json/errors.ts"
+} from "./json/errors.ts"
 export type {
   JsonConcatResult,
   JsonDeleteAtPath,
@@ -54,23 +54,23 @@ export type {
   JsonValue,
   JsonValueAtPath,
   NormalizeJsonLiteral
-} from "./internal/json/types.ts"
+} from "./json/types.ts"
 export type {
   CoercionKind,
   CoercionKindOf
-} from "./internal/coercion-kind.ts"
+} from "./coercion-kind.ts"
 export type {
   CanCastDbType,
   CanCompareDbTypes,
   CanContainDbTypes
-} from "./internal/coercion-rules.ts"
+} from "./coercion-rules.ts"
 export type {
   ConflictClause,
   LockClause,
   QueryStatement,
   SetOperatorKind as SetOperator
-} from "./internal/query-ast.ts"
-export { union_query_capabilities } from "./internal/query-requirements.ts"
+} from "./query-ast.ts"
+export { union_query_capabilities } from "./query-requirements.ts"
 
 /**
  * Shared prototype for runtime expression values created by query helpers.

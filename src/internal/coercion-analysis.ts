@@ -1,4 +1,4 @@
-import type * as Expression from "../expression.ts"
+import type * as Expression from "./expression.ts"
 import type { CastTargetError, OperandCompatibilityError } from "./coercion-errors.ts"
 import type { CanCastDbType, CanCompareDbTypes, CanTextuallyCoerceDbType } from "./coercion-rules.ts"
 

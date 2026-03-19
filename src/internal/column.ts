@@ -18,7 +18,7 @@ import {
   type ReferencesOf,
   type SelectType,
   type UpdateType
-} from "./internal/column-state.ts"
+} from "./column-state.ts"
 
 type CompatibleReference<
   Self extends AnyColumnDefinition,

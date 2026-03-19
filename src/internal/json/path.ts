@@ -1,4 +1,4 @@
-import type * as Expression from "../../expression.ts"
+import type * as Expression from ".././expression.ts"
 import type { JsonPathUsageError } from "./errors.ts"
 import type {
   JsonBuildArray as JsonBuildArrayResult,

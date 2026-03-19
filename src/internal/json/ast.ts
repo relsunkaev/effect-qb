@@ -1,4 +1,4 @@
-import type * as Expression from "../../expression.ts"
+import type * as Expression from ".././expression.ts"
 import type * as JsonPath from "./path.ts"
 
 export type JsonKind =

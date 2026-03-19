@@ -1,5 +1,5 @@
-import type * as Expression from "../expression.ts"
-import type * as Query from "../query.ts"
+import type * as Expression from "./expression.ts"
+import type * as Query from "./query.ts"
 import type * as JsonPath from "./json/path.ts"
 import type { JsonNode } from "./json/ast.ts"
 

@@ -1,4 +1,4 @@
-import type * as Expression from "../expression.ts"
+import type * as Expression from "./expression.ts"
 
 /** Extracts the database type carried by an expression. */
 export type DbTypeOfExpression<Value extends Expression.Any> = Expression.DbTypeOf<Value>

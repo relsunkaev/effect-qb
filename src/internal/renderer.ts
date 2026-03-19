@@ -1,6 +1,6 @@
 import * as Query from "./query.ts"
-import { type Projection, validateProjections } from "./internal/projections.ts"
-import { renderPostgresPlan } from "./internal/postgres-renderer.ts"
+import { type Projection, validateProjections } from "./projections.ts"
+import { renderPostgresPlan } from "./postgres-renderer.ts"
 
 /** Symbol used to attach rendered-query phantom row metadata. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Renderer")

@@ -1,5 +1,5 @@
 import type { Pipeable } from "effect/Pipeable"
-import type { RuntimeOfDbType as RuntimeOfDbTypeLookup } from "./internal/datatypes/lookup.ts"
+import type { RuntimeOfDbType as RuntimeOfDbTypeLookup } from "./datatypes/lookup.ts"
 
 /** Symbol used to attach expression metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Expression")

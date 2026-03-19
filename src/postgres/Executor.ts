@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as SqlClient from "@effect/sql/SqlClient"
 
-import * as CoreExecutor from "../executor.ts"
+import * as CoreExecutor from "../internal/executor.ts"
 import * as Query from "./query.ts"
 import * as Renderer from "./renderer.ts"
 import {

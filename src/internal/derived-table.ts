@@ -1,7 +1,7 @@
 import { pipeArguments } from "effect/Pipeable"
 
-import * as Expression from "../expression.ts"
-import * as Plan from "../plan.ts"
+import * as Expression from "./expression.ts"
+import * as Plan from "./plan.ts"
 import {
   type CompletePlan,
   type CteSource,
@@ -12,7 +12,7 @@ import {
   getAst,
   makeExpression,
   type SelectionOfPlan
-} from "../query.ts"
+} from "./query.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 import { flattenSelection } from "./projections.ts"
 

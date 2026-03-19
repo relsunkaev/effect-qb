@@ -945,7 +945,7 @@ bunx tsgo -p tsconfig.type-tests.json --pretty false
 
 Useful places to start:
 
-- [src/query.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/src/Query.ts)
+- [src/internal/query.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/src/internal/query.ts)
 - [src/internal/query-factory.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/src/internal/query-factory.ts)
 - [test/types/query-composition-types.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/test/types/query-composition-types.ts)
 

@@ -1,4 +1,4 @@
-import * as Query from "../query.ts"
+import * as Query from "./query.ts"
 import { type RenderState } from "./dialect.ts"
 import { postgresDialect } from "./postgres-dialect.ts"
 import { type Projection } from "./projections.ts"

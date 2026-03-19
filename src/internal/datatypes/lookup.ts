@@ -1,4 +1,4 @@
-import type * as Expression from "../../expression.ts"
+import type * as Expression from ".././expression.ts"
 import type { mysqlDatatypeFamilies, mysqlDatatypeKinds } from "../../mysql/datatypes/spec.ts"
 import type { postgresDatatypeFamilies, postgresDatatypeKinds } from "../../postgres/datatypes/spec.ts"
 import type { RuntimeOfTag, RuntimeTag } from "./shape.ts"

@@ -1,4 +1,4 @@
-import * as Expression from "../expression.ts"
+import * as Expression from "../internal/expression.ts"
 import { mysqlDatatypes } from "./datatypes/index.ts"
 import {
   type CapabilitiesOfPlan,
@@ -36,7 +36,7 @@ import {
   type SourceRequirementError,
   type StatementOfPlan,
   type StringExpressionInput
-} from "../query.ts"
+} from "../internal/query.ts"
 import { makeDialectQuery } from "../internal/query-factory.ts"
 
 const mysqlQuery = makeDialectQuery({
@@ -187,4 +187,4 @@ export type {
   StringExpressionInput
 }
 
-export { union_query_capabilities } from "../query.ts"
+export { union_query_capabilities } from "../internal/query.ts"

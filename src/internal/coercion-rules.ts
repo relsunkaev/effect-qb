@@ -1,4 +1,4 @@
-import type * as Expression from "../expression.ts"
+import type * as Expression from "./expression.ts"
 import type { CanCastDbType as LookupCanCastDbType, CanCompareDbTypes as LookupCanCompareDbTypes, CanContainDbTypes as LookupCanContainDbTypes, CanTextuallyCoerceDbType as LookupCanTextuallyCoerceDbType } from "./datatypes/lookup.ts"
 
 export type CanCompareDbTypes<

@@ -1,4 +1,4 @@
-import type * as Renderer from "../../renderer.ts"
+import type * as Renderer from "../../internal/renderer.ts"
 import {
   findMysqlErrorDescriptorsByNumberLoose,
   getMysqlErrorDescriptor,

@@ -1,8 +1,8 @@
 import type * as Schema from "effect/Schema"
 
-import type * as Expression from "../expression.ts"
+import type * as Expression from "../internal/expression.ts"
 import { ColumnTypeId, type AnyColumnDefinition } from "../internal/column-state.ts"
-import * as BaseTable from "../table.ts"
+import * as BaseTable from "../internal/table.ts"
 
 type Dialect = "mysql"
 

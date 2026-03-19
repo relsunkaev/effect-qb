@@ -1,4 +1,4 @@
-import * as BaseColumn from "../column.ts"
+import * as BaseColumn from "../internal/column.ts"
 
 /** MySQL-specialized column-definition DSL. */
 export const uuid = BaseColumn.mysql.uuid

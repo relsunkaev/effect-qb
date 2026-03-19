@@ -3,7 +3,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as SqlError from "@effect/sql/SqlError"
 
 import * as Query from "./query.ts"
-import * as QueryAst from "./internal/query-ast.ts"
+import * as QueryAst from "./query-ast.ts"
 import * as Renderer from "./renderer.ts"
 
 /** Flat database row keyed by rendered projection aliases. */

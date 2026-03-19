@@ -1,6 +1,6 @@
-import * as Expression from "../expression.ts"
-import * as Plan from "../plan.ts"
-import * as Table from "../table.ts"
+import * as Expression from "./expression.ts"
+import * as Plan from "./plan.ts"
+import * as Table from "./table.ts"
 import type { CastTargetError, OperandCompatibilityError } from "./coercion-errors.ts"
 import type { RuntimeOfDbType } from "./coercion-analysis.ts"
 import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "./coercion-rules.ts"
@@ -89,7 +89,7 @@ import {
   type TupleDialect,
   type TupleSource,
   type ResultRow
-} from "../query.ts"
+} from "./query.ts"
 import * as ExpressionAst from "./expression-ast.ts"
 import type { JsonNode } from "./json/ast.ts"
 import type { JsonPathUsageError } from "./json/errors.ts"
@@ -4265,7 +4265,7 @@ type MergeRequiredFromPredicate<
   >(
     value: CompletePlan<PlanValue>,
     alias: Alias
-  ): import("../query.ts").CteSource<PlanValue, Alias> {
+  ): import("./query.ts").CteSource<PlanValue, Alias> {
     return makeCteSource(value, alias)
   }
 
@@ -4275,7 +4275,7 @@ type MergeRequiredFromPredicate<
   >(
     value: CompletePlan<PlanValue>,
     alias: Alias
-  ): import("../query.ts").CteSource<PlanValue, Alias> {
+  ): import("./query.ts").CteSource<PlanValue, Alias> {
     return makeCteSource(value, alias, true)
   }
 
@@ -4285,7 +4285,7 @@ type MergeRequiredFromPredicate<
   >(
     value: PlanValue,
     alias: Alias
-  ): import("../query.ts").LateralSource<PlanValue, Alias> {
+  ): import("./query.ts").LateralSource<PlanValue, Alias> {
     return makeLateralSource(value, alias)
   }
 

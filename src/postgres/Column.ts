@@ -13,6 +13,6 @@ export {
   custom,
   unique,
   uuid
-} from "../column.ts"
+} from "../internal/column.ts"
 
-export type { Any, AnyBound } from "../column.ts"
+export type { Any, AnyBound } from "../internal/column.ts"

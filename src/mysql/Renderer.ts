@@ -1,4 +1,4 @@
-import * as CoreRenderer from "../renderer.ts"
+import * as CoreRenderer from "../internal/renderer.ts"
 import { renderMysqlPlan } from "../internal/mysql-renderer.ts"
 
 /** MySQL-specialized rendered query shape. */
@@ -8,8 +8,8 @@ export type RowOf<Value extends RenderedQuery<any>> = CoreRenderer.RowOf<Value>
 /** MySQL-specialized renderer contract. */
 export type Renderer = CoreRenderer.Renderer<"mysql">
 
-export { TypeId } from "../renderer.ts"
-export type { Projection } from "../renderer.ts"
+export { TypeId } from "../internal/renderer.ts"
+export type { Projection } from "../internal/renderer.ts"
 
 /** Creates the built-in MySQL renderer. */
 export const make = (): Renderer =>

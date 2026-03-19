@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
-import * as CoreRenderer from "../src/renderer.ts"
+import * as CoreRenderer from "../src/internal/renderer.ts"
 import * as ExpressionAst from "../src/internal/expression-ast.ts"
 import { mysqlDialect } from "../src/internal/mysql-dialect.ts"
 import { renderExpression } from "../src/internal/sql-expression-renderer.ts"

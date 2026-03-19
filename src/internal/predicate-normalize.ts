@@ -1,4 +1,4 @@
-import type * as Expression from "../expression.ts"
+import type * as Expression from "./expression.ts"
 import type * as ExpressionAst from "./expression-ast.ts"
 import type { ColumnKeyOfExpression, ValueKey } from "./predicate-key.ts"
 import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./predicate-formula.ts"
