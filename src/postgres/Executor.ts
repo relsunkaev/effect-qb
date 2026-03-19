@@ -21,7 +21,7 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"po
 export type PostgresExecutorError = PostgresDriverError
 /** Read-query error surface emitted by built-in Postgres executors. */
 export type PostgresQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>> =
-  Extract<Query.CapabilitiesOfPlan<PlanValue>, "write"> extends never ? PostgresReadQueryError : PostgresExecutorError
+  Exclude<Query.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? PostgresReadQueryError : PostgresExecutorError
 
 /** Runs an effect within the ambient Postgres SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction

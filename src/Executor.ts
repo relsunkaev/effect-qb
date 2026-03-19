@@ -69,6 +69,14 @@ const hasWriteStatement = (statement: QueryAst.QueryStatement): boolean =>
   statement === "insert" ||
   statement === "update" ||
   statement === "delete" ||
+  statement === "truncate" ||
+  statement === "merge" ||
+  statement === "transaction" ||
+  statement === "commit" ||
+  statement === "rollback" ||
+  statement === "savepoint" ||
+  statement === "rollbackTo" ||
+  statement === "releaseSavepoint" ||
   statement === "createTable" ||
   statement === "createIndex" ||
   statement === "dropIndex" ||

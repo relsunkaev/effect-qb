@@ -21,7 +21,7 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"my
 export type MysqlExecutorError = MysqlDriverError
 /** Read-query error surface emitted by built-in MySQL executors. */
 export type MysqlQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>> =
-  Extract<Query.CapabilitiesOfPlan<PlanValue>, "write"> extends never ? MysqlReadQueryError : MysqlExecutorError
+  Exclude<Query.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError : MysqlExecutorError
 
 /** Runs an effect within the ambient MySQL SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction

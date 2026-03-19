@@ -580,6 +580,36 @@ const selectionProjections = (selection: Record<string, unknown>): readonly Proj
     alias
   }))
 
+const renderTransactionClause = (
+  clause: QueryAst.TransactionClause,
+  dialect: SqlDialect
+): string => {
+  switch (clause.kind) {
+    case "transaction": {
+      const modes: string[] = []
+      if (clause.isolationLevel) {
+        modes.push(`isolation level ${clause.isolationLevel}`)
+      }
+      if (clause.readOnly === true) {
+        modes.push("read only")
+      }
+      return modes.length > 0
+        ? `start transaction ${modes.join(", ")}`
+        : "start transaction"
+    }
+    case "commit":
+      return "commit"
+    case "rollback":
+      return "rollback"
+    case "savepoint":
+      return `savepoint ${dialect.quoteIdentifier(clause.name)}`
+    case "rollbackTo":
+      return `rollback to savepoint ${dialect.quoteIdentifier(clause.name)}`
+    case "releaseSavepoint":
+      return `release savepoint ${dialect.quoteIdentifier(clause.name)}`
+  }
+}
+
 const renderSelectionList = (
   selection: Record<string, unknown>,
   state: RenderState,
@@ -743,6 +773,58 @@ export const renderQueryAst = (
       if (returning.sql.length > 0) {
         sql += ` returning ${returning.sql}`
       }
+      break
+    }
+    case "truncate": {
+      const truncateAst = ast as QueryAst.Ast<Record<string, unknown>, any, "truncate">
+      const targetSource = truncateAst.target!
+      sql = `truncate table ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)}`
+      if (truncateAst.truncate?.restartIdentity) {
+        sql += " restart identity"
+      }
+      if (truncateAst.truncate?.cascade) {
+        sql += " cascade"
+      }
+      break
+    }
+    case "merge": {
+      if (dialect.name !== "postgres") {
+        throw new Error(`Unsupported merge statement for ${dialect.name}`)
+      }
+      const mergeAst = ast as QueryAst.Ast<Record<string, unknown>, any, "merge">
+      const targetSource = mergeAst.target!
+      const usingSource = mergeAst.using!
+      const merge = mergeAst.merge!
+      sql = `merge into ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)} using ${renderSourceReference(usingSource.source, usingSource.tableName, usingSource.baseTableName, state, dialect)} on ${renderExpression(merge.on, state, dialect)}`
+      if (merge.whenMatched) {
+        sql += " when matched"
+        if (merge.whenMatched.predicate) {
+          sql += ` and ${renderExpression(merge.whenMatched.predicate, state, dialect)}`
+        }
+        if (merge.whenMatched.kind === "delete") {
+          sql += " then delete"
+        } else {
+          sql += ` then update set ${merge.whenMatched.values.map((entry) =>
+            `${dialect.quoteIdentifier(entry.columnName)} = ${renderExpression(entry.value, state, dialect)}`
+          ).join(", ")}`
+        }
+      }
+      if (merge.whenNotMatched) {
+        sql += " when not matched"
+        if (merge.whenNotMatched.predicate) {
+          sql += ` and ${renderExpression(merge.whenNotMatched.predicate, state, dialect)}`
+        }
+        sql += ` then insert (${merge.whenNotMatched.values.map((entry) => dialect.quoteIdentifier(entry.columnName)).join(", ")}) values (${merge.whenNotMatched.values.map((entry) => renderExpression(entry.value, state, dialect)).join(", ")})`
+      }
+      break
+    }
+    case "transaction":
+    case "commit":
+    case "rollback":
+    case "savepoint":
+    case "rollbackTo":
+    case "releaseSavepoint": {
+      sql = renderTransactionClause(ast.transaction!, dialect)
       break
     }
     case "createTable": {

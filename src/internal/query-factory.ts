@@ -3380,6 +3380,16 @@ type DropTableOptions = {
   readonly ifExists?: boolean
 }
 
+type TruncateOptions = {
+  readonly restartIdentity?: boolean
+  readonly cascade?: boolean
+}
+
+type TransactionOptions = {
+  readonly isolationLevel?: "read committed" | "repeatable read" | "serializable"
+  readonly readOnly?: boolean
+}
+
 type LockOptions = {
   readonly nowait?: boolean
   readonly skipLocked?: boolean
@@ -4381,6 +4391,254 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     }, undefined as unknown as TrueFormula, "write", "delete")
   }
 
+  const truncate = <
+    Target extends MutationTargetLike
+  >(
+    target: Target,
+    options: TruncateOptions = {}
+  ): QueryPlan<
+    {},
+    never,
+    {},
+    TableDialectOf<Target>,
+    never,
+    never,
+    never,
+    TrueFormula,
+    "write",
+    "truncate"
+  > => {
+    const { sourceName, sourceBaseName } = targetSourceDetails(target)
+    return makePlan({
+      selection: {},
+      required: [] as never,
+      available: {},
+      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+    }, {
+      kind: "truncate",
+      select: {},
+      target: {
+        kind: "from",
+        tableName: sourceName,
+        baseTableName: sourceBaseName,
+        source: target
+      },
+      truncate: {
+        kind: "truncate",
+        restartIdentity: options.restartIdentity ?? false,
+        cascade: options.cascade ?? false
+      },
+      where: [],
+      having: [],
+      joins: [],
+      groupBy: [],
+      orderBy: []
+    }, undefined as unknown as TrueFormula, "write", "truncate")
+  }
+
+  const merge = <
+    Target extends MutationTargetLike,
+    Source extends SourceLike,
+    On extends PredicateInput,
+    MatchedValues extends MutationInputOf<Table.UpdateOf<Target>> = MutationInputOf<Table.UpdateOf<Target>>,
+    InsertValues extends MutationInputOf<Table.InsertOf<Target>> = MutationInputOf<Table.InsertOf<Target>>,
+    MatchedPredicate extends PredicateInput | undefined = undefined,
+    NotMatchedPredicate extends PredicateInput | undefined = undefined
+  >(
+    target: Target,
+    source: Source & (
+      SourceRequiredOf<Source> extends never ? unknown : SourceRequirementError<Source>
+    ),
+    on: On,
+    options: {
+      readonly whenMatched?:
+        | {
+            readonly delete: true
+            readonly predicate?: MatchedPredicate
+            readonly update?: never
+          }
+        | {
+            readonly update: MatchedValues
+            readonly predicate?: MatchedPredicate
+            readonly delete?: never
+          }
+      readonly whenNotMatched?: {
+        readonly values: InsertValues
+        readonly predicate?: NotMatchedPredicate
+      }
+    } = {}
+  ): QueryPlan<
+    {},
+    Exclude<
+      AddExpressionRequired<
+        MutationRequiredFromValues<MatchedValues> | MutationRequiredFromValues<InsertValues>,
+        AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+        On
+      >,
+      SourceNameOf<Target> | SourceNameOf<Source>
+    >,
+    AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+    TableDialectOf<Target> | SourceDialectOf<Source>,
+    never,
+    SourceNameOf<Target> | SourceNameOf<Source>,
+    Exclude<
+      AddExpressionRequired<
+        MutationRequiredFromValues<MatchedValues> | MutationRequiredFromValues<InsertValues>,
+        AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+        On
+      >,
+      SourceNameOf<Target> | SourceNameOf<Source>
+    >,
+    TrueFormula,
+    MergeCapabilities<"write", SourceCapabilitiesOf<Source>>,
+    "merge"
+  > => {
+    const { sourceName: targetName, sourceBaseName: targetBaseName } = targetSourceDetails(target)
+    const { sourceName: usingName, sourceBaseName: usingBaseName } = sourceDetails(source)
+    const onExpression = toDialectExpression(on)
+    const matched = options.whenMatched
+    const notMatched = options.whenNotMatched
+    const matchedPredicate = matched?.predicate ? toDialectExpression(matched.predicate) : undefined
+    const matchedAssignments = matched && "update" in matched && matched.update
+      ? buildMutationAssignments(target, matched.update)
+      : []
+    const notMatchedPredicate = notMatched?.predicate ? toDialectExpression(notMatched.predicate) : undefined
+    const notMatchedAssignments = notMatched
+      ? buildMutationAssignments(target, notMatched.values)
+      : []
+    const required = [
+      ...Object.keys(onExpression[Expression.TypeId].dependencies),
+      ...matchedAssignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies)),
+      ...notMatchedAssignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies)),
+      ...(matchedPredicate ? Object.keys(matchedPredicate[Expression.TypeId].dependencies) : []),
+      ...(notMatchedPredicate ? Object.keys(notMatchedPredicate[Expression.TypeId].dependencies) : [])
+    ].filter((name, index, values) =>
+      name !== targetName && name !== usingName && values.indexOf(name) === index)
+    return makePlan({
+      selection: {},
+      required: required as Exclude<
+        AddExpressionRequired<
+          MutationRequiredFromValues<MatchedValues> | MutationRequiredFromValues<InsertValues>,
+          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+          On
+        >,
+        SourceNameOf<Target> | SourceNameOf<Source>
+      >,
+      available: {
+        [targetName]: {
+          name: targetName,
+          mode: "required",
+          baseName: targetBaseName
+        },
+        [usingName]: {
+          name: usingName,
+          mode: "required",
+          baseName: usingBaseName
+        }
+      } as AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target> | SourceDialectOf<Source>
+    }, {
+      kind: "merge",
+      select: {},
+      target: {
+        kind: "from",
+        tableName: targetName,
+        baseTableName: targetBaseName,
+        source: target
+      },
+      using: {
+        kind: "from",
+        tableName: usingName,
+        baseTableName: usingBaseName,
+        source
+      },
+      merge: {
+        kind: "merge",
+        on: onExpression,
+        whenMatched: matched
+          ? ("delete" in matched && matched.delete
+            ? {
+                kind: "delete",
+                predicate: matchedPredicate
+              }
+            : {
+                kind: "update",
+                values: matchedAssignments,
+                predicate: matchedPredicate
+              })
+          : undefined,
+        whenNotMatched: notMatched
+          ? {
+              kind: "insert",
+              values: notMatchedAssignments,
+              predicate: notMatchedPredicate
+            }
+          : undefined
+      },
+      where: [],
+      having: [],
+      joins: [],
+      groupBy: [],
+      orderBy: []
+    }, undefined as unknown as TrueFormula, "write" as MergeCapabilities<"write", SourceCapabilitiesOf<Source>>, "merge")
+  }
+
+  const transaction = (
+    options: TransactionOptions = {}
+  ): QueryPlan<{}, never, {}, Dialect, never, never, never, TrueFormula, "transaction", "transaction"> =>
+    makePlan({ selection: {}, required: [] as never, available: {}, dialect: profile.dialect as Dialect }, {
+      kind: "transaction",
+      select: {},
+      transaction: { kind: "transaction", isolationLevel: options.isolationLevel, readOnly: options.readOnly },
+      where: [], having: [], joins: [], groupBy: [], orderBy: []
+    }, undefined as unknown as TrueFormula, "transaction", "transaction")
+
+  const commit = (): QueryPlan<{}, never, {}, Dialect, never, never, never, TrueFormula, "transaction", "commit"> =>
+    makePlan({ selection: {}, required: [] as never, available: {}, dialect: profile.dialect as Dialect }, {
+      kind: "commit",
+      select: {},
+      transaction: { kind: "commit" },
+      where: [], having: [], joins: [], groupBy: [], orderBy: []
+    }, undefined as unknown as TrueFormula, "transaction", "commit")
+
+  const rollback = (): QueryPlan<{}, never, {}, Dialect, never, never, never, TrueFormula, "transaction", "rollback"> =>
+    makePlan({ selection: {}, required: [] as never, available: {}, dialect: profile.dialect as Dialect }, {
+      kind: "rollback",
+      select: {},
+      transaction: { kind: "rollback" },
+      where: [], having: [], joins: [], groupBy: [], orderBy: []
+    }, undefined as unknown as TrueFormula, "transaction", "rollback")
+
+  const savepoint = <Name extends string>(
+    name: Name
+  ): QueryPlan<{}, never, {}, Dialect, never, never, never, TrueFormula, "transaction", "savepoint"> =>
+    makePlan({ selection: {}, required: [] as never, available: {}, dialect: profile.dialect as Dialect }, {
+      kind: "savepoint",
+      select: {},
+      transaction: { kind: "savepoint", name },
+      where: [], having: [], joins: [], groupBy: [], orderBy: []
+    }, undefined as unknown as TrueFormula, "transaction", "savepoint")
+
+  const rollbackTo = <Name extends string>(
+    name: Name
+  ): QueryPlan<{}, never, {}, Dialect, never, never, never, TrueFormula, "transaction", "rollbackTo"> =>
+    makePlan({ selection: {}, required: [] as never, available: {}, dialect: profile.dialect as Dialect }, {
+      kind: "rollbackTo",
+      select: {},
+      transaction: { kind: "rollbackTo", name },
+      where: [], having: [], joins: [], groupBy: [], orderBy: []
+    }, undefined as unknown as TrueFormula, "transaction", "rollbackTo")
+
+  const releaseSavepoint = <Name extends string>(
+    name: Name
+  ): QueryPlan<{}, never, {}, Dialect, never, never, never, TrueFormula, "transaction", "releaseSavepoint"> =>
+    makePlan({ selection: {}, required: [] as never, available: {}, dialect: profile.dialect as Dialect }, {
+      kind: "releaseSavepoint",
+      select: {},
+      transaction: { kind: "releaseSavepoint", name },
+      where: [], having: [], joins: [], groupBy: [], orderBy: []
+    }, undefined as unknown as TrueFormula, "transaction", "releaseSavepoint")
+
   const createTable = <
     Target extends SchemaTableLike
   >(
@@ -4618,6 +4876,14 @@ type MutationAssignments<Shape extends Record<string, unknown>> = {
     update,
     upsert,
     delete: delete_,
+    truncate,
+    merge,
+    transaction,
+    commit,
+    rollback,
+    savepoint,
+    rollbackTo,
+    releaseSavepoint,
     createTable,
     dropTable,
     createIndex,

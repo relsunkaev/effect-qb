@@ -12,6 +12,14 @@ export type QueryStatement =
   | "insert"
   | "update"
   | "delete"
+  | "truncate"
+  | "merge"
+  | "transaction"
+  | "commit"
+  | "rollback"
+  | "savepoint"
+  | "rollbackTo"
+  | "releaseSavepoint"
   | "createTable"
   | "createIndex"
   | "dropIndex"
@@ -44,6 +52,40 @@ export interface AssignmentClause<Value extends Expression.Any = Expression.Any>
   readonly value: Value
 }
 
+/** One branch inside a `merge` statement. */
+export type MergeMatchedClause<
+  Predicate extends Expression.Any | undefined = Expression.Any | undefined
+> =
+  | {
+      readonly kind: "update"
+      readonly values: readonly AssignmentClause[]
+      readonly predicate?: Predicate
+    }
+  | {
+      readonly kind: "delete"
+      readonly predicate?: Predicate
+    }
+
+/** Insert branch inside a `merge` statement. */
+export interface MergeNotMatchedClause<
+  Predicate extends Expression.Any | undefined = Expression.Any | undefined
+> {
+  readonly kind: "insert"
+  readonly values: readonly AssignmentClause[]
+  readonly predicate?: Predicate
+}
+
+/** Payload recorded by a `merge` statement. */
+export interface MergeClause<
+  On extends Expression.Any = Expression.Any,
+  Predicate extends Expression.Any | undefined = Expression.Any | undefined
+> {
+  readonly kind: "merge"
+  readonly on: On
+  readonly whenMatched?: MergeMatchedClause<Predicate>
+  readonly whenNotMatched?: MergeNotMatchedClause<Predicate>
+}
+
 /** DDL payload recorded by schema-manipulation statements. */
 export type DdlClause =
   | {
@@ -65,6 +107,39 @@ export type DdlClause =
       readonly kind: "dropIndex"
       readonly name: string
       readonly ifExists: boolean
+    }
+
+/** Truncate payload recorded by a truncate statement. */
+export interface TruncateClause {
+  readonly kind: "truncate"
+  readonly restartIdentity: boolean
+  readonly cascade: boolean
+}
+
+/** Transaction-control payload recorded by transactional statements. */
+export type TransactionClause =
+  | {
+      readonly kind: "transaction"
+      readonly isolationLevel?: "read committed" | "repeatable read" | "serializable"
+      readonly readOnly?: boolean
+    }
+  | {
+      readonly kind: "commit"
+    }
+  | {
+      readonly kind: "rollback"
+    }
+  | {
+      readonly kind: "savepoint"
+      readonly name: string
+    }
+  | {
+      readonly kind: "rollbackTo"
+      readonly name: string
+    }
+  | {
+      readonly kind: "releaseSavepoint"
+      readonly name: string
     }
 
 /** Locking mode attached to a select statement. */
@@ -139,8 +214,12 @@ export interface Ast<
   readonly from?: FromClause
   readonly into?: FromClause
   readonly target?: FromClause
+  readonly using?: FromClause
   readonly values?: readonly AssignmentClause[]
   readonly set?: readonly AssignmentClause[]
+  readonly truncate?: TruncateClause
+  readonly merge?: MergeClause
+  readonly transaction?: TransactionClause
   readonly ddl?: DdlClause
   readonly lock?: LockClause
   readonly conflict?: ConflictClause
