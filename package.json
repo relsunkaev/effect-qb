@@ -3,7 +3,6 @@
   "module": "src/index.ts",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
     "./postgres": "./src/postgres.ts",
     "./mysql": "./src/mysql.ts"
   },
