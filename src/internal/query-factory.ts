@@ -1,3 +1,5 @@
+import { pipeArguments } from "effect/Pipeable"
+
 import * as Expression from "./expression.ts"
 import * as Plan from "./plan.ts"
 import * as Table from "./table.ts"
@@ -1269,7 +1271,13 @@ export function makeDialectQuery<
 >(
   profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, TypeWitnesses>
 ) {
-  const literal = <Value extends LiteralValue>(
+  const ValuesInputProto = {
+    pipe(this: unknown) {
+      return pipeArguments(this, arguments)
+    }
+  }
+
+  const literal = <const Value extends LiteralValue>(
     value: Value
   ): DialectLiteralExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
     makeExpression({
@@ -4411,6 +4419,39 @@ type MergeRequiredFromPredicate<
   Available extends Record<string, Plan.Source>
 > = Predicate extends PredicateInput ? AddExpressionRequired<never, Available, Predicate> : never
 
+type AsCurriedInput<Dialect extends string> =
+  | ExpressionInput
+  | ValuesInput<any, any, Dialect>
+  | CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+
+type AsCurriedResult<
+  Value,
+  Alias extends string,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> =
+  Value extends ValuesInput<
+    infer Rows extends ValuesRowsInput,
+    infer Selection extends SelectionShape,
+    Dialect
+  > ? ValuesSource<Rows, Selection, Alias, Dialect>
+    : Value extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+      ? DerivedSource<Value, Alias>
+      : Value extends ExpressionInput
+        ? DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+        : never
+
+  function as<
+    Alias extends string
+  >(
+    alias: Alias
+  ): <Value extends AsCurriedInput<Dialect>>(
+    value: Value
+  ) => AsCurriedResult<Value, Alias, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   function as<
     Value extends ExpressionInput,
     Alias extends string
@@ -4441,7 +4482,12 @@ type MergeRequiredFromPredicate<
     value: CompletePlan<PlanValue>,
     alias: Alias
   ): DerivedSource<PlanValue, Alias>
-  function as(value: unknown, alias: string): unknown {
+  function as(valueOrAlias: unknown, alias?: string): unknown {
+    if (alias === undefined) {
+      return (value: unknown) => as(value as any, valueOrAlias as string)
+    }
+    const resolvedAlias = alias
+    const value = valueOrAlias
     if (typeof value !== "object" || value === null || Expression.TypeId in value) {
       const expression = toDialectExpression(value as ExpressionInput)
       const projected = Object.create(Object.getPrototypeOf(expression)) as {
@@ -4460,7 +4506,7 @@ type MergeRequiredFromPredicate<
         projected.schema = runtimeExpression.schema
       }
       projected[ProjectionAlias.TypeId] = {
-        alias
+        alias: resolvedAlias
       } satisfies ProjectionAlias.State<string>
       return projected
     }
@@ -4469,10 +4515,10 @@ type MergeRequiredFromPredicate<
       return makeAliasedValuesSource(
         valuesInput.rows as readonly [Record<string, Expression.Any>, ...Record<string, Expression.Any>[]],
         valuesInput.selection as ValuesOutputShape<any, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-        alias
+        resolvedAlias
       )
     }
-    return makeDerivedSource(value as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>, alias)
+    return makeDerivedSource(value as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>, resolvedAlias)
   }
 
   function with_<
@@ -4528,7 +4574,7 @@ type MergeRequiredFromPredicate<
         throw new Error("values(...) rows must project the same columns in the same order")
       }
     }
-    return {
+    return Object.assign(Object.create(ValuesInputProto), {
       kind: "values",
       dialect: profile.dialect,
       rows: normalizedRows,
@@ -4541,7 +4587,11 @@ type MergeRequiredFromPredicate<
         TimestampDb,
         NullDb
       >
-    }
+    }) as ValuesInput<
+      Rows,
+      ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Dialect
+    >
   }
 
   const unnest = <

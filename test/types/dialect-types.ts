@@ -29,12 +29,33 @@ const pgPredicateDialect: Postgres.Expression.DbTypeOf<typeof pgPredicate>["dial
 const myPredicateDialect: Mysql.Expression.DbTypeOf<typeof myPredicate>["dialect"] = "mysql"
 const pgConcatDialect: Postgres.Expression.DbTypeOf<typeof pgConcat>["dialect"] = "postgres"
 const myConcatDialect: Mysql.Expression.DbTypeOf<typeof myConcat>["dialect"] = "mysql"
+const pgLiteralRuntime: Postgres.Expression.RuntimeOf<typeof pgLiteral> = "user"
+const myLiteralRuntime: Mysql.Expression.RuntimeOf<typeof myLiteral> = "user"
+const pgTrueLiteral = Postgres.Query.literal(true)
+const myTrueLiteral = Mysql.Query.literal(true)
+const pgTrueLiteralRuntime: Postgres.Expression.RuntimeOf<typeof pgTrueLiteral> = true
+const myTrueLiteralRuntime: Mysql.Expression.RuntimeOf<typeof myTrueLiteral> = true
 void pgLiteralDialect
 void myLiteralDialect
 void pgPredicateDialect
 void myPredicateDialect
 void pgConcatDialect
 void myConcatDialect
+void pgLiteralRuntime
+void myLiteralRuntime
+void pgTrueLiteral
+void myTrueLiteral
+void pgTrueLiteralRuntime
+void myTrueLiteralRuntime
+
+// @ts-expect-error string literals stay narrow
+const pgBadLiteralRuntime: Postgres.Expression.RuntimeOf<typeof pgLiteral> = "admin"
+// @ts-expect-error string literals stay narrow
+const myBadLiteralRuntime: Mysql.Expression.RuntimeOf<typeof myLiteral> = "admin"
+// @ts-expect-error boolean literals stay narrow
+const pgBadTrueLiteralRuntime: Postgres.Expression.RuntimeOf<typeof pgTrueLiteral> = false
+// @ts-expect-error boolean literals stay narrow
+const myBadTrueLiteralRuntime: Mysql.Expression.RuntimeOf<typeof myTrueLiteral> = false
 
 const pgPlan = Postgres.Query.select({
   id: pgUsers.id

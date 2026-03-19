@@ -72,11 +72,13 @@ const querySelection = query[Plan.TypeId].selection
 const queryAvailable = query[Plan.TypeId].available.users.name
 const queryAvailableMode: (typeof query)[typeof Plan.TypeId]["available"]["users"]["mode"] = "required"
 const queryLiteralKind: typeof querySelection.kind[typeof Expression.TypeId]["dbType"]["kind"] = "text"
+const queryLiteralRuntime: typeof querySelection.kind[typeof Expression.TypeId]["runtime"] = "user"
 const queryPredicateRuntime: typeof querySelection.emailMatches[typeof Expression.TypeId]["runtime"] = true
 void querySelection
 void queryAvailable
 void queryAvailableMode
 void queryLiteralKind
+void queryLiteralRuntime
 void queryPredicateRuntime
 
 // @ts-expect-error generated columns are omitted from insert
@@ -230,10 +232,10 @@ void pipelineRow
 
 const explicitAliasPlan = Q.select({
   profile: {
-    id: Q.as(users.id, "user_identifier"),
-    email: Q.as(Q.lower(users.email), "email_lower")
+    id: users.id.pipe(Q.as("user_identifier")),
+    email: Q.lower(users.email).pipe(Q.as("email_lower"))
   },
-  kind: Q.as("user", "kind_label")
+  kind: Q.literal("user").pipe(Q.as("kind_label"))
 }).pipe(
   Q.from(users)
 )

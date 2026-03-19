@@ -1,4 +1,4 @@
-import { pipeArguments } from "effect/Pipeable"
+import { pipeArguments, type Pipeable } from "effect/Pipeable"
 
 import * as Expression from "./expression.ts"
 import * as Plan from "./plan.ts"
@@ -483,7 +483,7 @@ export type ValuesInput<
   Rows extends readonly [ValuesRowInput, ...ValuesRowInput[]],
   Selection extends SelectionShape,
   Dialect extends string
-> = {
+> = Pipeable & {
   readonly kind: "values"
   readonly dialect: Dialect
   readonly rows: readonly [Record<string, Expression.Any>, ...Record<string, Expression.Any>[]]

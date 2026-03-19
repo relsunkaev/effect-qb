@@ -482,7 +482,7 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.where(Mysql.Query.isNotNull(posts.title))
     )
 
-    const derivedPosts = Mysql.Query.as(activePosts, "active_posts")
+    const derivedPosts = activePosts.pipe(Mysql.Query.as("active_posts"))
 
     const plan = Mysql.Query.select({
       userId: users.id,
