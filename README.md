@@ -109,7 +109,7 @@ The main contract is compile-time. At runtime, the library renders SQL, executes
 - `where(Q.isNotNull(posts.title))` can narrow both `posts.title` and expressions derived from it
 - `leftJoin(...)` plus a proven non-null column from the joined table can promote that source from optional to required
 - `Q.CompletePlan<typeof plan>` rejects missing sources and invalid grouped selections before render or execute
-- `Postgres.Query.DialectCompatiblePlan<typeof mysqlPlan, "postgres">` rejects cross-dialect misuse
+- passing a MySQL plan to a Postgres executor is rejected at the call site
 - JSON mutation expressions still have to match the target column schema on `insert(...)` and `update(...)`
 
 Those are the core guarantees. The rest of the API exists to make those proofs composable.
@@ -854,6 +854,7 @@ This catches invalid grouped queries before rendering. The fix is explicit: eith
 Plans, tables, renderers, and executors are dialect-branded.
 
 ```ts
+import * as Effect from "effect/Effect"
 import * as Mysql from "effect-qb/mysql"
 import * as Postgres from "effect-qb/postgres"
 
@@ -867,16 +868,15 @@ const mysqlPlan = Mysql.Query.select({
   Mysql.Query.from(mysqlUsers)
 )
 
-type WrongDialect =
-  Postgres.Query.DialectCompatiblePlan<typeof mysqlPlan, "postgres">
-// {
+const postgresExecutor = Postgres.Executor.make(() =>
+  Effect.succeed([] as const)
+)
+
+// @ts-expect-error mysql plans cannot be executed by postgres executors
+postgresExecutor.execute(mysqlPlan)
+// Argument of type 'typeof mysqlPlan' is not assignable here because:
 //   __effect_qb_error__:
 //     "effect-qb: plan dialect is not compatible with the target renderer or executor"
-//   __effect_qb_plan_dialect__: "mysql"
-//   __effect_qb_target_dialect__: "postgres"
-//   __effect_qb_hint__:
-//     "Use the matching dialect module or renderer/executor"
-// }
 ```
 
 ### JSON Schema Compatibility In Mutations
