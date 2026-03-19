@@ -1,6 +1,6 @@
 # effect-qb
 
-Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that carry result shapes, nullability, dialect compatibility, and statement constraints in the type system.
+Type-safe SQL plans that understand query semantics.
 
 ## Table of Contents
 
@@ -49,16 +49,56 @@ Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that
 
 ## Overview
 
-`effect-qb` builds immutable query plans and pushes the interesting parts of SQL into the type system:
+Most query builders can infer the columns you selected. `effect-qb` goes further: it models a query as a typed plan, so TypeScript can catch semantic SQL mistakes before you render or execute anything.
 
-- exact projection shapes
-- nullability and predicate-driven narrowing
-- join optionality
-- aggregate and grouping validation
-- dialect compatibility
-- statement and execution result types
+`effect-qb` exists because "typed SQL" usually stops too early. Inferring `{ id: string; name: string }` from `select(...)` is useful, but it does not tell you whether the query is logically valid. This library is for teams who want the compiler to reason about what the query proves, not just what it projects.
 
-The main contract is compile-time. `Query.ResultRow<typeof plan>` is the logical row type after query analysis, while `Query.RuntimeResultRow<typeof plan>` describes the conservative runtime remap shape. At runtime, the library renders SQL, executes it, and remaps aliased columns back into nested objects. It does not build or validate query-result schemas.
+`effect-qb` is not an ORM. It is a typed SQL planner and execution layer for teams that want stronger guarantees without giving up explicit query construction.
+
+If your goal is a thin runtime DSL over SQL, this is probably too much. If your goal is to make query logic reviewable by the compiler, this is the point of the library.
+
+`effect-qb` catches problems such as:
+
+- a left join still being nullable until a predicate proves the joined row exists
+- grouped selections that are not actually valid SQL
+- referenced sources that never enter scope
+- Postgres-only constructs leaking into a MySQL plan
+- JSON writes that no longer match the target column schema
+
+```ts
+import { Column as C, Query as Q, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable)
+})
+
+const guaranteedPost = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  title: posts.title
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.isNotNull(posts.id))
+)
+
+type LogicalRow = Q.ResultRow<typeof guaranteedPost>
+// {
+//   userId: string
+//   postId: string
+//   title: string | null
+// }
+```
+
+`Q.ResultRow<typeof plan>` reflects what the query proves. `Q.RuntimeResultRow<typeof plan>` stays conservative and describes the schema-free runtime remap shape. The same ergonomic narrowing applies when predicates like `where(Q.eq(nullableColumn, nonNullValue))` prove a value cannot be null.
+
+The main contract is compile-time. At runtime, the library renders SQL, executes it, and remaps aliased columns back into nested objects. It does not build or validate query-result schemas.
 
 ## Installation
 
@@ -900,13 +940,13 @@ Useful commands:
 
 ```bash
 bun test
-bunx tsc -p tsconfig.type-tests.json --pretty false
+bunx tsgo -p tsconfig.type-tests.json --pretty false
 ```
 
 Useful places to start:
 
-- [src/query.ts](/Users/ramazan/Code/oss/effect-db/src/query.ts)
-- [src/internal/query-factory.ts](/Users/ramazan/Code/oss/effect-db/src/internal/query-factory.ts)
-- [test/types/query-composition-types.ts](/Users/ramazan/Code/oss/effect-db/test/types/query-composition-types.ts)
+- [src/query.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/src/Query.ts)
+- [src/internal/query-factory.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/src/internal/query-factory.ts)
+- [test/types/query-composition-types.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/test/types/query-composition-types.ts)
 
 The codebase is organized around typed plans, dialect-specialized entrypoints, and behavior-first tests.
