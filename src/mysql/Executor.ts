@@ -20,7 +20,7 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"my
 /** Standard composed error shape for MySQL executors. */
 export type MysqlExecutorError = MysqlDriverError
 /** Read-query error surface emitted by built-in MySQL executors. */
-export type MysqlQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>> =
+export type MysqlQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   Exclude<Query.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError : MysqlExecutorError
 
 /** Runs an effect within the ambient MySQL SQL transaction service. */
@@ -31,7 +31,7 @@ export const withSavepoint = CoreExecutor.withSavepoint
 /** MySQL executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> {
   readonly dialect: "mysql"
-  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
+  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
   ): Effect.Effect<Query.ResultRows<PlanValue>, MysqlQueryError<PlanValue>, Context>
 }
@@ -41,7 +41,7 @@ export const make = <
   Error = never,
   Context = never
 >(
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
   ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 ): Executor<Error, Context> => {

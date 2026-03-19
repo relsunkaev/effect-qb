@@ -75,8 +75,8 @@ Q.insert(docs, {
   payload: deletedRequiredField
 })
 
+// @ts-expect-error deleting a required field makes the json output incompatible with the column schema
 Q.update(docs, {
-  // @ts-expect-error deleting a required field makes the json output incompatible with the column schema
   payload: deletedRequiredField
 })
 
@@ -86,7 +86,7 @@ Q.insert(docs, {
   payload: incompatibleNestedObject
 })
 
+// @ts-expect-error nested json output must match the column schema
 Q.update(docs, {
-  // @ts-expect-error nested json output must match the column schema
   payload: incompatibleNestedObject
 })

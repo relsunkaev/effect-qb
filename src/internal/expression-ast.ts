@@ -122,9 +122,40 @@ export interface CaseNode<
 
 /** `exists (<subquery>)` expression node. */
 export interface ExistsNode<
-  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > {
   readonly kind: "exists"
+  readonly plan: PlanValue
+}
+
+/** Scalar subquery expression node. */
+export interface ScalarSubqueryNode<
+  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> {
+  readonly kind: "scalarSubquery"
+  readonly plan: PlanValue
+}
+
+/** `value in (<subquery>)` expression node. */
+export interface InSubqueryNode<
+  Left extends Expression.Any = Expression.Any,
+  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> {
+  readonly kind: "inSubquery"
+  readonly left: Left
+  readonly plan: PlanValue
+}
+
+/** `value <op> any|all (<subquery>)` expression node. */
+export interface QuantifiedComparisonNode<
+  Kind extends "comparisonAny" | "comparisonAll" = "comparisonAny" | "comparisonAll",
+  Operator extends "eq" | "neq" | "lt" | "lte" | "gt" | "gte" = "eq" | "neq" | "lt" | "lte" | "gt" | "gte",
+  Left extends Expression.Any = Expression.Any,
+  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> {
+  readonly kind: Kind
+  readonly operator: Operator
+  readonly left: Left
   readonly plan: PlanValue
 }
 
@@ -300,6 +331,9 @@ export type Any =
   | VariadicNode
   | CaseNode
   | ExistsNode
+  | ScalarSubqueryNode
+  | InSubqueryNode
+  | QuantifiedComparisonNode
   | WindowNode
   | JsonNode
   | JsonAccessNode

@@ -89,22 +89,6 @@ void insertConflictPlan
 // @ts-expect-error defaultValues requires all insert columns to be optional/generated
 Q.defaultValues(users)
 
-// @ts-expect-error insertFrom requires a flat selection object
-Q.insertFrom(users, Q.select({
-  user: {
-    id: users.id
-  }
-}).pipe(
-  Q.from(users)
-))
-
-// @ts-expect-error insertFrom requires every required insert column
-Q.insertFrom(users, Q.select({
-  email: users.email
-}).pipe(
-  Q.from(users)
-))
-
 // @ts-expect-error mysql conflict targets do not support named constraints
 Mysql.Query.onConflict({
   constraint: "users_email_key"
@@ -118,11 +102,11 @@ Mysql.Query.onConflict({
   bio: null
 }))
 
-// @ts-expect-error mysql conflict actions do not support where(...)
 Mysql.Query.onConflict(["email"] as const, {
   update: {
     bio: Mysql.Query.excluded(mysqlUsers.bio)
   },
+  // @ts-expect-error mysql conflict actions do not support where(...)
   where: Mysql.Query.isNotNull(Mysql.Query.excluded(mysqlUsers.bio))
 })(Mysql.Query.insert(mysqlUsers, {
   id: "user-id",

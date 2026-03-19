@@ -662,6 +662,7 @@ const renderTransactionClause = (
     case "releaseSavepoint":
       return `release savepoint ${dialect.quoteIdentifier(clause.name)}`
   }
+  return ""
 }
 
 const renderSelectionList = (
@@ -1145,6 +1146,18 @@ export const renderExpression = (
     return jsonSql
   }
   const ast = rawAst as ExpressionAst.Any
+  const renderComparisonOperator = (operator: "eq" | "neq" | "lt" | "lte" | "gt" | "gte"): "=" | "<>" | "<" | "<=" | ">" | ">=" =>
+    operator === "eq"
+      ? "="
+      : operator === "neq"
+        ? "<>"
+        : operator === "lt"
+          ? "<"
+          : operator === "lte"
+            ? "<="
+            : operator === "gt"
+              ? ">"
+              : ">="
   switch (ast.kind) {
     case "column":
       return `${dialect.quoteIdentifier(ast.tableName)}.${dialect.quoteIdentifier(ast.columnName)}`
@@ -1264,6 +1277,30 @@ export const renderExpression = (
         state,
         dialect
       ).sql})`
+    case "scalarSubquery":
+      return `(${renderQueryAst(
+        Query.getAst(ast.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
+        state,
+        dialect
+      ).sql})`
+    case "inSubquery":
+      return `(${renderExpression(ast.left, state, dialect)} in (${renderQueryAst(
+        Query.getAst(ast.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
+        state,
+        dialect
+      ).sql}))`
+    case "comparisonAny":
+      return `(${renderExpression(ast.left, state, dialect)} ${renderComparisonOperator(ast.operator)} any (${renderQueryAst(
+        Query.getAst(ast.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
+        state,
+        dialect
+      ).sql}))`
+    case "comparisonAll":
+      return `(${renderExpression(ast.left, state, dialect)} ${renderComparisonOperator(ast.operator)} all (${renderQueryAst(
+        Query.getAst(ast.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
+        state,
+        dialect
+      ).sql}))`
     case "window": {
       if (!Array.isArray(ast.partitionBy) || !Array.isArray(ast.orderBy) || typeof ast.function !== "string") {
         break

@@ -174,6 +174,8 @@ export type MutationInputOf<Shape> = {
   readonly [K in keyof Shape]: MutationValueInput<Shape[K]>
 }
 
+type Simplify<T> = { readonly [K in keyof T]: T[K] } & {}
+
 /** Input accepted by boolean plan clauses such as `where(...)` and joins. */
 export type PredicateInput = Expression.Expression<
   boolean,
@@ -331,6 +333,8 @@ type GroupingKeyOfAst<Ast extends ExpressionAst.Any> =
     ? `column:${TableName}.${ColumnName}`
     : Ast extends ExpressionAst.LiteralNode<infer Value>
       ? `literal:${LiteralGroupingKey<Value>}`
+    : Ast extends ExpressionAst.ExcludedNode<infer ColumnName extends string>
+      ? `excluded:${ColumnName}`
     : Ast extends ExpressionAst.CastNode<infer Value extends Expression.Any, infer Target extends Expression.DbType.Any>
       ? `cast(${GroupingKeyOfExpression<Value>} as ${Target["dialect"]}:${Target["kind"]})`
     : Ast extends ExpressionAst.UnaryNode<infer Kind extends ExpressionAst.UnaryKind, infer Value extends Expression.Any>
@@ -466,6 +470,50 @@ export type LateralSource<
   readonly columns: DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias>
 }
 
+/** Wrapper returned by `values(rows, alias)` for standalone row sources. */
+export type ValuesSource<
+  Selection extends SelectionShape,
+  Alias extends string,
+  Dialect extends string
+> = DerivedSelectionOf<Selection, Alias> & {
+  readonly kind: "values"
+  readonly name: Alias
+  readonly baseName: Alias
+  readonly dialect: Dialect
+  readonly rows: readonly Selection[]
+  readonly columns: DerivedSelectionOf<Selection, Alias>
+}
+
+/** Wrapper returned by `unnest(columns, alias)` for standalone array sources. */
+export type UnnestSource<
+  Selection extends SelectionShape,
+  Alias extends string,
+  Dialect extends string
+> = DerivedSelectionOf<Selection, Alias> & {
+  readonly kind: "unnest"
+  readonly name: Alias
+  readonly baseName: Alias
+  readonly dialect: Dialect
+  readonly arrays: Readonly<Record<string, readonly Expression.Any[]>>
+  readonly columns: DerivedSelectionOf<Selection, Alias>
+}
+
+/** Wrapper returned by `generateSeries(...)` and similar table functions. */
+export type TableFunctionSource<
+  Selection extends SelectionShape,
+  Alias extends string,
+  Dialect extends string,
+  FunctionName extends string = string
+> = DerivedSelectionOf<Selection, Alias> & {
+  readonly kind: "tableFunction"
+  readonly name: Alias
+  readonly baseName: Alias
+  readonly dialect: Dialect
+  readonly functionName: FunctionName
+  readonly args: readonly Expression.Any[]
+  readonly columns: DerivedSelectionOf<Selection, Alias>
+}
+
 /** Accepts either a physical table or a derived table source. */
 type DerivedSourceShape = {
   readonly kind: "derived"
@@ -497,6 +545,34 @@ type LateralSourceShape = {
   readonly columns: Record<string, unknown>
 }
 
+type ValuesSourceShape = {
+  readonly kind: "values"
+  readonly name: string
+  readonly baseName: string
+  readonly dialect: string
+  readonly rows: readonly Record<string, Expression.Any>[]
+  readonly columns: Record<string, unknown>
+}
+
+type UnnestSourceShape = {
+  readonly kind: "unnest"
+  readonly name: string
+  readonly baseName: string
+  readonly dialect: string
+  readonly arrays: Readonly<Record<string, readonly Expression.Any[]>>
+  readonly columns: Record<string, unknown>
+}
+
+type TableFunctionSourceShape = {
+  readonly kind: "tableFunction"
+  readonly name: string
+  readonly baseName: string
+  readonly dialect: string
+  readonly functionName: string
+  readonly args: readonly Expression.Any[]
+  readonly columns: Record<string, unknown>
+}
+
 type DerivedSourceAliasError = DerivedSourceRequiredError<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
 
 export type SourceLike =
@@ -504,17 +580,47 @@ export type SourceLike =
   | DerivedSourceShape
   | CteSourceShape
   | LateralSourceShape
+  | ValuesSourceShape
+  | UnnestSourceShape
+  | TableFunctionSourceShape
   | DerivedSourceAliasError
 
 /** Concrete table sources that can be targeted by mutation statements. */
 export type MutationTargetLike = Table.AnyTable
+export type MutationTargetTuple = readonly [MutationTargetLike, MutationTargetLike, ...MutationTargetLike[]]
+export type MutationTargetInput = MutationTargetLike | MutationTargetTuple
 
 /** Extracts a source name from either a table or a derived source. */
 export type SourceNameOf<Source extends SourceLike> =
   Source extends TableLike<infer Name, any> ? Name :
     Source extends { readonly kind: "derived"; readonly name: infer Alias extends string } ? Alias :
       Source extends { readonly kind: "cte"; readonly name: infer Alias extends string } ? Alias :
+        Source extends { readonly kind: "lateral"; readonly name: infer Alias extends string } ? Alias :
+          Source extends { readonly kind: "values"; readonly name: infer Alias extends string } ? Alias :
+            Source extends { readonly kind: "unnest"; readonly name: infer Alias extends string } ? Alias :
+              Source extends { readonly kind: "tableFunction"; readonly name: infer Alias extends string } ? Alias :
       never
+
+type MutationTargetByName<
+  Targets extends MutationTargetTuple,
+  Name extends string
+> = Extract<Targets[number], { readonly [Table.TypeId]: { readonly name: Name } }>
+
+export type MutationTargetNamesOf<Target extends MutationTargetInput> =
+  Target extends MutationTargetLike
+    ? SourceNameOf<Target>
+    : Target extends MutationTargetTuple
+      ? SourceNameOf<Target[number]>
+      : never
+
+export type UpdateInputOfTarget<Target extends MutationTargetInput> =
+  Target extends MutationTargetLike
+    ? MutationInputOf<Table.UpdateOf<Target>>
+    : Target extends MutationTargetTuple
+      ? Simplify<{
+          readonly [K in MutationTargetNamesOf<Target>]?: MutationInputOf<Table.UpdateOf<MutationTargetByName<Target, K>>>
+        }>
+      : never
 
 /** Extracts the effective dialect from a source. */
 export type SourceDialectOf<Source extends SourceLike> =
@@ -522,6 +628,7 @@ export type SourceDialectOf<Source extends SourceLike> =
     Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
       Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
         Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
+          Source extends { readonly dialect: infer Dialect extends string } ? Dialect :
       never
 
 /** Extracts the base table name from a source. */
@@ -530,6 +637,7 @@ export type SourceBaseNameOf<Source extends SourceLike> =
     Source extends { readonly kind: "derived"; readonly baseName: infer BaseName extends string } ? BaseName :
       Source extends { readonly kind: "cte"; readonly baseName: infer BaseName extends string } ? BaseName :
         Source extends { readonly kind: "lateral"; readonly baseName: infer BaseName extends string } ? BaseName :
+          Source extends { readonly baseName: infer BaseName extends string } ? BaseName :
       never
 
 /** Extracts the outer-scope requirements carried by a source. */
@@ -654,6 +762,14 @@ export type AddAvailable<
   Name extends string,
   Mode extends Plan.SourceMode = "required"
 > = Available & Record<Name, Plan.Source<Name, Mode>>
+
+export type AddAvailableMany<
+  Available extends Record<string, Plan.Source>,
+  Names extends string,
+  Mode extends Plan.SourceMode = "required"
+> = Available & {
+  readonly [K in Names]: Plan.Source<K, Mode>
+}
 
 /** Join mode projected into the plan's source-scope mode lattice. */
 export type JoinSourceMode<Kind extends QueryAst.JoinKind> = Kind extends "left" | "full"
@@ -1070,6 +1186,39 @@ export type DialectCompatibleNestedPlan<
   : DialectCompatibilityError<PlanValue, EngineDialect>
 
 type SetOperandStatement = "select" | "set"
+type IsUnion<Value, All = Value> = Value extends any ? ([All] extends [Value] ? false : true) : never
+
+type SingleSelectedExpressionError<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = PlanValue & {
+  readonly __effect_qb_error__: "effect-qb: scalar and quantified subqueries must project exactly one top-level expression"
+  readonly __effect_qb_hint__: "Project exactly one scalar expression like select({ value: expr }) before using this subquery as a scalar operand"
+}
+
+type SingleSelectedExpression<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = SelectionOfPlan<PlanValue> extends Record<string, infer Value>
+  ? IsUnion<Extract<keyof SelectionOfPlan<PlanValue>, string>> extends true
+    ? SingleSelectedExpressionError<PlanValue>
+    : Value extends Expression.Any
+      ? Value
+      : SingleSelectedExpressionError<PlanValue>
+  : SingleSelectedExpressionError<PlanValue>
+
+export type ScalarSubqueryPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  EngineDialect extends string
+> = DialectCompatibleNestedPlan<PlanValue, EngineDialect> extends infer Compatible
+  ? Compatible extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    ? SingleSelectedExpression<Compatible> extends Expression.Any ? Compatible : SingleSelectedExpression<Compatible>
+    : Compatible
+  : never
+
+export type ScalarOutputOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = SingleSelectedExpression<PlanValue> extends infer Value
+  ? Value extends Expression.Any ? Value : never
+  : never
 
 type SetOperandStatementError<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
@@ -1338,6 +1487,20 @@ export const extractRequiredRuntime = (selection: SelectionShape): readonly stri
   }
   visit(selection)
   return [...required]
+}
+
+/** Extracts the single top-level expression from a scalar subquery selection. */
+export const extractSingleSelectedExpressionRuntime = (selection: SelectionShape): Expression.Any => {
+  const keys = Object.keys(selection)
+  if (keys.length !== 1) {
+    throw new Error("scalar subqueries must select exactly one top-level expression")
+  }
+  const record = selection as Record<string, unknown>
+  const value = record[keys[0]!]
+  if (value === null || typeof value !== "object" || !(Expression.TypeId in (value as object))) {
+    throw new Error("scalar subqueries must select a scalar expression")
+  }
+  return value as unknown as Expression.Any
 }
 
 /** Converts the plan's runtime `required` metadata into a mutable string list. */

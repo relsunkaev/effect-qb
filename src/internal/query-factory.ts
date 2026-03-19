@@ -7,6 +7,7 @@ import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyC
 import {
   currentRequiredList,
   extractRequiredRuntime,
+  extractSingleSelectedExpressionRuntime,
   getAst,
   getQueryState,
   makeExpression,
@@ -51,6 +52,7 @@ import {
   type PlanDialectOf,
   type PredicateInput,
   type QueryPlan,
+  type ScalarOutputOfPlan,
   type RequiredFromDependencies,
   type RequiredOfPlan,
   type ScopedNamesOfPlan,
@@ -754,6 +756,13 @@ type PlanAssumptionsAfterWhere<
   DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 >
 
+type ScalarSubqueryInput<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  EngineDialect extends string
+> = PlanValue & DialectCompatibleNestedPlan<PlanValue, EngineDialect> & (
+  ScalarOutputOfPlan<PlanValue> extends never ? never : unknown
+)
+
 type AstBackedExpression<
   Runtime,
   Db extends Expression.DbType.Any,
@@ -1362,6 +1371,23 @@ export function makeDialectQuery<
       DialectAsExpression<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >,
     SourceNullability
+  >
+
+  type SubqueryPredicateExpression<
+    Dialect extends string,
+    Aggregation extends Expression.AggregationKind,
+    Source,
+    Dependencies extends Expression.SourceDependencies,
+    Ast extends ExpressionAst.Any
+  > = AstBackedExpression<
+    boolean,
+    BoolDb,
+    "maybe",
+    Dialect,
+    Aggregation,
+    Source,
+    Dependencies,
+    Ast
   >
 
   type VariadicPredicateExpression<
@@ -2954,6 +2980,154 @@ export function makeDialectQuery<
     })
   }
 
+  const scalar = <
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  >(
+    plan: ScalarSubqueryInput<PlanValue, Dialect>
+  ): AstBackedExpression<
+    Expression.RuntimeOf<ScalarOutputOfPlan<PlanValue>> | null,
+    Expression.DbTypeOf<ScalarOutputOfPlan<PlanValue>>,
+    "maybe",
+    Dialect,
+    "scalar",
+    never,
+    DependencyRecord<OutstandingOfPlan<PlanValue>>,
+    ExpressionAst.ScalarSubqueryNode<PlanValue>,
+    "resolved"
+  > => {
+    const dependencies = Object.fromEntries(
+      currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
+    ) as DependencyRecord<OutstandingOfPlan<PlanValue>>
+    const expression = extractSingleSelectedExpressionRuntime(plan[Plan.TypeId].selection as SelectionShape)
+    return makeExpression({
+      runtime: undefined as Expression.RuntimeOf<ScalarOutputOfPlan<PlanValue>> | null,
+      dbType: expression[Expression.TypeId].dbType as Expression.DbTypeOf<ScalarOutputOfPlan<PlanValue>>,
+      nullability: "maybe",
+      dialect: profile.dialect as Dialect,
+      aggregation: "scalar",
+      source: undefined as never,
+      sourceNullability: "resolved" as const,
+      dependencies
+    }, {
+      kind: "scalarSubquery",
+      plan
+    })
+  }
+
+  const inSubquery = <
+    Left extends ExpressionInput,
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  >(
+    left: Left,
+    plan: ScalarSubqueryInput<PlanValue, Dialect> & (
+      ComparableInput<
+        Left,
+        ScalarOutputOfPlan<PlanValue>,
+        Dialect,
+        TextDb,
+        NumericDb,
+        BoolDb,
+        TimestampDb,
+        NullDb,
+        "in"
+      > extends ExpressionInput ? unknown : ComparableInput<
+        Left,
+        ScalarOutputOfPlan<PlanValue>,
+        Dialect,
+        TextDb,
+        NumericDb,
+        BoolDb,
+        TimestampDb,
+        NullDb,
+        "in"
+      >
+    )
+  ): SubqueryPredicateExpression<
+    Dialect,
+    AggregationOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    SourceOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | OutstandingOfPlan<PlanValue>>,
+    ExpressionAst.InSubqueryNode<
+      DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      PlanValue
+    >
+  > => {
+    const leftExpression = toDialectExpression(left)
+    const dependencies = Object.fromEntries(
+      currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
+    ) as DependencyRecord<OutstandingOfPlan<PlanValue>>
+    return makeExpression({
+      runtime: true as boolean,
+      dbType: profile.boolDb as BoolDb,
+      nullability: "maybe",
+      dialect: (leftExpression[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
+      aggregation: leftExpression[Expression.TypeId].aggregation as AggregationOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      source: leftExpression[Expression.TypeId].source as SourceOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      sourceNullability: "propagate" as const,
+      dependencies: mergeDependencies(leftExpression[Expression.TypeId].dependencies, dependencies) as DependencyRecord<
+        RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | OutstandingOfPlan<PlanValue>
+      >
+    }, {
+      kind: "inSubquery",
+      left: leftExpression,
+      plan
+    })
+  }
+
+  const quantifiedComparison = <
+    Left extends ExpressionInput,
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    Operator extends QuantifiedComparisonOperator,
+    Quantifier extends "any" | "all"
+  >(
+    left: Left,
+    plan: ScalarSubqueryInput<PlanValue, Dialect>,
+    operator: Operator,
+    quantifier: Quantifier
+  ): Expression.Any => {
+    const leftExpression = toDialectExpression(left)
+    const dependencies = Object.fromEntries(
+      currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
+    ) as DependencyRecord<OutstandingOfPlan<PlanValue>>
+    return makeExpression({
+      runtime: true as boolean,
+      dbType: profile.boolDb as BoolDb,
+      nullability: "maybe",
+      dialect: (leftExpression[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
+      aggregation: leftExpression[Expression.TypeId].aggregation as AggregationOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      source: leftExpression[Expression.TypeId].source as SourceOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      sourceNullability: "propagate" as const,
+      dependencies: mergeDependencies(leftExpression[Expression.TypeId].dependencies, dependencies) as DependencyRecord<
+        RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | OutstandingOfPlan<PlanValue>
+      >
+    }, renderQuantifiedComparisonAst(leftExpression, plan, operator, quantifier) as ExpressionAst.QuantifiedComparisonNode<
+      Quantifier extends "any" ? "comparisonAny" : "comparisonAll",
+      Operator,
+      DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      PlanValue
+    >) as Expression.Any
+  }
+
+  const compareAny = <
+    Left extends ExpressionInput,
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    Operator extends QuantifiedComparisonOperator
+  >(
+    left: Left,
+    plan: ScalarSubqueryInput<PlanValue, Dialect>,
+    operator: Operator
+  ): Expression.Any => quantifiedComparison(left, plan, operator, "any") as Expression.Any
+
+  const compareAll = <
+    Left extends ExpressionInput,
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    Operator extends QuantifiedComparisonOperator
+  >(
+    left: Left,
+    plan: ScalarSubqueryInput<PlanValue, Dialect>,
+    operator: Operator
+  ): Expression.Any => quantifiedComparison(left, plan, operator, "all") as Expression.Any
+
   const over = <
     Value extends Expression.Expression<
       any,
@@ -3318,7 +3492,7 @@ export function makeDialectQuery<
     ExpressionAst.ExcludedNode<AstOf<Value> extends ExpressionAst.ColumnNode<any, infer ColumnName extends string> ? ColumnName : string>,
     "resolved"
   > => {
-    const ast = (value as Expression.Any & { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
+    const ast = ((value as unknown) as Expression.Any & { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
     if (ast.kind !== "column") {
       throw new Error("excluded(...) only accepts bound table columns")
     }
@@ -3334,7 +3508,17 @@ export function makeDialectQuery<
     }, {
       kind: "excluded",
       columnName: ast.columnName
-    })
+    }) as unknown as AstBackedExpression<
+      Expression.RuntimeOf<Value>,
+      Expression.DbTypeOf<Value>,
+      Expression.NullabilityOf<Value>,
+      Dialect,
+      "scalar",
+      never,
+      {},
+      ExpressionAst.ExcludedNode<AstOf<Value> extends ExpressionAst.ColumnNode<any, infer ColumnName extends string> ? ColumnName : string>,
+      "resolved"
+    >
   }
 
   const toMutationValueExpression = <Value>(
@@ -3358,6 +3542,38 @@ export function makeDialectQuery<
       value
     })
   }
+
+  type QuantifiedComparisonOperator = "eq" | "neq" | "lt" | "lte" | "gt" | "gte"
+
+  const renderQuantifiedComparisonAst = (
+    left: Expression.Any,
+    plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    operator: QuantifiedComparisonOperator,
+    quantifier: "any" | "all"
+  ): ExpressionAst.QuantifiedComparisonNode<
+    "comparisonAny" | "comparisonAll",
+    QuantifiedComparisonOperator,
+    Expression.Any,
+    QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  > => ({
+    kind: quantifier === "any" ? "comparisonAny" : "comparisonAll",
+    operator,
+    left,
+    plan
+  })
+
+  const renderComparisonOperator = (operator: QuantifiedComparisonOperator): "=" | "<>" | "<" | "<=" | ">" | ">=" =>
+    operator === "eq"
+      ? "="
+      : operator === "neq"
+        ? "<>"
+        : operator === "lt"
+          ? "<"
+          : operator === "lte"
+            ? "<="
+            : operator === "gt"
+              ? ">"
+              : ">="
 
   const targetSourceDetails = (table: MutationTargetLike | SchemaTableLike) => {
     const sourceName = (table as unknown as TableLike)[Table.TypeId].name
@@ -3679,7 +3895,7 @@ type InsertValuesSource<Shape extends Record<string, unknown>> = {
   readonly rows: readonly [Shape, ...Shape[]]
 }
 
-type InsertUnnestSource<Shape extends Record<string, readonly unknown[]>> = {
+type InsertUnnestSource<Shape extends Record<string, readonly unknown[] | undefined>> = {
   readonly kind: "insertUnnest"
   readonly values: Shape
 }
@@ -4058,10 +4274,10 @@ type MergeRequiredFromPredicate<
     if (rows.length === 0) {
       throw new Error("values(...) requires at least one row")
     }
-    const normalizedRows = rows.map((row) => normalizeValuesRow(row)) as readonly [
+    const normalizedRows: readonly [
       Record<string, Expression.Any>,
       ...Record<string, Expression.Any>[]
-    ]
+    ] = rows.map((row) => normalizeValuesRow(row)) as any
     const columnNames = Object.keys(normalizedRows[0]!)
     for (const row of normalizedRows) {
       const rowKeys = Object.keys(row)
@@ -4069,7 +4285,7 @@ type MergeRequiredFromPredicate<
         throw new Error("values(...) rows must project the same columns in the same order")
       }
     }
-    const columns = makeColumnReferenceSelection(alias, normalizedRows[0]!) as ValuesOutputShape<
+    const columns = makeColumnReferenceSelection(alias, normalizedRows[0]!) as any as ValuesOutputShape<
       Rows[0],
       Dialect,
       TextDb,
@@ -4086,7 +4302,7 @@ type MergeRequiredFromPredicate<
       rows: normalizedRows,
       columns
     }
-    return Object.assign(source, columns) as ValuesSource<
+    return Object.assign(source, columns) as unknown as ValuesSource<
       ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       Alias,
       Dialect
@@ -4109,7 +4325,8 @@ type MergeRequiredFromPredicate<
     if (columnNames.length === 0) {
       throw new Error("unnest(...) requires at least one column array")
     }
-    const rowCount = normalizedColumns[columnNames[0]]?.length ?? 0
+    const firstColumn = normalizedColumns[columnNames[0] as keyof typeof normalizedColumns]
+    const rowCount = firstColumn?.length ?? 0
     if (rowCount === 0) {
       throw new Error("unnest(...) requires at least one row")
     }
@@ -4122,7 +4339,7 @@ type MergeRequiredFromPredicate<
     const firstRow = Object.fromEntries(
       columnNames.map((columnName) => [columnName, normalizedColumns[columnName]![0]!])
     ) as Record<string, Expression.Any>
-    const columnsSelection = makeColumnReferenceSelection(alias, firstRow) as UnnestOutputShape<
+    const columnsSelection = makeColumnReferenceSelection(alias, firstRow) as any as UnnestOutputShape<
       Columns,
       Dialect,
       TextDb,
@@ -4139,7 +4356,7 @@ type MergeRequiredFromPredicate<
       arrays: normalizedColumns,
       columns: columnsSelection
     }
-    return Object.assign(source, columnsSelection) as UnnestSource<
+    return Object.assign(source, columnsSelection) as unknown as UnnestSource<
       UnnestOutputShape<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       Alias,
       Dialect
@@ -4170,7 +4387,7 @@ type MergeRequiredFromPredicate<
     const valueSelection = {
       value: startExpression
     } as Record<string, Expression.Any>
-    const columns = makeColumnReferenceSelection(alias, valueSelection) as GenerateSeriesOutputShape<
+    const columns = makeColumnReferenceSelection(alias, valueSelection) as any as GenerateSeriesOutputShape<
       Start,
       Dialect,
       TextDb,
@@ -4527,12 +4744,7 @@ type MergeRequiredFromPredicate<
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
-      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
-        ? table.name
-        : (table as TableLike)[Table.TypeId].name
-      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
-        ? table.baseName
-        : (table as TableLike)[Table.TypeId].baseName
+      const { sourceName, sourceBaseName } = sourceDetails(table)
       const nextAst = {
         ...currentAst,
         from: {
@@ -5154,8 +5366,7 @@ type MergeRequiredFromPredicate<
 
   function insertFrom<
     Target extends MutationTargetLike,
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-    Source extends InsertSourceInput<Target, Dialect, PlanValue>
+    Source extends InsertSourceInput<Target, Dialect, any>
   >(
     target: Target,
     source: Source
@@ -5181,7 +5392,8 @@ type MergeRequiredFromPredicate<
     } as AddAvailable<{}, SourceNameOf<Target>>
 
     if (typeof source === "object" && source !== null && "kind" in source && source.kind === "insertValues") {
-      const normalized = buildInsertValuesRows(target, source.rows as readonly [InsertRowInput<Target>, ...InsertRowInput<Target>[]])
+      const valuesSource = source as unknown as InsertValuesSource<InsertRowInput<Target>>
+      const normalized = buildInsertValuesRows(target, valuesSource.rows as readonly [InsertRowInput<Target>, ...InsertRowInput<Target>[]])
       return makePlan({
         selection: {},
         required: normalized.required.filter((name) => name !== sourceName) as Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
@@ -5211,7 +5423,8 @@ type MergeRequiredFromPredicate<
     }
 
     if (typeof source === "object" && source !== null && "kind" in source && source.kind === "insertUnnest") {
-      const normalized = normalizeInsertUnnestValues(target, source.values as { readonly [K in keyof Table.InsertOf<Target>]?: readonly Table.InsertOf<Target>[K][] })
+      const unnestSource = source as unknown as InsertUnnestSource<{ readonly [K in keyof Table.InsertOf<Target>]?: readonly Table.InsertOf<Target>[K][] }>
+      const normalized = normalizeInsertUnnestValues(target, unnestSource.values as { readonly [K in keyof Table.InsertOf<Target>]?: readonly Table.InsertOf<Target>[K][] })
       return makePlan({
         selection: {},
         required: [] as Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
@@ -5240,13 +5453,13 @@ type MergeRequiredFromPredicate<
       }, undefined as unknown as TrueFormula, "write", "insert")
     }
 
-    const plan = source as CompletePlan<PlanValue>
-    const selection = plan[Plan.TypeId].selection as SelectionOfPlan<PlanValue> & Record<string, Expression.Any>
+    const plan = source as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+    const selection = plan[Plan.TypeId].selection as Record<string, Expression.Any>
     const columns = normalizeInsertSelectColumns(selection)
     return makePlan({
       selection: {},
       required: currentRequiredList(plan[Plan.TypeId].required).filter((name) =>
-        name !== sourceName) as Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
+        name !== sourceName) as unknown as Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
       available,
       dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
     }, {
@@ -5641,7 +5854,7 @@ type MergeRequiredFromPredicate<
       name !== targetName && name !== usingName && values.indexOf(name) === index)
     return makePlan({
       selection: {},
-      required: required as Exclude<
+      required: required as unknown as Exclude<
         AddExpressionRequired<
           MergeRequiredFromPredicate<
             MatchedPredicate,
@@ -6140,6 +6353,10 @@ type MergeRequiredFromPredicate<
     with: with_,
     withRecursive: withRecursive_,
     lateral,
+    scalar,
+    inSubquery,
+    compareAny,
+    compareAll,
     values,
     unnest,
     generateSeries,

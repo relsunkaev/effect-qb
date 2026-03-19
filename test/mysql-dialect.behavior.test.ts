@@ -11,6 +11,7 @@ import { buildGroupedConcatPlan } from "./helpers/dialect-matrix.ts"
 import { unsafeNever } from "./helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
+const secondUserId = "22222222-2222-2222-2222-222222222222"
 
 describe("mysql dialect behavior", () => {
   test("escapes backtick identifiers for aliased table references", () => {
@@ -780,6 +781,201 @@ describe("mysql dialect behavior", () => {
       "delete from `users` where (`users`.`id` = ?) returning `users`.`id` as `id`"
     )
     expect(Mysql.Renderer.make().render(deletePlan).params).toEqual([userId])
+  })
+
+  test("renders mysql joined update modifiers order and limit", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.returning({
+      id: users.id,
+      email: users.email
+    })(Mysql.Query.limit(2)(
+      Mysql.Query.orderBy(posts.id)(
+        Mysql.Query.lock("lowPriority")(
+          Mysql.Query.where(Mysql.Query.eq(posts.title, "hello"))(
+            Mysql.Query.innerJoin(posts, Mysql.Query.eq(posts.userId, users.id))(
+              Mysql.Query.update(users, {
+                email: "author@example.com"
+              })
+            )
+          )
+        )
+      )
+    ))
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "update low_priority `users` inner join `posts` on (`posts`.`userId` = `users`.`id`) set `email` = ? where (`posts`.`title` = ?) order by `posts`.`id` asc limit ? returning `users`.`id` as `id`, `users`.`email` as `email`"
+    )
+    expect(rendered.params).toEqual([
+      "author@example.com",
+      "hello",
+      2
+    ])
+  })
+
+  test("renders mysql multi-table update assignments", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.where(Mysql.Query.eq(posts.userId, users.id))(
+      Mysql.Query.update([users, posts], {
+        users: {
+          email: "author@example.com"
+        },
+        posts: {
+          title: "published"
+        }
+      })
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "update `users`, `posts` set `users`.`email` = ?, `posts`.`title` = ? where (`posts`.`userId` = `users`.`id`)"
+    )
+    expect(rendered.params).toEqual([
+      "author@example.com",
+      "published"
+    ])
+  })
+
+  test("renders mysql joined delete modifiers order and limit", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.returning({
+      id: users.id
+    })(Mysql.Query.limit(3)(
+      Mysql.Query.orderBy(posts.id, "desc")(
+        Mysql.Query.lock("quick")(
+          Mysql.Query.where(Mysql.Query.eq(posts.title, "hello"))(
+            Mysql.Query.innerJoin(posts, Mysql.Query.eq(posts.userId, users.id))(
+              Mysql.Query.delete(users)
+            )
+          )
+        )
+      )
+    ))
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "delete quick `users` from `users` inner join `posts` on (`posts`.`userId` = `users`.`id`) where (`posts`.`title` = ?) order by `posts`.`id` desc limit ? returning `users`.`id` as `id`"
+    )
+    expect(rendered.params).toEqual([
+      "hello",
+      3
+    ])
+  })
+
+  test("renders mysql multi-table delete targets", () => {
+    const { users, posts } = makeMysqlSocialGraph()
+
+    const plan = Mysql.Query.where(Mysql.Query.eq(posts.userId, users.id))(
+      Mysql.Query.delete([users, posts])
+    )
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "delete `users`, `posts` from `users`, `posts` where (`posts`.`userId` = `users`.`id`)"
+    )
+    expect(rendered.params).toEqual([])
+  })
+
+  test("renders mysql multi-row and source-backed inserts", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+    const archivedUsers = Mysql.Table.make("archived_users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+
+    const multiRowPlan = Mysql.Query.insertMany(users, [
+      { id: userId, email: "alice@example.com", bio: null },
+      { id: secondUserId, email: "bob@example.com", bio: "writer" }
+    ] as const)
+
+    const insertSelectPlan = Mysql.Query.insertFrom(archivedUsers, Mysql.Query.select({
+      id: users.id,
+      email: users.email,
+      bio: users.bio
+    }).pipe(
+      Mysql.Query.from(users)
+    ))
+
+    const insertUnnestPlan = Mysql.Query.insertFrom(users, Mysql.Query.insertUnnest({
+      id: [userId, secondUserId],
+      email: ["alice@example.com", "bob@example.com"],
+      bio: [null, "writer"]
+    }))
+
+    expect(Mysql.Renderer.make().render(multiRowPlan).sql).toBe(
+      "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"
+    )
+    expect(Mysql.Renderer.make().render(multiRowPlan).params).toEqual([
+      userId,
+      "alice@example.com",
+      secondUserId,
+      "bob@example.com",
+      "writer"
+    ])
+
+    expect(Mysql.Renderer.make().render(insertSelectPlan).sql).toBe(
+      "insert into `archived_users` (`id`, `email`, `bio`) select `users`.`id` as `id`, `users`.`email` as `email`, `users`.`bio` as `bio` from `users`"
+    )
+    expect(Mysql.Renderer.make().render(insertSelectPlan).params).toEqual([])
+
+    expect(Mysql.Renderer.make().render(insertUnnestPlan).sql).toBe(
+      "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"
+    )
+    expect(Mysql.Renderer.make().render(insertUnnestPlan).params).toEqual([
+      userId,
+      "alice@example.com",
+      secondUserId,
+      "bob@example.com",
+      "writer"
+    ])
+  })
+
+  test("renders mysql default-values and duplicate-key conflict clauses", () => {
+    const auditLogs = Mysql.Table.make("audit_logs", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey, Mysql.Column.hasDefault),
+      note: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
+
+    const defaultValuesPlan = Mysql.Query.defaultValues(auditLogs)
+    const conflictPlan = Mysql.Query.onConflict(["email"] as const, {
+      update: {
+        bio: Mysql.Query.excluded(users.bio)
+      }
+    })(Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com",
+      bio: "writer"
+    }))
+
+    expect(Mysql.Renderer.make().render(defaultValuesPlan).sql).toBe(
+      "insert into `audit_logs` default values"
+    )
+
+    expect(Mysql.Renderer.make().render(conflictPlan).sql).toBe(
+      "insert into `users` (`id`, `email`, `bio`) values (?, ?, ?) on duplicate key update `bio` = values(`bio`)"
+    )
+    expect(Mysql.Renderer.make().render(conflictPlan).params).toEqual([
+      userId,
+      "alice@example.com",
+      "writer"
+    ])
   })
 
   test("renders mysql ddl statements from schema tables", () => {

@@ -121,6 +121,22 @@ export type DdlClause =
       readonly kind: "createTable"
       readonly ifNotExists: boolean
     }
+  | {
+      readonly kind: "dropTable"
+      readonly ifExists: boolean
+    }
+  | {
+      readonly kind: "createIndex"
+      readonly name: string
+      readonly columns: readonly [string, ...string[]]
+      readonly unique: boolean
+      readonly ifNotExists: boolean
+    }
+  | {
+      readonly kind: "dropIndex"
+      readonly name: string
+      readonly ifExists: boolean
+    }
 
 /** Truncate payload recorded by a truncate statement. */
 export interface TruncateClause {
