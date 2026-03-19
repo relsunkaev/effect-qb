@@ -59,10 +59,10 @@ describe("select sources behavior", () => {
   })
 
   test("renders standalone values, unnest, and generate series sources in postgres", () => {
-    const valuesSource = Postgres.Query.values([
+    const valuesSource = Postgres.Query.as(Postgres.Query.values([
       { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") },
       { id: Postgres.Query.literal(2), email: Postgres.Query.literal("bob@example.com") }
-    ] as const, "seed")
+    ] as const), "seed")
 
     const unnestSource = Postgres.Query.unnest({
       id: [Postgres.Query.literal(1), Postgres.Query.literal(2)] as const,
@@ -99,10 +99,10 @@ describe("select sources behavior", () => {
   })
 
   test("renders standalone values and unnest sources in mysql", () => {
-    const valuesSource = Mysql.Query.values([
+    const valuesSource = Mysql.Query.as(Mysql.Query.values([
       { id: Mysql.Query.literal(1), email: Mysql.Query.literal("alice@example.com") },
       { id: Mysql.Query.literal(2), email: Mysql.Query.literal("bob@example.com") }
-    ] as const, "seed")
+    ] as const), "seed")
 
     const unnestSource = Mysql.Query.unnest({
       id: [Mysql.Query.literal(1), Mysql.Query.literal(2)] as const,

@@ -599,6 +599,14 @@ const renderJoinSourcesForMutation = (
   renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)
 ).join(", ")
 
+const renderFromSources = (
+  sources: readonly QueryAst.FromClause[],
+  state: RenderState,
+  dialect: SqlDialect
+): string => sources.map((source) =>
+  renderSourceReference(source.source, source.tableName, source.baseTableName, state, dialect)
+).join(", ")
+
 const renderJoinPredicatesForMutation = (
   joins: readonly QueryAst.JoinClause[],
   state: RenderState,
@@ -851,23 +859,32 @@ export const renderQueryAst = (
       const targetSource = updateAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       const targets = updateAst.targets ?? [targetSource]
+      const fromSources = updateAst.fromSources ?? []
       const assignments = updateAst.set!.map((entry) =>
         renderMutationAssignment(entry, state, dialect)).join(", ")
       if (dialect.name === "mysql") {
         const modifiers = renderMysqlMutationLock(updateAst.lock, "update")
+        const extraSources = renderFromSources(fromSources, state, dialect)
         const joinSources = updateAst.joins.map((join) =>
           join.kind === "cross"
             ? `cross join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)}`
             : `${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on!, state, dialect)}`
         ).join(" ")
-        const targetList = targets.map((entry) =>
-          renderSourceReference(entry.source, entry.tableName, entry.baseTableName, state, dialect)
-        ).join(", ")
+        const targetList = [
+          ...targets.map((entry) =>
+            renderSourceReference(entry.source, entry.tableName, entry.baseTableName, state, dialect)
+          ),
+          ...(extraSources.length > 0 ? [extraSources] : [])
+        ].join(", ")
         sql = `update${modifiers} ${targetList}${joinSources.length > 0 ? ` ${joinSources}` : ""} set ${assignments}`
       } else {
         sql = `update ${target} set ${assignments}`
-        if (updateAst.joins.length > 0) {
-          sql += ` from ${renderJoinSourcesForMutation(updateAst.joins, state, dialect)}`
+        const mutationSources = [
+          ...(fromSources.length > 0 ? [renderFromSources(fromSources, state, dialect)] : []),
+          ...(updateAst.joins.length > 0 ? [renderJoinSourcesForMutation(updateAst.joins, state, dialect)] : [])
+        ].filter((part) => part.length > 0)
+        if (mutationSources.length > 0) {
+          sql += ` from ${mutationSources.join(", ")}`
         }
       }
       const whereParts = [

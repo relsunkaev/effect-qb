@@ -8,12 +8,12 @@ import {
   type CteSource,
   type EffectiveNullability,
   type ExpressionInput,
+  type ExpressionOutput,
   type GroupByInput,
   type MergeCapabilities,
   type MergeCapabilityTuple,
   type HavingPredicateInput,
   type OrderDirection,
-  type OutputOfExpression,
   type OutputOfSelection,
   type MutationInputOf,
   type MutationTargetLike,
@@ -104,7 +104,6 @@ export const unnest = postgresQuery.unnest
 export const generateSeries = postgresQuery.generateSeries
 export const returning = postgresQuery.returning
 export const defaultValues = postgresQuery.defaultValues
-export const insertFrom = postgresQuery.insertFrom
 export const onConflict = postgresQuery.onConflict
 export const insert = postgresQuery.insert
 export const update = postgresQuery.update
@@ -157,12 +156,12 @@ export type {
   CteSource,
   EffectiveNullability,
   ExpressionInput,
+  ExpressionOutput,
   GroupByInput,
   MergeCapabilities,
   MergeCapabilityTuple,
   HavingPredicateInput,
   OrderDirection,
-  OutputOfExpression,
   OutputOfSelection,
   MutationInputOf,
   MutationTargetLike,

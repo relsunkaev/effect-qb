@@ -18,7 +18,7 @@ const mysqlUsers = Mysql.Table.make("users", {
   bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
 })
 
-const valuesSource = Q.values([
+const valuesSource = Q.as(Q.values([
   {
     id: Q.literal("user-id"),
     email: "alice@example.com",
@@ -29,27 +29,31 @@ const valuesSource = Q.values([
     email: "bob@example.com",
     bio: "writer"
   }
-], "seed")
+]), "seed")
 
-const insertValuesPlan = Q.insertFrom(users, valuesSource)
+const insertValuesPlan = Q.insert(users).pipe(Q.from(valuesSource))
 
-const insertUnnestPlan = Q.insertFrom(users, Q.unnest({
+const insertUnnestPlan = Q.insert(users).pipe(Q.from(Q.unnest({
   id: ["user-id", "user-id-2"],
   email: ["alice@example.com", "bob@example.com"],
   bio: [null, "writer"]
-}, "seed"))
+}, "seed")))
 
-const insertSelectPlan = Q.insertFrom(users, Q.select({
+const insertSelectPlan = Q.insert(users).pipe(Q.from(Q.select({
   id: users.id,
   email: users.email,
   bio: users.bio
 }).pipe(
   Q.from(users)
-))
+)))
 
 const defaultValuesPlan = Q.defaultValues(auditLogs)
 
-const insertConflictPlan = Q.onConflict({
+const insertConflictPlan = Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: "writer"
+}).pipe(Q.onConflict({
   columns: ["email"] as const,
   where: Q.isNotNull(users.bio)
 }, {
@@ -57,10 +61,6 @@ const insertConflictPlan = Q.onConflict({
     bio: Q.excluded(users.bio)
   },
   where: Q.isNotNull(Q.excluded(users.bio))
-})(Q.insert(users, {
-  id: "user-id",
-  email: "alice@example.com",
-  bio: "writer"
 }))
 
 void insertValuesPlan
@@ -88,14 +88,14 @@ Mysql.Query.onConflict({
   bio: null
 }))
 
-Mysql.Query.onConflict(["email"] as const, {
+Mysql.Query.insert(mysqlUsers, {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: null
+}).pipe(Mysql.Query.onConflict(["email"] as const, {
   update: {
     bio: Mysql.Query.excluded(mysqlUsers.bio)
   },
   // @ts-expect-error mysql conflict actions do not support where(...)
   where: Mysql.Query.isNotNull(Mysql.Query.excluded(mysqlUsers.bio))
-})(Mysql.Query.insert(mysqlUsers, {
-  id: "user-id",
-  email: "alice@example.com",
-  bio: null
 }))

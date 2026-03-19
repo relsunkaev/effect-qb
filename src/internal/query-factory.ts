@@ -42,6 +42,7 @@ import {
   type GroupedOfPlan,
   type GroupedKeysFromValues,
   type HavingPredicateInput,
+  type InsertSourceStateOfPlan,
   type JoinSourceMode,
   type LiteralValue,
   type MergeAggregation,
@@ -69,13 +70,16 @@ import {
   type StatementOfPlan,
   type MutationInputOf,
   type MutationTargetLike,
+  type MutationTargetOfPlan,
   type MergeCapabilities,
   type MutationTargetInput,
   type SourceOf,
   type SourceDialectOf,
   type SourceLike,
   type SourceNameOf,
+  type AnyValuesInput,
   type ValuesSource,
+  type ValuesInput,
   type AnyValuesSource,
   type AnyUnnestSource,
   type UnnestSource,
@@ -3629,6 +3633,44 @@ export function makeDialectQuery<
     return columns as DerivedSelectionOf<Selection, Alias>
   }
 
+  const makeAliasedValuesSource = <
+    Rows extends ValuesRowsInput,
+    Alias extends string
+  >(
+    rows: readonly [Record<string, Expression.Any>, ...Record<string, Expression.Any>[]],
+    selection: ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    alias: Alias
+  ): ValuesSource<
+    Rows,
+    ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Alias,
+    Dialect
+  > => {
+    const columns = makeColumnReferenceSelection(alias, selection as Record<string, Expression.Any>) as unknown as ValuesOutputShape<
+      Rows[0],
+      Dialect,
+      TextDb,
+      NumericDb,
+      BoolDb,
+      TimestampDb,
+      NullDb
+    >
+    const source = {
+      kind: "values",
+      name: alias,
+      baseName: alias,
+      dialect: profile.dialect,
+      rows,
+      columns
+    }
+    return Object.assign(source, columns) as unknown as ValuesSource<
+      Rows,
+      ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Alias,
+      Dialect
+    >
+  }
+
   const normalizeValuesRow = (row: ValuesRowInput): Record<string, Expression.Any> =>
     Object.fromEntries(
       Object.entries(row).map(([key, value]) => [key, toDialectExpression(value)])
@@ -3743,7 +3785,7 @@ export function makeDialectQuery<
   ): readonly [string, ...string[]] => {
     const columns = Object.keys(selection)
     if (columns.length === 0) {
-      throw new Error("insertFrom(..., subquery) requires at least one projected column")
+      throw new Error("insert(...).pipe(from(subquery)) requires at least one projected column")
     }
     return columns as [string, ...string[]]
   }
@@ -3972,7 +4014,7 @@ type DistinctOnApi<Dialect extends string> = Dialect extends "postgres"
 type InsertPlanStatementError<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > = PlanValue & {
-  readonly __effect_qb_error__: "effect-qb: insert-from subqueries only accept select-like query plans"
+  readonly __effect_qb_error__: "effect-qb: insert sources only accept select-like query plans"
   readonly __effect_qb_statement__: StatementOfPlan<PlanValue>
   readonly __effect_qb_hint__: "Use select(...), a set operator, or a CTE/subquery built from them"
 }
@@ -3980,7 +4022,7 @@ type InsertPlanStatementError<
 type InsertPlanSelectionShapeError<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > = PlanValue & {
-  readonly __effect_qb_error__: "effect-qb: insert-from subqueries require a flat selection object"
+  readonly __effect_qb_error__: "effect-qb: insert sources require a flat selection object"
   readonly __effect_qb_selection__: SelectionOfPlan<PlanValue>
   readonly __effect_qb_hint__: "Project a flat object like select({ id: ..., email: ... }) with column-name keys"
 }
@@ -4069,12 +4111,27 @@ type InsertSourceInput<
   Dialect extends string,
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> = QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > =
+  | AnyValuesInput
   | AnyValuesSource
   | InsertUnnestSourceInput<Target, AnyUnnestSource>
   | InsertSelectSource<Target, PlanValue, Dialect>
 
+type InsertSourceOfPlanInput<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  Source,
+  Dialect extends string
+> = MutationTargetOfPlan<PlanValue> extends infer Target extends MutationTargetLike
+  ? Source extends AnyValuesInput | AnyValuesSource
+    ? Source
+    : Source extends AnyUnnestSource
+      ? InsertUnnestSourceInput<Target, Source>
+      : Source extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+        ? InsertSelectSource<Target, Source, Dialect>
+        : never
+  : never
+
 type InsertSourceRequired<Source> =
-  Source extends AnyValuesSource ? NestedMutationRequiredFromValues<Source["rows"][number]> :
+  Source extends AnyValuesInput | AnyValuesSource ? NestedMutationRequiredFromValues<Source["rows"][number]> :
     Source extends UnnestSource<any, any, any> ? never :
       Source extends QueryPlan<any, any, any, any, any, any, any, any, any, any> ? RequiredOfPlan<Source> :
         never
@@ -4153,6 +4210,11 @@ type MergeOptions<
 type RequireSelectStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   StatementOfPlan<PlanValue> extends "select" ? unknown : never
 
+type RequirePendingInsertStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+  StatementOfPlan<PlanValue> extends "insert"
+    ? InsertSourceStateOfPlan<PlanValue> extends "missing" ? unknown : never
+    : never
+
 type RequireWhereStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
 
@@ -4164,6 +4226,9 @@ type RequireInsertStatement<PlanValue extends QueryPlan<any, any, any, any, any,
 
 type RequireJoinStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
+
+type RequireUpdateFromStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+  StatementOfPlan<PlanValue> extends "update" ? unknown : never
 
 type MutationOrderLimitSupported<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>, Dialect extends string> =
   StatementOfPlan<PlanValue> extends "select"
@@ -4211,8 +4276,135 @@ type MutationLockModeForStatement<
       ? "lowPriority" | "ignore"
       : Statement extends "delete"
         ? "lowPriority" | "quick" | "ignore"
+          : never
+      : never
+
+type InsertDirectSource =
+  | AnyValuesInput
+  | QueryPlan<any, any, any, any, any, any, any, any, any, any>
+
+type FromInput = SourceLike | InsertDirectSource
+
+type SelectFromConstraint<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource extends SourceLike
+> =
+  RequireSelectStatement<PlanValue> &
+  (SourceNameOf<CurrentSource> extends OutstandingOfPlan<PlanValue> ? unknown : never) &
+  (SourceRequiredOf<CurrentSource> extends never ? unknown : SourceRequirementError<CurrentSource>)
+
+type UpdateFromConstraint<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource extends SourceLike
+> =
+  RequireUpdateFromStatement<PlanValue> &
+  (SourceNameOf<CurrentSource> extends ScopedNamesOfPlan<PlanValue> ? never : unknown) &
+  (SourceRequiredOf<CurrentSource> extends never ? unknown : SourceRequirementError<CurrentSource>)
+
+type InsertFromConstraint<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource,
+  Dialect extends string
+> =
+  RequirePendingInsertStatement<PlanValue> &
+  (InsertSourceOfPlanInput<PlanValue, CurrentSource, Dialect> extends CurrentSource
+    ? unknown
+    : InsertSourceOfPlanInput<PlanValue, CurrentSource, Dialect>)
+
+type SelectFromResult<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource extends SourceLike
+> = QueryPlan<
+  SelectionOfPlan<PlanValue>,
+  Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
+  AddAvailable<{}, SourceNameOf<CurrentSource>>,
+  PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
+  GroupedOfPlan<PlanValue>,
+  SourceNameOf<CurrentSource>,
+  Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
+  AssumptionsOfPlan<PlanValue>,
+  MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentSource>>,
+  StatementOfPlan<PlanValue>
+>
+
+type UpdateFromResult<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource extends SourceLike
+> = QueryPlan<
+  SelectionOfPlan<PlanValue>,
+  Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
+  AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
+  PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
+  GroupedOfPlan<PlanValue>,
+  ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentSource>,
+  Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
+  AssumptionsOfPlan<PlanValue>,
+  MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentSource>>,
+  StatementOfPlan<PlanValue>
+>
+
+type InsertFromResult<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource,
+  Dialect extends string
+> = QueryPlan<
+  SelectionOfPlan<PlanValue>,
+  Exclude<InsertSourceRequired<CurrentSource>, AvailableNames<AvailableOfPlan<PlanValue>>>,
+  AvailableOfPlan<PlanValue>,
+  PlanDialectOf<PlanValue>,
+  GroupedOfPlan<PlanValue>,
+  ScopedNamesOfPlan<PlanValue>,
+  Exclude<InsertSourceRequired<CurrentSource>, AvailableNames<AvailableOfPlan<PlanValue>>>,
+  AssumptionsOfPlan<PlanValue>,
+  CurrentSource extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    ? MergeCapabilities<CapabilitiesOfPlan<PlanValue>, CapabilitiesOfPlan<CurrentSource>>
+    : CapabilitiesOfPlan<PlanValue>,
+  StatementOfPlan<PlanValue>,
+  MutationTargetOfPlan<PlanValue>,
+  "ready"
+>
+
+type FromPlanConstraint<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource extends FromInput,
+  Dialect extends string
+> =
+  CurrentSource extends SourceLike
+    ? StatementOfPlan<PlanValue> extends "select"
+      ? SelectFromConstraint<PlanValue, CurrentSource>
+      : StatementOfPlan<PlanValue> extends "update"
+        ? UpdateFromConstraint<PlanValue, CurrentSource>
+        : StatementOfPlan<PlanValue> extends "insert"
+          ? CurrentSource extends AnyValuesSource | AnyUnnestSource
+            ? InsertFromConstraint<PlanValue, CurrentSource, Dialect>
+            : never
+          : never
+    : CurrentSource extends InsertDirectSource
+      ? StatementOfPlan<PlanValue> extends "insert"
+        ? InsertFromConstraint<PlanValue, CurrentSource, Dialect>
         : never
-    : never
+      : never
+
+type FromPlanResult<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource extends FromInput,
+  Dialect extends string
+> =
+  CurrentSource extends SourceLike
+    ? StatementOfPlan<PlanValue> extends "select"
+      ? SelectFromResult<PlanValue, CurrentSource>
+      : StatementOfPlan<PlanValue> extends "update"
+        ? UpdateFromResult<PlanValue, CurrentSource>
+        : StatementOfPlan<PlanValue> extends "insert"
+          ? CurrentSource extends AnyValuesSource | AnyUnnestSource
+            ? InsertFromResult<PlanValue, CurrentSource, Dialect>
+            : never
+          : never
+    : CurrentSource extends InsertDirectSource
+      ? StatementOfPlan<PlanValue> extends "insert"
+        ? InsertFromResult<PlanValue, CurrentSource, Dialect>
+        : never
+      : never
 
 type MergeRequiredFromPredicate<
   Predicate extends PredicateInput | undefined,
@@ -4226,6 +4418,22 @@ type MergeRequiredFromPredicate<
     value: Value,
     alias: Alias
   ): DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+  function as<
+    Rows extends ValuesRowsInput,
+    Alias extends string
+  >(
+    value: ValuesInput<
+      Rows,
+      ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Dialect
+    >,
+    alias: Alias
+  ): ValuesSource<
+    Rows,
+    ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Alias,
+    Dialect
+  >
   function as<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
@@ -4255,6 +4463,14 @@ type MergeRequiredFromPredicate<
         alias
       } satisfies ProjectionAlias.State<string>
       return projected
+    }
+    if ("kind" in value && value.kind === "values" && !("name" in value)) {
+      const valuesInput = value as AnyValuesInput
+      return makeAliasedValuesSource(
+        valuesInput.rows as readonly [Record<string, Expression.Any>, ...Record<string, Expression.Any>[]],
+        valuesInput.selection as ValuesOutputShape<any, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+        alias
+      )
     }
     return makeDerivedSource(value as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>, alias)
   }
@@ -4290,15 +4506,12 @@ type MergeRequiredFromPredicate<
   }
 
   const values = <
-    Rows extends ValuesRowsInput,
-    Alias extends string
+    Rows extends ValuesRowsInput
   >(
-    rows: Rows,
-    alias: Alias
-  ): ValuesSource<
+    rows: Rows
+  ): ValuesInput<
     Rows,
     ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    Alias,
     Dialect
   > => {
     if (rows.length === 0) {
@@ -4315,29 +4528,20 @@ type MergeRequiredFromPredicate<
         throw new Error("values(...) rows must project the same columns in the same order")
       }
     }
-    const columns = makeColumnReferenceSelection(alias, normalizedRows[0]!) as any as ValuesOutputShape<
-      Rows[0],
-      Dialect,
-      TextDb,
-      NumericDb,
-      BoolDb,
-      TimestampDb,
-      NullDb
-    >
-    const source = {
+    return {
       kind: "values",
-      name: alias,
-      baseName: alias,
       dialect: profile.dialect,
       rows: normalizedRows,
-      columns
+      selection: normalizedRows[0]! as ValuesOutputShape<
+        Rows[0],
+        Dialect,
+        TextDb,
+        NumericDb,
+        BoolDb,
+        TimestampDb,
+        NullDb
+      >
     }
-    return Object.assign(source, columns) as unknown as ValuesSource<
-      Rows,
-      ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      Alias,
-      Dialect
-    >
   }
 
   const unnest = <
@@ -4752,53 +4956,91 @@ type MergeRequiredFromPredicate<
       currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
-  const from = <CurrentTable extends SourceLike>(
-    table: CurrentTable
+  const from = <CurrentSource extends FromInput>(
+    source: CurrentSource
   ) =>
-    <PlanValue extends QueryPlan<any, any, {}, any, any, any, any, any, any>>(
-      plan: PlanValue & RequireSelectStatement<PlanValue> & (
-        SourceNameOf<CurrentTable> extends OutstandingOfPlan<PlanValue> ? unknown : never
-      ) & (
-        SourceRequiredOf<CurrentTable> extends never ? unknown : SourceRequirementError<CurrentTable>
-      )
-    ): QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentTable>>,
-      AddAvailable<{}, SourceNameOf<CurrentTable>>,
-      PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>,
-      GroupedOfPlan<PlanValue>,
-      SourceNameOf<CurrentTable>,
-      Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentTable>>,
-      AssumptionsOfPlan<PlanValue>,
-      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
-      StatementOfPlan<PlanValue>
-    > => {
+    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & FromPlanConstraint<PlanValue, CurrentSource, Dialect>
+    ): FromPlanResult<PlanValue, CurrentSource, Dialect> => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
-      const { sourceName, sourceBaseName } = sourceDetails(table)
-      const nextAst = {
-        ...currentAst,
-        from: {
-          kind: "from",
-          tableName: sourceName,
-          baseTableName: sourceBaseName,
-          source: table
-        }
-      } as QueryAst.Ast<SelectionOfPlan<PlanValue>, GroupedOfPlan<PlanValue>, StatementOfPlan<PlanValue>>
-      return makePlan({
-        selection: current.selection,
-        required: currentRequiredList(current.required).filter((name) =>
-          name !== sourceName) as Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentTable & SourceLike>>,
-        available: {
+
+      if (currentQuery.statement === "insert") {
+        return attachInsertSource(
+          plan as QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
+          source as AnyValuesInput | AnyValuesSource | AnyUnnestSource | CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+        ) as FromPlanResult<PlanValue, CurrentSource, Dialect>
+      }
+
+      if (
+        typeof source !== "object" ||
+        source === null ||
+        ("kind" in source && source.kind === "values" && !("name" in source)) ||
+        (!(Table.TypeId in source) && !("name" in source && "baseName" in source))
+      ) {
+        throw new Error("from(...) requires an aliased source in select/update statements")
+      }
+
+      const sourceLike = source as SourceLike
+      const { sourceName, sourceBaseName } = sourceDetails(sourceLike)
+
+      if (currentQuery.statement === "select") {
+        const nextAst = {
+          ...currentAst,
+          from: {
+            kind: "from",
+            tableName: sourceName,
+            baseTableName: sourceBaseName,
+            source: sourceLike
+          }
+        } as QueryAst.Ast<Record<string, unknown>, any, "select">
+        return makePlan({
+          selection: current.selection,
+          required: currentRequiredList(current.required).filter((name) =>
+            name !== sourceName),
+          available: {
+            [sourceName]: {
+              name: sourceName,
+              mode: "required",
+              baseName: sourceBaseName
+            }
+          } as AddAvailable<{}, string>,
+          dialect: current.dialect
+        }, nextAst, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement) as FromPlanResult<PlanValue, CurrentSource, Dialect>
+      }
+
+      if (currentQuery.statement === "update") {
+        const nextAvailable = {
+          ...current.available,
           [sourceName]: {
             name: sourceName,
-            mode: "required",
+            mode: "required" as const,
             baseName: sourceBaseName
           }
-        } as AddAvailable<{}, SourceNameOf<CurrentTable & SourceLike>>,
-        dialect: current.dialect as PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>
-      }, nextAst, currentQuery.assumptions, currentQuery.capabilities as MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>, currentQuery.statement as StatementOfPlan<PlanValue>)
+        }
+        const nextAst = {
+          ...currentAst,
+          fromSources: [
+            ...(currentAst.fromSources ?? []),
+            {
+              kind: "from" as const,
+              tableName: sourceName,
+              baseTableName: sourceBaseName,
+              source: sourceLike
+            }
+          ]
+        } as QueryAst.Ast<Record<string, unknown>, any, "update">
+        return makePlan({
+          selection: current.selection,
+          required: currentRequiredList(current.required).filter((name) =>
+            !(name in nextAvailable)),
+          available: nextAvailable,
+          dialect: current.dialect
+        }, nextAst, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement) as FromPlanResult<PlanValue, CurrentSource, Dialect>
+      }
+
+      throw new Error(`from(...) is not supported for ${currentQuery.statement} statements`)
     }
 
   const having = <Predicate extends HavingPredicateInput>(
@@ -5288,7 +5530,9 @@ type MergeRequiredFromPredicate<
       Exclude<OutstandingOfPlan<PlanValue> | ExtractRequired<Selection>, AvailableNames<AvailableOfPlan<PlanValue>>>,
       AssumptionsOfPlan<PlanValue>,
       CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>
+      StatementOfPlan<PlanValue>,
+      MutationTargetOfPlan<PlanValue>,
+      InsertSourceStateOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
@@ -5302,10 +5546,28 @@ type MergeRequiredFromPredicate<
       }, {
         ...currentAst,
         select: selection
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>, currentQuery.target, currentQuery.insertSource)
     }
 
-  const insert = <
+  function insert<
+    Target extends MutationTargetLike
+  >(
+    target: Target
+  ): QueryPlan<
+    {},
+    never,
+    AddAvailable<{}, SourceNameOf<Target>>,
+    TableDialectOf<Target>,
+    never,
+    SourceNameOf<Target>,
+    never,
+    TrueFormula,
+    "write",
+    "insert",
+    Target,
+    "missing"
+  >
+  function insert<
     Target extends MutationTargetLike,
     Values extends MutationInputOf<Table.InsertOf<Target>>
   >(
@@ -5321,22 +5583,31 @@ type MergeRequiredFromPredicate<
     Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
     TrueFormula,
     "write",
-    "insert"
-  > => {
+    "insert",
+    Target,
+    "ready"
+  >
+  function insert(
+    target: MutationTargetLike,
+    values?: Record<string, unknown>
+  ): QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing" | "ready"> {
     const { sourceName, sourceBaseName } = targetSourceDetails(target)
-    const assignments = buildMutationAssignments(target, values)
+    const assignments = values === undefined
+      ? []
+      : buildMutationAssignments(target, values)
     const required = assignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies))
+    const insertState = values === undefined ? "missing" : "ready"
     return makePlan({
       selection: {},
-      required: required.filter((name, index, list) => name !== sourceName && list.indexOf(name) === index) as unknown as Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
+      required: required.filter((name, index, list) => name !== sourceName && list.indexOf(name) === index),
       available: {
         [sourceName]: {
           name: sourceName,
           mode: "required",
           baseName: sourceBaseName
         }
-      } as AddAvailable<{}, SourceNameOf<Target>>,
-      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+      } as AddAvailable<{}, string>,
+      dialect: target[Plan.TypeId].dialect
     }, {
       kind: "insert",
       select: {},
@@ -5353,7 +5624,7 @@ type MergeRequiredFromPredicate<
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined as unknown as TrueFormula, "write", "insert")
+    }, undefined as unknown as TrueFormula, "write", "insert", target, insertState)
   }
 
   const defaultValues = <
@@ -5370,7 +5641,9 @@ type MergeRequiredFromPredicate<
     never,
     TrueFormula,
     "write",
-    "insert"
+    "insert",
+    Target,
+    "ready"
   > => {
     const { sourceName, sourceBaseName } = targetSourceDetails(target as Target)
     return makePlan({
@@ -5400,168 +5673,75 @@ type MergeRequiredFromPredicate<
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined as unknown as TrueFormula, "write", "insert")
+    }, undefined as unknown as TrueFormula, "write", "insert", target as Target, "ready")
   }
 
-  function insertFrom<
-    Target extends MutationTargetLike,
-    Source extends AnyValuesSource
-  >(
-    target: Target,
-    source: Source
-  ): QueryPlan<
-    {},
-    Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
-    AddAvailable<{}, SourceNameOf<Target>>,
-    TableDialectOf<Target>,
-    never,
-    SourceNameOf<Target>,
-    Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
-    TrueFormula,
-    "write",
-    "insert"
-  >
-  function insertFrom<
-    Target extends MutationTargetLike,
-    Source extends AnyUnnestSource
-  >(
-    target: Target,
-    source: Source
-  ): QueryPlan<
-    {},
-    Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
-    AddAvailable<{}, SourceNameOf<Target>>,
-    TableDialectOf<Target>,
-    never,
-    SourceNameOf<Target>,
-    Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
-    TrueFormula,
-    "write",
-    "insert"
-  >
-  function insertFrom<
-    Target extends MutationTargetLike,
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
-  >(
-    target: Target,
-    source: InsertSelectSource<Target, PlanValue, Dialect>
-  ): QueryPlan<
-    {},
-    Exclude<InsertSourceRequired<PlanValue>, SourceNameOf<Target>>,
-    AddAvailable<{}, SourceNameOf<Target>>,
-    TableDialectOf<Target>,
-    never,
-    SourceNameOf<Target>,
-    Exclude<InsertSourceRequired<PlanValue>, SourceNameOf<Target>>,
-    TrueFormula,
-    "write",
-    "insert"
-  >
-  function insertFrom(
-    target: MutationTargetLike,
-    source: AnyValuesSource | AnyUnnestSource | InsertSelectSource<any, any, Dialect>
-  ): QueryPlan<any, any, any, any, any, any, any, any, any, "insert"> {
-    const { sourceName, sourceBaseName } = targetSourceDetails(target)
-    const available = {
-      [sourceName]: {
-        name: sourceName,
-        mode: "required" as const,
-        baseName: sourceBaseName
-      }
-    } as AddAvailable<{}, string>
+  const attachInsertSource = (
+    plan: QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
+    source: AnyValuesInput | AnyValuesSource | AnyUnnestSource | CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+  ): QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "ready"> => {
+    const current = plan[Plan.TypeId]
+    const currentAst = getAst(plan)
+    const currentQuery = getQueryState(plan)
+    const target = currentQuery.target as MutationTargetLike
+    const targetSource = currentAst.into!
+    const sourceName = targetSource.tableName
 
     if (typeof source === "object" && source !== null && "kind" in source && source.kind === "values") {
-      const valuesSource = source as AnyValuesSource
+      const valuesSource = source as AnyValuesInput | AnyValuesSource
       const normalized = buildInsertValuesRows(target, valuesSource.rows as readonly [InsertRowInput<MutationTargetLike>, ...InsertRowInput<MutationTargetLike>[]])
       return makePlan({
-        selection: {},
-        required: normalized.required.filter((name) => name !== sourceName) as any,
-        available,
-        dialect: target[Plan.TypeId].dialect as TableDialectOf<any>
+        selection: current.selection,
+        required: normalized.required.filter((name) => name !== sourceName),
+        available: current.available,
+        dialect: current.dialect
       }, {
-        kind: "insert",
-        select: {},
-        into: {
-          kind: "from",
-          tableName: sourceName,
-          baseTableName: sourceBaseName,
-          source: target
-        },
+        ...currentAst,
+        values: [],
         insertSource: {
           kind: "values",
           columns: normalized.columns,
           rows: normalized.rows
-        },
-        conflict: undefined,
-        where: [],
-        having: [],
-        joins: [],
-        groupBy: [],
-        orderBy: []
-      }, undefined as unknown as TrueFormula, "write", "insert")
+        }
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement, currentQuery.target, "ready")
     }
 
     if (typeof source === "object" && source !== null && "kind" in source && source.kind === "unnest") {
       const unnestSource = source as AnyUnnestSource
       const normalized = normalizeInsertUnnestValues(target, unnestSource.values as any)
       return makePlan({
-        selection: {},
-        required: [] as any,
-        available,
-        dialect: target[Plan.TypeId].dialect as TableDialectOf<any>
+        selection: current.selection,
+        required: [] as never,
+        available: current.available,
+        dialect: current.dialect
       }, {
-        kind: "insert",
-        select: {},
-        into: {
-          kind: "from",
-          tableName: sourceName,
-          baseTableName: sourceBaseName,
-          source: target
-        },
+        ...currentAst,
+        values: [],
         insertSource: {
           kind: "unnest",
           columns: normalized.columns,
           values: normalized.values
-        },
-        conflict: undefined,
-        where: [],
-        having: [],
-        joins: [],
-        groupBy: [],
-        orderBy: []
-      }, undefined as unknown as TrueFormula, "write", "insert")
+        }
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement, currentQuery.target, "ready")
     }
 
-    const plan = source as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
-    const selection = plan[Plan.TypeId].selection as Record<string, Expression.Any>
+    const sourcePlan = source as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+    const selection = sourcePlan[Plan.TypeId].selection as Record<string, Expression.Any>
     const columns = normalizeInsertSelectColumns(selection)
     return makePlan({
-      selection: {},
-      required: currentRequiredList(plan[Plan.TypeId].required).filter((name) =>
-        name !== sourceName) as any,
-      available,
-      dialect: target[Plan.TypeId].dialect as TableDialectOf<any>
-    }, {
-      kind: "insert",
-      select: {},
-      into: {
-        kind: "from",
-        tableName: sourceName,
-        baseTableName: sourceBaseName,
-        source: target
-      },
-      insertSource: {
-        kind: "query",
-        columns,
-        query: plan
-      },
-      conflict: undefined,
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
-    }, undefined as unknown as TrueFormula, "write", "insert")
+      selection: current.selection,
+      required: currentRequiredList(sourcePlan[Plan.TypeId].required).filter((name) => name !== sourceName),
+      available: current.available,
+      dialect: current.dialect
+      }, {
+        ...currentAst,
+        values: [],
+        insertSource: {
+          kind: "query",
+          columns,
+          query: sourcePlan
+        }
+      }, currentQuery.assumptions, currentQuery.capabilities as MergeCapabilities<typeof currentQuery.capabilities, CapabilitiesOfPlan<typeof sourcePlan>>, currentQuery.statement, currentQuery.target, "ready")
   }
 
   const onConflict = <
@@ -5585,7 +5765,9 @@ type MergeRequiredFromPredicate<
       Exclude<OutstandingOfPlan<PlanValue> | MutationRequiredFromValues<Exclude<UpdateValues, undefined>> | RequiredFromInput<Extract<Options["where"], PredicateInput>>, AvailableNames<AvailableOfPlan<PlanValue>>>,
       AssumptionsOfPlan<PlanValue>,
       CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>
+      StatementOfPlan<PlanValue>,
+      MutationTargetOfPlan<PlanValue>,
+      InsertSourceStateOfPlan<PlanValue>
     > => {
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
@@ -5618,7 +5800,7 @@ type MergeRequiredFromPredicate<
           values: updateAssignments.length === 0 ? undefined : updateAssignments,
           where: updateWhere
         }
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>, currentQuery.target, currentQuery.insertSource)
     }
 
   function update<
@@ -5707,7 +5889,9 @@ type MergeRequiredFromPredicate<
     Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<UpdateValues>, SourceNameOf<Target>>,
     TrueFormula,
     "write",
-    "insert"
+    "insert",
+    Target,
+    "ready"
   > => {
     const { sourceName, sourceBaseName } = targetSourceDetails(target)
     const assignments = buildMutationAssignments(target, values)
@@ -5751,7 +5935,7 @@ type MergeRequiredFromPredicate<
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined as unknown as TrueFormula, "write", "insert")
+    }, undefined as unknown as TrueFormula, "write", "insert", target, "ready")
   }
 
   function delete_<
@@ -6441,7 +6625,6 @@ type MergeRequiredFromPredicate<
     generateSeries,
     returning,
     defaultValues,
-    insertFrom,
     onConflict,
     insert,
     update,

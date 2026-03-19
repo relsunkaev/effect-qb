@@ -8,12 +8,12 @@ import {
   type CteSource,
   type EffectiveNullability,
   type ExpressionInput,
+  type ExpressionOutput,
   type GroupByInput,
   type MergeCapabilities,
   type MergeCapabilityTuple,
   type HavingPredicateInput,
   type OrderDirection,
-  type OutputOfExpression,
   type OutputOfSelection,
   type MutationInputOf,
   type MutationTargetLike,
@@ -104,7 +104,6 @@ export const unnest = mysqlQuery.unnest
 export const generateSeries = mysqlQuery.generateSeries
 export const returning = mysqlQuery.returning
 export const defaultValues = mysqlQuery.defaultValues
-export const insertFrom = mysqlQuery.insertFrom
 export const onConflict = mysqlQuery.onConflict
 export const insert = mysqlQuery.insert
 export const update = mysqlQuery.update
@@ -157,12 +156,12 @@ export type {
   CteSource,
   EffectiveNullability,
   ExpressionInput,
+  ExpressionOutput,
   GroupByInput,
   MergeCapabilities,
   MergeCapabilityTuple,
   HavingPredicateInput,
   OrderDirection,
-  OutputOfExpression,
   OutputOfSelection,
   MutationInputOf,
   MutationTargetLike,

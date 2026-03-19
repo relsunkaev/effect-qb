@@ -18,26 +18,31 @@ describe("mysql insert behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const valuesSource = Mysql.Query.values([
+    const valuesSource = Mysql.Query.as(Mysql.Query.values([
       { id: Mysql.Query.literal(userId), email: "alice@example.com", bio: null },
       { id: Mysql.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
-    ] as const, "seed")
+    ] as const), "seed")
 
-    const multiRowPlan = Mysql.Query.insertFrom(users, valuesSource)
+    const multiRowPlan = Mysql.Query.insert(users).pipe(
+      Mysql.Query.from(valuesSource)
+    )
 
-    const insertSelectPlan = Mysql.Query.insertFrom(archivedUsers, Mysql.Query.select({
+    const insertSelectPlan = Mysql.Query.insert(archivedUsers).pipe(
+      Mysql.Query.from(Mysql.Query.select({
       id: users.id,
       email: users.email,
       bio: users.bio
     }).pipe(
       Mysql.Query.from(users)
-    ))
+    )))
 
-    const insertUnnestPlan = Mysql.Query.insertFrom(users, Mysql.Query.unnest({
+    const insertUnnestPlan = Mysql.Query.insert(users).pipe(
+      Mysql.Query.from(Mysql.Query.unnest({
       id: [userId, secondUserId],
       email: ["alice@example.com", "bob@example.com"],
       bio: [null, "writer"]
-    }, "seed"))
+      }, "seed"))
+    )
 
     expect(Mysql.Renderer.make().render(multiRowPlan).sql).toBe(
       "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"
@@ -69,11 +74,12 @@ describe("mysql insert behavior", () => {
     const updateFromValuesPlan = Mysql.Query.update(users, {
       email: valuesSource.email
     }).pipe(
-      Mysql.Query.innerJoin(valuesSource, Mysql.Query.eq(users.id, valuesSource.id))
+      Mysql.Query.from(valuesSource),
+      Mysql.Query.where(Mysql.Query.eq(users.id, valuesSource.id))
     )
 
     expect(Mysql.Renderer.make().render(updateFromValuesPlan).sql).toBe(
-      "update `users` inner join (select ? as `id`, ? as `email`, null as `bio` union all select ? as `id`, ? as `email`, ? as `bio`) as `seed`(`id`, `email`, `bio`) on (`users`.`id` = `seed`.`id`) set `email` = `seed`.`email`"
+      "update `users`, (select ? as `id`, ? as `email`, null as `bio` union all select ? as `id`, ? as `email`, ? as `bio`) as `seed`(`id`, `email`, `bio`) set `email` = `seed`.`email` where (`users`.`id` = `seed`.`id`)"
     )
     expect(Mysql.Renderer.make().render(updateFromValuesPlan).params).toEqual([
       userId,

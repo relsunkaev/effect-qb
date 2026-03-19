@@ -271,6 +271,7 @@ export interface Ast<
   readonly setBase?: unknown
   readonly recursive?: boolean
   readonly from?: FromClause
+  readonly fromSources?: readonly FromClause[]
   readonly into?: FromClause
   readonly target?: FromClause
   readonly targets?: readonly FromClause[]

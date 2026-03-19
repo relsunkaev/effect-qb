@@ -895,26 +895,31 @@ describe("mysql dialect behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const valuesSource = Mysql.Query.values([
+    const valuesSource = Mysql.Query.as(Mysql.Query.values([
       { id: Mysql.Query.literal(userId), email: "alice@example.com", bio: null },
       { id: Mysql.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
-    ] as const, "seed")
+    ] as const), "seed")
 
-    const multiRowPlan = Mysql.Query.insertFrom(users, valuesSource)
+    const multiRowPlan = Mysql.Query.insert(users).pipe(
+      Mysql.Query.from(valuesSource)
+    )
 
-    const insertSelectPlan = Mysql.Query.insertFrom(archivedUsers, Mysql.Query.select({
+    const insertSelectPlan = Mysql.Query.insert(archivedUsers).pipe(
+      Mysql.Query.from(Mysql.Query.select({
       id: users.id,
       email: users.email,
       bio: users.bio
     }).pipe(
       Mysql.Query.from(users)
-    ))
+    )))
 
-    const insertUnnestPlan = Mysql.Query.insertFrom(users, Mysql.Query.unnest({
+    const insertUnnestPlan = Mysql.Query.insert(users).pipe(
+      Mysql.Query.from(Mysql.Query.unnest({
       id: [userId, secondUserId],
       email: ["alice@example.com", "bob@example.com"],
       bio: [null, "writer"]
-    }, "seed"))
+      }, "seed"))
+    )
 
     expect(Mysql.Renderer.make().render(multiRowPlan).sql).toBe(
       "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"

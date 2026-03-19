@@ -35,10 +35,10 @@ void unionAllEmail
 void intersectAllEmail
 void exceptAllEmail
 
-const valuesSource = Postgres.Query.values([
+const valuesSource = Postgres.Query.as(Postgres.Query.values([
   { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") },
   { id: Postgres.Query.literal(2), email: Postgres.Query.literal("bob@example.com") }
-] as const, "seed")
+] as const), "seed")
 
 const valuesPlan = Postgres.Query.select({
   id: valuesSource.id,
@@ -110,10 +110,10 @@ void scalarValue
 void scalarNull
 void scalarInValue
 
-const mysqlValuesSource = Mysql.Query.values([
+const mysqlValuesSource = Mysql.Query.as(Mysql.Query.values([
   { id: Mysql.Query.literal(1), email: Mysql.Query.literal("alice@example.com") },
   { id: Mysql.Query.literal(2), email: Mysql.Query.literal("bob@example.com") }
-] as const, "seed")
+] as const), "seed")
 
 const mysqlValuesPlan = Mysql.Query.select({
   id: mysqlValuesSource.id,

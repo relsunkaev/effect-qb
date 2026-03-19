@@ -18,26 +18,31 @@ describe("postgres insert behavior", () => {
       bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
     })
 
-    const valuesSource = Postgres.Query.values([
+    const valuesSource = Postgres.Query.as(Postgres.Query.values([
       { id: Postgres.Query.literal(userId), email: "alice@example.com", bio: null },
       { id: Postgres.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
-    ] as const, "seed")
+    ] as const), "seed")
 
-    const multiRowPlan = Postgres.Query.insertFrom(users, valuesSource)
+    const multiRowPlan = Postgres.Query.insert(users).pipe(
+      Postgres.Query.from(valuesSource)
+    )
 
-    const insertSelectPlan = Postgres.Query.insertFrom(archivedUsers, Postgres.Query.select({
+    const insertSelectPlan = Postgres.Query.insert(archivedUsers).pipe(
+      Postgres.Query.from(Postgres.Query.select({
       id: users.id,
       email: users.email,
       bio: users.bio
     }).pipe(
       Postgres.Query.from(users)
-    ))
+    )))
 
-    const insertUnnestPlan = Postgres.Query.insertFrom(users, Postgres.Query.unnest({
+    const insertUnnestPlan = Postgres.Query.insert(users).pipe(
+      Postgres.Query.from(Postgres.Query.unnest({
       id: [userId, secondUserId],
       email: ["alice@example.com", "bob@example.com"],
       bio: [null, "writer"]
-    }, "seed"))
+      }, "seed"))
+    )
 
     expect(Postgres.Renderer.make().render(multiRowPlan).sql).toBe(
       'insert into "public"."users" ("id", "email", "bio") values ($1, $2, null), ($3, $4, $5)'
@@ -67,7 +72,8 @@ describe("postgres insert behavior", () => {
     const updateFromValuesPlan = Postgres.Query.update(users, {
       email: valuesSource.email
     }).pipe(
-      Postgres.Query.innerJoin(valuesSource, Postgres.Query.eq(users.id, valuesSource.id))
+      Postgres.Query.from(valuesSource),
+      Postgres.Query.where(Postgres.Query.eq(users.id, valuesSource.id))
     )
 
     expect(Postgres.Renderer.make().render(updateFromValuesPlan).sql).toBe(

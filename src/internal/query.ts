@@ -99,6 +99,8 @@ const PlanProto = {
 /** Internal symbol used to preserve query-only phantom metadata through inference. */
 const QueryTypeId: unique symbol = Symbol.for("effect-qb/Query/internal")
 
+type InsertSourceState = "ready" | "missing"
+
 /** Internal phantom state tracked on query plans. */
 interface QueryState<
   Outstanding extends string,
@@ -106,7 +108,9 @@ interface QueryState<
   Grouped extends string,
   Assumptions extends PredicateFormula,
   Capabilities extends QueryCapability,
-  Statement extends QueryAst.QueryStatement
+  Statement extends QueryAst.QueryStatement,
+  Target,
+  InsertState extends InsertSourceState
 > {
   readonly required: Outstanding
   readonly availableNames: AvailableNames
@@ -114,6 +118,8 @@ interface QueryState<
   readonly assumptions: Assumptions
   readonly capabilities: Capabilities
   readonly statement: Statement
+  readonly target: Target
+  readonly insertSource: InsertState
 }
 
 /** Source provenance attached to an expression. */
@@ -472,7 +478,19 @@ export type LateralSource<
 
 type ValuesRowInput = Record<string, ExpressionInput>
 
-/** Wrapper returned by `values(rows, alias)` for standalone row sources and insert sources. */
+/** Anonymous `values(...)` input that must be aliased through `as(...)` before use as a source. */
+export type ValuesInput<
+  Rows extends readonly [ValuesRowInput, ...ValuesRowInput[]],
+  Selection extends SelectionShape,
+  Dialect extends string
+> = {
+  readonly kind: "values"
+  readonly dialect: Dialect
+  readonly rows: readonly [Record<string, Expression.Any>, ...Record<string, Expression.Any>[]]
+  readonly selection: Selection
+}
+
+/** Wrapper returned by `as(values(rows), alias)` for standalone row sources and insert sources. */
 export type ValuesSource<
   Rows extends readonly [ValuesRowInput, ...ValuesRowInput[]],
   Selection extends SelectionShape,
@@ -483,8 +501,16 @@ export type ValuesSource<
   readonly name: Alias
   readonly baseName: Alias
   readonly dialect: Dialect
-  readonly rows: Rows
+  readonly rows: readonly [Record<string, Expression.Any>, ...Record<string, Expression.Any>[]]
   readonly columns: DerivedSelectionOf<Selection, Alias>
+}
+
+/** Broad structural shape for anonymous `values(...)` inputs before aliasing. */
+export type AnyValuesInput = {
+  readonly kind: "values"
+  readonly dialect: string
+  readonly rows: readonly Record<string, Expression.Any>[]
+  readonly selection: Record<string, Expression.Any>
 }
 
 /** Broad structural shape for `values(...)` sources when used as composable inputs. */
@@ -493,7 +519,7 @@ export type AnyValuesSource = {
   readonly name: string
   readonly baseName: string
   readonly dialect: string
-  readonly rows: readonly Record<string, ExpressionInput>[]
+  readonly rows: readonly Record<string, Expression.Any>[]
   readonly columns: Record<string, Expression.Any>
 }
 
@@ -777,6 +803,12 @@ export type SourceCapabilitiesOf<Source extends SourceLike> =
 /** Extracts the statement kind carried by a query plan. */
 export type StatementOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, infer Statement> ? Statement : never
+/** Extracts the mutation target phantom carried by a query plan. */
+export type MutationTargetOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, infer Target> ? Target : never
+/** Extracts whether an insert plan still needs a source attached. */
+export type InsertSourceStateOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, infer InsertState> ? InsertState : "ready"
 
 /**
  * Adds a single source entry to the set of available sources.
@@ -1053,11 +1085,11 @@ type CaseOutputOf<
     ? CaseBranchDecision<Assumptions, Predicate> extends "skip"
       ? CaseOutputOf<Tail, Else, Available, Assumptions>
       : CaseBranchDecision<Assumptions, Predicate> extends "take"
-        ? OutputOfExpression<Then, EffectiveAvailable<Available, CaseBranchAssumeTrue<Assumptions, Predicate>>, CaseBranchAssumeTrue<Assumptions, Predicate>>
-        : OutputOfExpression<Then, EffectiveAvailable<Available, CaseBranchAssumeTrue<Assumptions, Predicate>>, CaseBranchAssumeTrue<Assumptions, Predicate>> |
+        ? ExpressionOutput<Then, EffectiveAvailable<Available, CaseBranchAssumeTrue<Assumptions, Predicate>>, CaseBranchAssumeTrue<Assumptions, Predicate>>
+        : ExpressionOutput<Then, EffectiveAvailable<Available, CaseBranchAssumeTrue<Assumptions, Predicate>>, CaseBranchAssumeTrue<Assumptions, Predicate>> |
           CaseOutputOf<Tail, Else, Available, CaseBranchAssumeFalse<Assumptions, Predicate>>
     : never
-  : OutputOfExpression<Else, EffectiveAvailable<Available, Assumptions>, Assumptions>
+  : ExpressionOutput<Else, EffectiveAvailable<Available, Assumptions>, Assumptions>
 
 /** Effective nullability of an expression after source-scope nullability is applied. */
 export type EffectiveNullability<
@@ -1092,7 +1124,7 @@ export type EffectiveNullability<
     : BaseEffectiveNullability<Value, Available, Assumptions>
 
 /** Result runtime type of an expression after effective nullability is resolved. */
-export type OutputOfExpression<
+export type ExpressionOutput<
   Value extends Expression.Any,
   Available extends Record<string, Plan.Source>,
   Assumptions extends PredicateFormula = TrueAssumptions
@@ -1110,7 +1142,7 @@ export type OutputOfSelection<
   Available extends Record<string, Plan.Source>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > = Selection extends Expression.Any
-  ? OutputOfExpression<Selection, Available, Assumptions>
+  ? ExpressionOutput<Selection, Available, Assumptions>
   : Selection extends Record<string, any>
     ? {
         readonly [K in keyof Selection]: OutputOfSelection<Selection[K], Available, Assumptions>
@@ -1170,6 +1202,13 @@ type DialectCompatibilityError<
   readonly __effect_qb_hint__: "Use the matching dialect module or renderer/executor"
 }
 
+type InsertSourceCompletenessError<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = PlanValue & {
+  readonly __effect_qb_error__: "effect-qb: insert plan is missing inline values or a source"
+  readonly __effect_qb_hint__: "Pass values directly to insert(...), use defaultValues(...), or pipe the insert plan into from(...)"
+}
+
 /** Narrows a query plan to aggregate-compatible selections. */
 export type AggregationCompatiblePlan<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
@@ -1179,10 +1218,16 @@ export type AggregationCompatiblePlan<
 
 /** Narrows a query plan to aggregate-compatible, source-complete plans. */
 export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<infer Selection, infer Required, any, any, infer Grouped, any, any, any, any, any>
-    ? HasKnownOutstanding<Required> extends true
-      ? SourceCompletenessError<PlanValue, Extract<Required, string>>
-      : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
+  PlanValue extends QueryPlan<infer Selection, infer Required, any, any, infer Grouped, any, any, any, any, infer Statement, any, infer InsertState>
+    ? Statement extends "insert"
+      ? InsertState extends "missing"
+        ? InsertSourceCompletenessError<PlanValue>
+        : HasKnownOutstanding<Required> extends true
+          ? SourceCompletenessError<PlanValue, Extract<Required, string>>
+          : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
+      : HasKnownOutstanding<Required> extends true
+        ? SourceCompletenessError<PlanValue, Extract<Required, string>>
+        : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
     : never
 
 /** Whether a plan dialect is compatible with a target engine dialect. */
@@ -1315,11 +1360,13 @@ export type QueryPlan<
   Outstanding extends string = Extract<Required, string>,
   Assumptions extends PredicateFormula = TrueAssumptions,
   Capabilities extends QueryCapability = "read",
-  Statement extends QueryAst.QueryStatement = "select"
+  Statement extends QueryAst.QueryStatement = "select",
+  Target = unknown,
+  InsertState extends InsertSourceState = InsertSourceState
 > = Plan.Plan<Selection, Required, Available, Dialect> & {
   readonly [Plan.TypeId]: Plan.State<Selection, Required, Available, Dialect>
   readonly [QueryAst.TypeId]: QueryAst.Ast<Selection, Grouped, Statement>
-  readonly [QueryTypeId]: QueryState<Outstanding, ScopedNames, Grouped, Assumptions, Capabilities, Statement>
+  readonly [QueryTypeId]: QueryState<Outstanding, ScopedNames, Grouped, Assumptions, Capabilities, Statement, Target, InsertState>
 }
 
 /**
@@ -1456,14 +1503,18 @@ export const makePlan = <
   Outstanding extends string = Extract<Required, string>,
   Assumptions extends PredicateFormula = TrueAssumptions,
   Capabilities extends QueryCapability = "read",
-  Statement extends QueryAst.QueryStatement = "select"
+  Statement extends QueryAst.QueryStatement = "select",
+  Target = never,
+  InsertState extends InsertSourceState = "ready"
 >(
   state: Plan.State<Selection, Required, Available, Dialect>,
   ast: QueryAst.Ast<Selection, Grouped, Statement>,
   _assumptions?: Assumptions,
   _capabilities?: Capabilities,
-  _statement?: Statement
-): QueryPlan<Selection, Required, Available, Dialect, Grouped, ScopedNames, Outstanding, Assumptions, Capabilities, Statement> => {
+  _statement?: Statement,
+  _target?: Target,
+  _insertState?: InsertState
+): QueryPlan<Selection, Required, Available, Dialect, Grouped, ScopedNames, Outstanding, Assumptions, Capabilities, Statement, Target, InsertState> => {
   const plan = Object.create(PlanProto)
   plan[Plan.TypeId] = state
   plan[QueryAst.TypeId] = ast
@@ -1473,7 +1524,9 @@ export const makePlan = <
     grouped: undefined as unknown as Grouped,
     assumptions: undefined as unknown as Assumptions,
     capabilities: undefined as unknown as Capabilities,
-    statement: (_statement ?? ("select" as Statement)) as Statement
+    statement: (_statement ?? ("select" as Statement)) as Statement,
+    target: (_target ?? (undefined as unknown as Target)) as Target,
+    insertSource: (_insertState ?? ("ready" as InsertState)) as InsertState
   }
   return plan
 }
@@ -1490,7 +1543,7 @@ export const getAst = <
 /** Returns the internal phantom query state carried by a query plan. */
 export const getQueryState = (
   plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
-): QueryState<any, any, any, any, any, any> => plan[QueryTypeId]
+): QueryState<any, any, any, any, any, any, any, any> => plan[QueryTypeId]
 
 /**
  * Collects the required table names referenced by a runtime selection object.
