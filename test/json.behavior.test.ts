@@ -160,6 +160,44 @@ describe("json behavior", () => {
     ])
   })
 
+  test("postgres reuses the same JSON path object across read and write operators", () => {
+    const docs = makeTable(Postgres)
+
+    const cityPath = Postgres.Query.json.path(
+      Postgres.Query.json.key("profile"),
+      Postgres.Query.json.key("address"),
+      Postgres.Query.json.key("city")
+    )
+
+    const plan = Postgres.Query.select({
+      cityJson: Postgres.Query.json.get(docs.payload, cityPath),
+      cityText: Postgres.Query.json.text(docs.payload, cityPath),
+      setCity: Postgres.Query.json.set(docs.payload, cityPath, "Paris"),
+      deleteCity: Postgres.Query.json.delete(docs.payload, cityPath)
+    }).pipe(Postgres.Query.from(docs))
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select ("docs"."payload" #> array[$1, $2, $3]) as "cityJson", ("docs"."payload" #>> array[$4, $5, $6]) as "cityText", jsonb_set(cast("docs"."payload" as jsonb), array[$7, $8, $9], cast($10 as jsonb), true) as "setCity", (cast("docs"."payload" as jsonb) #- array[$11, $12, $13]) as "deleteCity" from "public"."docs"'
+    )
+    expect(rendered.params).toEqual([
+      "profile",
+      "address",
+      "city",
+      "profile",
+      "address",
+      "city",
+      "profile",
+      "address",
+      "city",
+      "Paris",
+      "profile",
+      "address",
+      "city"
+    ])
+  })
+
   test("mysql rejects unsupported json path match", () => {
     const docs = makeTable(Mysql)
 
@@ -294,6 +332,38 @@ describe("json behavior", () => {
       1,
       "one",
       "$.profile.tags[*]"
+    ])
+  })
+
+  test("mysql reuses the same JSON path object across read and write operators", () => {
+    const docs = makeTable(Mysql)
+
+    const cityPath = Mysql.Query.json.path(
+      Mysql.Query.json.key("profile"),
+      Mysql.Query.json.key("address"),
+      Mysql.Query.json.key("city")
+    )
+
+    const plan = Mysql.Query.select({
+      cityJson: Mysql.Query.json.get(docs.payload, cityPath),
+      cityText: Mysql.Query.json.text(docs.payload, cityPath),
+      setCity: Mysql.Query.json.set(docs.payload, cityPath, "Paris"),
+      deleteCity: Mysql.Query.json.delete(docs.payload, cityPath)
+    }).pipe(Mysql.Query.from(docs))
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select json_extract(`docs`.`payload`, ?) as `cityJson`, json_unquote(json_extract(`docs`.`payload`, ?)) as `cityText`, json_set(`docs`.`payload`, ?, ?) as `setCity`, json_remove(`docs`.`payload`, ?, ?, ?) as `deleteCity` from `docs`"
+    )
+    expect(rendered.params).toEqual([
+      "$.profile.address.city",
+      "$.profile.address.city",
+      "$.profile.address.city",
+      "Paris",
+      "$.profile",
+      "$.address",
+      "$.city"
     ])
   })
 

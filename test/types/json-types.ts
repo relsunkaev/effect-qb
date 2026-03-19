@@ -46,6 +46,8 @@ const suitePath = Q.json.path(
 
 const cityExpr = Q.json.get(docs.payload, cityPath)
 const cityTextExpr = Q.json.text(docs.payload, cityPath)
+const citySetExpr = Q.json.set(docs.payload, cityPath, "Paris")
+const cityDeleteExpr = Q.json.delete(docs.payload, cityPath)
 const firstTagExpr = Q.json.get(docs.payload, tagPath)
 const hasProfileExpr = Q.json.hasKey(docs.payload, "profile")
 const hasAnyExpr = Q.json.hasAnyKeys(docs.payload, "profile", "note")
@@ -68,6 +70,8 @@ const strippedExpr = Q.json.stripNulls(docs.payload)
 
 type City = Q.OutputOfExpression<typeof cityExpr, DocsAvailable>
 type CityText = Q.OutputOfExpression<typeof cityTextExpr, DocsAvailable>
+type CitySet = Q.OutputOfExpression<typeof citySetExpr, DocsAvailable>
+type CityDelete = Q.OutputOfExpression<typeof cityDeleteExpr, DocsAvailable>
 type FirstTag = Q.OutputOfExpression<typeof firstTagExpr, DocsAvailable>
 type HasProfile = Q.OutputOfExpression<typeof hasProfileExpr, DocsAvailable>
 type HasAny = Q.OutputOfExpression<typeof hasAnyExpr, DocsAvailable>
@@ -100,6 +104,9 @@ type JsonSelectRow = Q.ResultRow<typeof jsonSelectPlan>
 
 const city: City = "Paris"
 const cityText: CityText = "Paris"
+const citySet: CitySet["profile"]["address"]["city"] = "Paris"
+// @ts-expect-error delete removes the field from the result type
+const cityDelete: CityDelete["profile"]["address"]["city"] = "Paris"
 const firstTag: FirstTag = null
 const hasProfile: HasProfile = true
 const hasAny: HasAny = true
@@ -135,6 +142,8 @@ const selectTypeName: JsonSelectRow["typeName"] = "object"
 
 void city
 void cityText
+void citySet
+void cityDelete
 void firstTag
 void hasProfile
 void hasAny

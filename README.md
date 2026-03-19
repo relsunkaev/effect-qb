@@ -15,6 +15,7 @@ Composable, type-safe SQL query construction for PostgreSQL and MySQL with stati
   - [Left Joins: Static vs Runtime Row Types](#left-joins-static-vs-runtime-row-types)
   - [Join Variants](#join-variants)
 - [Case Expressions](#case-expressions)
+- [JSON Paths and Manipulation](#json-paths-and-manipulation)
 - [Exists Subqueries](#exists-subqueries)
 - [Set Operators](#set-operators)
 - [Aggregation and Grouping](#aggregation-and-grouping)
@@ -344,6 +345,40 @@ type StatusLabelsRow = Q.ResultRow<typeof statusLabels>
 The outer `where(...)` can make `CASE` branches unreachable, and the return type narrows accordingly when the implication engine can prove it.
 
 Other read-predicate helpers include `notIn(...)`, `isDistinctFrom(...)`, `isNotDistinctFrom(...)`, `all(...)`, and `any(...)`. `all(...)` and `any(...)` are aliases for `and(...)` and `or(...)` with the same type behavior.
+
+### JSON Paths and Manipulation
+
+JSON path objects are first-class values. Build a path once and reuse it across reads, writes, deletes, and path checks:
+
+```ts
+import * as Schema from "effect/Schema"
+import { Query as Q, Table, Column as C } from "effect-qb"
+
+const docs = Table.make("docs", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.json(Schema.Struct({
+    profile: Schema.Struct({
+      address: Schema.Struct({
+        city: Schema.String
+      })
+    })
+  }))
+})
+
+const cityPath = Q.json.path(
+  Q.json.key("profile"),
+  Q.json.key("address"),
+  Q.json.key("city")
+)
+
+const cityJson = Q.json.get(docs.payload, cityPath)
+const cityText = Q.json.text(docs.payload, cityPath)
+const updated = Q.json.set(docs.payload, cityPath, "Paris")
+const removed = Q.json.delete(docs.payload, cityPath)
+const exists = Q.json.pathExists(docs.payload, cityPath)
+```
+
+The same path object flows through every JSON operator, so you do not need to rebuild path strings for each operation.
 
 ### Exists Subqueries
 
