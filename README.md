@@ -5,6 +5,7 @@ Type-safe SQL plans that understand query semantics.
 ## Table of Contents
 
 - [Overview](#overview)
+- [What The Compiler Proves](#what-the-compiler-proves)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
@@ -44,6 +45,7 @@ Type-safe SQL plans that understand query semantics.
 - [Dialect Support](#dialect-support)
   - [PostgreSQL](#postgresql)
   - [MySQL](#mysql)
+- [Non-goals](#non-goals)
 - [Limitations](#limitations)
 - [Contributing](#contributing)
 
@@ -100,6 +102,18 @@ type LogicalRow = Q.ResultRow<typeof guaranteedPost>
 
 The main contract is compile-time. At runtime, the library renders SQL, executes it, and remaps aliased columns back into nested objects. It does not build or validate query-result schemas.
 
+## What The Compiler Proves
+
+`effect-qb` is strongest when the compiler can carry facts from one part of the query into another. In practice that means:
+
+- `where(Q.isNotNull(posts.title))` can narrow both `posts.title` and expressions derived from it
+- `leftJoin(...)` plus a proven non-null column from the joined table can promote that source from optional to required
+- `Q.CompletePlan<typeof plan>` rejects missing sources and invalid grouped selections before render or execute
+- `Postgres.Query.DialectCompatiblePlan<typeof mysqlPlan, "postgres">` rejects cross-dialect misuse
+- JSON mutation expressions still have to match the target column schema on `insert(...)` and `update(...)`
+
+Those are the core guarantees. The rest of the API exists to make those proofs composable.
+
 ## Installation
 
 ```bash
@@ -116,7 +130,7 @@ Use `effect-qb/postgres` when Postgres defaults are acceptable. Use the dialect-
 ## Quick Start
 
 ```ts
-import { Column as C, Query as Q, Renderer, Table } from "effect-qb/postgres"
+import { Column as C, Executor, Query as Q, Renderer, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -147,12 +161,18 @@ type PostsPerUserRow = Q.ResultRow<typeof postsPerUser>
 //   postCount: number
 // }
 
-const rendered = Renderer.make().render(postsPerUser)
+const renderer = Renderer.make()
+const rendered = renderer.render(postsPerUser)
 rendered.sql
 rendered.params
+
+const executor = Executor.fromSqlClient(renderer)
+const rowsEffect = executor.execute(postsPerUser)
+
+type Rows = Q.ResultRows<typeof postsPerUser>
 ```
 
-This is the core model: define typed tables, build a plan, let the plan define the row type, then render or execute it.
+This is the core model: define typed tables, build a plan, let the plan define the row type, then render or execute it through a dialect-specific renderer and executor.
 
 ## Core Concepts
 
@@ -207,25 +227,24 @@ That distinction is important:
 `Q.RuntimeResultRow<typeof plan>` is intentionally more conservative. It describes the schema-free runtime remap path only.
 
 ```ts
-const guaranteedPost = Q.select({
-  userId: users.id,
-  postId: posts.id
+const titledPosts = Q.select({
+  title: posts.title,
+  upperTitle: Q.upper(posts.title)
 }).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.where(Q.isNotNull(posts.id))
+  Q.from(posts),
+  Q.where(Q.isNotNull(posts.title))
 )
 
-type LogicalRow = Q.ResultRow<typeof guaranteedPost>
+type LogicalRow = Q.ResultRow<typeof titledPosts>
 // {
-//   userId: string
-//   postId: string
+//   title: string
+//   upperTitle: string
 // }
 
-type RuntimeRow = Q.RuntimeResultRow<typeof guaranteedPost>
+type RuntimeRow = Q.RuntimeResultRow<typeof titledPosts>
 // {
-//   userId: string
-//   postId: string | null
+//   title: string | null
+//   upperTitle: string | null
 // }
 ```
 
@@ -357,33 +376,22 @@ The same source story applies to:
 Predicates do more than render SQL. They can narrow result types.
 
 ```ts
-const allPosts = Q.select({
-  title: posts.title,
-  upperTitle: Q.upper(posts.title)
-}).pipe(
-  Q.from(posts)
-)
-
-type AllPostsRow = Q.ResultRow<typeof allPosts>
-// {
-//   title: string | null
-//   upperTitle: string | null
-// }
-
-const titledPosts = Q.select({
+const matchingPosts = Q.select({
   title: posts.title,
   upperTitle: Q.upper(posts.title)
 }).pipe(
   Q.from(posts),
-  Q.where(Q.isNotNull(posts.title))
+  Q.where(Q.eq(posts.title, "Hello"))
 )
 
-type TitledPostsRow = Q.ResultRow<typeof titledPosts>
+type MatchingPostsRow = Q.ResultRow<typeof matchingPosts>
 // {
 //   title: string
 //   upperTitle: string
 // }
 ```
+
+Equality against a non-null value is enough to prove the nullable column is present.
 
 That same narrowing feeds:
 
@@ -709,10 +717,10 @@ Those types are narrower than the raw dialect error catalogs. For example, known
 ### Transaction Helpers
 
 ```ts
-import { Executor } from "effect-qb/postgres"
+import * as Postgres from "effect-qb/postgres"
 
-const transactional = Executor.withTransaction(rowsEffect)
-const savepoint = Executor.withSavepoint(rowsEffect)
+const transactional = Postgres.Executor.withTransaction(rowsEffect)
+const savepoint = Postgres.Executor.withSavepoint(rowsEffect)
 ```
 
 These preserve the original effect type parameters and add the ambient SQL transaction boundary.
@@ -749,16 +757,16 @@ Predicates refine result types, not just SQL.
 ```ts
 const filteredPosts = Q.select({
   title: posts.title,
-  upperTitle: Q.upper(posts.title)
+  lowerTitle: Q.lower(posts.title)
 }).pipe(
   Q.from(posts),
-  Q.where(Q.isNotNull(posts.title))
+  Q.where(Q.eq(posts.title, "Hello"))
 )
 
 type FilteredPostsRow = Q.ResultRow<typeof filteredPosts>
 // {
 //   title: string
-//   upperTitle: string
+//   lowerTitle: string
 // }
 ```
 
@@ -771,7 +779,8 @@ Left joins start conservative. Predicates can promote them.
 ```ts
 const maybePosts = Q.select({
   userId: users.id,
-  postId: posts.id
+  postId: posts.id,
+  title: posts.title
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId))
@@ -781,10 +790,22 @@ type MaybePostsRow = Q.ResultRow<typeof maybePosts>
 // {
 //   userId: string
 //   postId: string | null
+//   title: string | null
+// }
+
+const guaranteedPosts = maybePosts.pipe(
+  Q.where(Q.isNotNull(posts.title))
+)
+
+type GuaranteedPostsRow = Q.ResultRow<typeof guaranteedPosts>
+// {
+//   userId: string
+//   postId: string
+//   title: string
 // }
 ```
 
-Add `where(Q.isNotNull(posts.id))` and the logical row type becomes non-null for `postId`.
+Any proven non-null column from the optional joined source can promote that source. The same effect applies to predicates like `where(Q.eq(posts.title, "Hello"))`.
 
 ### Grouped Query Validation
 
@@ -807,9 +828,24 @@ type InvalidGroupedPlan = Q.CompletePlan<typeof invalidGroupedPlan>
 //   __effect_qb_hint__:
 //     "Scalar selections must be covered by groupBy(...) when aggregates are present"
 // }
+
+const validGroupedPlan = Q.select({
+  userId: users.id,
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(users.id)
+)
+
+type ValidGroupedRow = Q.ResultRow<typeof validGroupedPlan>
+// {
+//   userId: string
+//   postCount: number
+// }
 ```
 
-This catches invalid grouped queries before rendering.
+This catches invalid grouped queries before rendering. The fix is explicit: either group by the scalar expression too, or remove it from the projection.
 
 ### Dialect Compatibility
 
@@ -868,6 +904,13 @@ const cityPath = Q.json.path(
   Q.json.key("city")
 )
 
+const updatedPayload = Q.json.set(docs.payload, cityPath, "Paris")
+
+Q.insert(docs, {
+  id: "doc-1",
+  payload: updatedPayload
+})
+
 const deletedRequiredField = Q.json.delete(docs.payload, cityPath)
 
 Q.insert(docs, {
@@ -895,7 +938,7 @@ That makes invalid plans easier to inspect in editor tooltips and type aliases.
 
 ### PostgreSQL
 
-- primary package entrypoint
+- recommended entrypoint when Postgres defaults are acceptable
 - `distinctOn(...)`
 - wider JSON operator surface, including `json.pathMatch(...)`
 - schema-qualified tables default to `public`
@@ -909,12 +952,50 @@ That makes invalid plans easier to inspect in editor tooltips and type aliases.
 - schema names map to database-qualified table references
 - `Mysql.Executor.MysqlQueryError<typeof plan>`
 
+```ts
+import * as Mysql from "effect-qb/mysql"
+import * as Postgres from "effect-qb/postgres"
+
+const pgUsers = Postgres.Table.make("users", {
+  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+})
+
+const myUsers = Mysql.Table.make("users", {
+  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+})
+
+const pgPlan = Postgres.Query.select({
+  id: pgUsers.id
+}).pipe(
+  Postgres.Query.from(pgUsers)
+)
+
+const myPlan = Mysql.Query.select({
+  id: myUsers.id
+}).pipe(
+  Mysql.Query.from(myUsers)
+)
+
+Postgres.Renderer.make().render(pgPlan).sql
+// select "users"."id" as "id" from "public"."users"
+
+Mysql.Renderer.make().render(myPlan).sql
+// select `users`.`id` as `id` from `users`
+```
+
 Meaningful differences should be expected around:
 
 - JSON operator support
 - mutation syntax
 - error normalization
 - schema defaults
+
+## Non-goals
+
+- no ORM model layer, identity map, or unit-of-work abstraction
+- no migration framework or schema diff tool
+- no runtime result validation by default
+- no database-introspection-first API that generates queries for you
 
 ## Limitations
 
