@@ -18,31 +18,20 @@ const mysqlUsers = Mysql.Table.make("users", {
   bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
 })
 
-const insertManyPlan = Q.insertMany(users, [
+const valuesSource = Q.values([
   {
-    id: "user-id",
+    id: Q.literal("user-id"),
     email: "alice@example.com",
     bio: null
   },
   {
-    id: "user-id-2",
+    id: Q.literal("user-id-2"),
     email: "bob@example.com",
     bio: "writer"
   }
-])
+], "seed")
 
-const insertValuesPlan = Q.insertFrom(users, Q.insertValues([
-  {
-    id: "user-id",
-    email: "alice@example.com",
-    bio: null
-  },
-  {
-    id: "user-id-2",
-    email: "bob@example.com",
-    bio: "writer"
-  }
-]))
+const insertValuesPlan = Q.insertFrom(users, valuesSource)
 
 const insertUnnestPlan = Q.insertFrom(users, Q.insertUnnest({
   id: ["user-id", "user-id-2"],
@@ -74,13 +63,10 @@ const insertConflictPlan = Q.onConflict({
   bio: "writer"
 }))
 
-type InsertManyStatement = Q.StatementOfPlan<typeof insertManyPlan>
-type InsertManyCapabilities = Q.CapabilitiesOfPlan<typeof insertManyPlan>
-const insertManyStatement: InsertManyStatement = "insert"
-const insertManyCapability: InsertManyCapabilities = "write"
-void insertManyStatement
-void insertManyCapability
 void insertValuesPlan
+type InsertValuesCapabilities = Q.CapabilitiesOfPlan<typeof insertValuesPlan>
+const insertValuesCapability: InsertValuesCapabilities = "write"
+void insertValuesCapability
 void insertUnnestPlan
 void insertSelectPlan
 void defaultValuesPlan

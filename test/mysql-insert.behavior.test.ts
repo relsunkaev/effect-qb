@@ -18,10 +18,12 @@ describe("mysql insert behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const multiRowPlan = Mysql.Query.insertMany(users, [
-      { id: userId, email: "alice@example.com", bio: null },
-      { id: secondUserId, email: "bob@example.com", bio: "writer" }
-    ] as const)
+    const valuesSource = Mysql.Query.values([
+      { id: Mysql.Query.literal(userId), email: "alice@example.com", bio: null },
+      { id: Mysql.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
+    ] as const, "seed")
+
+    const multiRowPlan = Mysql.Query.insertFrom(users, valuesSource)
 
     const insertSelectPlan = Mysql.Query.insertFrom(archivedUsers, Mysql.Query.select({
       id: users.id,
@@ -57,6 +59,23 @@ describe("mysql insert behavior", () => {
       "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"
     )
     expect(Mysql.Renderer.make().render(insertUnnestPlan).params).toEqual([
+      userId,
+      "alice@example.com",
+      secondUserId,
+      "bob@example.com",
+      "writer"
+    ])
+
+    const updateFromValuesPlan = Mysql.Query.update(users, {
+      email: valuesSource.email
+    }).pipe(
+      Mysql.Query.innerJoin(valuesSource, Mysql.Query.eq(users.id, valuesSource.id))
+    )
+
+    expect(Mysql.Renderer.make().render(updateFromValuesPlan).sql).toBe(
+      "update `users` inner join (select ? as `id`, ? as `email`, null as `bio` union all select ? as `id`, ? as `email`, ? as `bio`) as `seed`(`id`, `email`, `bio`) on (`users`.`id` = `seed`.`id`) set `email` = `seed`.`email`"
+    )
+    expect(Mysql.Renderer.make().render(updateFromValuesPlan).params).toEqual([
       userId,
       "alice@example.com",
       secondUserId,

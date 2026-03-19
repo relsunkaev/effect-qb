@@ -895,10 +895,12 @@ describe("mysql dialect behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const multiRowPlan = Mysql.Query.insertMany(users, [
-      { id: userId, email: "alice@example.com", bio: null },
-      { id: secondUserId, email: "bob@example.com", bio: "writer" }
-    ] as const)
+    const valuesSource = Mysql.Query.values([
+      { id: Mysql.Query.literal(userId), email: "alice@example.com", bio: null },
+      { id: Mysql.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
+    ] as const, "seed")
+
+    const multiRowPlan = Mysql.Query.insertFrom(users, valuesSource)
 
     const insertSelectPlan = Mysql.Query.insertFrom(archivedUsers, Mysql.Query.select({
       id: users.id,

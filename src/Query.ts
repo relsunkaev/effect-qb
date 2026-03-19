@@ -470,8 +470,11 @@ export type LateralSource<
   readonly columns: DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias>
 }
 
-/** Wrapper returned by `values(rows, alias)` for standalone row sources. */
+type ValuesRowInput = Record<string, ExpressionInput>
+
+/** Wrapper returned by `values(rows, alias)` for standalone row sources and insert sources. */
 export type ValuesSource<
+  Rows extends readonly [ValuesRowInput, ...ValuesRowInput[]],
   Selection extends SelectionShape,
   Alias extends string,
   Dialect extends string
@@ -480,8 +483,18 @@ export type ValuesSource<
   readonly name: Alias
   readonly baseName: Alias
   readonly dialect: Dialect
-  readonly rows: readonly Selection[]
+  readonly rows: Rows
   readonly columns: DerivedSelectionOf<Selection, Alias>
+}
+
+/** Broad structural shape for `values(...)` sources when used as composable inputs. */
+export type AnyValuesSource = {
+  readonly kind: "values"
+  readonly name: string
+  readonly baseName: string
+  readonly dialect: string
+  readonly rows: readonly Record<string, ExpressionInput>[]
+  readonly columns: Record<string, Expression.Any>
 }
 
 /** Wrapper returned by `unnest(columns, alias)` for standalone array sources. */

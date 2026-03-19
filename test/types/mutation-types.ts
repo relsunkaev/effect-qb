@@ -27,30 +27,19 @@ const insertPlan = Q.insert(users, {
   email: "alice@example.com",
   bio: null
 })
-const insertManyPlan = Q.insertMany(users, [
+const valuesSource = Q.values([
   {
-    id: "user-id",
+    id: Q.cast(Q.literal("user-id"), Q.type.uuid()),
     email: "alice@example.com",
     bio: null
   },
   {
-    id: "user-id-2",
+    id: Q.cast(Q.literal("user-id-2"), Q.type.uuid()),
     email: "bob@example.com",
     bio: "writer"
   }
-])
-const insertValuesPlan = Q.insertFrom(users, Q.insertValues([
-  {
-    id: "user-id",
-    email: "alice@example.com",
-    bio: null
-  },
-  {
-    id: "user-id-2",
-    email: "bob@example.com",
-    bio: "writer"
-  }
-]))
+], "seed")
+const insertValuesPlan = Q.insertFrom(users, valuesSource)
 const insertUnnestPlan = Q.insertFrom(users, Q.insertUnnest({
   id: ["user-id", "user-id-2"],
   email: ["alice@example.com", "bob@example.com"],
@@ -82,35 +71,59 @@ const updatePlan = Q.update(users, {
   email: "updated@example.com",
   bio: null
 })
+const updateValuesSource = Q.values([
+  {
+    id: Q.cast(Q.literal("user-id"), Q.type.uuid()),
+    email: Q.literal("updated@example.com")
+  },
+  {
+    id: Q.cast(Q.literal("user-id-2"), Q.type.uuid()),
+    email: Q.literal("bob@example.com")
+  }
+], "incoming_users")
+
+const updateValuesId = Q.cast(updateValuesSource.id, Q.type.uuid())
+
+const updateFromValuesPlan = Q.innerJoin(updateValuesSource, Q.eq(users.id, updateValuesId))(
+  Q.update(users, {
+    email: updateValuesSource.email
+  })
+)
 
 const deletePlan = Q.delete(users)
 
 type InsertStatement = Q.StatementOfPlan<typeof insertPlan>
-type InsertManyStatement = Q.StatementOfPlan<typeof insertManyPlan>
+type InsertValuesStatement = Q.StatementOfPlan<typeof insertValuesPlan>
 type UpdateStatement = Q.StatementOfPlan<typeof updatePlan>
+type UpdateFromValuesStatement = Q.StatementOfPlan<typeof updateFromValuesPlan>
 type DeleteStatement = Q.StatementOfPlan<typeof deletePlan>
 
 const insertStatement: InsertStatement = "insert"
-const insertManyStatement: InsertManyStatement = "insert"
+const insertValuesStatement: InsertValuesStatement = "insert"
 const updateStatement: UpdateStatement = "update"
+const updateFromValuesStatement: UpdateFromValuesStatement = "update"
 const deleteStatement: DeleteStatement = "delete"
 void insertStatement
-void insertManyStatement
+void insertValuesStatement
 void updateStatement
+void updateFromValuesStatement
 void deleteStatement
 
 type InsertCapabilities = Q.CapabilitiesOfPlan<typeof insertPlan>
-type InsertManyCapabilities = Q.CapabilitiesOfPlan<typeof insertManyPlan>
+type InsertValuesCapabilities = Q.CapabilitiesOfPlan<typeof insertValuesPlan>
 type UpdateCapabilities = Q.CapabilitiesOfPlan<typeof updatePlan>
+type UpdateFromValuesCapabilities = Q.CapabilitiesOfPlan<typeof updateFromValuesPlan>
 type DeleteCapabilities = Q.CapabilitiesOfPlan<typeof deletePlan>
 
 const insertCapability: InsertCapabilities = "write"
-const insertManyCapability: InsertManyCapabilities = "write"
+const insertValuesCapability: InsertValuesCapabilities = "write"
 const updateCapability: UpdateCapabilities = "write"
+const updateFromValuesCapability: UpdateFromValuesCapabilities = "write"
 const deleteCapability: DeleteCapabilities = "write"
 void insertCapability
-void insertManyCapability
+void insertValuesCapability
 void updateCapability
+void updateFromValuesCapability
 void deleteCapability
 void insertValuesPlan
 void insertUnnestPlan

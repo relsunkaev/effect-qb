@@ -52,6 +52,7 @@ import {
   type PlanDialectOf,
   type PredicateInput,
   type QueryPlan,
+  type OutputOfSelection,
   type ScalarOutputOfPlan,
   type RequiredFromDependencies,
   type RequiredOfPlan,
@@ -75,6 +76,7 @@ import {
   type SourceLike,
   type SourceNameOf,
   type ValuesSource,
+  type AnyValuesSource,
   type UnnestSource,
   type TableFunctionSource,
   type StringExpressionInput,
@@ -3712,13 +3714,13 @@ export function makeDialectQuery<
     const firstRow = rows[0]
     const firstColumns = Object.keys(firstRow)
     if (firstColumns.length === 0) {
-      throw new Error("insertValues(...) rows must specify at least one column; use defaultValues(...) instead")
+      throw new Error("values(...) rows must specify at least one column; use defaultValues(...) instead")
     }
     const columns = firstColumns as [string, ...string[]]
     const normalizedRows = rows.map((row) => {
       const rowKeys = Object.keys(row)
       if (rowKeys.length !== columns.length || columns.some((column) => !(column in row))) {
-        throw new Error("All insertValues(...) rows must project the same columns in the same shape")
+        throw new Error("All values(...) rows must project the same columns in the same shape")
       }
       const assignments = buildMutationAssignments(target, row) as readonly QueryAst.AssignmentClause[]
       return {
@@ -3890,11 +3892,6 @@ type RequiredKeys<Shape> = Extract<{
 
 type InsertRowInput<Target extends MutationTargetLike> = MutationInputOf<Table.InsertOf<Target>>
 
-type InsertValuesSource<Shape extends Record<string, unknown>> = {
-  readonly kind: "insertValues"
-  readonly rows: readonly [Shape, ...Shape[]]
-}
-
 type InsertUnnestSource<Shape extends Record<string, readonly unknown[] | undefined>> = {
   readonly kind: "insertUnnest"
   readonly values: Shape
@@ -4065,12 +4062,12 @@ type InsertSourceInput<
   Dialect extends string,
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> = QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > =
-  | InsertValuesSource<InsertRowInput<Target>>
+  | AnyValuesSource
   | InsertUnnestSource<{ readonly [K in keyof Table.InsertOf<Target>]?: readonly Table.InsertOf<Target>[K][] }>
   | InsertSelectSource<Target, PlanValue, Dialect>
 
 type InsertSourceRequired<Source> =
-  Source extends InsertValuesSource<infer Shape extends Record<string, unknown>> ? MutationRequiredFromValues<Shape> :
+  Source extends AnyValuesSource ? NestedMutationRequiredFromValues<Source["rows"][number]> :
     Source extends InsertUnnestSource<any> ? never :
       Source extends QueryPlan<any, any, any, any, any, any, any, any, any, any> ? RequiredOfPlan<Source> :
         never
@@ -4292,6 +4289,7 @@ type MergeRequiredFromPredicate<
     rows: Rows,
     alias: Alias
   ): ValuesSource<
+    Rows,
     ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Alias,
     Dialect
@@ -4328,6 +4326,7 @@ type MergeRequiredFromPredicate<
       columns
     }
     return Object.assign(source, columns) as unknown as ValuesSource<
+      Rows,
       ValuesOutputShape<Rows[0], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       Alias,
       Dialect
@@ -4879,12 +4878,7 @@ type MergeRequiredFromPredicate<
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
-      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
-        ? table.name
-        : (table as TableLike)[Table.TypeId].name
-      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
-        ? table.baseName
-        : (table as TableLike)[Table.TypeId].baseName
+      const { sourceName, sourceBaseName } = sourceDetails(table)
       const nextAvailable = Object.assign(
         {},
         current.available as AvailableOfPlan<PlanValue>,
@@ -4944,12 +4938,7 @@ type MergeRequiredFromPredicate<
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
       const onExpression = toDialectExpression(on)
-      const sourceName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
-        ? table.name
-        : (table as TableLike)[Table.TypeId].name
-      const sourceBaseName = "kind" in table && (table.kind === "derived" || table.kind === "cte" || table.kind === "lateral")
-        ? table.baseName
-        : (table as TableLike)[Table.TypeId].baseName
+      const { sourceName, sourceBaseName } = sourceDetails(table)
       const baseAvailable = (kind === "right" || kind === "full"
         ? Object.fromEntries(
           Object.entries(current.available as Record<string, Plan.Source>).map(([name, source]) => [name, {
@@ -5406,13 +5395,6 @@ type MergeRequiredFromPredicate<
     }, undefined as unknown as TrueFormula, "write", "insert")
   }
 
-  const insertValues = <Shape extends Record<string, unknown>>(
-    rows: readonly [Shape, ...Shape[]]
-  ): InsertValuesSource<Shape> => ({
-    kind: "insertValues",
-    rows
-  })
-
   const insertUnnest = <Shape extends Record<string, readonly unknown[]>>(
     values: Shape
   ): InsertUnnestSource<Shape> => ({
@@ -5420,17 +5402,9 @@ type MergeRequiredFromPredicate<
     values
   })
 
-  const insertMany = <
-    Target extends MutationTargetLike,
-    Rows extends readonly [InsertRowInput<Target>, ...InsertRowInput<Target>[]]
-  >(
-    target: Target,
-    rows: Rows
-  ) => insertFrom(target, insertValues(rows))
-
   function insertFrom<
     Target extends MutationTargetLike,
-    Source extends InsertSourceInput<Target, Dialect, any>
+    Source extends AnyValuesSource
   >(
     target: Target,
     source: Source
@@ -5445,7 +5419,47 @@ type MergeRequiredFromPredicate<
     TrueFormula,
     "write",
     "insert"
-  > {
+  >
+  function insertFrom<
+    Target extends MutationTargetLike,
+    Source extends InsertUnnestSource<any>
+  >(
+    target: Target,
+    source: Source
+  ): QueryPlan<
+    {},
+    Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
+    AddAvailable<{}, SourceNameOf<Target>>,
+    TableDialectOf<Target>,
+    never,
+    SourceNameOf<Target>,
+    Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
+    TrueFormula,
+    "write",
+    "insert"
+  >
+  function insertFrom<
+    Target extends MutationTargetLike,
+    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  >(
+    target: Target,
+    source: InsertSelectSource<Target, PlanValue, Dialect>
+  ): QueryPlan<
+    {},
+    Exclude<InsertSourceRequired<PlanValue>, SourceNameOf<Target>>,
+    AddAvailable<{}, SourceNameOf<Target>>,
+    TableDialectOf<Target>,
+    never,
+    SourceNameOf<Target>,
+    Exclude<InsertSourceRequired<PlanValue>, SourceNameOf<Target>>,
+    TrueFormula,
+    "write",
+    "insert"
+  >
+  function insertFrom(
+    target: MutationTargetLike,
+    source: AnyValuesSource | InsertUnnestSource<any> | InsertSelectSource<any, any, Dialect>
+  ): QueryPlan<any, any, any, any, any, any, any, any, any, "insert"> {
     const { sourceName, sourceBaseName } = targetSourceDetails(target)
     const available = {
       [sourceName]: {
@@ -5453,16 +5467,16 @@ type MergeRequiredFromPredicate<
         mode: "required" as const,
         baseName: sourceBaseName
       }
-    } as AddAvailable<{}, SourceNameOf<Target>>
+    } as AddAvailable<{}, string>
 
-    if (typeof source === "object" && source !== null && "kind" in source && source.kind === "insertValues") {
-      const valuesSource = source as unknown as InsertValuesSource<InsertRowInput<Target>>
-      const normalized = buildInsertValuesRows(target, valuesSource.rows as readonly [InsertRowInput<Target>, ...InsertRowInput<Target>[]])
+    if (typeof source === "object" && source !== null && "kind" in source && source.kind === "values") {
+      const valuesSource = source as AnyValuesSource
+      const normalized = buildInsertValuesRows(target, valuesSource.rows as readonly [InsertRowInput<MutationTargetLike>, ...InsertRowInput<MutationTargetLike>[]])
       return makePlan({
         selection: {},
-        required: normalized.required.filter((name) => name !== sourceName) as Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
+        required: normalized.required.filter((name) => name !== sourceName) as any,
         available,
-        dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+        dialect: target[Plan.TypeId].dialect as TableDialectOf<any>
       }, {
         kind: "insert",
         select: {},
@@ -5487,13 +5501,13 @@ type MergeRequiredFromPredicate<
     }
 
     if (typeof source === "object" && source !== null && "kind" in source && source.kind === "insertUnnest") {
-      const unnestSource = source as unknown as InsertUnnestSource<{ readonly [K in keyof Table.InsertOf<Target>]?: readonly Table.InsertOf<Target>[K][] }>
-      const normalized = normalizeInsertUnnestValues(target, unnestSource.values as { readonly [K in keyof Table.InsertOf<Target>]?: readonly Table.InsertOf<Target>[K][] })
+      const unnestSource = source as unknown as InsertUnnestSource<any>
+      const normalized = normalizeInsertUnnestValues(target, unnestSource.values as any)
       return makePlan({
         selection: {},
-        required: [] as Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
+        required: [] as any,
         available,
-        dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+        dialect: target[Plan.TypeId].dialect as TableDialectOf<any>
       }, {
         kind: "insert",
         select: {},
@@ -5523,9 +5537,9 @@ type MergeRequiredFromPredicate<
     return makePlan({
       selection: {},
       required: currentRequiredList(plan[Plan.TypeId].required).filter((name) =>
-        name !== sourceName) as unknown as Exclude<InsertSourceRequired<Source>, SourceNameOf<Target>>,
+        name !== sourceName) as any,
       available,
-      dialect: target[Plan.TypeId].dialect as TableDialectOf<Target>
+      dialect: target[Plan.TypeId].dialect as TableDialectOf<any>
     }, {
       kind: "insert",
       select: {},
@@ -6426,10 +6440,8 @@ type MergeRequiredFromPredicate<
     generateSeries,
     returning,
     defaultValues,
-    insertValues,
     insertUnnest,
     insertFrom,
-    insertMany,
     onConflict,
     insert,
     update,

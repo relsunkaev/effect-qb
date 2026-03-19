@@ -18,10 +18,12 @@ describe("postgres insert behavior", () => {
       bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
     })
 
-    const multiRowPlan = Postgres.Query.insertMany(users, [
-      { id: userId, email: "alice@example.com", bio: null },
-      { id: secondUserId, email: "bob@example.com", bio: "writer" }
-    ] as const)
+    const valuesSource = Postgres.Query.values([
+      { id: Postgres.Query.literal(userId), email: "alice@example.com", bio: null },
+      { id: Postgres.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
+    ] as const, "seed")
+
+    const multiRowPlan = Postgres.Query.insertFrom(users, valuesSource)
 
     const insertSelectPlan = Postgres.Query.insertFrom(archivedUsers, Postgres.Query.select({
       id: users.id,
@@ -60,6 +62,23 @@ describe("postgres insert behavior", () => {
       [userId, secondUserId],
       ["alice@example.com", "bob@example.com"],
       [null, "writer"]
+    ])
+
+    const updateFromValuesPlan = Postgres.Query.update(users, {
+      email: valuesSource.email
+    }).pipe(
+      Postgres.Query.innerJoin(valuesSource, Postgres.Query.eq(users.id, valuesSource.id))
+    )
+
+    expect(Postgres.Renderer.make().render(updateFromValuesPlan).sql).toBe(
+      'update "public"."users" set "email" = "seed"."email" from (select $1 as "id", $2 as "email", null as "bio" union all select $3 as "id", $4 as "email", $5 as "bio") as "seed"("id", "email", "bio") where ("users"."id" = "seed"."id")'
+    )
+    expect(Postgres.Renderer.make().render(updateFromValuesPlan).params).toEqual([
+      userId,
+      "alice@example.com",
+      secondUserId,
+      "bob@example.com",
+      "writer"
     ])
   })
 

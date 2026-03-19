@@ -916,10 +916,12 @@ describe("postgres dialect behavior", () => {
       bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
     })
 
-    const multiRowPlan = Postgres.Query.insertMany(users, [
-      { id: userId, email: "alice@example.com", bio: null },
-      { id: secondUserId, email: "bob@example.com", bio: "writer" }
-    ] as const)
+    const valuesSource = Postgres.Query.values([
+      { id: Postgres.Query.literal(userId), email: "alice@example.com", bio: null },
+      { id: Postgres.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
+    ] as const, "seed")
+
+    const multiRowPlan = Postgres.Query.insertFrom(users, valuesSource)
 
     const insertSelectPlan = Postgres.Query.insertFrom(archivedUsers, Postgres.Query.select({
       id: users.id,
