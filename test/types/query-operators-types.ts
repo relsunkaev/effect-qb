@@ -1,4 +1,7 @@
+import * as Mysql from "../../src/mysql.ts"
+import * as Postgres from "../../src/postgres.ts"
 import { Column as C, Query as Q, Table } from "../../src/index.ts"
+import type { BrandedErrorOf } from "../helpers/branded-error.ts"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -130,3 +133,23 @@ const aliasRow: AliasRow = {
   }
 }
 void aliasRow
+
+const postgresDistinctOnPlan = Postgres.Query.select({
+  id: users.id,
+  email: users.email
+}).pipe(
+  Postgres.Query.from(users),
+  Postgres.Query.distinctOn(users.email),
+  Postgres.Query.orderBy(users.email),
+  Postgres.Query.orderBy(users.id)
+)
+
+type PostgresDistinctOnRow = Postgres.Query.ResultRow<typeof postgresDistinctOnPlan>
+const postgresDistinctOnEmail: PostgresDistinctOnRow["email"] = "alice@example.com"
+void postgresDistinctOnEmail
+void postgresDistinctOnPlan
+
+type MysqlDistinctOnError = BrandedErrorOf<typeof Mysql.Query.distinctOn>
+const mysqlDistinctOnError: MysqlDistinctOnError =
+  "effect-qb: distinctOn(...) is only supported by the postgres dialect"
+void mysqlDistinctOnError

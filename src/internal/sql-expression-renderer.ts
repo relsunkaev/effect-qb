@@ -697,7 +697,11 @@ export const renderQueryAst = (
       validateAggregationSelection(ast.select as SelectionValue, ast.groupBy)
       const rendered = renderSelectionList(ast.select as Record<string, unknown>, state, dialect, false)
       projections = rendered.projections
-      const clauses = [`select${ast.distinct ? " distinct" : ""} ${rendered.sql}`]
+      const clauses = [
+        ast.distinctOn && ast.distinctOn.length > 0
+          ? `select distinct on (${ast.distinctOn.map((value) => renderExpression(value, state, dialect)).join(", ")}) ${rendered.sql}`
+          : `select${ast.distinct ? " distinct" : ""} ${rendered.sql}`
+      ]
       if (ast.from) {
         clauses.push(`from ${renderSourceReference(ast.from.source, ast.from.tableName, ast.from.baseTableName, state, dialect)}`)
       }

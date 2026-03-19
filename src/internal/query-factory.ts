@@ -3951,6 +3951,31 @@ type GenerateSeriesUnsupportedError<Dialect extends string> = {
   readonly __effect_qb_hint__: "Use postgres.Query.generateSeries(...) or emulate a series with a recursive CTE"
 }
 
+type DistinctOnUnsupportedError<Dialect extends string> = {
+  readonly __effect_qb_error__: "effect-qb: distinctOn(...) is only supported by the postgres dialect"
+  readonly __effect_qb_dialect__: Dialect
+  readonly __effect_qb_hint__: "Use postgres.Query.distinctOn(...) or regular distinct()/grouping logic"
+}
+
+type DistinctOnApi<Dialect extends string> = Dialect extends "postgres"
+  ? <Values extends readonly ExpressionInput[]>(
+      ...values: Values
+    ) => <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & RequireSelectStatement<PlanValue>
+    ) => QueryPlan<
+      SelectionOfPlan<PlanValue>,
+      RequiredOfPlan<PlanValue>,
+      AvailableOfPlan<PlanValue>,
+      PlanDialectOf<PlanValue>,
+      GroupedOfPlan<PlanValue>,
+      ScopedNamesOfPlan<PlanValue>,
+      OutstandingOfPlan<PlanValue>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>,
+      StatementOfPlan<PlanValue>
+    >
+  : DistinctOnUnsupportedError<Dialect>
+
 type InsertPlanStatementError<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > = PlanValue & {
@@ -5109,6 +5134,45 @@ type MergeRequiredFromPredicate<
         distinct: true
       }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
     }
+
+  const distinctOn = ((...values: readonly ExpressionInput[]) => {
+    const expressions = values.map((value) => toDialectExpression(value)) as Expression.Any[]
+    if (profile.dialect !== "postgres") {
+      return {
+        __effect_qb_error__: "effect-qb: distinctOn(...) is only supported by the postgres dialect",
+        __effect_qb_dialect__: profile.dialect,
+        __effect_qb_hint__: "Use postgres.Query.distinctOn(...) or regular distinct()/grouping logic"
+      } as DistinctOnUnsupportedError<Dialect>
+    }
+    return <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & RequireSelectStatement<PlanValue>
+    ): QueryPlan<
+      SelectionOfPlan<PlanValue>,
+      RequiredOfPlan<PlanValue>,
+      AvailableOfPlan<PlanValue>,
+      PlanDialectOf<PlanValue>,
+      GroupedOfPlan<PlanValue>,
+      ScopedNamesOfPlan<PlanValue>,
+      OutstandingOfPlan<PlanValue>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>,
+      StatementOfPlan<PlanValue>
+    > => {
+      const current = plan[Plan.TypeId]
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      return makePlan({
+        selection: current.selection,
+        required: current.required as RequiredOfPlan<PlanValue>,
+        available: current.available,
+        dialect: current.dialect as PlanDialectOf<PlanValue>
+      }, {
+        ...currentAst,
+        distinct: true,
+        distinctOn: expressions
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+    }
+  }) as DistinctOnApi<Dialect>
 
   const limit = <Value extends NumericExpressionInput>(
     value: Value
@@ -6399,6 +6463,7 @@ type MergeRequiredFromPredicate<
     fullJoin,
     crossJoin,
     distinct,
+    distinctOn,
     limit,
     offset,
     lock,

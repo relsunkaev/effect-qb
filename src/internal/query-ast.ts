@@ -267,6 +267,7 @@ export interface Ast<
   readonly kind: Statement
   readonly select: Selection
   readonly distinct?: boolean
+  readonly distinctOn?: readonly Expression.Any[]
   readonly setBase?: unknown
   readonly recursive?: boolean
   readonly from?: FromClause

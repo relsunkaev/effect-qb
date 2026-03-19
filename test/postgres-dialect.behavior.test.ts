@@ -292,6 +292,27 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual(["%@example.com", 5, 10])
   })
 
+  test("renders distinct on with postgres parameter ordering", () => {
+    const { users } = makePostgresSocialGraph()
+
+    const plan = Postgres.Query.select({
+      id: users.id,
+      email: users.email
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.distinctOn(users.email),
+      Postgres.Query.orderBy(users.email),
+      Postgres.Query.orderBy(users.id)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select distinct on ("users"."email") "users"."id" as "id", "users"."email" as "email" from "public"."users" order by "users"."email" asc, "users"."id" asc'
+    )
+    expect(rendered.params).toEqual([])
+  })
+
   test("renders the extended read predicate surface with postgres-specific operators", () => {
     const { users } = makePostgresSocialGraph()
 

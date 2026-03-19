@@ -141,6 +141,7 @@ export const rightJoin = mysqlQuery.rightJoin
 export const fullJoin = mysqlQuery.fullJoin
 export const crossJoin = mysqlQuery.crossJoin
 export const distinct = mysqlQuery.distinct
+export const distinctOn = mysqlQuery.distinctOn
 export const limit = mysqlQuery.limit
 export const offset = mysqlQuery.offset
 export const lock = mysqlQuery.lock

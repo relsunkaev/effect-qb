@@ -141,6 +141,7 @@ export const rightJoin = postgresQuery.rightJoin
 export const fullJoin = postgresQuery.fullJoin
 export const crossJoin = postgresQuery.crossJoin
 export const distinct = postgresQuery.distinct
+export const distinctOn = postgresQuery.distinctOn
 export const limit = postgresQuery.limit
 export const offset = postgresQuery.offset
 export const lock = postgresQuery.lock
