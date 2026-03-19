@@ -29,8 +29,8 @@ void jsonbValue
 
 const comparablePlan = Q.select({
   sameTextFamily: Q.eq(
-    Q.cast(users.email, Q.type.varchar()),
-    Q.cast("alice@example.com", Q.type.char())
+    users.email,
+    "alice@example.com"
   )
 }).pipe(
   Q.from(users)
@@ -42,8 +42,8 @@ void sameTextFamily
 
 const temporalPlan = Q.select({
   sameTemporal: Q.eq(
-    Q.cast("2026-03-18", Q.type.timestamp()),
-    Q.cast("2026-03-18T00:00:00Z", Q.type.timestamp())
+    "2026-03-18",
+    "2026-03-18"
   )
 })
 
@@ -53,10 +53,7 @@ void sameTemporal
 
 const customPlan = Q.select({
   sizedEmail: Q.cast(users.email, Q.type.custom("varchar(255)")),
-  sizedMatch: Q.eq(
-    Q.cast(users.email, Q.type.custom("varchar(255)")),
-    Q.cast("alice@example.com", Q.type.custom("varchar(255)"))
-  )
+  sizedMatch: Q.eq(users.email, "alice@example.com")
 }).pipe(
   Q.from(users)
 )

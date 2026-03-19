@@ -112,19 +112,17 @@ const filteredOptionalSource = Q.select({
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.where(Q.and(
-    Q.isNotNull(posts.title),
-    Q.eq(posts.id, Q.cast("00000000-0000-0000-0000-000000000018", Q.type.uuid()))
-  ))
+  Q.where(Q.isNotNull(posts.title))
 )
 
 type FilteredOptionalSourceRow = Q.ResultRow<typeof filteredOptionalSource>
-const filteredUserId: FilteredOptionalSourceRow["userId"] = null
-const filteredPostId: FilteredOptionalSourceRow["postId"] = null
-const filteredPostTitle: FilteredOptionalSourceRow["postTitle"] = null
-const filteredUpperPostTitle: FilteredOptionalSourceRow["upperPostTitle"] = null
+const filteredUserId: FilteredOptionalSourceRow["userId"] = "user-id"
+const filteredPostId: FilteredOptionalSourceRow["postId"] = "post-id"
+const filteredPostTitle: FilteredOptionalSourceRow["postTitle"] = "hello"
+const filteredUpperPostTitle: FilteredOptionalSourceRow["upperPostTitle"] = "HELLO"
 const filteredNullPostId: FilteredOptionalSourceRow["postId"] = null
 const filteredNullPostTitle: FilteredOptionalSourceRow["postTitle"] = null
+// @ts-expect-error source promotion should remove null from derived expressions
 const filteredNullUpperPostTitle: FilteredOptionalSourceRow["upperPostTitle"] = null
 void filteredUserId
 void filteredPostId

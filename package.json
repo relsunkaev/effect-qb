@@ -9,12 +9,11 @@
   },
   "scripts": {
     "test": "bun test",
-    "test:types": "bunx tsc -p tsconfig.type-tests.json"
+    "test:types": "bunx tsgo -p tsconfig.type-tests.json"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@typescript/native-preview": "latest",
-    "typescript": "^5.9.3"
+    "@typescript/native-preview": "latest"
   },
   "dependencies": {
     "@effect/experimental": "^0.57.0",

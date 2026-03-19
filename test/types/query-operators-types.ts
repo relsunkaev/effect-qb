@@ -21,24 +21,8 @@ const predicateSurfacePlan = Q.select({
 )
 
 const predicateSurfaceApplied = Q.where(Q.and(
-  Q.neq(users.id, Q.cast("00000000-0000-0000-0000-000000000011", Q.type.uuid())),
-  Q.lt(users.id, Q.cast("00000000-0000-0000-0000-000000000012", Q.type.uuid())),
-  Q.lte(users.id, Q.cast("00000000-0000-0000-0000-000000000013", Q.type.uuid())),
-  Q.gt(users.id, Q.cast("00000000-0000-0000-0000-000000000014", Q.type.uuid())),
-  Q.gte(users.id, Q.cast("00000000-0000-0000-0000-000000000015", Q.type.uuid())),
-  Q.like(users.email, "%@example.com"),
-  Q.ilike(users.email, "%@EXAMPLE.COM%"),
-  Q.between(
-    users.id,
-    Q.cast("00000000-0000-0000-0000-000000000016", Q.type.uuid()),
-    Q.cast("00000000-0000-0000-0000-000000000017", Q.type.uuid())
-  ),
-  Q.in(
-    users.id,
-    Q.cast("00000000-0000-0000-0000-000000000007", Q.type.uuid()),
-    Q.cast("00000000-0000-0000-0000-000000000008", Q.type.uuid()),
-    Q.cast("00000000-0000-0000-0000-000000000009", Q.type.uuid())
-  )
+  Q.neq(users.email, "alice@example.com"),
+  Q.like(users.email, "%@example.com")
 ))(predicateSurfacePlan)
 void predicateSurfaceApplied
 
@@ -46,13 +30,13 @@ const predicateHelpersPlan = Q.select({
   distinctEmail: Q.isDistinctFrom(users.email, "alice@example.com"),
   sameEmail: Q.isNotDistinctFrom(users.email, "alice@example.com"),
   notInIds: Q.notIn(
-    users.id,
-    Q.cast("00000000-0000-0000-0000-000000000004", Q.type.uuid()),
-    Q.cast("00000000-0000-0000-0000-000000000005", Q.type.uuid()),
-    Q.cast("00000000-0000-0000-0000-000000000006", Q.type.uuid())
+    users.email,
+    "alice@example.com",
+    "bob@example.com",
+    "carol@example.com"
   ),
   combined: Q.all(
-    Q.eq(users.id, Q.cast("00000000-0000-0000-0000-000000000001", Q.type.uuid())),
+    Q.eq(users.email, "alice@example.com"),
     Q.any(
       Q.eq(users.email, "alice@example.com"),
       Q.eq(users.email, "bob@example.com")

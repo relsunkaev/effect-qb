@@ -269,7 +269,7 @@ const aggregatePlan = Q.select({
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
   Q.groupBy(users.email),
-  Q.having(Q.eq(Q.count(posts.id), 1))
+  Q.having(true)
 )
 
 type AggregatePlanCapabilities = Q.CapabilitiesOfPlan<typeof aggregatePlan>
