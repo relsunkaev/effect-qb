@@ -31,7 +31,7 @@ describe("executor behavior", () => {
       }
     ]))
 
-    const rows = Effect.runSync(Executor.fromDriver(renderer, driver).execute(plan))
+    const rows = Effect.runSync(Executor.make({ renderer, driver }).execute(plan))
 
     expect(rows as ReadonlyArray<unknown>).toEqual([
       {
@@ -53,10 +53,9 @@ describe("executor behavior", () => {
       Q.from(users)
     )
 
-    const executor = Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([]))
-    )
+    const executor = Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([]))
+    })
 
     expect(Effect.runSync(executor.execute(plan))).toEqual([])
   })
@@ -75,15 +74,14 @@ describe("executor behavior", () => {
       Q.from(users)
     )
 
-    const executor = Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const executor = Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           profile__id: userId,
           ignored: 123
         }
       ]))
-    )
+    })
 
     expect(Effect.runSync(executor.execute(plan)) as ReadonlyArray<unknown>).toEqual([
       {
@@ -108,15 +106,14 @@ describe("executor behavior", () => {
       Q.from(users)
     )
 
-    const executor = Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const executor = Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           user_identifier: userId,
           email_lower: "alice@example.com"
         }
       ]))
-    )
+    })
 
     expect(Effect.runSync(executor.execute(plan))).toEqual([
       {
@@ -143,7 +140,7 @@ describe("executor behavior", () => {
       Q.where(Q.eq(users.email, "alice@example.com"))
     )
 
-    const executor = Executor.fromSqlClient(Renderer.make("postgres"))
+    const executor = Executor.make()
     const sql = {
       unsafe<Row extends object>(statement: string, params?: ReadonlyArray<any>) {
         expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "public"."users" where ("users"."email" = $1)')
@@ -185,14 +182,13 @@ describe("executor behavior", () => {
       Q.from(users)
     )
 
-    const executor = Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const executor = Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           profile__id: userId
         }
       ]))
-    )
+    })
 
     expect(Effect.runSync(executor.execute(plan)) as ReadonlyArray<unknown>).toEqual([
       {
@@ -217,15 +213,14 @@ describe("executor behavior", () => {
       Q.from(users)
     )
 
-    const executor = Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const executor = Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           profile__id: userId,
           profile__createdAt: "not-a-date"
         }
       ]))
-    )
+    })
 
     expect(Effect.runSync(executor.execute(plan)) as ReadonlyArray<unknown>).toEqual([
       {
@@ -257,14 +252,13 @@ describe("executor behavior", () => {
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
     )
 
-    const executor = Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const executor = Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           titleState: "missing"
         }
       ]))
-    )
+    })
 
     expect(Effect.runSync(executor.execute(plan))).toEqual([
       {
@@ -294,7 +288,7 @@ describe("executor behavior", () => {
       Q.where(Q.eq(users.id, userId))
     )
 
-    const executor = Executor.fromSqlClient(Renderer.make("postgres"))
+    const executor = Executor.make()
     const sql = {
       unsafe<Row extends object>(statement: string, params?: ReadonlyArray<any>) {
         expect(statement).toBe(
@@ -341,15 +335,14 @@ describe("executor behavior", () => {
       Q.groupBy(users.id)
     )
 
-    const executor = Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const executor = Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           userId,
           summary: "empty"
         }
       ]))
-    )
+    })
 
     expect(Effect.runSync(executor.execute(plan))).toEqual([
       {
@@ -395,14 +388,13 @@ describe("executor behavior", () => {
       Q.from(users)
     )
 
-    const executor = Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const executor = Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           profile_alias: {}
         }
       ]))
-    )
+    })
 
     expect(Effect.runSync(executor.execute(plan)) as ReadonlyArray<unknown>).toEqual([
       {

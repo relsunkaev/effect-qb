@@ -17,6 +17,11 @@ export type FlatRow = CoreExecutor.FlatRow
 export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"mysql", Error, Context>
 /** MySQL-specialized executor contract. */
 export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"mysql", Error, Context>
+/** Optional renderer / driver overrides for the standard MySQL executor pipeline. */
+export interface MakeOptions<Error = never, Context = never> {
+  readonly renderer?: Renderer.Renderer
+  readonly driver?: Driver<Error, Context>
+}
 /** Standard composed error shape for MySQL executors. */
 export type MysqlExecutorError = MysqlDriverError
 /** Read-query error surface emitted by built-in MySQL executors. */
@@ -36,23 +41,6 @@ export interface QueryExecutor<Context = never> {
   ): Effect.Effect<Query.ResultRows<PlanValue>, MysqlQueryError<PlanValue>, Context>
 }
 
-/** Creates a MySQL-specialized executor from a typed implementation callback. */
-export const make = <
-  Error = never,
-  Context = never
->(
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
-  ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
-): Executor<Error, Context> => {
-  return {
-    dialect: "mysql",
-    execute(plan: any) {
-      return (execute as any)(plan)
-    }
-  } as unknown as Executor<Error, Context>
-}
-
 /** Constructs a MySQL-specialized SQL driver. */
 export const driver = <
   Error = never,
@@ -64,11 +52,7 @@ export const driver = <
 ): Driver<Error, Context> =>
   CoreExecutor.driver("mysql", execute)
 
-/**
- * Creates a MySQL executor that normalizes raw driver failures into the
- * structured MySQL error surface before rows are remapped.
- */
-export const fromDriver = <
+const fromDriver = <
   Error = never,
   Context = never
 >(
@@ -93,15 +77,46 @@ export const fromDriver = <
   }
 })
 
-/**
- * Creates a MySQL executor backed by `@effect/sql`'s `SqlClient`.
- *
- * Driver failures are normalized through the MySQL error catalog before they
- * leave the execution layer.
- */
-export const fromSqlClient = (
-  renderer: Renderer.Renderer
-): QueryExecutor<SqlClient.SqlClient> =>
-  fromDriver(renderer, driver((query) =>
+const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
+  driver((query) =>
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
-      sql.unsafe<FlatRow>(query.sql, [...query.params]))))
+      sql.unsafe<FlatRow>(query.sql, [...query.params])))
+
+/**
+ * Creates the standard MySQL executor pipeline.
+ *
+ * By default this uses the built-in MySQL renderer plus the ambient
+ * `@effect/sql` `SqlClient`. Advanced callers can override the renderer,
+ * driver, or both.
+ */
+export function make(): QueryExecutor<SqlClient.SqlClient>
+export function make(
+  options: {
+    readonly renderer?: Renderer.Renderer
+  }
+): QueryExecutor<SqlClient.SqlClient>
+export function make<Error = never, Context = never>(
+  options: {
+    readonly renderer?: Renderer.Renderer
+    readonly driver: Driver<Error, Context>
+  }
+): QueryExecutor<Context>
+export function make<Error = never, Context = never>(
+  options: MakeOptions<Error, Context> = {}
+): QueryExecutor<any> {
+  if (options.driver) {
+    return fromDriver(options.renderer ?? Renderer.make(), options.driver)
+  }
+  return fromDriver(options.renderer ?? Renderer.make(), sqlClientDriver())
+}
+
+/** Creates a MySQL-specialized executor from a typed implementation callback. */
+export const custom = <
+  Error = never,
+  Context = never
+>(
+  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
+  ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
+): Executor<Error, Context> =>
+  CoreExecutor.make("mysql", execute as any) as Executor<Error, Context>

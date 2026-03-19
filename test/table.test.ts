@@ -279,7 +279,7 @@ describe("table definitions", () => {
       { path: ["postTitleUpper"], alias: "postTitleUpper" }
     ])
 
-    const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any>>(
+    const executor = Executor.custom(<PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any>>(
       current: Q.DialectCompatiblePlan<PlanValue, "postgres">
     ) =>
       Effect.succeed([
@@ -423,7 +423,7 @@ describe("table definitions", () => {
       ])
     })
 
-    const executor = Executor.fromDriver(renderer, driver)
+    const executor = Executor.make({ renderer, driver })
     const rows = Effect.runSync(executor.execute(plan))
 
     expect(rows).toEqual([
@@ -474,7 +474,7 @@ describe("table definitions", () => {
       ])
     })
 
-    const rows = Effect.runSync(Executor.fromDriver(renderer, driver).execute(plan))
+    const rows = Effect.runSync(Executor.make({ renderer, driver }).execute(plan))
     expect(rows).toEqual([
       {
         profile: {
@@ -552,7 +552,7 @@ describe("table definitions", () => {
     )
 
     const renderer = Renderer.make("postgres")
-    const executor = Executor.fromSqlClient(renderer)
+    const executor = Executor.make({ renderer })
     const sql = {
       unsafe<A extends object>(statement: string, params?: ReadonlyArray<any>) {
         expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "public"."users"')

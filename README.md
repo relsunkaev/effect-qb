@@ -175,7 +175,7 @@ const rendered = renderer.render(postsPerUser)
 rendered.sql
 rendered.params
 
-const executor = Executor.fromSqlClient(renderer)
+const executor = Executor.make()
 const rowsEffect = executor.execute(postsPerUser)
 
 type Rows = Q.ResultRows<typeof postsPerUser>
@@ -773,10 +773,9 @@ They do not carry a query-result schema.
 ### Executor
 
 ```ts
-import { Executor, Query as Q, Renderer } from "effect-qb/postgres"
+import { Executor, Query as Q } from "effect-qb/postgres"
 
-const renderer = Renderer.make()
-const executor = Executor.fromSqlClient(renderer)
+const executor = Executor.make()
 
 const rowsEffect = executor.execute(postsPerUser)
 
@@ -1132,7 +1131,7 @@ const mysqlPlan = MyQ.select({
   MyQ.from(mysqlUsers)
 )
 
-const postgresExecutor = PgExecutor.make(() =>
+const postgresExecutor = PgExecutor.custom(() =>
   Effect.succeed([] as const)
 )
 

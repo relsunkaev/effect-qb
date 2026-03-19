@@ -1067,16 +1067,15 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.leftJoin(posts, Mysql.Query.eq(users.id, posts.userId))
     )
 
-    const rows = Effect.runSync(Mysql.Executor.fromDriver(
-      Mysql.Renderer.make(),
-      Mysql.Executor.driver(() => Effect.succeed([{
+    const rows = Effect.runSync(Mysql.Executor.make({
+      driver: Mysql.Executor.driver(() => Effect.succeed([{
         profile__id: userId,
         profile__email: "alice@example.com",
         post__id: null,
         post__title: null,
         hasPost: false
       }]))
-    ).execute(plan))
+    }).execute(plan))
 
     expect(rows).toEqual([{
       profile: {

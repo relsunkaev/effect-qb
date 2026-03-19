@@ -1109,16 +1109,15 @@ describe("postgres dialect behavior", () => {
       Postgres.Query.leftJoin(posts, Postgres.Query.eq(users.id, posts.userId))
     )
 
-    const rows = Effect.runSync(Postgres.Executor.fromDriver(
-      Postgres.Renderer.make(),
-      Postgres.Executor.driver(() => Effect.succeed([{
+    const rows = Effect.runSync(Postgres.Executor.make({
+      driver: Postgres.Executor.driver(() => Effect.succeed([{
         profile__id: userId,
         profile__email: "alice@example.com",
         post__id: null,
         post__title: null,
         hasPost: false
       }]))
-    ).execute(plan))
+    }).execute(plan))
 
     expect(rows).toEqual([{
       profile: {

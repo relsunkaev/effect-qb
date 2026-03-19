@@ -49,7 +49,7 @@ const driver = Mysql.Executor.driver(() =>
     sqlMessage: "Duplicate entry '11111111-1111-1111-1111-111111111111' for key 'PRIMARY'"
   }))
 
-const executor = Mysql.Executor.fromDriver(Mysql.Renderer.make(), driver)
+const executor = Mysql.Executor.make({ driver })
 const execution = executor.execute(plan)
 type Capabilities = Mysql.Query.CapabilitiesOfPlan<typeof plan>
 const readCapability: Capabilities = "read"

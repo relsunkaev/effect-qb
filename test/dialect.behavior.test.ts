@@ -34,14 +34,12 @@ describe("dialect behavior", () => {
       profile__email: "alice@example.com"
     }
 
-    const pgRows = Effect.runSync(Postgres.Executor.fromDriver(
-      Postgres.Renderer.make(),
-      Postgres.Executor.driver(() => Effect.succeed([row]))
-    ).execute(pgPlan))
-    const myRows = Effect.runSync(Mysql.Executor.fromDriver(
-      Mysql.Renderer.make(),
-      Mysql.Executor.driver(() => Effect.succeed([row]))
-    ).execute(myPlan))
+    const pgRows = Effect.runSync(Postgres.Executor.make({
+      driver: Postgres.Executor.driver(() => Effect.succeed([row]))
+    }).execute(pgPlan))
+    const myRows = Effect.runSync(Mysql.Executor.make({
+      driver: Mysql.Executor.driver(() => Effect.succeed([row]))
+    }).execute(myPlan))
 
     expect(pgRows).toEqual(myRows)
   })

@@ -52,9 +52,8 @@ describe("postgres errors", () => {
       Postgres.Query.from(users)
     )
 
-    const executor = Postgres.Executor.fromDriver(
-      Postgres.Renderer.make(),
-      Postgres.Executor.driver(() =>
+    const executor = Postgres.Executor.make({
+      driver: Postgres.Executor.driver(() =>
         Effect.fail({
           code: "23505",
           message: "duplicate key value violates unique constraint",
@@ -64,7 +63,7 @@ describe("postgres errors", () => {
           constraint: "users_email_key",
           severity: "ERROR"
         }))
-    )
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 
@@ -113,9 +112,8 @@ describe("postgres errors", () => {
       Postgres.Query.from(insertedUsers)
     )
 
-    const executor = Postgres.Executor.fromDriver(
-      Postgres.Renderer.make(),
-      Postgres.Executor.driver(() =>
+    const executor = Postgres.Executor.make({
+      driver: Postgres.Executor.driver(() =>
         Effect.fail({
           code: "23505",
           message: "duplicate key value violates unique constraint",
@@ -125,7 +123,7 @@ describe("postgres errors", () => {
           constraint: "users_email_key",
           severity: "ERROR"
         }))
-    )
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 
@@ -152,7 +150,7 @@ describe("postgres errors", () => {
       Postgres.Query.from(users)
     )
 
-    const executor = Postgres.Executor.fromSqlClient(Postgres.Renderer.make())
+    const executor = Postgres.Executor.make()
     const sql = {
       unsafe<Row extends object>() {
         return unsafeAny(Effect.fail({
@@ -195,10 +193,9 @@ describe("postgres errors", () => {
 
     const cause = new Error("socket closed")
 
-    const executor = Postgres.Executor.fromDriver(
-      Postgres.Renderer.make(),
-      Postgres.Executor.driver(() => Effect.fail(cause))
-    )
+    const executor = Postgres.Executor.make({
+      driver: Postgres.Executor.driver(() => Effect.fail(cause))
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 
@@ -225,14 +222,13 @@ describe("postgres errors", () => {
       Postgres.Query.from(users)
     )
 
-    const executor = Postgres.Executor.fromDriver(
-      Postgres.Renderer.make(),
-      Postgres.Executor.driver(() =>
+    const executor = Postgres.Executor.make({
+      driver: Postgres.Executor.driver(() =>
         Effect.fail({
           code: "ZZ999",
           message: "future postgres error"
         }))
-    )
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 
@@ -259,14 +255,13 @@ describe("postgres errors", () => {
       Postgres.Query.from(users)
     )
 
-    const executor = Postgres.Executor.fromDriver(
-      Postgres.Renderer.make(),
-      Postgres.Executor.driver(() =>
+    const executor = Postgres.Executor.make({
+      driver: Postgres.Executor.driver(() =>
         Effect.fail({
           code: "23ZZZ",
           message: "future write-class postgres error"
         }))
-    )
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 

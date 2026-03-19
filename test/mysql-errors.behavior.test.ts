@@ -53,9 +53,8 @@ describe("mysql errors", () => {
       Mysql.Query.from(users)
     )
 
-    const executor = Mysql.Executor.fromDriver(
-      Mysql.Renderer.make(),
-      Mysql.Executor.driver(() =>
+    const executor = Mysql.Executor.make({
+      driver: Mysql.Executor.driver(() =>
         Effect.fail({
           code: "ER_DUP_ENTRY",
           errno: 1062,
@@ -64,7 +63,7 @@ describe("mysql errors", () => {
           message: "Duplicate entry 'alice@example.com' for key 'users.email'",
           fatal: false
         }))
-    )
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 
@@ -111,9 +110,8 @@ describe("mysql errors", () => {
       Mysql.Query.from(insertedUsers)
     )
 
-    const executor = Mysql.Executor.fromDriver(
-      Mysql.Renderer.make(),
-      Mysql.Executor.driver(() =>
+    const executor = Mysql.Executor.make({
+      driver: Mysql.Executor.driver(() =>
         Effect.fail({
           code: "ER_DUP_ENTRY",
           errno: 1062,
@@ -122,7 +120,7 @@ describe("mysql errors", () => {
           message: "Duplicate entry 'alice@example.com' for key 'users.email'",
           fatal: false
         }))
-    )
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 
@@ -150,15 +148,14 @@ describe("mysql errors", () => {
       Mysql.Query.from(users)
     )
 
-    const executor = Mysql.Executor.fromDriver(
-      Mysql.Renderer.make(),
-      Mysql.Executor.driver(() =>
+    const executor = Mysql.Executor.make({
+      driver: Mysql.Executor.driver(() =>
         Effect.fail({
           errno: 2002,
           message: "Can't connect to local MySQL server through socket '/tmp/mysql.sock' (2)",
           fatal: true
         }))
-    )
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 
@@ -186,7 +183,7 @@ describe("mysql errors", () => {
       Mysql.Query.from(users)
     )
 
-    const executor = Mysql.Executor.fromSqlClient(Mysql.Renderer.make())
+    const executor = Mysql.Executor.make()
     const sql = {
       unsafe<Row extends object>() {
         return unsafeAny(Effect.fail({
@@ -239,16 +236,15 @@ describe("mysql errors", () => {
       Mysql.Query.from(users)
     )
 
-    const executor = Mysql.Executor.fromDriver(
-      Mysql.Renderer.make(),
-      Mysql.Executor.driver(() =>
+    const executor = Mysql.Executor.make({
+      driver: Mysql.Executor.driver(() =>
         Effect.fail({
           code: "ER_FUTURE_WRITE_ERROR",
           errno: 999999,
           sqlState: "23000",
           sqlMessage: "future mysql write error"
         }))
-    )
+    })
 
     const result = Effect.runSync(Effect.either(executor.execute(plan)))
 

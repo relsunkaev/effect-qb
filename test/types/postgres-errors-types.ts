@@ -39,7 +39,7 @@ const driver = Postgres.Executor.driver(() =>
     message: "duplicate key value violates unique constraint"
   }))
 
-const executor = Postgres.Executor.fromDriver(Postgres.Renderer.make(), driver)
+const executor = Postgres.Executor.make({ driver })
 const execution = executor.execute(plan)
 
 type Capabilities = Postgres.Query.CapabilitiesOfPlan<typeof plan>

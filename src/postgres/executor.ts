@@ -17,6 +17,11 @@ export type FlatRow = CoreExecutor.FlatRow
 export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"postgres", Error, Context>
 /** Postgres-specialized executor contract. */
 export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"postgres", Error, Context>
+/** Optional renderer / driver overrides for the standard Postgres executor pipeline. */
+export interface MakeOptions<Error = never, Context = never> {
+  readonly renderer?: Renderer.Renderer
+  readonly driver?: Driver<Error, Context>
+}
 /** Standard composed error shape for Postgres executors. */
 export type PostgresExecutorError = PostgresDriverError
 /** Read-query error surface emitted by built-in Postgres executors. */
@@ -36,19 +41,6 @@ export interface QueryExecutor<Context = never> {
   ): Effect.Effect<Query.ResultRows<PlanValue>, PostgresQueryError<PlanValue>, Context>
 }
 
-/** Creates a Postgres-specialized executor from a typed implementation callback. */
-export function make(execute: any): Executor<any, any>
-export function make(dialect: "postgres", execute: any): Executor<any, any>
-export function make(dialectOrExecute: "postgres" | any, maybeExecute?: any): Executor<any, any> {
-  const execute = typeof dialectOrExecute === "string" ? maybeExecute : dialectOrExecute
-  return {
-    dialect: "postgres",
-    execute(plan: any) {
-      return execute(plan)
-    }
-  } as Executor<any, any>
-}
-
 /** Constructs a Postgres-specialized SQL driver. */
 export function driver(execute: any): Driver<any, any>
 export function driver(dialect: "postgres", execute: any): Driver<any, any>
@@ -57,11 +49,7 @@ export function driver(dialectOrExecute: "postgres" | any, maybeExecute?: any): 
   return CoreExecutor.driver("postgres", execute as any)
 }
 
-/**
- * Creates a Postgres executor that normalizes raw driver failures into the
- * structured Postgres error surface before rows are remapped.
- */
-export const fromDriver = <
+const fromDriver = <
   Error = never,
   Context = never
 >(
@@ -86,15 +74,46 @@ export const fromDriver = <
   }
 })
 
-/**
- * Creates a Postgres executor backed by `@effect/sql`'s `SqlClient`.
- *
- * Driver failures are normalized through the Postgres SQLSTATE catalog before
- * they leave the execution layer.
- */
-export const fromSqlClient = (
-  renderer: Renderer.Renderer
-): QueryExecutor<SqlClient.SqlClient> =>
-  fromDriver(renderer, driver((query: Renderer.RenderedQuery<any>) =>
+const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
+  driver((query: Renderer.RenderedQuery<any>) =>
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
-      sql.unsafe<FlatRow>(query.sql, [...query.params]))))
+      sql.unsafe<FlatRow>(query.sql, [...query.params])))
+
+/**
+ * Creates the standard Postgres executor pipeline.
+ *
+ * By default this uses the built-in Postgres renderer plus the ambient
+ * `@effect/sql` `SqlClient`. Advanced callers can override the renderer,
+ * driver, or both.
+ */
+export function make(): QueryExecutor<SqlClient.SqlClient>
+export function make(
+  options: {
+    readonly renderer?: Renderer.Renderer
+  }
+): QueryExecutor<SqlClient.SqlClient>
+export function make<Error = never, Context = never>(
+  options: {
+    readonly renderer?: Renderer.Renderer
+    readonly driver: Driver<Error, Context>
+  }
+): QueryExecutor<Context>
+export function make<Error = never, Context = never>(
+  options: MakeOptions<Error, Context> = {}
+): QueryExecutor<any> {
+  if (options.driver) {
+    return fromDriver(options.renderer ?? Renderer.make(), options.driver)
+  }
+  return fromDriver(options.renderer ?? Renderer.make(), sqlClientDriver())
+}
+
+/** Creates a Postgres-specialized executor from a typed implementation callback. */
+export const custom = <
+  Error = never,
+  Context = never
+>(
+  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
+  ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
+): Executor<Error, Context> =>
+  CoreExecutor.make("postgres", execute as any) as Executor<Error, Context>

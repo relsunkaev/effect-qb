@@ -35,15 +35,14 @@ describe("implication behavior", () => {
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
     )
 
-    const rows = Effect.runSync(Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           profile__email: "alice@example.com",
           post__titleState: "missing"
         }
       ]))
-    ).execute(plan)) as ReadonlyArray<unknown>
+    }).execute(plan)) as ReadonlyArray<unknown>
 
     expect(rows).toEqual([
       {
@@ -83,16 +82,15 @@ describe("implication behavior", () => {
       ))
     )
 
-    const rows = Effect.runSync(Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           userId,
           postId: null,
           titleState: 0
         }
       ]))
-    ).execute(plan)) as ReadonlyArray<unknown>
+    }).execute(plan)) as ReadonlyArray<unknown>
 
     expect(rows).toEqual([
       {
@@ -118,15 +116,14 @@ describe("implication behavior", () => {
       Q.where(Q.isNull(posts.title))
     )
 
-    const rows = Effect.runSync(Executor.fromDriver(
-      Renderer.make("postgres"),
-      Executor.driver("postgres", () => Effect.succeed([
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
         {
           title: "hello",
           upperTitle: "HELLO"
         }
       ]))
-    ).execute(plan)) as ReadonlyArray<unknown>
+    }).execute(plan)) as ReadonlyArray<unknown>
 
     expect(rows).toEqual([
       {
