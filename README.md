@@ -278,7 +278,7 @@ const cityPath = Q.json.path(
 )
 
 const city = Q.json.get(docs.payload, cityPath)
-type City = Q.OutputOfExpression<typeof city, {
+type City = Q.ExpressionOutput<typeof city, {
   readonly docs: {
     readonly name: "docs"
     readonly mode: "required"
@@ -368,7 +368,7 @@ The same source story applies to:
 - `Q.with(subquery, alias)`
 - `Q.withRecursive(subquery, alias)`
 - `Q.lateral(subquery, alias)`
-- `Q.values(...)`
+- `Q.as(Q.values(...), alias)`
 - `Q.unnest(...)`
 
 ### Filtering Rows
@@ -452,24 +452,21 @@ Comparison and cast safety are dialect-aware. Incompatible operands are rejected
 Grouped queries are checked structurally, not just by source provenance.
 
 ```ts
-const postsPerUser = Q.select({
+const invalidPostsPerUser = Q.select({
   userId: users.id,
   postCount: Q.count(posts.id),
-  rowNumber: Q.over(Q.rowNumber(), {
-    partitionBy: [users.id],
-    orderBy: [{ value: users.id, direction: "asc" }]
-  })
+  title: posts.title
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
   Q.groupBy(users.id)
 )
 
-type PostsPerUserRow = Q.ResultRow<typeof postsPerUser>
+type InvalidPostsPerUser = Q.CompletePlan<typeof invalidPostsPerUser>
 // {
-//   userId: string
-//   postCount: number
-//   rowNumber: number
+//   __effect_qb_error__: "effect-qb: invalid grouped selection"
+//   __effect_qb_hint__:
+//     "Scalar selections must be covered by groupBy(...) when aggregates are present"
 // }
 ```
 
@@ -558,25 +555,26 @@ const insertUser = Q.insert(users, {
 Composable sources are available when the input rows come from elsewhere:
 
 ```ts
-const pendingUsers = Q.values([
-  { id: "user-1", email: "alice@example.com" },
-  { id: "user-2", email: "bob@example.com" }
-], "pending_users")
-
-const insertMany = Q.insertFrom(users, pendingUsers)
+const insertMany = Q.insert(users).pipe(
+  Q.from(Q.values([
+    { id: "user-1", email: "alice@example.com" },
+    { id: "user-2", email: "bob@example.com" }
+  ]))
+)
 ```
 
-`insertFrom(...)` also accepts `select(...)`, `unnest(...)`, and other compatible sources.
+`Q.from(...)` also accepts `select(...)`, `unnest(...)`, and aliased `values(...)` sources.
 
 ### Update
 
-Updates stay expression-aware and can use joined sources where the dialect supports it.
+Updates stay expression-aware and can use `update ... from ...` sources where the dialect supports it.
 
 ```ts
-const updateUsers = Q.innerJoin(posts, Q.eq(posts.userId, users.id))(
-  Q.update(users, {
-    email: "has-posts@example.com"
-  })
+const updateUsers = Q.update(users, {
+  email: "has-posts@example.com"
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.eq(posts.userId, users.id))
 )
 ```
 
@@ -597,19 +595,23 @@ const deleteUser = Q.delete(users).pipe(
 Conflict handling is modeled as a composable modifier instead of a string escape hatch.
 
 ```ts
-const insertOrIgnore = Q.onConflict(["id"] as const, {
-  action: "doNothing"
-})(Q.insert(users, {
+const insertOrIgnore = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
-}))
+}).pipe(
+  Q.onConflict(["id"] as const)
+)
 
-const upsertUser = Q.upsert(users, {
+const upsertUser = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
-}, ["id"] as const, {
-  email: "alice@example.com"
-})
+}).pipe(
+  Q.onConflict(["id"] as const, {
+    update: {
+      email: Q.excluded(users.email)
+    }
+  })
+)
 ```
 
 Conflict targets are checked against the target table.
