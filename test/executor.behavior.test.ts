@@ -3,7 +3,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Executor, Query as Q, Renderer, Table } from "../src/index.ts"
+import { Column as C, Executor, Query as Q, Renderer, Table } from "../src/postgres.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 

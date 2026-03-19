@@ -4,7 +4,11 @@ import type * as Effect from "effect/Effect"
 
 import * as Mysql from "../../src/mysql.ts"
 import * as Postgres from "../../src/postgres.ts"
-import { Column as C, Executor, Expression, Plan, Query as Q, Renderer, Table } from "../../src/index.ts"
+import { Column as C, Query as Q, Table } from "../../src/postgres.ts"
+import * as Executor from "../../src/executor.ts"
+import * as Expression from "../../src/expression.ts"
+import * as Plan from "../../src/plan.ts"
+import * as Renderer from "../../src/renderer.ts"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.generated),

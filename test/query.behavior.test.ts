@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 
-import { Plan, Query as Q, Table } from "../src/index.ts"
-import { Column as C } from "../src/index.ts"
+import { Plan, Query as Q, Table } from "../src/postgres.ts"
+import { Column as C } from "../src/postgres.ts"
 import { makeRootEmployees, makeRootSocialGraph } from "./fixtures/schema.ts"
 
 describe("query behavior", () => {

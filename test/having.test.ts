@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { Column as C, Query as Q, Renderer, Table } from "../src/index.ts"
+import { Column as C, Query as Q, Renderer, Table } from "../src/postgres.ts"
 
 describe("having", () => {
   test("renders aggregate predicates after group by", () => {

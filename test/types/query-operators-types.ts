@@ -1,6 +1,6 @@
 import * as Mysql from "../../src/mysql.ts"
 import * as Postgres from "../../src/postgres.ts"
-import { Column as C, Query as Q, Table } from "../../src/index.ts"
+import { Column as C, Query as Q, Table } from "../../src/postgres.ts"
 import type { BrandedErrorOf } from "../helpers/branded-error.ts"
 
 const users = Table.make("users", {

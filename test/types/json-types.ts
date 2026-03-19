@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import { Column as C, Query as Q, Table } from "../../src/index.ts"
+import { Column as C, Query as Q, Table } from "../../src/postgres.ts"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),

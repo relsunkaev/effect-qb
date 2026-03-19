@@ -2,7 +2,9 @@ import type * as Effect from "effect/Effect"
 
 import * as Mysql from "../../src/mysql.ts"
 import * as Postgres from "../../src/postgres.ts"
-import { Executor, Query as RootQuery, Renderer } from "../../src/index.ts"
+import * as Executor from "../../src/executor.ts"
+import * as RootQuery from "../../src/query.ts"
+import * as Renderer from "../../src/renderer.ts"
 
 const pgUsers = Postgres.Table.make("users", {
   id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),

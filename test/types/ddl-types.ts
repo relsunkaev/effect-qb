@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect"
 
-import { Column as C, Executor, Query as Q, Renderer, Table } from "../../src/index.ts"
+import { Column as C, Executor, Query as Q, Renderer, Table } from "../../src/postgres.ts"
 
 const orgs = Table.make("orgs", {
   id: C.uuid().pipe(C.primaryKey),

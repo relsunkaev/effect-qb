@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema"
 import * as Mysql from "../src/mysql.ts"
 import * as Postgres from "../src/postgres.ts"
 import { renderMysqlPlan } from "../src/internal/mysql-renderer.ts"
-import { Column as C, Executor, Expression, Plan, Query as Q, Renderer, Table } from "../src/index.ts"
+import { Column as C, Executor, Expression, Plan, Query as Q, Renderer, Table } from "../src/postgres.ts"
 import { unsafeAny, unsafeNever } from "./helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"

@@ -5,7 +5,7 @@ import * as SqlError from "@effect/sql/SqlError"
 import * as Mysql from "../../src/mysql.ts"
 import * as Postgres from "../../src/postgres.ts"
 import type { AvailableOfPlan } from "../../src/query.ts"
-import { Column as C, Executor, Query as Q, Renderer, Table } from "../../src/index.ts"
+import { Column as C, Executor, Query as Q, Renderer, Table } from "../../src/postgres.ts"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),

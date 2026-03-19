@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 
 import * as Mysql from "../src/mysql.ts"
-import { Query as Q, Renderer, Table } from "../src/index.ts"
-import { Column as C } from "../src/index.ts"
+import { Query as Q, Renderer, Table } from "../src/postgres.ts"
+import { Column as C } from "../src/postgres.ts"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "./fixtures/schema.ts"
 
 describe("rendering behavior", () => {

@@ -66,7 +66,7 @@ If your goal is a thin runtime DSL over SQL, this is probably too much. If your 
 - JSON writes that no longer match the target column schema
 
 ```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey)
@@ -112,12 +112,12 @@ Entrypoints:
 - `effect-qb/postgres`
 - `effect-qb/mysql`
 
-Use `effect-qb` when Postgres defaults are acceptable. Use the dialect-specific entrypoints when you want dialect-locked table builders, query builders, renderers, executors, datatypes, and error types.
+Use `effect-qb/postgres` when Postgres defaults are acceptable. Use the dialect-specific entrypoints when you want dialect-locked table builders, query builders, renderers, executors, datatypes, and error types.
 
 ## Quick Start
 
 ```ts
-import { Column as C, Query as Q, Renderer, Table } from "effect-qb"
+import { Column as C, Query as Q, Renderer, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -163,7 +163,7 @@ Tables are typed sources, not loose name strings. Columns carry DB types, nullab
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Table } from "effect-qb"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -274,7 +274,7 @@ type City = Q.OutputOfExpression<typeof city, {
 The root entrypoint defaults to the Postgres-flavored `Query` and `Table` DSLs:
 
 ```ts
-import { Query as Q, Table } from "effect-qb"
+import { Query as Q, Table } from "effect-qb/postgres"
 ```
 
 Dialect entrypoints expose dialect-specific builders:
@@ -716,7 +716,7 @@ Those types are narrower than the raw dialect error catalogs. For example, known
 ### Transaction Helpers
 
 ```ts
-import { Executor } from "effect-qb"
+import { Executor } from "effect-qb/postgres"
 
 const transactional = Executor.withTransaction(rowsEffect)
 const savepoint = Executor.withSavepoint(rowsEffect)

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect"
 
-import { Column as C, Executor, Query as Q, Renderer, Table } from "../../src/index.ts"
+import { Column as C, Executor, Query as Q, Renderer, Table } from "../../src/postgres.ts"
 import type {
   BrandedErrorOf,
   BrandedHintOf,

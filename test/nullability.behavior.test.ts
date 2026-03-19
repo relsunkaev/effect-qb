@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
-import { Executor, Query as Q, Renderer, Table } from "../src/index.ts"
+import { Executor, Query as Q, Renderer, Table } from "../src/postgres.ts"
 import { makeRootSocialGraph } from "./fixtures/schema.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"

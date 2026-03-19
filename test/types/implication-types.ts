@@ -1,4 +1,4 @@
-import { Column as C, Query as Q, Table } from "../../src/index.ts"
+import { Column as C, Query as Q, Table } from "../../src/postgres.ts"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
-import { Column as C, Executor, Query as Q, Renderer, Table } from "../src/index.ts"
+import { Column as C, Executor, Query as Q, Renderer, Table } from "../src/postgres.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const postId = "22222222-2222-2222-2222-222222222222"

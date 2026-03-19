@@ -37,32 +37,25 @@ export interface QueryExecutor<Context = never> {
 }
 
 /** Creates a Postgres-specialized executor from a typed implementation callback. */
-export const make = <
-  Error = never,
-  Context = never
->(
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
-  ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
-): Executor<Error, Context> => {
+export function make(execute: any): Executor<any, any>
+export function make(dialect: "postgres", execute: any): Executor<any, any>
+export function make(dialectOrExecute: "postgres" | any, maybeExecute?: any): Executor<any, any> {
+  const execute = typeof dialectOrExecute === "string" ? maybeExecute : dialectOrExecute
   return {
     dialect: "postgres",
     execute(plan: any) {
-      return (execute as any)(plan)
+      return execute(plan)
     }
-  } as unknown as Executor<Error, Context>
+  } as Executor<any, any>
 }
 
 /** Constructs a Postgres-specialized SQL driver. */
-export const driver = <
-  Error = never,
-  Context = never
->(
-  execute: <Row>(
-    query: Renderer.RenderedQuery<Row>
-  ) => Effect.Effect<ReadonlyArray<FlatRow>, Error, Context>
-): Driver<Error, Context> =>
-  CoreExecutor.driver("postgres", execute)
+export function driver(execute: any): Driver<any, any>
+export function driver(dialect: "postgres", execute: any): Driver<any, any>
+export function driver(dialectOrExecute: "postgres" | any, maybeExecute?: any): Driver<any, any> {
+  const execute = typeof dialectOrExecute === "string" ? maybeExecute : dialectOrExecute
+  return CoreExecutor.driver("postgres", execute as any)
+}
 
 /**
  * Creates a Postgres executor that normalizes raw driver failures into the
@@ -102,6 +95,6 @@ export const fromDriver = <
 export const fromSqlClient = (
   renderer: Renderer.Renderer
 ): QueryExecutor<SqlClient.SqlClient> =>
-  fromDriver(renderer, driver((query) =>
+  fromDriver(renderer, driver((query: Renderer.RenderedQuery<any>) =>
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
       sql.unsafe<FlatRow>(query.sql, [...query.params]))))
