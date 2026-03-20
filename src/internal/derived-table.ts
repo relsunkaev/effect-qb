@@ -64,6 +64,7 @@ const reboundedColumns = <
     setPath(selection, projection.path, makeExpression({
       runtime: undefined as never,
       dbType: expression[Expression.TypeId].dbType,
+      runtimeSchema: expression[Expression.TypeId].runtimeSchema,
       nullability: expression[Expression.TypeId].nullability,
       dialect: expression[Expression.TypeId].dialect,
       aggregation: "scalar",

@@ -69,6 +69,7 @@ export interface ColumnDefinition<
     Source,
     Dependencies
   > {
+  readonly pipe: Pipeable["pipe"]
   readonly [ColumnTypeId]: ColumnState<
     Select,
     Insert,
@@ -229,6 +230,7 @@ export const makeColumnDefinition = <
   column[Expression.TypeId] = {
     runtime: undefined as Select,
     dbType: metadata.dbType,
+    runtimeSchema: schema,
     nullability: (metadata.nullable ? "maybe" : "never") as Nullable extends true ? "maybe" : "never",
     dialect: metadata.dbType.dialect,
     aggregation: "scalar",
@@ -253,6 +255,109 @@ export const makeColumnDefinition = <
   return column
 }
 
+export const remapColumnDefinition = <
+  Select,
+  Insert,
+  Update,
+  Db extends Expression.DbType.Any,
+  Nullable extends boolean,
+  HasDefault extends boolean,
+  Generated extends boolean,
+  PrimaryKey extends boolean,
+  Unique extends boolean,
+  Ref,
+  Source = never,
+  Dependencies extends Expression.SourceDependencies = {}
+>(
+  column: ColumnDefinition<
+    Select,
+    Insert,
+    Update,
+    Db,
+    Nullable,
+    HasDefault,
+    Generated,
+    PrimaryKey,
+    Unique,
+    Ref,
+    Source,
+    Dependencies
+  >,
+  options: {
+    readonly schema?: Schema.Schema.Any
+    readonly metadata?: ColumnDefinition<
+      Select,
+      Insert,
+      Update,
+      Db,
+      Nullable,
+      HasDefault,
+      Generated,
+      PrimaryKey,
+      Unique,
+      Ref,
+      Source,
+      Dependencies
+    >["metadata"]
+  } = {}
+): ColumnDefinition<
+  Select,
+  Insert,
+  Update,
+  Db,
+  Nullable,
+  HasDefault,
+  Generated,
+  PrimaryKey,
+  Unique,
+  Ref,
+  Source,
+  Dependencies
+> => {
+  const schema = options.schema ?? column.schema
+  const metadata = options.metadata ?? column.metadata
+  const next = Object.create(ColumnProto)
+  next.schema = schema
+  next.metadata = metadata
+  next[Expression.TypeId] = {
+    ...column[Expression.TypeId],
+    runtime: undefined as Select,
+    dbType: metadata.dbType,
+    runtimeSchema: schema,
+    nullability: (metadata.nullable ? "maybe" : "never") as Nullable extends true ? "maybe" : "never",
+    dialect: metadata.dbType.dialect
+  }
+  next[ColumnTypeId] = {
+    ...column[ColumnTypeId],
+    select: undefined as Select,
+    insert: undefined as Insert,
+    update: undefined as Update,
+    dbType: metadata.dbType,
+    nullable: metadata.nullable,
+    hasDefault: metadata.hasDefault,
+    generated: metadata.generated,
+    primaryKey: metadata.primaryKey,
+    unique: metadata.unique,
+    references: metadata.references
+  }
+  if (ExpressionAst.TypeId in column) {
+    next[ExpressionAst.TypeId] = (column as unknown as {
+      readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+    })[ExpressionAst.TypeId]
+  }
+  if (BoundColumnTypeId in column) {
+    next[BoundColumnTypeId] = (column as unknown as {
+      readonly [BoundColumnTypeId]: {
+        readonly tableName: string
+        readonly columnName: string
+        readonly baseTableName: string
+        readonly schemaName?: string
+      }
+    })[BoundColumnTypeId]
+  }
+  return next
+}
+
 /** Attaches table/column provenance to an existing column definition. */
 export const bindColumn = <
   TableName extends string,
@@ -273,6 +378,7 @@ export const bindColumn = <
   bound[Expression.TypeId] = {
     runtime: undefined as SelectType<Column>,
     dbType: column.metadata.dbType,
+    runtimeSchema: column.schema,
     nullability: (column.metadata.nullable ? "maybe" : "never") as IsNullable<Column> extends true ? "maybe" : "never",
     dialect: column.metadata.dbType.dialect,
     aggregation: "scalar",

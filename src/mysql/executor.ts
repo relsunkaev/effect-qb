@@ -13,6 +13,8 @@ import {
 
 /** MySQL-specialized flat row returned by SQL drivers. */
 export type FlatRow = CoreExecutor.FlatRow
+/** Runtime decode failure raised after SQL execution but before row remapping. */
+export type RowDecodeError = CoreExecutor.RowDecodeError
 /** MySQL-specialized rendered-query driver. */
 export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"mysql", Error, Context>
 /** MySQL-specialized executor contract. */
@@ -21,9 +23,10 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"my
 export interface MakeOptions<Error = never, Context = never> {
   readonly renderer?: Renderer.Renderer
   readonly driver?: Driver<Error, Context>
+  readonly driverMode?: CoreExecutor.DriverMode
 }
 /** Standard composed error shape for MySQL executors. */
-export type MysqlExecutorError = MysqlDriverError
+export type MysqlExecutorError = MysqlDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in MySQL executors. */
 export type MysqlQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   Exclude<Query.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError : MysqlExecutorError
@@ -57,17 +60,24 @@ const fromDriver = <
   Context = never
 >(
   renderer: Renderer.Renderer,
-  sqlDriver: Driver<Error, Context>
+  sqlDriver: Driver<Error, Context>,
+  driverMode: CoreExecutor.DriverMode = "raw"
 ): QueryExecutor<Context> => ({
   dialect: "mysql",
   execute(plan) {
     const rendered = renderer.render(plan)
     return Effect.mapError(
-      Effect.map(
+      Effect.flatMap(
         sqlDriver.execute(rendered),
-        (rows) => CoreExecutor.remapRows<any>(rendered, rows)
+        (rows) => Effect.try({
+          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode }),
+          catch: (error) => error as RowDecodeError
+        })
       ),
       (error) => {
+        if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
+          return error as RowDecodeError
+        }
         const normalized = normalizeMysqlDriverError(error, rendered)
         return CoreExecutor.hasWriteCapability(plan)
           ? normalized
@@ -93,21 +103,23 @@ export function make(): QueryExecutor<SqlClient.SqlClient>
 export function make(
   options: {
     readonly renderer?: Renderer.Renderer
+    readonly driverMode?: CoreExecutor.DriverMode
   }
 ): QueryExecutor<SqlClient.SqlClient>
 export function make<Error = never, Context = never>(
   options: {
     readonly renderer?: Renderer.Renderer
     readonly driver: Driver<Error, Context>
+    readonly driverMode?: CoreExecutor.DriverMode
   }
 ): QueryExecutor<Context>
 export function make<Error = never, Context = never>(
   options: MakeOptions<Error, Context> = {}
 ): QueryExecutor<any> {
   if (options.driver) {
-    return fromDriver(options.renderer ?? Renderer.make(), options.driver)
+    return fromDriver(options.renderer ?? Renderer.make(), options.driver, options.driverMode)
   }
-  return fromDriver(options.renderer ?? Renderer.make(), sqlClientDriver())
+  return fromDriver(options.renderer ?? Renderer.make(), sqlClientDriver(), options.driverMode)
 }
 
 /** Creates a MySQL-specialized executor from a typed implementation callback. */

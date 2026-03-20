@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import { Column as C, Executor, Query as Q, Renderer, Table } from "../src/postgres.ts"
+import { BigIntStringSchema } from "../src/internal/runtime-value.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
@@ -199,7 +200,7 @@ describe("executor behavior", () => {
     ])
   })
 
-  test("fromDriver preserves projected values even when runtime types differ", () => {
+  test("fromDriver rejects raw values that cannot be normalized into the canonical runtime contract", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),
       createdAt: C.timestamp()
@@ -222,14 +223,94 @@ describe("executor behavior", () => {
       ]))
     })
 
-    expect(Effect.runSync(executor.execute(plan)) as ReadonlyArray<unknown>).toEqual([
-      {
-        profile: {
-          id: userId,
-          createdAt: "not-a-date"
+    expect(Effect.runSync(Effect.flip(executor.execute(plan)))).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "normalize",
+      projection: {
+        alias: "profile__createdAt"
+      },
+      dbType: {
+        dialect: "postgres",
+        kind: "timestamp"
+      },
+      raw: "not-a-date"
+    })
+  })
+
+  test("fromDriver normalizes canonical scalar outputs across raw driver variants", () => {
+    const metrics = Table.make("metrics", {
+      id: C.uuid().pipe(C.primaryKey),
+      createdAt: C.timestamp(),
+      total: C.number(),
+      counter: C.custom(BigIntStringSchema, {
+        dialect: "postgres",
+        kind: "int8"
+      })
+    })
+
+    const plan = Q.select({
+      createdAt: metrics.createdAt,
+      total: metrics.total,
+      counter: metrics.counter
+    }).pipe(
+      Q.from(metrics)
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          createdAt: new Date("2026-03-18T10:00:00Z"),
+          total: 12.34,
+          counter: 42n
+        },
+        {
+          createdAt: "2026-03-18 10:00:00",
+          total: "0012.3400",
+          counter: "0042"
         }
+      ]))
+    }).execute(plan))
+
+    expect(rows).toEqual([
+      {
+        createdAt: "2026-03-18T10:00:00",
+        total: "12.34",
+        counter: "42"
+      },
+      {
+        createdAt: "2026-03-18T10:00:00",
+        total: "12.34",
+        counter: "42"
       }
     ])
+  })
+
+  test("fromDriver applies schema pipes after canonical date normalization", () => {
+    const events = Table.make("events", {
+      happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
+    })
+
+    const plan = Q.select({
+      happenedOn: events.happenedOn
+    }).pipe(
+      Q.from(events)
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          happenedOn: "2026-03-18"
+        },
+        {
+          happenedOn: new Date("2026-03-18T00:00:00.000Z")
+        }
+      ]))
+    }).execute(plan))
+
+    expect(rows[0]?.happenedOn).toBeInstanceOf(Date)
+    expect(rows[1]?.happenedOn).toBeInstanceOf(Date)
+    expect(rows[0]?.happenedOn.toISOString()).toBe("2026-03-18T00:00:00.000Z")
+    expect(rows[1]?.happenedOn.toISOString()).toBe("2026-03-18T00:00:00.000Z")
   })
 
   test("fromDriver decodes searched case projections over left joins", () => {
@@ -374,7 +455,7 @@ describe("executor behavior", () => {
     expect("rowSchema" in (rendered as Record<string, unknown>)).toBe(false)
   })
 
-  test("fromDriver remaps aliased JSON projections without runtime validation", () => {
+  test("fromDriver enforces runtime schemas for aliased JSON projections", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),
       profile: C.json(Schema.Struct({
@@ -396,11 +477,80 @@ describe("executor behavior", () => {
       ]))
     })
 
-    expect(Effect.runSync(executor.execute(plan)) as ReadonlyArray<unknown>).toEqual([
+    expect(Effect.runSync(Effect.flip(executor.execute(plan)))).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "profile_alias"
+      },
+      dbType: {
+        dialect: "postgres",
+        kind: "json"
+      },
+      raw: {}
+    })
+  })
+
+  test("fromDriver applies schema transforms after JSON normalization", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey),
+      profile: C.json(Schema.Struct({
+        visits: Schema.NumberFromString
+      }))
+    })
+
+    const plan = Q.select({
+      profile: users.profile
+    }).pipe(
+      Q.from(users)
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          profile: "{\"visits\":\"42\"}"
+        }
+      ]))
+    }).execute(plan))
+
+    expect(rows).toEqual([
       {
-        profile: {}
+        profile: {
+          visits: 42
+        }
       }
     ])
+  })
+
+  test("normalized driver mode skips raw scalar normalization but still validates schemas", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey),
+      createdAt: C.timestamp()
+    })
+
+    const plan = Q.select({
+      createdAt: users.createdAt
+    }).pipe(
+      Q.from(users)
+    )
+
+    const executor = Executor.make({
+      driverMode: "normalized",
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          createdAt: new Date("2026-03-18T10:00:00Z")
+        }
+      ]))
+    })
+
+    expect(Effect.runSync(Effect.flip(executor.execute(plan)))).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "createdAt"
+      },
+      raw: expect.any(Date)
+    })
   })
 
   test("withTransaction delegates to the ambient SqlClient transaction service", () => {

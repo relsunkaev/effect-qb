@@ -1,5 +1,19 @@
 import type { Pipeable } from "effect/Pipeable"
+import type * as Schema from "effect/Schema"
 import type { RuntimeOfDbType as RuntimeOfDbTypeLookup } from "./datatypes/lookup.ts"
+
+export type {
+  BigIntString,
+  DecimalString,
+  InstantString,
+  JsonPrimitive,
+  JsonValue,
+  LocalDateString,
+  LocalDateTimeString,
+  LocalTimeString,
+  OffsetTimeString,
+  YearString
+} from "./runtime-value.ts"
 
 /** Symbol used to attach expression metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Expression")
@@ -258,6 +272,7 @@ export interface State<
 > {
   readonly runtime: Runtime
   readonly dbType: Db
+  readonly runtimeSchema?: Schema.Schema.Any
   readonly nullability: Nullable
   readonly dialect: Dialect
   readonly aggregation: Aggregation

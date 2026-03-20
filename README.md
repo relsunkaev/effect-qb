@@ -105,9 +105,9 @@ type LogicalRow = Q.ResultRow<typeof guaranteedPost>
 // }
 ```
 
-`Q.ResultRow<typeof plan>` reflects what the query proves. `Q.RuntimeResultRow<typeof plan>` stays conservative and describes the schema-free runtime remap shape. The same ergonomic narrowing applies when predicates like `where(Q.eq(nullableColumn, nonNullValue))` prove a value cannot be null.
+`Q.ResultRow<typeof plan>` reflects what the query proves. `Q.RuntimeResultRow<typeof plan>` stays conservative and describes the runtime shape that the built-in executors will actually validate and decode. The same ergonomic narrowing applies when predicates like `where(Q.eq(nullableColumn, nonNullValue))` prove a value cannot be null.
 
-The main contract is compile-time. At runtime, the library renders SQL, executes it, and remaps aliased columns back into nested objects. It does not build or validate query-result schemas.
+The main contract is still compile-time, but runtime execution is not a raw pass-through. Built-in executors normalize driver-specific scalars into canonical `effect-qb` values, apply schema-backed transforms, and then remap aliased columns back into nested objects.
 
 ## What The Compiler Proves
 
@@ -256,6 +256,19 @@ const events = analytics.table("events", {
 })
 ```
 
+Columns can also layer an Effect schema over their canonical runtime value:
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column as C, Table } from "effect-qb/postgres"
+
+const events = Table.make("events", {
+  happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
+})
+```
+
+`C.schema(...)` is checked against the column's normalized runtime output. In this case the `date` column normalizes to a string like `"2026-03-20"`, so `Schema.DateFromString` is valid and the resulting row type becomes `Date`.
+
 ### Plans, Not Strings
 
 `effect-qb` does not build rows from ad hoc string fragments. It builds typed plans. Partial plans are allowed while assembling a query, but rendering and execution require a complete plan.
@@ -275,7 +288,7 @@ That distinction is important:
 - grouped-query validation
 - branch pruning for expressions like `case()`
 
-`Q.RuntimeResultRow<typeof plan>` is intentionally more conservative. It describes the schema-free runtime remap path only.
+`Q.RuntimeResultRow<typeof plan>` is intentionally more conservative. It describes the runtime decode contract that built-in executors enforce after canonical scalar normalization and schema validation.
 
 ```ts
 import { Query as Q } from "effect-qb/postgres"
@@ -1272,7 +1285,7 @@ Meaningful differences should be expected around:
 
 - no ORM model layer, identity map, or unit-of-work abstraction
 - no migration framework or schema diff tool
-- no runtime result validation by default
+- no runtime reenactment of every compile-time implication proof
 - no database-introspection-first API that generates queries for you
 
 ## Limitations
@@ -1284,7 +1297,7 @@ Current practical limits:
 - some features are dialect-specific by design
 - JSON support is not identical between Postgres and MySQL
 - admin and DDL workflows are not the focus of this README
-- runtime execution is schema-free, so the database is expected to honor the query contract
+- runtime decoding stays conservative about proof-driven narrowing, so `Q.ResultRow` can still be stricter than `Q.RuntimeResultRow`
 
 ## Contributing
 

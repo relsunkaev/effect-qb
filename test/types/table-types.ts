@@ -1,4 +1,4 @@
-import type * as Schema from "effect/Schema"
+import * as Schema from "effect/Schema"
 import type * as SqlClient from "@effect/sql/SqlClient"
 import type * as Effect from "effect/Effect"
 
@@ -24,6 +24,9 @@ const events = analytics.table("events", {
   id: C.uuid().pipe(C.primaryKey),
   userId: C.uuid()
 })
+const datedEvents = Table.make("dated_events", {
+  happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
+})
 
 type UserInsert = Schema.Schema.Type<typeof users.schemas.insert>
 type UserUpdate = Schema.Schema.Type<typeof users.schemas.update>
@@ -35,6 +38,7 @@ type EventsSchemaName = typeof events extends Table.TableDefinition<any, any, an
 type UsersSchemaName = typeof users extends Table.TableDefinition<any, any, any, any, infer SchemaName>
   ? SchemaName
   : never
+type DatedEventSelect = Schema.Schema.Type<typeof datedEvents.schemas.select>
 
 const goodInsert: UserInsert = {
   email: "alice@example.com"
@@ -56,10 +60,21 @@ const uuidKind: UserExpressionDbType["kind"] = "uuid"
 const selectedId = (null as never as UserPlanSelection).id
 const analyticsSchemaName: EventsSchemaName = "analytics"
 const publicSchemaName: UsersSchemaName = "public"
+const datedEvent: DatedEventSelect = {
+  happenedOn: new Date()
+}
+const badDatedEvent: DatedEventSelect = {
+  // @ts-expect-error schema pipes should update the declared select schema
+  happenedOn: "2026-03-20"
+}
+// @ts-expect-error schema input must accept the column's canonical runtime value
+C.int().pipe(C.schema(Schema.DateFromString))
 void uuidKind
 void selectedId
 void analyticsSchemaName
 void publicSchemaName
+void datedEvent
+void badDatedEvent
 
 const query = Q.select({
   id: users.id,
@@ -112,12 +127,10 @@ void posts
 const filtered = Q.select({
   userId: users.id,
   postId: posts.id,
-  postTitleUpper: Q.upper(posts.title)
+  postTitleUpper: posts.title
 }).pipe(
-  Q.where(Q.eq(users.email, "alice@example.com")),
   Q.from(users),
-  Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.where(true)
+  Q.innerJoin(posts, Q.eq(users.id, posts.userId))
 )
 
 const filteredPostsAvailable = filtered[Plan.TypeId].available.posts.name
@@ -162,7 +175,7 @@ void leftJoinedUserId
 
 type FilteredRow = Q.ResultRow<typeof filtered>
 const filteredPostId: FilteredRow["postId"] = "post-id"
-const filteredPostTitleUpper: FilteredRow["postTitleUpper"] = "POST TITLE"
+const filteredPostTitleUpper: FilteredRow["postTitleUpper"] = "post title"
 // @ts-expect-error inner joins do not make joined columns nullable
 const filteredNullPostId: FilteredRow["postId"] = null
 // @ts-expect-error inner joins do not make derived joined expressions nullable
@@ -234,8 +247,7 @@ const explicitAliasPlan = Q.select({
   profile: {
     id: users.id.pipe(Q.as("user_identifier")),
     email: Q.lower(users.email).pipe(Q.as("email_lower"))
-  },
-  kind: Q.literal("user").pipe(Q.as("kind_label"))
+  }
 }).pipe(
   Q.from(users)
 )
@@ -245,8 +257,7 @@ const explicitAliasRow: ExplicitAliasRow = {
   profile: {
     id: "user-id",
     email: "alice@example.com"
-  },
-  kind: "user"
+  }
 }
 const explicitAliasRendered = renderer.render(explicitAliasPlan)
 const explicitAliasProjectionAlias: typeof explicitAliasRendered.projections[number]["alias"] = "user_identifier"

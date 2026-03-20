@@ -162,7 +162,7 @@ export type RuntimeOfDbType<Db extends Expression.DbType.Any> =
       : Db extends Expression.DbType.Range<any, any, any> | Expression.DbType.Multirange<any, any, any>
         ? unknown
         : Db extends Expression.DbType.Json<any, any>
-          ? unknown
+          ? import("../runtime-value.ts").JsonValue
             : Db extends Expression.DbType.Enum<any, any> | Expression.DbType.Set<any, any>
             ? string
             : Db extends Expression.DbType.Base<infer Dialect extends KnownDialect, infer Kind extends string>

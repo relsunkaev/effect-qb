@@ -56,7 +56,7 @@ describe("implication behavior", () => {
     ])
   })
 
-  test("schema-free execution preserves rows that violate static non-null and branch-pruned guarantees", () => {
+  test("runtime decoding stays conservative for implication-pruned branches", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey)
     })
@@ -72,7 +72,7 @@ describe("implication behavior", () => {
       postId: posts.id,
       titleState: Q.case()
         .when(Q.isNotNull(posts.title), Q.upper(posts.title))
-        .else(0)
+        .else("missing")
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -87,7 +87,7 @@ describe("implication behavior", () => {
         {
           userId,
           postId: null,
-          titleState: 0
+          titleState: "missing"
         }
       ]))
     }).execute(plan)) as ReadonlyArray<unknown>
@@ -96,12 +96,12 @@ describe("implication behavior", () => {
       {
         userId,
         postId: null,
-        titleState: 0
+        titleState: "missing"
       }
     ])
   })
 
-  test("schema-free execution preserves rows that violate static always-null guarantees", () => {
+  test("runtime decoding stays conservative for always-null proofs", () => {
     const posts = Table.make("posts", {
       id: C.uuid().pipe(C.primaryKey),
       userId: C.uuid(),

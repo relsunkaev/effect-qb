@@ -2,6 +2,14 @@ import * as Schema from "effect/Schema"
 
 import * as Expression from "./expression.ts"
 import {
+  LocalDateStringSchema,
+  DecimalStringSchema,
+  LocalDateTimeStringSchema,
+  type LocalDateString,
+  type DecimalString,
+  type LocalDateTimeString
+} from "./runtime-value.ts"
+import {
   type AnyBoundColumn,
   type AnyColumnDefinition,
   type BaseSelectType,
@@ -16,6 +24,7 @@ import {
   type IsPrimaryKey,
   makeColumnDefinition,
   type ReferencesOf,
+  remapColumnDefinition,
   type SelectType,
   type UpdateType
 } from "./column-state.ts"
@@ -112,13 +121,47 @@ type ReferencingColumn<
   ColumnReference<Target>
 >
 
+type SchemaCompatibleColumn<
+  Column extends AnyColumnDefinition,
+  SchemaType extends Schema.Schema.Any
+> = [BaseSelectType<Column>] extends [Schema.Schema.Encoded<SchemaType>]
+  ? Column
+  : never
+
+type ColumnSchemaOutput<
+  Column extends AnyColumnDefinition,
+  SchemaType extends Schema.Schema.Any
+> = IsNullable<Column> extends true
+  ? Schema.Schema.Type<SchemaType> | null
+  : Schema.Schema.Type<SchemaType>
+
+type ColumnWithSchema<
+  Column extends AnyColumnDefinition,
+  SchemaType extends Schema.Schema.Any
+> = ColumnDefinition<
+  ColumnSchemaOutput<Column, SchemaType>,
+  ColumnSchemaOutput<Column, SchemaType>,
+  ColumnSchemaOutput<Column, SchemaType>,
+  Column[typeof ColumnTypeId]["dbType"],
+  IsNullable<Column>,
+  HasDefault<Column>,
+  IsGenerated<Column>,
+  IsPrimaryKey<Column>,
+  Column[typeof ColumnTypeId]["unique"],
+  ReferencesOf<Column>,
+  Column[typeof ColumnTypeId]["source"],
+  Column[typeof ColumnTypeId]["dependencies"]
+>
+
 const mapColumn = <
   Column extends AnyColumnDefinition,
   Next extends AnyColumnDefinition
 >(
   column: Column,
   metadata: Next["metadata"]
-): Next => makeColumnDefinition(column.schema as any, metadata) as Next
+): Next => remapColumnDefinition(column as any, {
+  metadata
+}) as Next
 
 const primitive = <Type, Db extends Expression.DbType.Any>(
   schema: Schema.Schema<Type, any, any>,
@@ -141,6 +184,7 @@ type ColumnModule<
   IntKind extends string,
   NumberKind extends string,
   BooleanKind extends string,
+  DateKind extends string,
   TimestampKind extends string,
   JsonKind extends string
 > = {
@@ -165,9 +209,10 @@ type ColumnModule<
   readonly uuid: () => ColumnDefinition<string, string, string, Expression.DbType.Base<Dialect, UuidKind>, false, false, false, false, false, undefined>
   readonly text: () => ColumnDefinition<string, string, string, Expression.DbType.Base<Dialect, TextKind>, false, false, false, false, false, undefined>
   readonly int: () => ColumnDefinition<number, number, number, Expression.DbType.Base<Dialect, IntKind>, false, false, false, false, false, undefined>
-  readonly number: () => ColumnDefinition<number, number, number, Expression.DbType.Base<Dialect, NumberKind>, false, false, false, false, false, undefined>
+  readonly number: () => ColumnDefinition<DecimalString, DecimalString, DecimalString, Expression.DbType.Base<Dialect, NumberKind>, false, false, false, false, false, undefined>
   readonly boolean: () => ColumnDefinition<boolean, boolean, boolean, Expression.DbType.Base<Dialect, BooleanKind>, false, false, false, false, false, undefined>
-  readonly timestamp: () => ColumnDefinition<Date, Date, Date, Expression.DbType.Base<Dialect, TimestampKind>, false, false, false, false, false, undefined>
+  readonly date: () => ColumnDefinition<LocalDateString, LocalDateString, LocalDateString, Expression.DbType.Base<Dialect, DateKind>, false, false, false, false, false, undefined>
+  readonly timestamp: () => ColumnDefinition<LocalDateTimeString, LocalDateTimeString, LocalDateTimeString, Expression.DbType.Base<Dialect, TimestampKind>, false, false, false, false, false, undefined>
   readonly json: <SchemaType extends Schema.Schema.Any>(
     schema: SchemaType
   ) => ColumnDefinition<
@@ -197,6 +242,7 @@ const makeColumnModule = <
   IntKind extends string,
   NumberKind extends string,
   BooleanKind extends string,
+  DateKind extends string,
   TimestampKind extends string,
   JsonKind extends string
 >(
@@ -207,10 +253,11 @@ const makeColumnModule = <
     readonly int: IntKind
     readonly number: NumberKind
     readonly boolean: BooleanKind
+    readonly date: DateKind
     readonly timestamp: TimestampKind
     readonly json: JsonKind
   }
-): ColumnModule<Dialect, UuidKind, TextKind, IntKind, NumberKind, BooleanKind, TimestampKind, JsonKind> => {
+): ColumnModule<Dialect, UuidKind, TextKind, IntKind, NumberKind, BooleanKind, DateKind, TimestampKind, JsonKind> => {
   const dialectType = typeFactory(dialect)
   return {
     custom: <SchemaType extends Schema.Schema.Any, Db extends Expression.DbType.Any>(
@@ -229,9 +276,10 @@ const makeColumnModule = <
     uuid: () => primitive(Schema.UUID, dialectType(kinds.uuid)),
     text: () => primitive(Schema.String, dialectType(kinds.text)),
     int: () => primitive(Schema.Int, dialectType(kinds.int)),
-    number: () => primitive(Schema.Number, dialectType(kinds.number)),
+    number: () => primitive(DecimalStringSchema, dialectType(kinds.number)),
     boolean: () => primitive(Schema.Boolean, dialectType(kinds.boolean)),
-    timestamp: () => primitive(Schema.Date, dialectType(kinds.timestamp)),
+    date: () => primitive(LocalDateStringSchema, dialectType(kinds.date)),
+    timestamp: () => primitive(LocalDateTimeStringSchema, dialectType(kinds.timestamp)),
     json: <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
       makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
         dbType: {
@@ -255,6 +303,7 @@ export const postgres = makeColumnModule("postgres", {
   int: "int4",
   number: "numeric",
   boolean: "bool",
+  date: "date",
   timestamp: "timestamp",
   json: "json"
 })
@@ -266,6 +315,7 @@ export const mysql = makeColumnModule("mysql", {
   int: "int",
   number: "decimal",
   boolean: "boolean",
+  date: "date",
   timestamp: "timestamp",
   json: "json"
 })
@@ -276,17 +326,28 @@ export const uuid = postgres.uuid
 export const text = postgres.text
 /** Creates a Postgres `int4` column. */
 export const int = postgres.int
-/** Creates a Postgres `numeric` column. */
+/** Creates a Postgres `numeric` column decoded as `DecimalString`. */
 export const number = postgres.number
 /** Creates a Postgres `bool` column. */
 export const boolean = postgres.boolean
-/** Creates a Postgres `timestamp` column decoded as `Date`. */
+/** Creates a Postgres `date` column decoded as `LocalDateString`. */
+export const date = postgres.date
+/** Creates a Postgres `timestamp` column decoded as `LocalDateTimeString`. */
 export const timestamp = postgres.timestamp
 
 /** Creates a Postgres `json` column backed by an arbitrary Effect schema. */
 export const json = postgres.json
 /** Creates a Postgres column backed by an arbitrary SQL type and Effect schema. */
 export const custom = postgres.custom
+
+/** Replaces a column's runtime schema while preserving its SQL type metadata. */
+export const schema = <SchemaType extends Schema.Schema.Any>(nextSchema: SchemaType) =>
+  <Column extends AnyColumnDefinition>(
+    column: SchemaCompatibleColumn<Column, SchemaType>
+  ): ColumnWithSchema<Column, SchemaType> =>
+    remapColumnDefinition(column as AnyColumnDefinition, {
+      schema: nextSchema
+    }) as ColumnWithSchema<Column, SchemaType>
 
 /** Marks a column as nullable. Nullable columns decode as `T | null`. */
 export const nullable = <Column extends AnyColumnDefinition>(

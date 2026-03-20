@@ -87,7 +87,7 @@ describe("nullability behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
-  test("where predicates refine nullable joined projections in SQL while runtime only remaps rows", () => {
+  test("where predicates refine nullable joined projections in SQL while runtime stays conservative", () => {
     const { users, posts } = makeRootSocialGraph()
 
     const plan = Q.select({
@@ -130,7 +130,7 @@ describe("nullability behavior", () => {
     ])
   })
 
-  test("searched case applies branch-local refinement to SQL while runtime stays schema-free", () => {
+  test("searched case applies branch-local refinement to SQL while runtime stays conservative", () => {
     const { users, posts } = makeRootSocialGraph()
 
     const plan = Q.select({
@@ -157,7 +157,7 @@ describe("nullability behavior", () => {
     ])
   })
 
-  test("searched case stays schema-free after filtered left joins", () => {
+  test("searched case stays conservative after filtered left joins", () => {
     const { users, posts } = makeRootSocialGraph()
 
     const plan = Q.select({

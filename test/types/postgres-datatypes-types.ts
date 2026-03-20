@@ -1,4 +1,4 @@
-import { Query as Q, Table, Column as C } from "../../src/postgres.ts"
+import { Query as Q, Table, Column as C, Expression as E } from "../../src/postgres.ts"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -18,9 +18,11 @@ const plan = Q.select({
 type Row = Q.ResultRow<typeof plan>
 const varcharEmail: Row["varcharEmail"] = "alice@example.com"
 const citextEmail: Row["citextEmail"] = "alice@example.com"
-const dateValue: Row["dateValue"] = new Date()
+const dateValue: Row["dateValue"] = "2026-03-18" as E.LocalDateString
 const binaryValue: Row["binaryValue"] = new Uint8Array()
-const jsonbValue: Row["jsonbValue"] = {} as unknown
+const jsonbValue: Row["jsonbValue"] = {
+  ok: true
+} as E.JsonValue
 void varcharEmail
 void citextEmail
 void dateValue

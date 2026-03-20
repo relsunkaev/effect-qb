@@ -13,6 +13,8 @@ import {
 
 /** Postgres-specialized flat row returned by SQL drivers. */
 export type FlatRow = CoreExecutor.FlatRow
+/** Runtime decode failure raised after SQL execution but before row remapping. */
+export type RowDecodeError = CoreExecutor.RowDecodeError
 /** Postgres-specialized rendered-query driver. */
 export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"postgres", Error, Context>
 /** Postgres-specialized executor contract. */
@@ -21,9 +23,10 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"po
 export interface MakeOptions<Error = never, Context = never> {
   readonly renderer?: Renderer.Renderer
   readonly driver?: Driver<Error, Context>
+  readonly driverMode?: CoreExecutor.DriverMode
 }
 /** Standard composed error shape for Postgres executors. */
-export type PostgresExecutorError = PostgresDriverError
+export type PostgresExecutorError = PostgresDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in Postgres executors. */
 export type PostgresQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   Exclude<Query.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? PostgresReadQueryError : PostgresExecutorError
@@ -54,17 +57,24 @@ const fromDriver = <
   Context = never
 >(
   renderer: Renderer.Renderer,
-  sqlDriver: Driver<Error, Context>
+  sqlDriver: Driver<Error, Context>,
+  driverMode: CoreExecutor.DriverMode = "raw"
 ): QueryExecutor<Context> => ({
   dialect: "postgres",
   execute(plan) {
     const rendered = renderer.render(plan)
     return Effect.mapError(
-      Effect.map(
+      Effect.flatMap(
         sqlDriver.execute(rendered),
-        (rows) => CoreExecutor.remapRows<any>(rendered, rows)
+        (rows) => Effect.try({
+          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode }),
+          catch: (error) => error as RowDecodeError
+        })
       ),
       (error) => {
+        if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
+          return error as RowDecodeError
+        }
         const normalized = normalizePostgresDriverError(error, rendered)
         return CoreExecutor.hasWriteCapability(plan)
           ? normalized
@@ -90,21 +100,23 @@ export function make(): QueryExecutor<SqlClient.SqlClient>
 export function make(
   options: {
     readonly renderer?: Renderer.Renderer
+    readonly driverMode?: CoreExecutor.DriverMode
   }
 ): QueryExecutor<SqlClient.SqlClient>
 export function make<Error = never, Context = never>(
   options: {
     readonly renderer?: Renderer.Renderer
     readonly driver: Driver<Error, Context>
+    readonly driverMode?: CoreExecutor.DriverMode
   }
 ): QueryExecutor<Context>
 export function make<Error = never, Context = never>(
   options: MakeOptions<Error, Context> = {}
 ): QueryExecutor<any> {
   if (options.driver) {
-    return fromDriver(options.renderer ?? Renderer.make(), options.driver)
+    return fromDriver(options.renderer ?? Renderer.make(), options.driver, options.driverMode)
   }
-  return fromDriver(options.renderer ?? Renderer.make(), sqlClientDriver())
+  return fromDriver(options.renderer ?? Renderer.make(), sqlClientDriver(), options.driverMode)
 }
 
 /** Creates a Postgres-specialized executor from a typed implementation callback. */

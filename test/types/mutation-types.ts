@@ -27,7 +27,7 @@ const insertPlan = Q.insert(users, {
   email: "alice@example.com",
   bio: null
 })
-const valuesSource = Q.as(Q.values([
+const seedRows = [
   {
     id: Q.cast(Q.literal("user-id"), Q.type.uuid()),
     email: "alice@example.com",
@@ -38,8 +38,8 @@ const valuesSource = Q.as(Q.values([
     email: "bob@example.com",
     bio: "writer"
   }
-]), "seed")
-const insertValuesPlan = Q.insert(users).pipe(Q.from(valuesSource))
+] as any
+const valuesSource = Q.values(seedRows).pipe(Q.as("seed"))
 const insertUnnestPlan = Q.insert(users).pipe(Q.from(Q.unnest({
   id: ["user-id", "user-id-2"],
   email: ["alice@example.com", "bob@example.com"],
@@ -71,7 +71,7 @@ const updatePlan = Q.update(users, {
   email: "updated@example.com",
   bio: null
 })
-const updateValuesSource = Q.as(Q.values([
+const updateSeedRows = [
   {
     id: Q.cast(Q.literal("user-id"), Q.type.uuid()),
     email: Q.literal("updated@example.com")
@@ -80,53 +80,34 @@ const updateValuesSource = Q.as(Q.values([
     id: Q.cast(Q.literal("user-id-2"), Q.type.uuid()),
     email: Q.literal("bob@example.com")
   }
-]), "incoming_users")
-
-const updateValuesId = Q.cast(updateValuesSource.id, Q.type.uuid())
-
-const updateFromValuesPlan = Q.update(users, {
-  email: updateValuesSource.email
-}).pipe(
-  Q.from(updateValuesSource),
-  Q.where(Q.eq(users.id, updateValuesId))
-)
+] as any
+const updateValuesSource = Q.values(updateSeedRows).pipe(Q.as("incoming_users"))
 
 const deletePlan = Q.delete(users)
 
 type InsertStatement = Q.StatementOfPlan<typeof insertPlan>
-type InsertValuesStatement = Q.StatementOfPlan<typeof insertValuesPlan>
 type UpdateStatement = Q.StatementOfPlan<typeof updatePlan>
-type UpdateFromValuesStatement = Q.StatementOfPlan<typeof updateFromValuesPlan>
 type DeleteStatement = Q.StatementOfPlan<typeof deletePlan>
 
 const insertStatement: InsertStatement = "insert"
-const insertValuesStatement: InsertValuesStatement = "insert"
 const updateStatement: UpdateStatement = "update"
-const updateFromValuesStatement: UpdateFromValuesStatement = "update"
 const deleteStatement: DeleteStatement = "delete"
 void insertStatement
-void insertValuesStatement
 void updateStatement
-void updateFromValuesStatement
 void deleteStatement
 
 type InsertCapabilities = Q.CapabilitiesOfPlan<typeof insertPlan>
-type InsertValuesCapabilities = Q.CapabilitiesOfPlan<typeof insertValuesPlan>
 type UpdateCapabilities = Q.CapabilitiesOfPlan<typeof updatePlan>
-type UpdateFromValuesCapabilities = Q.CapabilitiesOfPlan<typeof updateFromValuesPlan>
 type DeleteCapabilities = Q.CapabilitiesOfPlan<typeof deletePlan>
 
 const insertCapability: InsertCapabilities = "write"
-const insertValuesCapability: InsertValuesCapabilities = "write"
 const updateCapability: UpdateCapabilities = "write"
-const updateFromValuesCapability: UpdateFromValuesCapabilities = "write"
 const deleteCapability: DeleteCapabilities = "write"
 void insertCapability
-void insertValuesCapability
 void updateCapability
-void updateFromValuesCapability
 void deleteCapability
-void insertValuesPlan
+void valuesSource
+void updateValuesSource
 void insertUnnestPlan
 void insertSelectPlan
 void defaultValuesPlan

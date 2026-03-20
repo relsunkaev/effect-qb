@@ -1,9 +1,28 @@
+import type {
+  BigIntString,
+  DecimalString,
+  InstantString,
+  JsonValue,
+  LocalDateString,
+  LocalDateTimeString,
+  LocalTimeString,
+  OffsetTimeString,
+  YearString
+} from "../runtime-value.ts"
+
 export type RuntimeTag =
   | "string"
   | "number"
-  | "bigint"
+  | "bigintString"
   | "boolean"
-  | "date"
+  | "json"
+  | "localDate"
+  | "localTime"
+  | "offsetTime"
+  | "localDateTime"
+  | "instant"
+  | "year"
+  | "decimalString"
   | "bytes"
   | "array"
   | "record"
@@ -13,14 +32,21 @@ export type RuntimeTag =
 export type RuntimeOfTag<Tag extends RuntimeTag> =
   Tag extends "string" ? string :
     Tag extends "number" ? number :
-      Tag extends "bigint" ? bigint :
+      Tag extends "bigintString" ? BigIntString :
         Tag extends "boolean" ? boolean :
-        Tag extends "date" ? Date :
-          Tag extends "bytes" ? Uint8Array :
-            Tag extends "array" ? ReadonlyArray<unknown> :
-              Tag extends "record" ? Record<string, unknown> :
-              Tag extends "null" ? null :
-                unknown
+        Tag extends "json" ? JsonValue :
+          Tag extends "localDate" ? LocalDateString :
+            Tag extends "localTime" ? LocalTimeString :
+              Tag extends "offsetTime" ? OffsetTimeString :
+                Tag extends "localDateTime" ? LocalDateTimeString :
+                  Tag extends "instant" ? InstantString :
+                    Tag extends "year" ? YearString :
+                      Tag extends "decimalString" ? DecimalString :
+                        Tag extends "bytes" ? Uint8Array :
+                          Tag extends "array" ? ReadonlyArray<unknown> :
+                            Tag extends "record" ? Record<string, unknown> :
+                              Tag extends "null" ? null :
+                                unknown
 
 export interface DatatypeTraits {
   readonly textual?: true

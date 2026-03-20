@@ -1,4 +1,4 @@
-import { Query as Q, Table, Column as C } from "../../src/mysql.ts"
+import { Query as Q, Table, Column as C, Expression as E } from "../../src/mysql.ts"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -16,9 +16,9 @@ const plan = Q.select({
 
 type Row = Q.ResultRow<typeof plan>
 const varcharEmail: Row["varcharEmail"] = "alice@example.com"
-const datetimeValue: Row["datetimeValue"] = new Date()
+const datetimeValue: Row["datetimeValue"] = "2026-03-18T10:00:00" as E.LocalDateTimeString
 const blobValue: Row["blobValue"] = new Uint8Array()
-const bigIntValue: Row["bigIntValue"] = 1n
+const bigIntValue: Row["bigIntValue"] = "1" as E.BigIntString
 void varcharEmail
 void datetimeValue
 void blobValue
@@ -57,7 +57,7 @@ const customPlan = Q.select({
 })
 
 type CustomRow = Q.ResultRow<typeof customPlan>
-const scaledValue: CustomRow["scaledValue"] = 1
+const scaledValue: CustomRow["scaledValue"] = "1" as E.DecimalString
 const scaledMatch: CustomRow["scaledMatch"] = true
 void scaledValue
 void scaledMatch

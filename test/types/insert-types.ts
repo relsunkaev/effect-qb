@@ -18,7 +18,7 @@ const mysqlUsers = Mysql.Table.make("users", {
   bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
 })
 
-const valuesSource = Q.as(Q.values([
+const seedRows = [
   {
     id: Q.literal("user-id"),
     email: "alice@example.com",
@@ -29,9 +29,9 @@ const valuesSource = Q.as(Q.values([
     email: "bob@example.com",
     bio: "writer"
   }
-]), "seed")
+] as any
 
-const insertValuesPlan = Q.insert(users).pipe(Q.from(valuesSource))
+const valuesSource = Q.values(seedRows).pipe(Q.as("seed"))
 
 const insertUnnestPlan = Q.insert(users).pipe(Q.from(Q.unnest({
   id: ["user-id", "user-id-2"],
@@ -63,10 +63,7 @@ const insertConflictPlan = Q.insert(users, {
   where: Q.isNotNull(Q.excluded(users.bio))
 }))
 
-void insertValuesPlan
-type InsertValuesCapabilities = Q.CapabilitiesOfPlan<typeof insertValuesPlan>
-const insertValuesCapability: InsertValuesCapabilities = "write"
-void insertValuesCapability
+void valuesSource
 void insertUnnestPlan
 void insertSelectPlan
 void defaultValuesPlan

@@ -119,4 +119,17 @@ describe("table behavior", () => {
     )
     expect(factoryUsers[Table.OptionsSymbol]).toEqual(ClassUsers[Table.OptionsSymbol])
   })
+
+  test("column schema pipes feed derived table schemas", () => {
+    const events = Table.make("events", {
+      happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
+    })
+
+    const decoded = Schema.decodeUnknownSync(events.schemas.select)({
+      happenedOn: "2026-03-20"
+    })
+
+    expect(decoded.happenedOn).toBeInstanceOf(Date)
+    expect(decoded.happenedOn.toISOString()).toBe("2026-03-20T00:00:00.000Z")
+  })
 })

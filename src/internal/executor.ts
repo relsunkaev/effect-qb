@@ -1,20 +1,47 @@
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import * as SqlClient from "@effect/sql/SqlClient"
 import * as SqlError from "@effect/sql/SqlError"
 
+import * as Expression from "./expression.ts"
+import { normalizeDbValue } from "./runtime-normalize.ts"
+import { expressionRuntimeSchema } from "./runtime-schema.ts"
+import { flattenSelection } from "./projections.ts"
 import * as Query from "./query.ts"
 import * as QueryAst from "./query-ast.ts"
 import * as Renderer from "./renderer.ts"
+import * as Plan from "./plan.ts"
 
 /** Flat database row keyed by rendered projection aliases. */
 export type FlatRow = Readonly<Record<string, unknown>>
+export type DriverMode = "raw" | "normalized"
+
+export interface RowDecodeError {
+  readonly _tag: "RowDecodeError"
+  readonly message: string
+  readonly dialect: string
+  readonly query?: {
+    readonly sql: string
+    readonly params: ReadonlyArray<unknown>
+  }
+  readonly projection: {
+    readonly alias: string
+    readonly path: readonly string[]
+  }
+  readonly dbType: Expression.DbType.Any
+  readonly raw: unknown
+  readonly normalized?: unknown
+  readonly stage: "normalize" | "schema"
+  readonly cause: unknown
+}
 
 /**
  * Driver that executes already-rendered SQL.
  *
  * Drivers operate on rendered SQL plus projection metadata and return flat
- * alias-keyed rows. The executor layer only remaps those aliases back into the
- * nested query result shape.
+ * alias-keyed rows. Executors then normalize raw driver values into the
+ * canonical runtime contract, validate them against runtime schemas, and remap
+ * aliases back into the nested result shape.
  */
 export interface Driver<
   Dialect extends string = string,
@@ -31,8 +58,8 @@ export interface Driver<
  * Public execution contract.
  *
  * Executors only accept complete, dialect-compatible plans. Successful
- * execution yields the compile-time query result contract, but runtime
- * execution does not validate the returned row payloads.
+ * execution yields the compile-time query result contract after canonical
+ * scalar normalization plus runtime schema validation.
  */
 export interface Executor<
   Dialect extends string = string,
@@ -130,6 +157,143 @@ export const remapRows = <Row>(
     }
     return decoded as Row
   })
+
+const makeRowDecodeError = (
+  rendered: Renderer.RenderedQuery<any, any>,
+  projection: Renderer.RenderedQuery<any, any>["projections"][number],
+  expression: Expression.Any,
+  raw: unknown,
+  stage: RowDecodeError["stage"],
+  cause: unknown,
+  normalized?: unknown
+): RowDecodeError => ({
+  _tag: "RowDecodeError",
+  message: stage === "normalize"
+    ? `Failed to normalize projection '${projection.alias}'`
+    : `Failed to decode projection '${projection.alias}' against its runtime schema`,
+  dialect: rendered.dialect,
+  query: {
+    sql: rendered.sql,
+    params: rendered.params
+  },
+  projection: {
+    alias: projection.alias,
+    path: projection.path
+  },
+  dbType: expression[Expression.TypeId].dbType,
+  raw,
+  normalized,
+  stage,
+  cause
+})
+
+const hasOptionalSourceDependency = (
+  expression: Expression.Any,
+  available: Readonly<Record<string, Plan.Source>>
+): boolean => {
+  const state = expression[Expression.TypeId]
+  if (state.sourceNullability === "resolved") {
+    return false
+  }
+  return Object.keys(state.dependencies).some((sourceName) => available[sourceName]?.mode === "optional")
+}
+
+const effectiveRuntimeNullability = (
+  expression: Expression.Any,
+  available: Readonly<Record<string, Plan.Source>>
+): Expression.Nullability => {
+  const nullability = expression[Expression.TypeId].nullability
+  if (nullability === "always") {
+    return "always"
+  }
+  return hasOptionalSourceDependency(expression, available)
+    ? "maybe"
+    : nullability
+}
+
+const decodeProjectionValue = (
+  rendered: Renderer.RenderedQuery<any, any>,
+  projection: Renderer.RenderedQuery<any, any>["projections"][number],
+  expression: Expression.Any,
+  raw: unknown,
+  available: Readonly<Record<string, Plan.Source>>,
+  driverMode: DriverMode
+): unknown => {
+  let normalized = raw
+  if (driverMode === "raw") {
+    try {
+      normalized = normalizeDbValue(expression[Expression.TypeId].dbType, raw)
+    } catch (cause) {
+      throw makeRowDecodeError(rendered, projection, expression, raw, "normalize", cause)
+    }
+  }
+
+  if (normalized === null) {
+    if (effectiveRuntimeNullability(expression, available) === "never") {
+      throw makeRowDecodeError(
+        rendered,
+        projection,
+        expression,
+        raw,
+        "schema",
+        new Error("Received null for a non-null projection"),
+        normalized
+      )
+    }
+    return null
+  }
+
+  const schema = expressionRuntimeSchema(expression)
+  if (schema === undefined) {
+    return normalized
+  }
+
+  if ((Schema.is(schema as Schema.Schema.Any) as (value: unknown) => boolean)(normalized)) {
+    return normalized
+  }
+
+  try {
+    return (Schema.decodeUnknownSync as any)(schema)(normalized)
+  } catch (cause) {
+    throw makeRowDecodeError(rendered, projection, expression, raw, "schema", cause, normalized)
+  }
+}
+
+export const decodeRows = (
+  rendered: Renderer.RenderedQuery<any, any>,
+  plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  rows: ReadonlyArray<FlatRow>,
+  options: {
+    readonly driverMode?: DriverMode
+  } = {}
+): ReadonlyArray<any> => {
+  const projections = flattenSelection(
+    Query.getAst(plan).select as Record<string, unknown>
+  )
+  const byAlias = new Map(
+    projections.map((projection) => [projection.alias, projection.expression] as const)
+  )
+  const driverMode = options.driverMode ?? "raw"
+  const available = plan[Plan.TypeId].available
+  return rows.map((row) => {
+    const decoded: Record<string, unknown> = {}
+    for (const projection of rendered.projections) {
+      if (!(projection.alias in row)) {
+        continue
+      }
+      const expression = byAlias.get(projection.alias)
+      if (expression === undefined) {
+        continue
+      }
+      setPath(
+        decoded,
+        projection.path,
+        decodeProjectionValue(rendered, projection, expression, row[projection.alias], available, driverMode)
+      )
+    }
+    return decoded
+  })
+}
 
 /**
  * Constructs an executor from a dialect and implementation callback.

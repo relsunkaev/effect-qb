@@ -1,5 +1,6 @@
 export {
   boolean,
+  date,
   generated,
   hasDefault,
   int,
@@ -8,6 +9,7 @@ export {
   number,
   primaryKey,
   references,
+  schema,
   text,
   timestamp,
   custom,
