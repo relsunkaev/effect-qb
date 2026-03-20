@@ -1,15 +1,32 @@
 {
   "name": "effect-qb",
-  "module": "src/index.ts",
+  "version": "0.12.3",
   "type": "module",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "exports": {
-    "./postgres": "./src/postgres.ts",
-    "./mysql": "./src/mysql.ts"
+    "./postgres": {
+      "types": "./src/postgres.ts",
+      "import": "./dist/postgres.js"
+    },
+    "./mysql": {
+      "types": "./src/mysql.ts",
+      "import": "./dist/mysql.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
+    "build": "bun scripts/build-package.ts",
     "test": "bun test",
     "test:types": "bunx tsgo -p tsconfig.type-tests.json",
-    "test:integration": "bun scripts/test-integration.ts"
+    "test:integration": "bun scripts/test-integration.ts",
+    "prepack": "bun run build"
   },
   "devDependencies": {
     "@effect/sql-mysql2": "0.48.0",
