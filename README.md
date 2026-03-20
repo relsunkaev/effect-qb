@@ -755,13 +755,15 @@ Conflict targets are checked against the target table.
 Mutation plans can project typed rows with `returning(...)`.
 
 ```ts
-const insertedUser = Q.returning({
-  id: users.id,
-  email: users.email
-})(Q.insert(users, {
+const insertedUser = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
-}))
+}).pipe(
+  Q.returning({
+    id: users.id,
+    email: users.email
+  })
+)
 
 type InsertedUserRow = Q.ResultRow<typeof insertedUser>
 // {
@@ -776,13 +778,15 @@ Write plans can feed later reads in the same statement:
 
 ```ts
 const insertedUsers = Q.with(
-  Q.returning({
-    id: users.id,
-    email: users.email
-  })(Q.insert(users, {
+  Q.insert(users, {
     id: "user-1",
     email: "alice@example.com"
-  })),
+  }).pipe(
+    Q.returning({
+      id: users.id,
+      email: users.email
+    })
+  ),
   "inserted_users"
 )
 
