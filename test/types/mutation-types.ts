@@ -129,7 +129,7 @@ const deleteReturning = Q.returning({
   id: users.id
 })(deletePlan)
 
-const insertedUsers = Q.with(insertReturning, "inserted_users")
+const insertedUsers = insertReturning.pipe(Q.with("inserted_users"))
 
 const insertedUsersPlan = Q.select({
   id: insertedUsers.id,

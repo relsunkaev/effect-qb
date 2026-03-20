@@ -587,7 +587,7 @@ describe("postgres dialect behavior", () => {
       Postgres.Query.from(posts),
       Postgres.Query.where(Postgres.Query.isNotNull(posts.title))
     )
-    const activePosts = Postgres.Query.with(activePostsSubquery, "active_posts")
+    const activePosts = activePostsSubquery.pipe(Postgres.Query.with("active_posts"))
 
     const plan = Postgres.Query.select({
       userId: users.id,
@@ -611,17 +611,17 @@ describe("postgres dialect behavior", () => {
       bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
     })
 
-    const insertedUsers = Postgres.Query.with(
+    const insertedUsers = Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com",
+      bio: null
+    }).pipe(
       Postgres.Query.returning({
         id: users.id,
         email: users.email,
         bio: users.bio
-      })(Postgres.Query.insert(users, {
-        id: userId,
-        email: "alice@example.com",
-        bio: null
-      })),
-      "inserted_users"
+      }),
+      Postgres.Query.with("inserted_users")
     )
 
     const plan = Postgres.Query.select({
@@ -646,16 +646,14 @@ describe("postgres dialect behavior", () => {
   test("renders postgres lateral joins with correlated outer references", () => {
     const { users, posts } = makePostgresSocialGraph()
 
-    const lateralPosts = Postgres.Query.lateral(
-      Postgres.Query.select({
+    const lateralPosts = Postgres.Query.select({
         postId: posts.id,
         userId: posts.userId
       }).pipe(
         Postgres.Query.from(posts),
-        Postgres.Query.where(Postgres.Query.eq(posts.userId, users.id))
-      ),
-      "user_posts"
-    )
+        Postgres.Query.where(Postgres.Query.eq(posts.userId, users.id)),
+        Postgres.Query.lateral("user_posts")
+      )
 
     const plan = Postgres.Query.select({
       userId: users.id,
@@ -676,14 +674,12 @@ describe("postgres dialect behavior", () => {
   test("renders recursive postgres ctes with the recursive keyword", () => {
     const { posts } = makePostgresSocialGraph()
 
-    const recursivePosts = Postgres.Query.withRecursive(
-      Postgres.Query.select({
+    const recursivePosts = Postgres.Query.select({
         userId: posts.userId
       }).pipe(
-        Postgres.Query.from(posts)
-      ),
-      "recursive_posts"
-    )
+        Postgres.Query.from(posts),
+        Postgres.Query.withRecursive("recursive_posts")
+      )
 
     const plan = Postgres.Query.select({
       userId: recursivePosts.userId

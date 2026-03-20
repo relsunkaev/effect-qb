@@ -4559,33 +4559,76 @@ type AsCurriedResult<
   }
 
   function with_<
+    Alias extends string
+  >(
+    alias: Alias
+  ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    value: CompletePlan<PlanValue>
+  ) => import("./query.js").CteSource<PlanValue, Alias>
+  function with_<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: CompletePlan<PlanValue>,
     alias: Alias
-  ): import("./query.js").CteSource<PlanValue, Alias> {
-    return makeCteSource(value, alias)
+  ): import("./query.js").CteSource<PlanValue, Alias>
+  function with_(valueOrAlias: unknown, alias?: string): unknown {
+    if (alias === undefined) {
+      return (value: unknown) => with_(value as any, valueOrAlias as string)
+    }
+    return makeCteSource(
+      valueOrAlias as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
+      alias
+    )
   }
 
+  function withRecursive_<
+    Alias extends string
+  >(
+    alias: Alias
+  ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    value: CompletePlan<PlanValue>
+  ) => import("./query.js").CteSource<PlanValue, Alias>
   function withRecursive_<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: CompletePlan<PlanValue>,
     alias: Alias
-  ): import("./query.js").CteSource<PlanValue, Alias> {
-    return makeCteSource(value, alias, true)
+  ): import("./query.js").CteSource<PlanValue, Alias>
+  function withRecursive_(valueOrAlias: unknown, alias?: string): unknown {
+    if (alias === undefined) {
+      return (value: unknown) => withRecursive_(value as any, valueOrAlias as string)
+    }
+    return makeCteSource(
+      valueOrAlias as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
+      alias,
+      true
+    )
   }
 
+  function lateral<
+    Alias extends string
+  >(
+    alias: Alias
+  ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    value: PlanValue
+  ) => import("./query.js").LateralSource<PlanValue, Alias>
   function lateral<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: PlanValue,
     alias: Alias
-  ): import("./query.js").LateralSource<PlanValue, Alias> {
-    return makeLateralSource(value, alias)
+  ): import("./query.js").LateralSource<PlanValue, Alias>
+  function lateral(valueOrAlias: unknown, alias?: string): unknown {
+    if (alias === undefined) {
+      return (value: unknown) => lateral(value as any, valueOrAlias as string)
+    }
+    return makeLateralSource(
+      valueOrAlias as QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+      alias
+    )
   }
 
   const values = <

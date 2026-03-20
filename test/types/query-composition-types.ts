@@ -99,7 +99,7 @@ const cteSourceSubquery = Q.select({
   Q.where(Q.isNotNull(posts.title))
 )
 
-const cteSource = Q.with(cteSourceSubquery, "active_posts")
+const cteSource = cteSourceSubquery.pipe(Q.with("active_posts"))
 
 const cteSourcePlan = Q.select({
   userId: users.id,
@@ -113,20 +113,18 @@ type CteSourceRow = Q.ResultRow<typeof cteSourcePlan>
 const cteSourceTitle: CteSourceRow["title"] = "hello"
 void cteSourceTitle
 
-const recursiveCteSource = Q.withRecursive(cteSourceSubquery, "recursive_posts")
+const recursiveCteSource = cteSourceSubquery.pipe(Q.withRecursive("recursive_posts"))
 const recursiveCteFlag: typeof recursiveCteSource["recursive"] = true
 void recursiveCteFlag
 
-const lateralPosts = Q.lateral(
-  Q.select({
+const lateralPosts = Q.select({
     postId: posts.id,
     userId: posts.userId
   }).pipe(
     Q.from(posts),
-    Q.where(Q.eq(posts.userId, users.id))
-  ),
-  "user_posts"
-)
+    Q.where(Q.eq(posts.userId, users.id)),
+    Q.lateral("user_posts")
+  )
 
 type LateralRequired = Q.SourceRequiredOf<typeof lateralPosts>
 const lateralRequired: LateralRequired = "users"

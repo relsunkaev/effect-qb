@@ -94,15 +94,15 @@ describe("postgres errors", () => {
       email: Postgres.Column.text()
     })
 
-    const insertedUsers = Postgres.Query.with(
+    const insertedUsers = Postgres.Query.insert(users, {
+      id: "11111111-1111-1111-1111-111111111111",
+      email: "alice@example.com"
+    }).pipe(
       Postgres.Query.returning({
         id: users.id,
         email: users.email
-      })(Postgres.Query.insert(users, {
-        id: "11111111-1111-1111-1111-111111111111",
-        email: "alice@example.com"
-      })),
-      "inserted_users"
+      }),
+      Postgres.Query.with("inserted_users")
     )
 
     const plan = Postgres.Query.select({

@@ -462,16 +462,14 @@ Projection typing is local. You usually do not need to define row interfaces you
 `from(...)` and joins make referenced sources available to the plan. Derived tables, CTEs, and correlated sources stay typed.
 
 ```ts
-const activePosts = Q.as(
-  Q.select({
+const activePosts = Q.select({
     userId: posts.userId,
     title: posts.title
   }).pipe(
     Q.from(posts),
-    Q.where(Q.isNotNull(posts.title))
-  ),
-  "active_posts"
-)
+    Q.where(Q.isNotNull(posts.title)),
+    Q.as("active_posts")
+  )
 
 const usersWithPosts = Q.select({
   userId: users.id,
@@ -490,9 +488,9 @@ type UsersWithPostsRow = Q.ResultRow<typeof usersWithPosts>
 
 The same source story applies to:
 
-- `Q.with(subquery, alias)`
-- `Q.withRecursive(subquery, alias)`
-- `Q.lateral(subquery, alias)`
+- `subquery.pipe(Q.with("alias"))`
+- `subquery.pipe(Q.withRecursive("alias"))`
+- `subquery.pipe(Q.lateral("alias"))`
 - `Q.values(...)`
 - `Q.unnest(...)`
 
@@ -777,17 +775,15 @@ type InsertedUserRow = Q.ResultRow<typeof insertedUser>
 Write plans can feed later reads in the same statement:
 
 ```ts
-const insertedUsers = Q.with(
-  Q.insert(users, {
-    id: "user-1",
-    email: "alice@example.com"
-  }).pipe(
-    Q.returning({
-      id: users.id,
-      email: users.email
-    })
-  ),
-  "inserted_users"
+const insertedUsers = Q.insert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}).pipe(
+  Q.returning({
+    id: users.id,
+    email: users.email
+  }),
+  Q.with("inserted_users")
 )
 
 const insertedUsersPlan = Q.select({

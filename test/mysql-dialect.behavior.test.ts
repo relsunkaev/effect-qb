@@ -510,7 +510,7 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.from(posts),
       Mysql.Query.where(Mysql.Query.isNotNull(posts.title))
     )
-    const activePosts = Mysql.Query.with(activePostsSubquery, "active_posts")
+    const activePosts = activePostsSubquery.pipe(Mysql.Query.with("active_posts"))
 
     const plan = Mysql.Query.select({
       userId: users.id,
@@ -534,17 +534,17 @@ describe("mysql dialect behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const insertedUsers = Mysql.Query.with(
+    const insertedUsers = Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com",
+      bio: null
+    }).pipe(
       Mysql.Query.returning({
         id: users.id,
         email: users.email,
         bio: users.bio
-      })(Mysql.Query.insert(users, {
-        id: userId,
-        email: "alice@example.com",
-        bio: null
-      })),
-      "inserted_users"
+      }),
+      Mysql.Query.with("inserted_users")
     )
 
     const plan = Mysql.Query.select({
@@ -569,16 +569,14 @@ describe("mysql dialect behavior", () => {
   test("renders mysql lateral joins with correlated outer references", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
-    const lateralPosts = Mysql.Query.lateral(
-      Mysql.Query.select({
+    const lateralPosts = Mysql.Query.select({
         postId: posts.id,
         userId: posts.userId
       }).pipe(
         Mysql.Query.from(posts),
-        Mysql.Query.where(Mysql.Query.eq(posts.userId, users.id))
-      ),
-      "user_posts"
-    )
+        Mysql.Query.where(Mysql.Query.eq(posts.userId, users.id)),
+        Mysql.Query.lateral("user_posts")
+      )
 
     const plan = Mysql.Query.select({
       userId: users.id,
@@ -599,14 +597,12 @@ describe("mysql dialect behavior", () => {
   test("renders mysql recursive ctes with the recursive keyword", () => {
     const { posts } = makeMysqlSocialGraph()
 
-    const recursivePosts = Mysql.Query.withRecursive(
-      Mysql.Query.select({
+    const recursivePosts = Mysql.Query.select({
         userId: posts.userId
       }).pipe(
-        Mysql.Query.from(posts)
-      ),
-      "recursive_posts"
-    )
+        Mysql.Query.from(posts),
+        Mysql.Query.withRecursive("recursive_posts")
+      )
 
     const plan = Mysql.Query.select({
       userId: recursivePosts.userId

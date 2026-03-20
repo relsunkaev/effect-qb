@@ -92,15 +92,15 @@ describe("mysql errors", () => {
       email: Mysql.Column.text()
     })
 
-    const insertedUsers = Mysql.Query.with(
+    const insertedUsers = Mysql.Query.insert(users, {
+      id: "11111111-1111-1111-1111-111111111111",
+      email: "alice@example.com"
+    }).pipe(
       Mysql.Query.returning({
         id: users.id,
         email: users.email
-      })(Mysql.Query.insert(users, {
-        id: "11111111-1111-1111-1111-111111111111",
-        email: "alice@example.com"
-      })),
-      "inserted_users"
+      }),
+      Mysql.Query.with("inserted_users")
     )
 
     const plan = Mysql.Query.select({
