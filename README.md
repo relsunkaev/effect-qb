@@ -1306,6 +1306,7 @@ Useful commands:
 ```bash
 bun test
 bun run test:types
+bun run test:integration
 ```
 
 Useful places to start:

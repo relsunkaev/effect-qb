@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "55432:5432"
+    environment:
+      POSTGRES_DB: effect_qb_test
+      POSTGRES_USER: effect_qb
+      POSTGRES_PASSWORD: effect_qb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U effect_qb -d effect_qb_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  mysql:
+    image: mysql:8.4
+    ports:
+      - "53306:3306"
+    environment:
+      MYSQL_DATABASE: effect_qb_test
+      MYSQL_USER: effect_qb
+      MYSQL_PASSWORD: effect_qb
+      MYSQL_ROOT_PASSWORD: root
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 2s
+      timeout: 5s
+      retries: 60

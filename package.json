@@ -8,9 +8,12 @@
   },
   "scripts": {
     "test": "bun test",
-    "test:types": "bunx tsgo -p tsconfig.type-tests.json"
+    "test:types": "bunx tsgo -p tsconfig.type-tests.json",
+    "test:integration": "bun scripts/test-integration.ts"
   },
   "devDependencies": {
+    "@effect/sql-mysql2": "0.48.0",
+    "@effect/sql-pg": "0.48.0",
     "@types/bun": "latest",
     "@typescript/native-preview": "latest"
   },
