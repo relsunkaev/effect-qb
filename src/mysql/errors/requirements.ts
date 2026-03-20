@@ -1,11 +1,11 @@
-import { read_query_capabilities, type QueryCapability, type QueryRequirement } from "../../internal/query-requirements.ts"
-import type { MysqlQueryContext } from "./fields.ts"
+import { read_query_capabilities, type QueryCapability, type QueryRequirement } from "../../internal/query-requirements.js"
+import type { MysqlQueryContext } from "./fields.js"
 import type {
   KnownMysqlError,
   MysqlDriverError,
   UnknownMysqlCodeError,
   UnknownMysqlDriverError
-} from "./normalize.ts"
+} from "./normalize.js"
 
 export type MysqlQueryRequirement = Extract<QueryRequirement, "write" | "ddl" | "transaction" | "locking">
 

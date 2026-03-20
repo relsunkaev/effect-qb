@@ -1,5 +1,5 @@
-import type * as Expression from ".././expression.ts"
-import type { DatatypeKindSpec } from "./shape.ts"
+import type * as Expression from ".././expression.js"
+import type { DatatypeKindSpec } from "./shape.js"
 
 export type DatatypeModule<
   Dialect extends string,

@@ -1,7 +1,7 @@
-import type * as Expression from "./expression.ts"
-import { mysqlDatatypeKinds } from "../mysql/datatypes/spec.ts"
-import { postgresDatatypeKinds } from "../postgres/datatypes/spec.ts"
-import type { RuntimeTag } from "./datatypes/shape.ts"
+import type * as Expression from "./expression.js"
+import { mysqlDatatypeKinds } from "../mysql/datatypes/spec.js"
+import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
+import type { RuntimeTag } from "./datatypes/shape.js"
 
 const stripParameterizedKind = (kind: string): string => {
   const openParen = kind.indexOf("(")

@@ -1,8 +1,8 @@
 import type * as Schema from "effect/Schema"
 
-import type * as Expression from "../internal/expression.ts"
-import { ColumnTypeId, type AnyColumnDefinition } from "../internal/column-state.ts"
-import * as BaseTable from "../internal/table.ts"
+import type * as Expression from "../internal/expression.js"
+import { ColumnTypeId, type AnyColumnDefinition } from "../internal/column-state.js"
+import * as BaseTable from "../internal/table.js"
 
 type Dialect = "postgres"
 

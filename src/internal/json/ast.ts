@@ -1,5 +1,5 @@
-import type * as Expression from ".././expression.ts"
-import type * as JsonPath from "./path.ts"
+import type * as Expression from ".././expression.js"
+import type * as JsonPath from "./path.js"
 
 export type JsonKind =
   | "jsonGet"

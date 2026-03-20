@@ -1,7 +1,7 @@
-import type * as Expression from ".././expression.ts"
-import type { mysqlDatatypeFamilies, mysqlDatatypeKinds } from "../../mysql/datatypes/spec.ts"
-import type { postgresDatatypeFamilies, postgresDatatypeKinds } from "../../postgres/datatypes/spec.ts"
-import type { RuntimeOfTag, RuntimeTag } from "./shape.ts"
+import type * as Expression from ".././expression.js"
+import type { mysqlDatatypeFamilies, mysqlDatatypeKinds } from "../../mysql/datatypes/spec.js"
+import type { postgresDatatypeFamilies, postgresDatatypeKinds } from "../../postgres/datatypes/spec.js"
+import type { RuntimeOfTag, RuntimeTag } from "./shape.js"
 
 type KnownDialect = "postgres" | "mysql"
 
@@ -162,7 +162,7 @@ export type RuntimeOfDbType<Db extends Expression.DbType.Any> =
       : Db extends Expression.DbType.Range<any, any, any> | Expression.DbType.Multirange<any, any, any>
         ? unknown
         : Db extends Expression.DbType.Json<any, any>
-          ? import("../runtime-value.ts").JsonValue
+          ? import("../runtime-value.js").JsonValue
             : Db extends Expression.DbType.Enum<any, any> | Expression.DbType.Set<any, any>
             ? string
             : Db extends Expression.DbType.Base<infer Dialect extends KnownDialect, infer Kind extends string>

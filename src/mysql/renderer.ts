@@ -1,5 +1,5 @@
-import * as CoreRenderer from "../internal/renderer.ts"
-import { renderMysqlPlan } from "../internal/mysql-renderer.ts"
+import * as CoreRenderer from "../internal/renderer.js"
+import { renderMysqlPlan } from "../internal/mysql-renderer.js"
 
 /** MySQL-specialized rendered query shape. */
 export type RenderedQuery<Row> = CoreRenderer.RenderedQuery<Row, "mysql">
@@ -8,8 +8,8 @@ export type RowOf<Value extends RenderedQuery<any>> = CoreRenderer.RowOf<Value>
 /** MySQL-specialized renderer contract. */
 export type Renderer = CoreRenderer.Renderer<"mysql">
 
-export { TypeId } from "../internal/renderer.ts"
-export type { Projection } from "../internal/renderer.ts"
+export { TypeId } from "../internal/renderer.js"
+export type { Projection } from "../internal/renderer.js"
 
 /** Creates the built-in MySQL renderer. */
 export const make = (): Renderer =>

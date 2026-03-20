@@ -1,4 +1,4 @@
-import type * as Renderer from "../../internal/renderer.ts"
+import type * as Renderer from "../../internal/renderer.js"
 import {
   getPostgresErrorDescriptor,
   isPostgresSqlStateCode,
@@ -7,11 +7,11 @@ import {
   type PostgresErrorDescriptor,
   type PostgresErrorTag,
   type PostgresSqlStateCode
-} from "./catalog.ts"
+} from "./catalog.js"
 import type {
   PostgresErrorFields,
   PostgresQueryContext
-} from "./fields.ts"
+} from "./fields.js"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null

@@ -1,6 +1,6 @@
-import * as BaseColumn from "../internal/column.ts"
-import * as Expression from "../internal/expression.ts"
-import { LocalDateTimeStringSchema } from "../internal/runtime-value.ts"
+import * as BaseColumn from "../internal/column.js"
+import * as Expression from "../internal/expression.js"
+import { LocalDateTimeStringSchema } from "../internal/runtime-value.js"
 
 /** MySQL-specialized column-definition DSL. */
 export const uuid = BaseColumn.mysql.uuid

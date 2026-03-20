@@ -1,5 +1,5 @@
-import type * as Expression from ".././expression.ts"
-import type { JsonPathUsageError } from "./errors.ts"
+import type * as Expression from ".././expression.js"
+import type { JsonPathUsageError } from "./errors.js"
 import type {
   JsonBuildArray as JsonBuildArrayResult,
   JsonBuildObject as JsonBuildObjectResult,
@@ -10,8 +10,8 @@ import type {
   JsonStripNullsResult as JsonStripNullsResultValue,
   JsonValueAtPath,
   JsonSetAtPath
-} from "./types.ts"
-import type { JsonKeysResult as JsonKeysResultValue, JsonLengthResult as JsonLengthResultValue, JsonTextResult as JsonTextResultValue, JsonTypeName as JsonTypeNameValue } from "./types.ts"
+} from "./types.js"
+import type { JsonKeysResult as JsonKeysResultValue, JsonLengthResult as JsonLengthResultValue, JsonTextResult as JsonTextResultValue, JsonTypeName as JsonTypeNameValue } from "./types.js"
 
 export const SegmentTypeId: unique symbol = Symbol.for("effect-qb/JsonPathSegment")
 

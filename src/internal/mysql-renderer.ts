@@ -1,8 +1,8 @@
-import * as Query from "./query.ts"
-import { type RenderState } from "./dialect.ts"
-import { mysqlDialect } from "./mysql-dialect.ts"
-import { type Projection } from "./projections.ts"
-import { renderQueryAst } from "./sql-expression-renderer.ts"
+import * as Query from "./query.js"
+import { type RenderState } from "./dialect.js"
+import { mysqlDialect } from "./mysql-dialect.js"
+import { type Projection } from "./projections.js"
+import { renderQueryAst } from "./sql-expression-renderer.js"
 
 /**
  * Internal rendered-query payload produced by the built-in MySQL renderer.

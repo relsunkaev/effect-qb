@@ -1,5 +1,5 @@
-import type * as JsonPath from "./path.ts"
-import type { JsonPathUsageError } from "./errors.ts"
+import type * as JsonPath from "./path.js"
+import type { JsonPathUsageError } from "./errors.js"
 
 export type JsonPrimitive = string | number | boolean | null
 

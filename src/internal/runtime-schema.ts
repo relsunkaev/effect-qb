@@ -1,11 +1,11 @@
 import * as Schema from "effect/Schema"
 import * as SchemaAST from "effect/SchemaAST"
 
-import * as Expression from "./expression.ts"
-import * as ExpressionAst from "./expression-ast.ts"
-import * as Query from "./query.ts"
-import * as JsonPath from "./json/path.ts"
-import { flattenSelection } from "./projections.ts"
+import * as Expression from "./expression.js"
+import * as ExpressionAst from "./expression-ast.js"
+import * as Query from "./query.js"
+import * as JsonPath from "./json/path.js"
+import { flattenSelection } from "./projections.js"
 import {
   BigIntStringSchema,
   DecimalStringSchema,
@@ -16,10 +16,10 @@ import {
   LocalTimeStringSchema,
   OffsetTimeStringSchema,
   YearStringSchema
-} from "./runtime-value.ts"
-import { mysqlDatatypeKinds } from "../mysql/datatypes/spec.ts"
-import { postgresDatatypeKinds } from "../postgres/datatypes/spec.ts"
-import type { RuntimeTag } from "./datatypes/shape.ts"
+} from "./runtime-value.js"
+import { mysqlDatatypeKinds } from "../mysql/datatypes/spec.js"
+import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
+import type { RuntimeTag } from "./datatypes/shape.js"
 
 export type RuntimeSchema = Schema.Schema<any, any, any>
 

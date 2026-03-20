@@ -1,5 +1,5 @@
-import * as Expression from "../internal/expression.ts"
-import { mysqlDatatypes } from "./datatypes/index.ts"
+import * as Expression from "../internal/expression.js"
+import { mysqlDatatypes } from "./datatypes/index.js"
 import {
   type CapabilitiesOfPlan,
   type CompletePlan,
@@ -36,8 +36,8 @@ import {
   type SourceRequirementError,
   type StatementOfPlan,
   type StringExpressionInput
-} from "../internal/query.ts"
-import { makeDialectQuery } from "../internal/query-factory.ts"
+} from "../internal/query.js"
+import { makeDialectQuery } from "../internal/query-factory.js"
 
 const mysqlQuery = makeDialectQuery({
   dialect: "mysql",
@@ -186,4 +186,4 @@ export type {
   StringExpressionInput
 }
 
-export { union_query_capabilities } from "../internal/query.ts"
+export { union_query_capabilities } from "../internal/query.js"

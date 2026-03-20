@@ -3,8 +3,8 @@ import {
   type AnyBoundColumn,
   type AnyColumnDefinition,
   type IsNullable
-} from "./column-state.ts"
-import type { TableFieldMap } from "./schema-derivation.ts"
+} from "./column-state.js"
+import type { TableFieldMap } from "./schema-derivation.js"
 
 /** Non-empty list of column names. */
 export type ColumnList = readonly [string, ...string[]]

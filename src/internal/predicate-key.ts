@@ -1,5 +1,5 @@
-import type * as Expression from "./expression.ts"
-import type * as ExpressionAst from "./expression-ast.ts"
+import type * as Expression from "./expression.js"
+import type * as ExpressionAst from "./expression-ast.js"
 
 export type ColumnKey<
   TableName extends string,

@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import * as Expression from "./expression.ts"
+import * as Expression from "./expression.js"
 import {
   LocalDateStringSchema,
   DecimalStringSchema,
@@ -8,7 +8,7 @@ import {
   type LocalDateString,
   type DecimalString,
   type LocalDateTimeString
-} from "./runtime-value.ts"
+} from "./runtime-value.js"
 import {
   type AnyBoundColumn,
   type AnyColumnDefinition,
@@ -27,7 +27,7 @@ import {
   remapColumnDefinition,
   type SelectType,
   type UpdateType
-} from "./column-state.ts"
+} from "./column-state.js"
 
 type CompatibleReference<
   Self extends AnyColumnDefinition,

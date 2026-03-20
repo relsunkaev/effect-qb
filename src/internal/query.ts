@@ -1,29 +1,29 @@
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 
-import * as Expression from "./expression.ts"
-import * as Plan from "./plan.ts"
-import * as Table from "./table.ts"
-import * as ExpressionAst from "./expression-ast.ts"
-import * as QueryAst from "./query-ast.ts"
-import type { JsonNode } from "./json/ast.ts"
-import type * as JsonPath from "./json/path.ts"
-import type { QueryCapability } from "./query-requirements.ts"
-import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./case-analysis.ts"
-import type { GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate-analysis.ts"
-import type { PredicateFormula, TrueFormula } from "./predicate-formula.ts"
+import * as Expression from "./expression.js"
+import * as Plan from "./plan.js"
+import * as Table from "./table.js"
+import * as ExpressionAst from "./expression-ast.js"
+import * as QueryAst from "./query-ast.js"
+import type { JsonNode } from "./json/ast.js"
+import type * as JsonPath from "./json/path.js"
+import type { QueryCapability } from "./query-requirements.js"
+import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./case-analysis.js"
+import type { GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate-analysis.js"
+import type { PredicateFormula, TrueFormula } from "./predicate-formula.js"
 
 export type {
   MergeCapabilities,
   MergeCapabilityTuple,
   QueryCapability,
   QueryRequirement
-} from "./query-requirements.ts"
+} from "./query-requirements.js"
 export type {
   ComparableDbType,
   RuntimeOfDbType,
   TextCompatibleDbType,
   CastableDbType
-} from "./coercion-analysis.ts"
+} from "./coercion-analysis.js"
 export type {
   CanonicalSegment as JsonPathSegment,
   DescendSegment as JsonPathDescendSegment,
@@ -36,10 +36,10 @@ export type {
   SegmentsOf as JsonPathSegments,
   SliceSegment as JsonPathSliceSegment,
   WildcardSegment as JsonPathWildcardSegment
-} from "./json/path.ts"
+} from "./json/path.js"
 export type {
   JsonPathUsageError
-} from "./json/errors.ts"
+} from "./json/errors.js"
 export type {
   JsonConcatResult,
   JsonDeleteAtPath,
@@ -54,23 +54,23 @@ export type {
   JsonValue,
   JsonValueAtPath,
   NormalizeJsonLiteral
-} from "./json/types.ts"
+} from "./json/types.js"
 export type {
   CoercionKind,
   CoercionKindOf
-} from "./coercion-kind.ts"
+} from "./coercion-kind.js"
 export type {
   CanCastDbType,
   CanCompareDbTypes,
   CanContainDbTypes
-} from "./coercion-rules.ts"
+} from "./coercion-rules.js"
 export type {
   ConflictClause,
   LockClause,
   QueryStatement,
   SetOperatorKind as SetOperator
-} from "./query-ast.ts"
-export { union_query_capabilities } from "./query-requirements.ts"
+} from "./query-ast.js"
+export { union_query_capabilities } from "./query-requirements.js"
 
 /**
  * Shared prototype for runtime expression values created by query helpers.

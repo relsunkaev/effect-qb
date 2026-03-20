@@ -3,7 +3,7 @@
  * Source: https://www.postgresql.org/docs/current/errcodes-appendix.html
  */
 
-import type { PostgresErrorSemanticField } from "./fields.ts"
+import type { PostgresErrorSemanticField } from "./fields.js"
 
 export const postgresErrorClasses = {
   "00": 'Successful Completion',

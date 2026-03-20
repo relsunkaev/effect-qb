@@ -1,8 +1,8 @@
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import * as Expression from "./expression.ts"
-import * as ExpressionAst from "./expression-ast.ts"
+import * as Expression from "./expression.js"
+import * as ExpressionAst from "./expression-ast.js"
 
 /** Symbol used to attach column-definition metadata. */
 export const ColumnTypeId: unique symbol = Symbol.for("effect-qb/Column")

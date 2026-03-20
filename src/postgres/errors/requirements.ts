@@ -1,12 +1,12 @@
-import { read_query_capabilities, type QueryCapability, type QueryRequirement } from "../../internal/query-requirements.ts"
-import type { PostgresErrorClassCode } from "./catalog.ts"
-import type { PostgresQueryContext } from "./fields.ts"
+import { read_query_capabilities, type QueryCapability, type QueryRequirement } from "../../internal/query-requirements.js"
+import type { PostgresErrorClassCode } from "./catalog.js"
+import type { PostgresQueryContext } from "./fields.js"
 import type {
   KnownPostgresError,
   PostgresDriverError,
   UnknownPostgresDriverError,
   UnknownPostgresSqlStateError
-} from "./normalize.ts"
+} from "./normalize.js"
 
 type WriteRequiredPostgresClassCode = "23" | "27" | "44"
 export type PostgresQueryRequirement = Extract<QueryRequirement, "write" | "ddl" | "transaction" | "locking">

@@ -8,7 +8,7 @@ import type {
   LocalTimeString,
   OffsetTimeString,
   YearString
-} from "../runtime-value.ts"
+} from "../runtime-value.js"
 
 export type RuntimeTag =
   | "string"

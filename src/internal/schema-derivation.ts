@@ -9,7 +9,7 @@ import {
   type IsNullable,
   type SelectType,
   type UpdateType
-} from "./column-state.ts"
+} from "./column-state.js"
 
 /** Variant-schema helper used to derive select / insert / update schemas. */
 export const TableSchema = VariantSchema.make({

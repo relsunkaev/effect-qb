@@ -1,7 +1,7 @@
 import { pipeArguments } from "effect/Pipeable"
 
-import * as Expression from "./expression.ts"
-import * as Plan from "./plan.ts"
+import * as Expression from "./expression.js"
+import * as Plan from "./plan.js"
 import {
   type CompletePlan,
   type CteSource,
@@ -12,9 +12,9 @@ import {
   getAst,
   makeExpression,
   type SelectionOfPlan
-} from "./query.ts"
-import * as ExpressionAst from "./expression-ast.ts"
-import { flattenSelection } from "./projections.ts"
+} from "./query.js"
+import * as ExpressionAst from "./expression-ast.js"
+import { flattenSelection } from "./projections.js"
 
 const DerivedProto = {
   pipe(this: unknown) {

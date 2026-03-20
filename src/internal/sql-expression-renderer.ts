@@ -1,12 +1,12 @@
-import * as Query from "./query.ts"
-import * as Expression from "./expression.ts"
-import * as Table from "./table.ts"
-import * as QueryAst from "./query-ast.ts"
-import type { RenderState, SqlDialect } from "./dialect.ts"
-import * as ExpressionAst from "./expression-ast.ts"
-import * as JsonPath from "./json/path.ts"
-import { flattenSelection, type Projection } from "./projections.ts"
-import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.ts"
+import * as Query from "./query.js"
+import * as Expression from "./expression.js"
+import * as Table from "./table.js"
+import * as QueryAst from "./query-ast.js"
+import type { RenderState, SqlDialect } from "./dialect.js"
+import * as ExpressionAst from "./expression-ast.js"
+import * as JsonPath from "./json/path.js"
+import { flattenSelection, type Projection } from "./projections.js"
+import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.js"
 
 const renderDbType = (
   dialect: SqlDialect,

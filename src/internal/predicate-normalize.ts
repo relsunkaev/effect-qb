@@ -1,8 +1,8 @@
-import type * as Expression from "./expression.ts"
-import type * as ExpressionAst from "./expression-ast.ts"
-import type { ColumnKeyOfExpression, ValueKey } from "./predicate-key.ts"
-import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./predicate-formula.ts"
-import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, UnknownAtom } from "./predicate-atom.ts"
+import type * as Expression from "./expression.js"
+import type * as ExpressionAst from "./expression-ast.js"
+import type { ColumnKeyOfExpression, ValueKey } from "./predicate-key.js"
+import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./predicate-formula.js"
+import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, UnknownAtom } from "./predicate-atom.js"
 
 type AstOf<Value extends Expression.Any> = Value extends {
   readonly [ExpressionAst.TypeId]: infer Ast extends ExpressionAst.Any
@@ -16,8 +16,8 @@ type True = TrueFormula
 type False = FalseFormula
 
 type UnknownTag<Tag extends string> = AtomFormula<UnknownAtom<Tag>>
-type AtomOf<Atom extends import("./predicate-atom.ts").PredicateAtom> = AtomFormula<Atom>
-type FactOf<Atom extends import("./predicate-atom.ts").PredicateAtom> = AtomFormula<Atom>
+type AtomOf<Atom extends import("./predicate-atom.js").PredicateAtom> = AtomFormula<Atom>
+type FactOf<Atom extends import("./predicate-atom.js").PredicateAtom> = AtomFormula<Atom>
 
 type NonNullFactsOfExpression<Value extends Expression.Any> =
   [ColumnKeyOfExpression<Value>] extends [never]
@@ -31,7 +31,7 @@ type CombineFacts<
   ? Right
   : [Right] extends [never]
     ? Left
-    : import("./predicate-formula.ts").NormalizeBooleanConstants<AllFormula<[Left, Right]>>
+    : import("./predicate-formula.js").NormalizeBooleanConstants<AllFormula<[Left, Right]>>
 
 type FactsOfExpressions<Values extends readonly Expression.Any[]> =
   Values extends readonly [
@@ -77,17 +77,17 @@ type FormulaOfEq<
             ? False
             : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Left>, ValueKey<RightLiteral>>>
         : UnknownTag<"eq:unsupported">
-      : AtomOf<import("./predicate-atom.ts").EqColumnAtom<ColumnKeyOfExpression<Left>, ColumnKeyOfExpression<Right>>>
+      : AtomOf<import("./predicate-atom.js").EqColumnAtom<ColumnKeyOfExpression<Left>, ColumnKeyOfExpression<Right>>>
 
 type FormulaOfVariadic<
   Kind extends ExpressionAst.VariadicKind,
   Values extends readonly Expression.Any[]
 > = Kind extends "and"
-  ? import("./predicate-formula.ts").NormalizeBooleanConstants<import("./predicate-formula.ts").AllFormula<{
+  ? import("./predicate-formula.js").NormalizeBooleanConstants<import("./predicate-formula.js").AllFormula<{
       readonly [K in keyof Values]: Values[K] extends Expression.Any ? FormulaOfExpression<Values[K]> : never
     } & readonly PredicateFormula[]>>
   : Kind extends "or"
-    ? import("./predicate-formula.ts").NormalizeBooleanConstants<import("./predicate-formula.ts").AnyFormula<{
+    ? import("./predicate-formula.js").NormalizeBooleanConstants<import("./predicate-formula.js").AnyFormula<{
         readonly [K in keyof Values]: Values[K] extends Expression.Any ? FormulaOfExpression<Values[K]> : never
       } & readonly PredicateFormula[]>>
     : Kind extends "in" | "notIn" | "between"
@@ -116,7 +116,7 @@ export type FormulaOfExpression<Value extends Expression.Any> =
               ? UnknownTag<"isNotNull:unsupported">
               : AtomOf<NonNullAtom<ColumnKeyOfExpression<Inner>>>
             : Kind extends "not"
-              ? import("./predicate-formula.ts").Not<FormulaOfExpression<Inner>>
+              ? import("./predicate-formula.js").Not<FormulaOfExpression<Inner>>
               : UnknownTag<`unary:${Kind}`>
         : Ast extends ExpressionAst.BinaryNode<"eq", infer Left extends Expression.Any, infer Right extends Expression.Any>
           ? FormulaOfEq<Left, Right>
@@ -179,11 +179,11 @@ export type FormulaOfExpression<Value extends Expression.Any> =
                   ? UnknownTag<"isDistinctFrom:unsupported">
                   : CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
               : Ast extends ExpressionAst.VariadicNode<"and", infer Values extends readonly Expression.Any[]>
-                ? import("./predicate-formula.ts").NormalizeBooleanConstants<import("./predicate-formula.ts").AllFormula<{
+                ? import("./predicate-formula.js").NormalizeBooleanConstants<import("./predicate-formula.js").AllFormula<{
                     readonly [K in keyof Values]: Values[K] extends Expression.Any ? FormulaOfExpression<Values[K]> : never
                   } & readonly PredicateFormula[]>>
                 : Ast extends ExpressionAst.VariadicNode<"or", infer Values extends readonly Expression.Any[]>
-                  ? import("./predicate-formula.ts").NormalizeBooleanConstants<import("./predicate-formula.ts").AnyFormula<{
+                  ? import("./predicate-formula.js").NormalizeBooleanConstants<import("./predicate-formula.js").AnyFormula<{
                       readonly [K in keyof Values]: Values[K] extends Expression.Any ? FormulaOfExpression<Values[K]> : never
                     } & readonly PredicateFormula[]>>
                   : Ast extends ExpressionAst.VariadicNode<infer Kind extends "in" | "notIn" | "between", infer Values extends readonly Expression.Any[]>

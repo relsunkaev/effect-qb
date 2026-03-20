@@ -1,5 +1,5 @@
-import * as Expression from "./expression.ts"
-import * as ExpressionAst from "./expression-ast.ts"
+import * as Expression from "./expression.js"
+import * as ExpressionAst from "./expression-ast.js"
 
 const literalGroupingKey = (value: unknown): string => {
   if (value instanceof Date) {

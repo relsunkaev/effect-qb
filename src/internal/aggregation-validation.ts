@@ -1,5 +1,5 @@
-import * as Expression from "./expression.ts"
-import { groupingKeyOfExpression } from "./grouping-key.ts"
+import * as Expression from "./expression.js"
+import { groupingKeyOfExpression } from "./grouping-key.js"
 
 /** Recursive selection value accepted by aggregate-shape validation. */
 export type SelectionValue =

@@ -1,6 +1,6 @@
 import type { Pipeable } from "effect/Pipeable"
 import type * as Schema from "effect/Schema"
-import type { RuntimeOfDbType as RuntimeOfDbTypeLookup } from "./datatypes/lookup.ts"
+import type { RuntimeOfDbType as RuntimeOfDbTypeLookup } from "./datatypes/lookup.js"
 
 export type {
   BigIntString,
@@ -13,7 +13,7 @@ export type {
   LocalTimeString,
   OffsetTimeString,
   YearString
-} from "./runtime-value.ts"
+} from "./runtime-value.js"
 
 /** Symbol used to attach expression metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Expression")

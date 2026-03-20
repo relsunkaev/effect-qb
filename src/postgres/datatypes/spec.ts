@@ -1,4 +1,4 @@
-import type { DatatypeFamilySpec, DatatypeKindSpec } from "../../internal/datatypes/shape.ts"
+import type { DatatypeFamilySpec, DatatypeKindSpec } from "../../internal/datatypes/shape.js"
 
 export const postgresDatatypeFamilies = {
   text: {

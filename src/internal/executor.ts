@@ -3,14 +3,14 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "@effect/sql/SqlClient"
 import * as SqlError from "@effect/sql/SqlError"
 
-import * as Expression from "./expression.ts"
-import { normalizeDbValue } from "./runtime-normalize.ts"
-import { expressionRuntimeSchema } from "./runtime-schema.ts"
-import { flattenSelection } from "./projections.ts"
-import * as Query from "./query.ts"
-import * as QueryAst from "./query-ast.ts"
-import * as Renderer from "./renderer.ts"
-import * as Plan from "./plan.ts"
+import * as Expression from "./expression.js"
+import { normalizeDbValue } from "./runtime-normalize.js"
+import { expressionRuntimeSchema } from "./runtime-schema.js"
+import { flattenSelection } from "./projections.js"
+import * as Query from "./query.js"
+import * as QueryAst from "./query-ast.js"
+import * as Renderer from "./renderer.js"
+import * as Plan from "./plan.js"
 
 /** Flat database row keyed by rendered projection aliases. */
 export type FlatRow = Readonly<Record<string, unknown>>

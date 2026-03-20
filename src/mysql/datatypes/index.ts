@@ -1,5 +1,5 @@
-import { makeDatatypeModule } from "../../internal/datatypes/define.ts"
-import { mysqlDatatypeKinds } from "./spec.ts"
+import { makeDatatypeModule } from "../../internal/datatypes/define.js"
+import { mysqlDatatypeKinds } from "./spec.js"
 
 export const mysqlDatatypes = makeDatatypeModule("mysql", mysqlDatatypeKinds)
 

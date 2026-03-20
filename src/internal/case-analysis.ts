@@ -1,8 +1,8 @@
-import type * as Expression from "./expression.ts"
-import type * as ExpressionAst from "./expression-ast.ts"
-import type { PredicateFormula } from "./predicate-formula.ts"
-import type { AssumeFormulaFalse, AssumeFormulaTrue, Contradicts, Implies } from "./predicate-analysis.ts"
-import type { FormulaOfExpression } from "./predicate-normalize.ts"
+import type * as Expression from "./expression.js"
+import type * as ExpressionAst from "./expression-ast.js"
+import type { PredicateFormula } from "./predicate-formula.js"
+import type { AssumeFormulaFalse, AssumeFormulaTrue, Contradicts, Implies } from "./predicate-analysis.js"
+import type { FormulaOfExpression } from "./predicate-normalize.js"
 
 export interface CasePath<
   Assumptions extends PredicateFormula,

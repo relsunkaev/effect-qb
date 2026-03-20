@@ -1,5 +1,5 @@
-import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, PredicateAtom, UnknownAtom } from "./predicate-atom.ts"
-import type { PredicateFormula } from "./predicate-formula.ts"
+import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, PredicateAtom, UnknownAtom } from "./predicate-atom.js"
+import type { PredicateFormula } from "./predicate-formula.js"
 
 export type NegateAtom<Atom extends PredicateAtom> =
   Atom extends NullAtom<infer Key extends string> ? NonNullAtom<Key> :

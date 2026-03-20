@@ -1,9 +1,9 @@
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import * as Plan from "./plan.ts"
-import type { BoundColumnFrom } from "./column-state.ts"
-import { bindColumn, type AnyColumnDefinition } from "./column-state.ts"
+import * as Plan from "./plan.js"
+import type { BoundColumnFrom } from "./column-state.js"
+import { bindColumn, type AnyColumnDefinition } from "./column-state.js"
 import {
   collectInlineOptions,
   normalizeColumnList,
@@ -14,14 +14,14 @@ import {
   type ValidateKnownColumns,
   type ValidatePrimaryKeyColumns,
   validateOptions
-} from "./table-options.ts"
+} from "./table-options.js"
 import {
   deriveSchemas,
   type InsertRow,
   type SelectRow,
   type TableFieldMap,
   type UpdateRow
-} from "./schema-derivation.ts"
+} from "./schema-derivation.js"
 
 /** Symbol used to attach table-definition metadata. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Table")
@@ -37,7 +37,7 @@ type InlinePrimaryKeyKeys<Fields extends TableFieldMap> = Extract<{
   [K in keyof Fields]: Fields[K]["metadata"]["primaryKey"] extends true ? K : never
 }[keyof Fields], string>
 
-type TableDialect<Fields extends TableFieldMap> = Fields[keyof Fields][typeof import("./column-state.ts").ColumnTypeId]["dbType"]["dialect"]
+type TableDialect<Fields extends TableFieldMap> = Fields[keyof Fields][typeof import("./column-state.js").ColumnTypeId]["dbType"]["dialect"]
 type TableKind = "schema" | "alias"
 type DefaultSchemaName = "public"
 type ClassOptionSpec = Exclude<TableOptionSpec, { readonly kind: "primaryKey" }>

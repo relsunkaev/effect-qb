@@ -1,4 +1,4 @@
-import type * as Expression from "./expression.ts"
+import type * as Expression from "./expression.js"
 
 /** Symbol used to attach query-clause AST metadata to query-plan values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/QueryAst")

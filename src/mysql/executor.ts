@@ -1,15 +1,15 @@
 import * as Effect from "effect/Effect"
 import * as SqlClient from "@effect/sql/SqlClient"
 
-import * as CoreExecutor from "../internal/executor.ts"
-import * as Query from "./query.ts"
-import * as Renderer from "./renderer.ts"
+import * as CoreExecutor from "../internal/executor.js"
+import * as Query from "./query.js"
+import * as Renderer from "./renderer.js"
 import {
   narrowMysqlDriverErrorForReadQuery,
   normalizeMysqlDriverError,
   type MysqlDriverError,
   type MysqlReadQueryError
-} from "./errors/index.ts"
+} from "./errors/index.js"
 
 /** MySQL-specialized flat row returned by SQL drivers. */
 export type FlatRow = CoreExecutor.FlatRow

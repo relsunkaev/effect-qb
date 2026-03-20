@@ -1,5 +1,5 @@
-import type * as Expression from "./expression.ts"
-import type { FamilyOfDbType } from "./datatypes/lookup.ts"
+import type * as Expression from "./expression.js"
+import type { FamilyOfDbType } from "./datatypes/lookup.js"
 
 export type CoercionKind =
   | "text"

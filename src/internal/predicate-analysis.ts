@@ -1,6 +1,6 @@
-import type { AnalyzeFormula } from "./predicate-context.ts"
-import type { FormulaOfPredicate } from "./predicate-normalize.ts"
-import type { And, Not, PredicateFormula, TrueFormula } from "./predicate-formula.ts"
+import type { AnalyzeFormula } from "./predicate-context.js"
+import type { FormulaOfPredicate } from "./predicate-normalize.js"
+import type { And, Not, PredicateFormula, TrueFormula } from "./predicate-formula.js"
 
 type ContextOf<Formula extends PredicateFormula> = AnalyzeFormula<Formula>
 

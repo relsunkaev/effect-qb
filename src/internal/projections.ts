@@ -1,5 +1,5 @@
-import * as Expression from "./expression.ts"
-import * as ProjectionAlias from "./projection-alias.ts"
+import * as Expression from "./expression.js"
+import * as ProjectionAlias from "./projection-alias.js"
 
 /**
  * Flat projection metadata shared by renderers and executors.

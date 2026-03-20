@@ -1,7 +1,7 @@
-import type * as Expression from "./expression.ts"
-import type * as Query from "./query.ts"
-import type * as JsonPath from "./json/path.ts"
-import type { JsonNode } from "./json/ast.ts"
+import type * as Expression from "./expression.js"
+import type * as Query from "./query.js"
+import type * as JsonPath from "./json/path.js"
+import type { JsonNode } from "./json/ast.js"
 
 /** Symbol used to attach internal expression-AST metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/ExpressionAst")

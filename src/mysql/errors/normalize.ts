@@ -1,4 +1,4 @@
-import type * as Renderer from "../../internal/renderer.ts"
+import type * as Renderer from "../../internal/renderer.js"
 import {
   findMysqlErrorDescriptorsByNumberLoose,
   getMysqlErrorDescriptor,
@@ -8,11 +8,11 @@ import {
   type MysqlErrorNumber,
   type MysqlErrorSymbol,
   type MysqlErrorTag
-} from "./catalog.ts"
+} from "./catalog.js"
 import type {
   MysqlErrorFields,
   MysqlQueryContext
-} from "./fields.ts"
+} from "./fields.js"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null

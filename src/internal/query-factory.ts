@@ -1,12 +1,12 @@
 import { pipeArguments } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import * as Expression from "./expression.ts"
-import * as Plan from "./plan.ts"
-import * as Table from "./table.ts"
-import type { CastTargetError, OperandCompatibilityError } from "./coercion-errors.ts"
-import type { RuntimeOfDbType } from "./coercion-analysis.ts"
-import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "./coercion-rules.ts"
+import * as Expression from "./expression.js"
+import * as Plan from "./plan.js"
+import * as Table from "./table.js"
+import type { CastTargetError, OperandCompatibilityError } from "./coercion-errors.js"
+import type { RuntimeOfDbType } from "./coercion-analysis.js"
+import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "./coercion-rules.js"
 import {
   currentRequiredList,
   extractRequiredRuntime,
@@ -96,11 +96,11 @@ import {
   type TupleDialect,
   type TupleSource,
   type ResultRow
-} from "./query.ts"
-import * as ExpressionAst from "./expression-ast.ts"
-import type { JsonNode } from "./json/ast.ts"
-import type { JsonPathUsageError } from "./json/errors.ts"
-import * as JsonPath from "./json/path.ts"
+} from "./query.js"
+import * as ExpressionAst from "./expression-ast.js"
+import type { JsonNode } from "./json/ast.js"
+import type { JsonPathUsageError } from "./json/errors.js"
+import * as JsonPath from "./json/path.js"
 import type {
   JsonConcatResult,
   JsonDeleteAtPath,
@@ -114,14 +114,14 @@ import type {
   JsonTypeName,
   JsonValueAtPath,
   NormalizeJsonLiteral
-} from "./json/types.ts"
-import type { AssumeTrue } from "./predicate-analysis.ts"
-import type { TrueFormula } from "./predicate-formula.ts"
-import { dedupeGroupedExpressions } from "./grouping-key.ts"
-import { makeCteSource, makeDerivedSource, makeLateralSource } from "./derived-table.ts"
-import * as ProjectionAlias from "./projection-alias.ts"
-import * as QueryAst from "./query-ast.ts"
-import { normalizeColumnList } from "./table-options.ts"
+} from "./json/types.js"
+import type { AssumeTrue } from "./predicate-analysis.js"
+import type { TrueFormula } from "./predicate-formula.js"
+import { dedupeGroupedExpressions } from "./grouping-key.js"
+import { makeCteSource, makeDerivedSource, makeLateralSource } from "./derived-table.js"
+import * as ProjectionAlias from "./projection-alias.js"
+import * as QueryAst from "./query-ast.js"
+import { normalizeColumnList } from "./table-options.js"
 
 /**
  * Dialect-specific DB type profile used to specialize the shared query
@@ -4564,7 +4564,7 @@ type AsCurriedResult<
   >(
     value: CompletePlan<PlanValue>,
     alias: Alias
-  ): import("./query.ts").CteSource<PlanValue, Alias> {
+  ): import("./query.js").CteSource<PlanValue, Alias> {
     return makeCteSource(value, alias)
   }
 
@@ -4574,7 +4574,7 @@ type AsCurriedResult<
   >(
     value: CompletePlan<PlanValue>,
     alias: Alias
-  ): import("./query.ts").CteSource<PlanValue, Alias> {
+  ): import("./query.js").CteSource<PlanValue, Alias> {
     return makeCteSource(value, alias, true)
   }
 
@@ -4584,7 +4584,7 @@ type AsCurriedResult<
   >(
     value: PlanValue,
     alias: Alias
-  ): import("./query.ts").LateralSource<PlanValue, Alias> {
+  ): import("./query.js").LateralSource<PlanValue, Alias> {
     return makeLateralSource(value, alias)
   }
 
