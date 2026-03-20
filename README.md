@@ -7,7 +7,10 @@ Type-safe SQL plans that understand query semantics.
 - [Overview](#overview)
 - [What The Compiler Proves](#what-the-compiler-proves)
 - [Installation](#installation)
+- [Choose An Entrypoint](#choose-an-entrypoint)
 - [Quick Start](#quick-start)
+- [Execution Model](#execution-model)
+- [Feature Map](#feature-map)
 - [Core Concepts](#core-concepts)
   - [Tables And Columns](#tables-and-columns)
   - [Plans, Not Strings](#plans-not-strings)
@@ -34,6 +37,10 @@ Type-safe SQL plans that understand query semantics.
   - [Executor](#executor)
   - [Query-sensitive Error Channels](#query-sensitive-error-channels)
   - [Transaction Helpers](#transaction-helpers)
+- [Error Handling](#error-handling)
+  - [Catalogs And Normalization](#catalogs-and-normalization)
+  - [Query-capability Narrowing](#query-capability-narrowing)
+  - [Matching Errors In Application Code](#matching-errors-in-application-code)
 - [Type Safety](#type-safety)
   - [Complete-plan Enforcement](#complete-plan-enforcement)
   - [Predicate-driven Narrowing](#predicate-driven-narrowing)
@@ -120,7 +127,9 @@ Those are the core guarantees. The rest of the API exists to make those proofs c
 bun install
 ```
 
-Entrypoints:
+## Choose An Entrypoint
+
+Available entrypoints:
 
 - `effect-qb/postgres`
 - `effect-qb/mysql`
@@ -173,6 +182,46 @@ type Rows = Q.ResultRows<typeof postsPerUser>
 ```
 
 This is the core model: define typed tables, build a plan, let the plan define the row type, then render or execute it through a dialect-specific renderer and executor.
+
+## Execution Model
+
+The runtime model is intentionally small:
+
+1. build a typed plan
+2. render SQL plus bind params
+3. execute the statement
+4. remap flat aliases like `profile__email` back into nested objects
+
+What it does not do is decode rows against a runtime schema. `Q.ResultRow<typeof plan>` is the logical static result, while `Q.RuntimeResultRow<typeof plan>` is the conservative runtime shape.
+
+```ts
+import * as SqlClient from "@effect/sql/SqlClient"
+import * as Effect from "effect/Effect"
+import * as Postgres from "effect-qb/postgres"
+
+const renderer = Postgres.Renderer.make()
+const executor = Postgres.Executor.fromSqlClient(renderer)
+
+const rowsEffect = executor.execute(postsPerUser)
+
+const rows = Effect.runSync(
+  Effect.provideService(rowsEffect, SqlClient.SqlClient, sqlClient)
+)
+```
+
+If you want runtime validation, add it after execution.
+
+## Feature Map
+
+The rest of this README goes deeper, but the main surface area is:
+
+- table builders with keys, indexes, nullability, defaults, and schema-backed JSON columns
+- select plans with joins, CTEs, derived tables, `values(...)`, `unnest(...)`, subqueries, and set operators
+- mutation plans for `insert`, `update`, `delete`, `returning`, and conflict handling
+- renderers and executors for Postgres and MySQL
+- type-level checks for missing sources, grouped selections, dialect compatibility, and JSON mutation compatibility
+
+Dialect-specific capabilities are called out later. Postgres currently has the wider feature surface in a few areas such as `distinctOn(...)`, `generateSeries(...)`, and some JSON operators.
 
 ## Core Concepts
 
@@ -763,6 +812,143 @@ const savepoint = Executor.withSavepoint(rowsEffect)
 
 These preserve the original effect type parameters and add the ambient SQL transaction boundary.
 
+## Error Handling
+
+The error system does more than expose raw driver failures. It gives you:
+
+- generated dialect catalogs for known Postgres SQLSTATEs and MySQL error symbols
+- normalization from driver-specific wire shapes into stable tagged unions
+- rendered query context attached to execution failures when available
+- query-capability narrowing so read-only plans do not expose write-only failures directly
+
+### Catalogs And Normalization
+
+Both dialect entrypoints expose an `Errors` module:
+
+```ts
+import * as Postgres from "effect-qb/postgres"
+import * as Mysql from "effect-qb/mysql"
+```
+
+Postgres errors normalize around SQLSTATE codes:
+
+```ts
+const descriptor = Postgres.Errors.getPostgresErrorDescriptor("23505")
+descriptor.tag
+// "@postgres/integrity-constraint-violation/unique-violation"
+
+const postgresError = Postgres.Errors.normalizePostgresDriverError({
+  code: "23505",
+  message: "duplicate key value violates unique constraint",
+  constraint: "users_email_key"
+})
+
+postgresError._tag
+postgresError.code
+postgresError.constraintName
+```
+
+MySQL errors normalize around official symbols and documented numbers:
+
+```ts
+const descriptor = Mysql.Errors.getMysqlErrorDescriptor("ER_DUP_ENTRY")
+descriptor.tag
+// "@mysql/server/dup-entry"
+
+const mysqlError = Mysql.Errors.normalizeMysqlDriverError({
+  code: "ER_DUP_ENTRY",
+  errno: 1062,
+  sqlState: "23000",
+  sqlMessage: "Duplicate entry 'alice@example.com' for key 'users.email'"
+})
+
+mysqlError._tag
+mysqlError.symbol
+mysqlError.number
+```
+
+Normalization preserves structured fields where the driver provides them. For example:
+
+- Postgres surfaces fields like `detail`, `hint`, `position`, `schemaName`, `tableName`, and `constraintName`
+- MySQL surfaces fields like `errno`, `sqlState`, `sqlMessage`, `fatal`, `syscall`, `address`, and `port`
+
+Unknown failures are still classified:
+
+- Postgres uses `@postgres/unknown/sqlstate` for well-formed but uncataloged SQLSTATEs and `@postgres/unknown/driver` for non-Postgres failures
+- MySQL uses `@mysql/unknown/code` for MySQL-like catalog misses and `@mysql/unknown/driver` for non-MySQL failures
+
+When normalization happens during execution, the normalized error also carries `query.sql` and `query.params`.
+
+### Query-capability Narrowing
+
+Executors narrow their error channels based on what the plan is allowed to do.
+
+That matters most for read-only plans. If a raw driver error clearly requires write capabilities, the executor does not surface it directly on a read query. It wraps it in a query-requirements error instead:
+
+- `@postgres/unknown/query-requirements`
+- `@mysql/unknown/query-requirements`
+
+Those wrappers include:
+
+- `requiredCapabilities`
+- `actualCapabilities`
+- `cause`
+- `query`
+
+This makes the error channel honest about the plan you executed. A plain `select(...)` should not advertise direct unique-violation handling as though it were a write plan, even if the underlying driver returned one.
+
+If the plan really is write-bearing, including write CTEs, the original normalized write error is preserved.
+
+You can also inspect requirements directly:
+
+```ts
+const postgresRequirements =
+  Postgres.Errors.requirements_of_postgres_error(postgresError)
+
+const mysqlRequirements =
+  Mysql.Errors.requirements_of_mysql_error(mysqlError)
+```
+
+### Matching Errors In Application Code
+
+The executor error channel is intended to be pattern-matched, not string-parsed.
+
+Use Effect tag handling for high-level branching:
+
+```ts
+import * as Effect from "effect/Effect"
+
+const rows = executor.execute(plan).pipe(
+  Effect.catchTag("@postgres/unknown/query-requirements", (error) =>
+    Effect.fail(error.cause)
+  )
+)
+```
+
+Use the dialect guards for precise narrowing inside shared helpers:
+
+```ts
+if (Postgres.Errors.hasSqlState(error, "23505")) {
+  error.constraintName
+}
+
+if (Mysql.Errors.hasSymbol(error, "ER_DUP_ENTRY")) {
+  error.number
+}
+
+if (Mysql.Errors.hasNumber(error, "1062")) {
+  error.symbol
+}
+```
+
+In practice, the error flow is:
+
+1. driver throws some unknown failure
+2. dialect normalizer turns it into a tagged dialect error
+3. executor optionally narrows it against plan capabilities
+4. application code matches on `_tag` or a dialect guard
+5. application code decides whether to recover, rethrow, or translate the failure
+
 ## Type Safety
 
 This is the main reason to use `effect-qb`.
@@ -1107,13 +1293,14 @@ Useful commands:
 
 ```bash
 bun test
-bunx tsgo -p tsconfig.type-tests.json --pretty false
+bun run test:types
 ```
 
 Useful places to start:
 
-- [src/internal/query.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/src/internal/query.ts)
-- [src/internal/query-factory.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/src/internal/query-factory.ts)
-- [test/types/query-composition-types.ts](/Users/ramazan/.codex/worktrees/6df0/effect-qb/test/types/query-composition-types.ts)
+- [src/internal/query.ts](./src/internal/query.ts)
+- [src/internal/query-factory.ts](./src/internal/query-factory.ts)
+- [test/query.behavior.test.ts](./test/query.behavior.test.ts)
+- [test/types/query-composition-types.ts](./test/types/query-composition-types.ts)
 
 The codebase is organized around typed plans, dialect-specialized entrypoints, and behavior-first tests.
