@@ -1351,13 +1351,17 @@ Useful commands:
 bun test
 bun run test:types
 bun run test:integration
+bun run release
 ```
 
 Useful places to start:
 
-- [src/index.ts](./src/index.ts)
+- [src/postgres.ts](./src/postgres.ts)
 - [src/internal/query-factory.ts](./src/internal/query-factory.ts)
-- [test/query.behavior.test.ts](./test/query.behavior.test.ts)
-- [test/types/query-composition-types.ts](./test/types/query-composition-types.ts)
+- [src/postgres/private/query.ts](./src/postgres/private/query.ts)
+- [test/public/behavior/query.behavior.test.ts](./test/public/behavior/query.behavior.test.ts)
+- [test/public/types/query-composition-types.ts](./test/public/types/query-composition-types.ts)
+
+Releases are manual via the GitHub Actions `Release` workflow. It derives the next version from conventional commits, updates `CHANGELOG.md`, creates a `vX.Y.Z` tag, and the tag push workflow publishes to npm and creates the GitHub release.
 
 The codebase is organized around typed plans, dialect-specialized entrypoints, and behavior-first tests.

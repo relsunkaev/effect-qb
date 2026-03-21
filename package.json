@@ -5,6 +5,7 @@
   "files": [
     "dist",
     "src",
+    "CHANGELOG.md",
     "README.md"
   ],
   "exports": {
@@ -28,6 +29,7 @@
   },
   "scripts": {
     "build": "bun scripts/build-package.ts",
+    "release": "bun scripts/release.ts",
     "test": "bun test",
     "test:types": "bunx tsgo -p tsconfig.type-tests.json",
     "test:integration": "bun scripts/test-integration.ts",

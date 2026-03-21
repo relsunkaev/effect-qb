@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+          cache: true
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify tests
+        run: bun test
+
+      - name: Verify type tests
+        run: bun run test:types
+
+      - name: Verify build
+        run: bun run build
+
+      - name: Verify npm pack
+        run: bunx npm pack --dry-run
+
+      - name: Run integration tests
+        run: bun run test:integration
+
+      - name: Create release commit and tag
+        run: bun scripts/release.ts --push

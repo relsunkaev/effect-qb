@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect"
+import * as Duration from "effect/Duration"
 import * as Redacted from "effect/Redacted"
 import * as SqlClient from "@effect/sql/SqlClient"
 import { MysqlClient } from "@effect/sql-mysql2"
@@ -9,7 +10,8 @@ const pgLayer = PgClient.layer({
   port: 55432,
   database: "effect_qb_test",
   username: "effect_qb",
-  password: Redacted.make("effect_qb")
+  password: Redacted.make("effect_qb"),
+  connectTimeout: Duration.seconds(15)
 })
 
 const mysqlLayer = MysqlClient.layer({
@@ -17,7 +19,8 @@ const mysqlLayer = MysqlClient.layer({
   port: 53306,
   database: "effect_qb_test",
   username: "effect_qb",
-  password: Redacted.make("effect_qb")
+  password: Redacted.make("effect_qb"),
+  connectTimeout: Duration.seconds(15)
 })
 
 export const runPostgres = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
