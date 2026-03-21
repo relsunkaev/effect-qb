@@ -1,6 +1,6 @@
-import * as Query from "../query.js"
+import { postgresQuery } from "../private/query.js"
 
 /** Postgres aggregate functions. */
-export const count = Query.count
-export const max = Query.max
-export const min = Query.min
+export const count = postgresQuery.count
+export const max = postgresQuery.max
+export const min = postgresQuery.min

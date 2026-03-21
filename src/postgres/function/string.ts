@@ -1,6 +1,6 @@
-import * as Query from "../query.js"
+import { postgresQuery } from "../private/query.js"
 
 /** Postgres string functions. */
-export const lower = Query.lower
-export const upper = Query.upper
-export const concat = Query.concat
+export const lower = postgresQuery.lower
+export const upper = postgresQuery.upper
+export const concat = postgresQuery.concat

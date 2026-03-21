@@ -1,4 +1,4 @@
-import * as Query from "../query.js"
+import { postgresQuery } from "../private/query.js"
 
 /** Postgres JSON expression helpers. */
-export const json = Query.json
+export const json = postgresQuery.json

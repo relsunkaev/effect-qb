@@ -18,6 +18,11 @@
     },
     "./package.json": "./package.json"
   },
+  "imports": {
+    "#postgres": "./src/postgres.ts",
+    "#mysql": "./src/mysql.ts",
+    "#internal/*": "./src/internal/*"
+  },
   "publishConfig": {
     "access": "public"
   },

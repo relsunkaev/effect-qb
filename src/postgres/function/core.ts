@@ -1,4 +1,4 @@
-import * as Query from "../query.js"
+import { postgresQuery } from "../private/query.js"
 
 /** Postgres scalar core functions. */
-export const coalesce = Query.coalesce
+export const coalesce = postgresQuery.coalesce

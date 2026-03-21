@@ -1,6 +1,6 @@
-import * as Query from "../query.js"
+import { postgresQuery } from "../private/query.js"
 
 /** Postgres window functions. */
-export const rowNumber = Query.rowNumber
-export const rank = Query.rank
-export const denseRank = Query.denseRank
+export const rowNumber = postgresQuery.rowNumber
+export const rank = postgresQuery.rank
+export const denseRank = postgresQuery.denseRank

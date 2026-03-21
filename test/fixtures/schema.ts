@@ -1,6 +1,6 @@
-import * as Mysql from "../../src/mysql.ts"
-import * as Postgres from "../../src/postgres.ts"
-import { Column as C, Table } from "../../src/postgres.ts"
+import * as Mysql from "#mysql"
+import * as Postgres from "#postgres"
+import { Column as C, Table } from "#postgres"
 
 export const makeRootSocialGraph = () => {
   const users = Table.make("users", {

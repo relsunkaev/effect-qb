@@ -1,17 +1,17 @@
 export const buildGroupedConcatPlan = <TableModule extends {
   Query: {
-    select: typeof import("../../src/postgres.ts").Query.select
-    from: typeof import("../../src/postgres.ts").Query.from
-    innerJoin: typeof import("../../src/postgres.ts").Query.innerJoin
-    groupBy: typeof import("../../src/postgres.ts").Query.groupBy
-    having: typeof import("../../src/postgres.ts").Query.having
-    orderBy: typeof import("../../src/postgres.ts").Query.orderBy
-    lower: typeof import("../../src/postgres.ts").Query.lower
-    concat: typeof import("../../src/postgres.ts").Query.concat
-    coalesce: typeof import("../../src/postgres.ts").Query.coalesce
-    max: typeof import("../../src/postgres.ts").Query.max
-    count: typeof import("../../src/postgres.ts").Query.count
-    eq: typeof import("../../src/postgres.ts").Query.eq
+    select: typeof import("#postgres").Query.select
+    from: typeof import("#postgres").Query.from
+    innerJoin: typeof import("#postgres").Query.innerJoin
+    groupBy: typeof import("#postgres").Query.groupBy
+    having: typeof import("#postgres").Query.having
+    orderBy: typeof import("#postgres").Query.orderBy
+    lower: typeof import("#postgres").Query.lower
+    concat: typeof import("#postgres").Query.concat
+    coalesce: typeof import("#postgres").Query.coalesce
+    max: typeof import("#postgres").Query.max
+    count: typeof import("#postgres").Query.count
+    eq: typeof import("#postgres").Query.eq
   }
 }>(table: TableModule, users: any, posts: any) => {
   const selected = table.Query.select({

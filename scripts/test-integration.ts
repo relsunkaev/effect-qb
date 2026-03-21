@@ -5,7 +5,7 @@ const composeFile = "docker-compose.integration.yml"
 const main = async () => {
   try {
     await $`docker compose -f ${composeFile} up -d --wait`
-    await $`bun test ./test/integration/postgres.integration.ts ./test/integration/mysql.integration.ts`
+    await $`bun test ./test/public/integration/postgres.integration.ts ./test/public/integration/mysql.integration.ts`
   } finally {
     try {
       await $`docker compose -f ${composeFile} down -v`

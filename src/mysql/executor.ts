@@ -2,8 +2,9 @@ import * as Effect from "effect/Effect"
 import * as SqlClient from "@effect/sql/SqlClient"
 
 import * as CoreExecutor from "../internal/executor.js"
-import * as Query from "./query.js"
-import * as Renderer from "./renderer.js"
+import * as CoreQuery from "../internal/query.js"
+import * as CoreRenderer from "../internal/renderer.js"
+import { renderMysqlPlan } from "../internal/mysql-renderer.js"
 import {
   narrowMysqlDriverErrorForReadQuery,
   normalizeMysqlDriverError,
@@ -19,17 +20,19 @@ export type RowDecodeError = CoreExecutor.RowDecodeError
 export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"mysql", Error, Context>
 /** MySQL-specialized executor contract. */
 export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"mysql", Error, Context>
+/** MySQL-specialized renderer contract. */
+export type Renderer = CoreRenderer.Renderer<"mysql">
 /** Optional renderer / driver overrides for the standard MySQL executor pipeline. */
 export interface MakeOptions<Error = never, Context = never> {
-  readonly renderer?: Renderer.Renderer
+  readonly renderer?: Renderer
   readonly driver?: Driver<Error, Context>
   readonly driverMode?: CoreExecutor.DriverMode
 }
 /** Standard composed error shape for MySQL executors. */
 export type MysqlExecutorError = MysqlDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in MySQL executors. */
-export type MysqlQueryError<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  Exclude<Query.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError : MysqlExecutorError
+export type MysqlQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+  Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError : MysqlExecutorError
 
 /** Runs an effect within the ambient MySQL SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction
@@ -39,9 +42,9 @@ export const withSavepoint = CoreExecutor.withSavepoint
 /** MySQL executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> {
   readonly dialect: "mysql"
-  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
-  ): Effect.Effect<Query.ResultRows<PlanValue>, MysqlQueryError<PlanValue>, Context>
+  execute<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+  ): Effect.Effect<CoreQuery.ResultRows<PlanValue>, MysqlQueryError<PlanValue>, Context>
 }
 
 /** Constructs a MySQL-specialized SQL driver. */
@@ -50,7 +53,7 @@ export const driver = <
   Context = never
 >(
   execute: <Row>(
-    query: Renderer.RenderedQuery<Row>
+    query: CoreRenderer.RenderedQuery<Row, "mysql">
   ) => Effect.Effect<ReadonlyArray<FlatRow>, Error, Context>
 ): Driver<Error, Context> =>
   CoreExecutor.driver("mysql", execute)
@@ -59,7 +62,7 @@ const fromDriver = <
   Error = never,
   Context = never
 >(
-  renderer: Renderer.Renderer,
+  renderer: Renderer,
   sqlDriver: Driver<Error, Context>,
   driverMode: CoreExecutor.DriverMode = "raw"
 ): QueryExecutor<Context> => ({
@@ -102,13 +105,13 @@ const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
 export function make(): QueryExecutor<SqlClient.SqlClient>
 export function make(
   options: {
-    readonly renderer?: Renderer.Renderer
+    readonly renderer?: Renderer
     readonly driverMode?: CoreExecutor.DriverMode
   }
 ): QueryExecutor<SqlClient.SqlClient>
 export function make<Error = never, Context = never>(
   options: {
-    readonly renderer?: Renderer.Renderer
+    readonly renderer?: Renderer
     readonly driver: Driver<Error, Context>
     readonly driverMode?: CoreExecutor.DriverMode
   }
@@ -117,9 +120,9 @@ export function make<Error = never, Context = never>(
   options: MakeOptions<Error, Context> = {}
 ): QueryExecutor<any> {
   if (options.driver) {
-    return fromDriver(options.renderer ?? Renderer.make(), options.driver, options.driverMode)
+    return fromDriver(options.renderer ?? CoreRenderer.make("mysql", renderMysqlPlan), options.driver, options.driverMode)
   }
-  return fromDriver(options.renderer ?? Renderer.make(), sqlClientDriver(), options.driverMode)
+  return fromDriver(options.renderer ?? CoreRenderer.make("mysql", renderMysqlPlan), sqlClientDriver(), options.driverMode)
 }
 
 /** Creates a MySQL-specialized executor from a typed implementation callback. */
@@ -127,8 +130,8 @@ export const custom = <
   Error = never,
   Context = never
 >(
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
-  ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
+  execute: <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+  ) => Effect.Effect<CoreQuery.ResultRows<PlanValue>, Error, Context>
 ): Executor<Error, Context> =>
   CoreExecutor.make("mysql", execute as any) as Executor<Error, Context>
