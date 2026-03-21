@@ -168,6 +168,8 @@ export declare namespace DbType {
   export type PgDate = Base<"postgres", "date">
   export type PgTime = Base<"postgres", "time">
   export type PgTimestamp = Base<"postgres", "timestamp">
+  export type PgTimetz = Base<"postgres", "timetz">
+  export type PgTimestamptz = Base<"postgres", "timestamptz">
   export type PgInterval = Base<"postgres", "interval">
   export type PgBytea = Base<"postgres", "bytea">
   export type PgJsonb = Base<"postgres", "jsonb">

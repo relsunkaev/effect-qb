@@ -6,6 +6,8 @@ export * as Datatypes from "./postgres/datatypes/index.js"
 export * as Errors from "./postgres/errors/index.js"
 /** Shared scalar SQL expression interfaces and DB-type descriptors. */
 export * as Expression from "./internal/expression.js"
+/** Postgres-specialized SQL function expressions. */
+export * as Function from "./postgres/function/index.js"
 /** Postgres-specialized typed query execution contracts. */
 export * as Executor from "./postgres/executor.js"
 /** Shared logical query-plan interfaces. */

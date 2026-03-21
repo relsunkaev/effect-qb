@@ -122,6 +122,8 @@ Available entrypoints:
 
 Use `effect-qb/postgres` when you want explicit Postgres branding throughout the plan, renderer, executor, datatypes, and errors.
 
+That entrypoint also exposes `Postgres.Function` for typed SQL functions, while `Query` keeps compatibility aliases for the same operators during the migration.
+
 Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors.
 
 ## Quick Start

@@ -305,6 +305,28 @@ const renderJsonOpaquePath = (
   throw new Error("Unsupported SQL/JSON path input")
 }
 
+const renderFunctionCall = (
+  name: string,
+  args: readonly Expression.Any[],
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  const renderedArgs = args.map((arg) => renderExpression(arg, state, dialect)).join(", ")
+  if (args.length === 0) {
+    switch (name) {
+      case "current_date":
+      case "current_time":
+      case "current_timestamp":
+      case "localtime":
+      case "localtimestamp":
+        return name
+      default:
+        return `${name}()`
+    }
+  }
+  return `${name}(${renderedArgs})`
+}
+
 const renderJsonExpression = (
   ast: Record<string, unknown>,
   state: RenderState,
@@ -1190,6 +1212,8 @@ export const renderExpression = (
         : `excluded.${dialect.quoteIdentifier(ast.columnName)}`
     case "cast":
       return `cast(${renderExpression(ast.value, state, dialect)} as ${renderCastType(dialect, ast.target)})`
+    case "function":
+      return renderFunctionCall(ast.name, Array.isArray(ast.args) ? ast.args : [], state, dialect)
     case "eq":
       return `(${renderExpression(ast.left, state, dialect)} = ${renderExpression(ast.right, state, dialect)})`
     case "neq":

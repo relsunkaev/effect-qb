@@ -34,6 +34,16 @@ export interface CastNode<
   readonly target: Target
 }
 
+/** General SQL function call captured by the internal expression AST. */
+export interface FunctionCallNode<
+  Name extends string = string,
+  Args extends readonly Expression.Any[] = readonly Expression.Any[]
+> {
+  readonly kind: "function"
+  readonly name: Name
+  readonly args: Args
+}
+
 /** `excluded.column` reference used inside insert conflict handlers. */
 export interface ExcludedNode<
   ColumnName extends string = string
@@ -325,6 +335,7 @@ export type Any =
   | ColumnNode
   | LiteralNode
   | CastNode
+  | FunctionCallNode
   | ExcludedNode
   | UnaryNode
   | BinaryNode
