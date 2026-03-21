@@ -17,7 +17,7 @@ describe("table definitions", () => {
       id: C.uuid().pipe(C.primaryKey, C.generated),
       email: C.text().pipe(C.unique),
       bio: C.text().pipe(C.nullable),
-      createdAt: C.timestamp().pipe(C.hasDefault)
+      createdAt: C.timestamp().pipe(C.default)
     }).pipe(Table.index("email"))
 
     expect(users.columns.id).toBe(users.id)

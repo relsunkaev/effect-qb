@@ -88,7 +88,7 @@ describe("table behavior", () => {
       id: C.uuid().pipe(C.primaryKey, C.generated),
       email: C.text().pipe(C.unique),
       bio: C.text().pipe(C.nullable),
-      createdAt: C.timestamp().pipe(C.hasDefault)
+      createdAt: C.timestamp().pipe(C.default)
     }).pipe(
       Table.index("email")
     )
@@ -97,7 +97,7 @@ describe("table behavior", () => {
       id: C.uuid().pipe(C.primaryKey, C.generated),
       email: C.text().pipe(C.unique),
       bio: C.text().pipe(C.nullable),
-      createdAt: C.timestamp().pipe(C.hasDefault)
+      createdAt: C.timestamp().pipe(C.default)
     }) {
       static override readonly [Table.options] = [Table.index("email")]
     }

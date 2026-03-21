@@ -14,7 +14,7 @@ const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.generated),
   email: C.text().pipe(C.unique),
   bio: C.text().pipe(C.nullable),
-  createdAt: C.timestamp().pipe(C.hasDefault)
+  createdAt: C.timestamp().pipe(C.default)
 }).pipe(
   Table.index(["email", "createdAt"] as const)
 )
@@ -374,8 +374,8 @@ const badNullablePrimaryKey = C.text().pipe(C.nullable, C.primaryKey)
 // @ts-expect-error primary keys cannot become nullable
 const badPrimaryKeyNullable = C.text().pipe(C.primaryKey, C.nullable)
 
-// @ts-expect-error generated and hasDefault are mutually exclusive
-const badGeneratedDefault = C.text().pipe(C.generated, C.hasDefault)
+// @ts-expect-error generated and default are mutually exclusive
+const badGeneratedDefault = C.text().pipe(C.generated, C.default)
 
 const badReferenceType = Table.make("bad_reference", {
   // @ts-expect-error references require compatible base select types

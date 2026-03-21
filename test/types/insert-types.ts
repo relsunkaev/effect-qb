@@ -8,7 +8,7 @@ const users = Table.make("users", {
 })
 
 const auditLogs = Table.make("audit_logs", {
-  id: C.uuid().pipe(C.primaryKey, C.hasDefault),
+  id: C.uuid().pipe(C.primaryKey, C.default),
   note: C.text().pipe(C.nullable)
 })
 
@@ -47,7 +47,7 @@ const insertSelectPlan = Q.insert(users).pipe(Q.from(Q.select({
   Q.from(users)
 )))
 
-const defaultValuesPlan = Q.defaultValues(auditLogs)
+const defaultInsertPlan = Q.insert(auditLogs)
 
 const insertConflictPlan = Q.insert(users, {
   id: "user-id",
@@ -66,11 +66,15 @@ const insertConflictPlan = Q.insert(users, {
 void valuesSource
 void insertUnnestPlan
 void insertSelectPlan
-void defaultValuesPlan
+void defaultInsertPlan
 void insertConflictPlan
 
-// @ts-expect-error defaultValues requires all insert columns to be optional/generated
-Q.defaultValues(users)
+const invalidDefaultInsertPlan = Q.insert(users)
+
+// @ts-expect-error default-only inserts require every insert column to be optional/generated
+const invalidDefaultInsert: Q.CompletePlan<typeof invalidDefaultInsertPlan> = invalidDefaultInsertPlan
+
+void invalidDefaultInsertPlan
 
 // @ts-expect-error mysql conflict targets do not support named constraints
 Mysql.Query.onConflict({

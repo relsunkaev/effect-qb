@@ -1206,8 +1206,20 @@ type InsertSourceCompletenessError<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: insert plan is missing inline values or a source"
-  readonly __effect_qb_hint__: "Pass values directly to insert(...), use defaultValues(...), or pipe the insert plan into from(...)"
+  readonly __effect_qb_hint__: "Pass values directly to insert(...), or pipe the insert plan into from(...)"
 }
+
+type RequiredKeys<Shape> = Extract<{
+  [K in keyof Shape]-?: {} extends Pick<Shape, K> ? never : K
+}[keyof Shape], string>
+
+type InsertHasOptionalDefaults<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = MutationTargetOfPlan<PlanValue> extends infer Target extends MutationTargetLike
+  ? RequiredKeys<Table.InsertOf<Target>> extends never
+    ? true
+    : false
+  : false
 
 /** Narrows a query plan to aggregate-compatible selections. */
 export type AggregationCompatiblePlan<
@@ -1221,7 +1233,9 @@ export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, an
   PlanValue extends QueryPlan<infer Selection, infer Required, any, any, infer Grouped, any, any, any, any, infer Statement, any, infer InsertState>
     ? Statement extends "insert"
       ? InsertState extends "missing"
-        ? InsertSourceCompletenessError<PlanValue>
+        ? InsertHasOptionalDefaults<PlanValue> extends true
+          ? PlanValue
+          : InsertSourceCompletenessError<PlanValue>
         : HasKnownOutstanding<Required> extends true
           ? SourceCompletenessError<PlanValue, Extract<Required, string>>
           : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>

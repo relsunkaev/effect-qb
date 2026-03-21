@@ -1,8 +1,8 @@
 export {
   boolean,
   date,
+  default_ as default,
   generated,
-  hasDefault,
   int,
   json,
   nullable,

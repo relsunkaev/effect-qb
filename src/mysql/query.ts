@@ -103,7 +103,6 @@ export const values = mysqlQuery.values
 export const unnest = mysqlQuery.unnest
 export const generateSeries = mysqlQuery.generateSeries
 export const returning = mysqlQuery.returning
-export const defaultValues = mysqlQuery.defaultValues
 export const onConflict = mysqlQuery.onConflict
 export const insert = mysqlQuery.insert
 export const update = mysqlQuery.update

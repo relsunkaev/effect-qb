@@ -90,9 +90,9 @@ describe("mysql insert behavior", () => {
     ])
   })
 
-  test("renders mysql default-values and duplicate-key conflict clauses", () => {
+  test("renders mysql default-only inserts and duplicate-key conflict clauses", () => {
     const auditLogs = Mysql.Table.make("audit_logs", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey, Mysql.Column.hasDefault),
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey, Mysql.Column.default),
       note: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
     const users = Mysql.Table.make("users", {
@@ -101,7 +101,7 @@ describe("mysql insert behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const defaultValuesPlan = Mysql.Query.defaultValues(auditLogs)
+    const defaultInsertPlan = Mysql.Query.insert(auditLogs)
     const conflictPlan = Mysql.Query.onConflict(["email"] as const, {
       update: {
         bio: Mysql.Query.excluded(users.bio)
@@ -112,7 +112,7 @@ describe("mysql insert behavior", () => {
       bio: "writer"
     }))
 
-    expect(Mysql.Renderer.make().render(defaultValuesPlan).sql).toBe(
+    expect(Mysql.Renderer.make().render(defaultInsertPlan).sql).toBe(
       "insert into `audit_logs` default values"
     )
 

@@ -21,10 +21,11 @@ export const custom = BaseColumn.mysql.custom
 export const nullable = BaseColumn.nullable
 export const primaryKey = BaseColumn.primaryKey
 export const unique = BaseColumn.unique
-export const hasDefault = BaseColumn.hasDefault
+const default_ = BaseColumn.default_
 export const generated = BaseColumn.generated
 export const references = BaseColumn.references
 export const schema = BaseColumn.schema
+export { default_ as default }
 
 export type Any = BaseColumn.Any
 export type AnyBound = BaseColumn.AnyBound

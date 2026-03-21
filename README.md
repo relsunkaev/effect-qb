@@ -239,7 +239,7 @@ const users = Table.make("users", {
   profile: C.json(Schema.Struct({
     visits: Schema.NumberFromString
   })),
-  createdAt: C.timestamp().pipe(C.hasDefault)
+  createdAt: C.timestamp().pipe(C.default)
 })
 
 type UserSelect = Table.SelectOf<typeof users>
@@ -300,7 +300,7 @@ const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.generated),
   email: C.text().pipe(C.unique),
   bio: C.text().pipe(C.nullable),
-  createdAt: C.timestamp().pipe(C.hasDefault)
+  createdAt: C.timestamp().pipe(C.default)
 })
 
 Schema.isSchema(users.schemas.select)

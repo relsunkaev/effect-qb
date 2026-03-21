@@ -103,7 +103,6 @@ export const values = postgresQuery.values
 export const unnest = postgresQuery.unnest
 export const generateSeries = postgresQuery.generateSeries
 export const returning = postgresQuery.returning
-export const defaultValues = postgresQuery.defaultValues
 export const onConflict = postgresQuery.onConflict
 export const insert = postgresQuery.insert
 export const update = postgresQuery.update

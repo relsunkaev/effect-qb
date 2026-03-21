@@ -378,8 +378,8 @@ export const unique = <Column extends AnyColumnDefinition>(
     unique: true
   })
 
-/** Marks a column as having a server-side default and therefore optional on insert. */
-export const hasDefault = <Column extends AnyColumnDefinition>(
+/** Marks a column as having a database default and therefore optional on insert. */
+export const default_ = <Column extends AnyColumnDefinition>(
   column: Column[typeof ColumnTypeId]["generated"] extends true ? never : Column
 ): HasDefaultColumn<Column> =>
   mapColumn(column, {
@@ -415,3 +415,5 @@ export const references = <Target extends AnyBoundColumn>(target: () => Target) 
 export type Any = AnyColumnDefinition
 /** Convenience alias for any bound column. */
 export type AnyBound = BoundColumn<any, any, any, any, any, any, any, any, any, any, any, any>
+
+export { default_ as default }

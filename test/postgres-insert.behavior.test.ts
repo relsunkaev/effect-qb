@@ -88,9 +88,9 @@ describe("postgres insert behavior", () => {
     ])
   })
 
-  test("renders postgres default-values and rich conflict clauses", () => {
+  test("renders postgres default-only inserts and rich conflict clauses", () => {
     const auditLogs = Postgres.Table.make("audit_logs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey, Postgres.Column.hasDefault),
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey, Postgres.Column.default),
       note: Postgres.Column.text().pipe(Postgres.Column.nullable)
     })
     const users = Postgres.Table.make("users", {
@@ -99,7 +99,7 @@ describe("postgres insert behavior", () => {
       bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
     })
 
-    const defaultValuesPlan = Postgres.Query.defaultValues(auditLogs)
+    const defaultInsertPlan = Postgres.Query.insert(auditLogs)
     const partialIndexConflictPlan = Postgres.Query.onConflict({
       columns: ["email"] as const,
       where: Postgres.Query.isNotNull(users.bio)
@@ -125,7 +125,7 @@ describe("postgres insert behavior", () => {
       bio: null
     }))
 
-    expect(Postgres.Renderer.make().render(defaultValuesPlan).sql).toBe(
+    expect(Postgres.Renderer.make().render(defaultInsertPlan).sql).toBe(
       'insert into "public"."audit_logs" default values'
     )
 

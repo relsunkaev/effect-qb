@@ -3802,7 +3802,7 @@ export function makeDialectQuery<
     const firstRow = rows[0]
     const firstColumns = Object.keys(firstRow)
     if (firstColumns.length === 0) {
-      throw new Error("values(...) rows must specify at least one column; use defaultValues(...) instead")
+      throw new Error("values(...) rows must specify at least one column; use insert(target) for default-only inserts instead")
     }
     const columns = firstColumns as [string, ...string[]]
     const normalizedRows = rows.map((row) => {
@@ -4070,12 +4070,6 @@ type InsertPlanSelectionShapeError<
   readonly __effect_qb_error__: "effect-qb: insert sources require a flat selection object"
   readonly __effect_qb_selection__: SelectionOfPlan<PlanValue>
   readonly __effect_qb_hint__: "Project a flat object like select({ id: ..., email: ... }) with column-name keys"
-}
-
-type DefaultValuesError<Target extends MutationTargetLike> = Target & {
-  readonly __effect_qb_error__: "effect-qb: defaultValues(...) requires every insert column to be optional or generated"
-  readonly __effect_qb_required_columns__: RequiredKeys<Table.InsertOf<Target>>
-  readonly __effect_qb_hint__: "Use insert(...) for required columns, or mark columns nullable/hasDefault/generated"
 }
 
 type MysqlConflictTargetError<Target> = Target & {
@@ -5757,55 +5751,6 @@ type AsCurriedResult<
     }, undefined as unknown as TrueFormula, "write", "insert", target, insertState)
   }
 
-  const defaultValues = <
-    Target extends MutationTargetLike
-  >(
-    target: RequiredKeys<Table.InsertOf<Target>> extends never ? Target : DefaultValuesError<Target>
-  ): QueryPlan<
-    {},
-    never,
-    AddAvailable<{}, SourceNameOf<Target>>,
-    TableDialectOf<Target>,
-    never,
-    SourceNameOf<Target>,
-    never,
-    TrueFormula,
-    "write",
-    "insert",
-    Target,
-    "ready"
-  > => {
-    const { sourceName, sourceBaseName } = targetSourceDetails(target as Target)
-    return makePlan({
-      selection: {},
-      required: [] as never,
-      available: {
-        [sourceName]: {
-          name: sourceName,
-          mode: "required",
-          baseName: sourceBaseName
-        }
-      } as AddAvailable<{}, SourceNameOf<Target>>,
-      dialect: (target as Target)[Plan.TypeId].dialect as TableDialectOf<Target>
-    }, {
-      kind: "insert",
-      select: {},
-      into: {
-        kind: "from",
-        tableName: sourceName,
-        baseTableName: sourceBaseName,
-        source: target as Target
-      },
-      values: [],
-      conflict: undefined,
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
-    }, undefined as unknown as TrueFormula, "write", "insert", target as Target, "ready")
-  }
-
   const attachInsertSource = (
     plan: QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
     source: AnyValuesInput | AnyValuesSource | AnyUnnestSource | CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
@@ -6754,7 +6699,6 @@ type AsCurriedResult<
     unnest,
     generateSeries,
     returning,
-    defaultValues,
     onConflict,
     insert,
     update,
