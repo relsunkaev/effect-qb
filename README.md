@@ -165,8 +165,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as Effect from "effect/Effect"
 import * as Postgres from "effect-qb/postgres"
 
-const renderer = Postgres.Renderer.make()
-const executor = Postgres.Executor.make({ renderer })
+const executor = Postgres.Executor.make()
 
 const rowsEffect = executor.execute(postsPerUser)
 
@@ -586,13 +585,26 @@ Comparison and cast safety are dialect-aware. Incompatible operands are rejected
 Grouped queries are checked structurally, not just by source provenance.
 
 ```ts
+const invalidPostsPerUser = Q.select({
+  userId: users.id,
+  title: posts.title,
+  postCount: Q.count(posts.id)
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(users.id)
+)
+
+type InvalidPostsPerUser = Q.CompletePlan<typeof invalidPostsPerUser>
+// {
+//   __effect_qb_error__: "effect-qb: invalid grouped selection"
+//   __effect_qb_hint__:
+//     "Scalar selections must be covered by groupBy(...) when aggregates are present"
+// }
+
 const postsPerUser = Q.select({
   userId: users.id,
-  postCount: Q.count(posts.id),
-  rowNumber: Q.over(Q.rowNumber(), {
-    partitionBy: [users.id],
-    orderBy: [{ value: users.id, direction: "asc" }]
-  })
+  postCount: Q.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -603,11 +615,10 @@ type PostsPerUserRow = Q.ResultRow<typeof postsPerUser>
 // {
 //   userId: string
 //   postCount: number
-//   rowNumber: number
 // }
 ```
 
-Scalar selections must be covered by `groupBy(...)` when aggregates are present. Invalid grouped selections are rejected at the complete-plan boundary.
+This catches invalid grouped queries before rendering, then the fixed plan keeps only grouped or aggregate selections.
 
 ### Combining Queries
 
@@ -695,22 +706,30 @@ Composable sources are available when the input rows come from elsewhere:
 const pendingUsers = Q.values([
   { id: "user-1", email: "alice@example.com" },
   { id: "user-2", email: "bob@example.com" }
-], "pending_users")
+]).pipe(
+  Q.as("pending_users")
+)
 
-const insertMany = Q.insertFrom(users, pendingUsers)
+const insertMany = Q.insert(users).pipe(
+  Q.from(pendingUsers)
+)
 ```
 
-`insertFrom(...)` also accepts `select(...)`, `unnest(...)`, and other compatible sources.
+`from(...)` also accepts `select(...)`, `unnest(...)`, and other compatible sources.
 
 ### Update
 
-Updates stay expression-aware and can use joined sources where the dialect supports it.
+Updates stay expression-aware and can use `from(...)` sources where the dialect supports it.
 
 ```ts
-const updateUsers = Q.innerJoin(posts, Q.eq(posts.userId, users.id))(
-  Q.update(users, {
-    email: "has-posts@example.com"
-  })
+const updateUsers = Q.update(users, {
+  email: "author@example.com"
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.and(
+    Q.eq(posts.userId, users.id),
+    Q.eq(posts.title, "hello")
+  ))
 )
 ```
 
@@ -731,19 +750,25 @@ const deleteUser = Q.delete(users).pipe(
 Conflict handling is modeled as a composable modifier instead of a string escape hatch.
 
 ```ts
-const insertOrIgnore = Q.onConflict(["id"] as const, {
-  action: "doNothing"
-})(Q.insert(users, {
+const insertOrIgnore = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
-}))
+}).pipe(
+  Q.onConflict(["id"] as const, {
+    action: "doNothing"
+  })
+)
 
-const upsertUser = Q.upsert(users, {
+const upsertUser = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
-}, ["id"] as const, {
-  email: "alice@example.com"
-})
+}).pipe(
+  Q.onConflict(["id"] as const, {
+    update: {
+      email: Q.excluded(users.email)
+    }
+  })
+)
 ```
 
 Conflict targets are checked against the target table.
@@ -824,14 +849,15 @@ They do not carry a query-result schema.
 ```ts
 import * as Postgres from "effect-qb/postgres"
 
-const renderer = Postgres.Renderer.make()
-const executor = Postgres.Executor.make({ renderer })
+const executor = Postgres.Executor.make()
 
 const rowsEffect = executor.execute(postsPerUser)
 
 type Rows = Postgres.Query.ResultRows<typeof postsPerUser>
 type Error = Postgres.Executor.PostgresQueryError<typeof postsPerUser>
 ```
+
+Pass `{ renderer }`, `{ driver }`, or both when you need to customize execution.
 
 Execution is:
 
@@ -1089,22 +1115,22 @@ The same branded error shape applies when `where(...)`, joins, or projections re
 Predicates refine result types, not just SQL.
 
 ```ts
-const filteredPosts = Q.select({
+const helloPosts = Q.select({
   title: posts.title,
   upperTitle: Q.upper(posts.title)
 }).pipe(
   Q.from(posts),
-  Q.where(Q.isNotNull(posts.title))
+  Q.where(Q.eq(posts.title, "hello"))
 )
 
-type FilteredPostsRow = Q.ResultRow<typeof filteredPosts>
+type HelloPostsRow = Q.ResultRow<typeof helloPosts>
 // {
 //   title: string
 //   upperTitle: string
 // }
 ```
 
-This is one of the biggest differences between `ResultRow` and a hand-written row interface.
+Equality against a non-null literal narrows too. You do not need `isNotNull(...)` to get non-null output.
 
 ### Join Optionality
 
@@ -1124,9 +1150,24 @@ type MaybePostsRow = Q.ResultRow<typeof maybePosts>
 //   userId: string
 //   postId: string | null
 // }
+
+const titledPosts = Q.select({
+  userId: users.id,
+  postId: posts.id
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.isNotNull(posts.title))
+)
+
+type TitledPostsRow = Q.ResultRow<typeof titledPosts>
+// {
+//   userId: string
+//   postId: string
+// }
 ```
 
-Add `where(Q.isNotNull(posts.id))` and the logical row type becomes non-null for `postId`.
+Any non-null proof on the joined table can promote the whole joined source, not just the join key.
 
 ### Grouped Query Validation
 
@@ -1171,16 +1212,11 @@ const mysqlPlan = Mysql.Query.select({
   Mysql.Query.from(mysqlUsers)
 )
 
-type WrongDialect =
-  Postgres.Query.DialectCompatiblePlan<typeof mysqlPlan, "postgres">
-// {
-//   __effect_qb_error__:
-//     "effect-qb: plan dialect is not compatible with the target renderer or executor"
-//   __effect_qb_plan_dialect__: "mysql"
-//   __effect_qb_target_dialect__: "postgres"
-//   __effect_qb_hint__:
-//     "Use the matching dialect module or renderer/executor"
-// }
+const postgresExecutor = Postgres.Executor.make()
+
+// @ts-expect-error mysql plans are not dialect-compatible with the postgres executor
+postgresExecutor.execute(mysqlPlan)
+// effect-qb: plan dialect is not compatible with the target renderer or executor
 ```
 
 ### JSON Schema Compatibility In Mutations
