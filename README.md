@@ -8,6 +8,7 @@ Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that
 - [Why effect-qb](#why-effect-qb)
 - [Installation](#installation)
 - [Choose An Entrypoint](#choose-an-entrypoint)
+- [Postgres Function](#postgres-function)
 - [Quick Start](#quick-start)
 - [Execution Model](#execution-model)
 - [Feature Map](#feature-map)
@@ -126,6 +127,36 @@ That entrypoint also exposes `Postgres.Function` for typed SQL functions, while 
 
 Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors.
 
+## Postgres Function
+
+`effect-qb/postgres` exposes `Postgres.Function` for typed SQL expressions. The helpers are expressions, so they compose like other query values and keep their result types.
+
+```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const userSummary = Q.select({
+  email: F.lower(users.email),
+  bio: F.coalesce(users.bio, "anonymous"),
+  seenAt: F.currentTimestamp()
+}).pipe(
+  Q.from(users)
+)
+```
+
+`Postgres.Function` currently covers:
+
+- scalar helpers like `coalesce`, `lower`, `upper`, and `concat`
+- aggregate helpers like `count`, `max`, and `min`
+- window helpers like `rowNumber`, `rank`, and `denseRank`
+- temporal helpers like `now`, `currentDate`, `currentTime`, `currentTimestamp`, `localTime`, and `localTimestamp`
+- the current `Query.json` surface, now grouped under `Function.json`
+
 ## Quick Start
 
 ```ts
@@ -202,6 +233,7 @@ The rest of this README goes deeper, but the main surface area is:
 - table builders with keys, indexes, nullability, defaults, and schema-backed JSON columns
 - select plans with joins, CTEs, derived tables, `values(...)`, `unnest(...)`, subqueries, and set operators
 - mutation plans for `insert`, `update`, `delete`, `returning`, and conflict handling
+- typed SQL functions via `Postgres.Function`
 - renderers and executors for Postgres and MySQL
 - type-level checks for missing sources, grouped selections, dialect compatibility, and JSON mutation compatibility
 
@@ -223,6 +255,12 @@ The schema-aware column APIs are:
 - `C.schema(schema)` to replace a column's runtime schema without changing its SQL type or key/default metadata
 - `C.custom(schema, dbType)` for arbitrary non-JSON columns
 - `C.json(schema)` for JSON columns
+
+`C.default` and `C.generated` only affect write-shape:
+
+- `C.default` keeps a column selectable and updatable, but optional on insert because the database may fill it
+- `C.generated` omits a column from insert and update because the database owns the value
+- neither helper models a SQL expression in this API yet
 
 The important rule for `C.schema(...)` is that the schema must accept the column's current runtime output, not the raw driver value.
 
@@ -718,6 +756,8 @@ const insertUser = Q.insert(users, {
   email: "alice@example.com"
 })
 ```
+
+If every writable column is optional because of `C.default`, `C.generated`, or nullability, `Q.insert(table)` is the default-only form.
 
 Composable sources are available when the input rows come from elsewhere:
 
@@ -1361,7 +1401,5 @@ Useful places to start:
 - [src/postgres/private/query.ts](./src/postgres/private/query.ts)
 - [test/public/behavior/query.behavior.test.ts](./test/public/behavior/query.behavior.test.ts)
 - [test/public/types/query-composition-types.ts](./test/public/types/query-composition-types.ts)
-
-Releases are manual via the GitHub Actions `Release` workflow. It derives the next version from conventional commits, updates `CHANGELOG.md`, creates a `vX.Y.Z` tag, and the tag push workflow publishes to npm and creates the GitHub release using the generated changelog section as the release body.
 
 The codebase is organized around typed plans, dialect-specialized entrypoints, and behavior-first tests.
