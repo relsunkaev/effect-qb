@@ -72,13 +72,13 @@ describe("mysql dialect behavior", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
     const valid = Mysql.Query.select({
-      loweredEmail: Mysql.Query.lower(users.email),
-      postCount: Mysql.Query.count(posts.id)
+      loweredEmail: Mysql.Function.lower(users.email),
+      postCount: Mysql.Function.count(posts.id)
     }).pipe(
       Mysql.Query.from(users),
       Mysql.Query.innerJoin(posts, Mysql.Query.eq(users.id, posts.userId)),
-      Mysql.Query.groupBy(Mysql.Query.lower(users.email)),
-      Mysql.Query.groupBy(Mysql.Query.lower(users.email))
+      Mysql.Query.groupBy(Mysql.Function.lower(users.email)),
+      Mysql.Query.groupBy(Mysql.Function.lower(users.email))
     )
 
     expect(Mysql.Renderer.make().render(valid).sql).toBe(
@@ -87,11 +87,11 @@ describe("mysql dialect behavior", () => {
 
     const invalid = Mysql.Query.select({
       email: users.email,
-      postCount: Mysql.Query.count(posts.id)
+      postCount: Mysql.Function.count(posts.id)
     }).pipe(
       Mysql.Query.from(users),
       Mysql.Query.innerJoin(posts, Mysql.Query.eq(users.id, posts.userId)),
-      Mysql.Query.groupBy(Mysql.Query.lower(users.email))
+      Mysql.Query.groupBy(Mysql.Function.lower(users.email))
     )
 
     expect(() => Mysql.Renderer.make().render(unsafeNever(invalid))).toThrow(
@@ -101,12 +101,12 @@ describe("mysql dialect behavior", () => {
 
   test("renders literal-only scalar operators with stable mysql parameter ordering", () => {
     const plan = Mysql.Query.select({
-      stitched: Mysql.Query.concat("a", "b", "c"),
-      fallback: Mysql.Query.coalesce(null, null, "done"),
+      stitched: Mysql.Function.concat("a", "b", "c"),
+      fallback: Mysql.Function.coalesce(null, null, "done"),
       missing: Mysql.Query.isNull(null),
       present: Mysql.Query.isNotNull("x"),
-      caps: Mysql.Query.upper("mix"),
-      lowered: Mysql.Query.lower("MIX")
+      caps: Mysql.Function.upper("mix"),
+      lowered: Mysql.Function.lower("MIX")
     })
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -166,14 +166,14 @@ describe("mysql dialect behavior", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
     const plan = Mysql.Query.select({
-      summary: Mysql.Query.concat(
-        Mysql.Query.lower(users.email),
+      summary: Mysql.Function.concat(
+        Mysql.Function.lower(users.email),
         "::",
-        Mysql.Query.upper(Mysql.Query.coalesce(posts.title, "missing"))
+        Mysql.Function.upper(Mysql.Function.coalesce(posts.title, "missing"))
       ),
       draftOrMissing: Mysql.Query.or(
         Mysql.Query.isNull(posts.title),
-        Mysql.Query.eq(Mysql.Query.lower(posts.title), "draft")
+        Mysql.Query.eq(Mysql.Function.lower(posts.title), "draft")
       ),
       active: Mysql.Query.and(
         Mysql.Query.isNotNull(posts.id),
@@ -188,11 +188,11 @@ describe("mysql dialect behavior", () => {
           Mysql.Query.eq(users.email, "bob@example.com")
         ),
         Mysql.Query.not(
-          Mysql.Query.eq(Mysql.Query.coalesce(posts.title, "missing"), "archived")
+          Mysql.Query.eq(Mysql.Function.coalesce(posts.title, "missing"), "archived")
         )
       )),
       Mysql.Query.orderBy(
-        Mysql.Query.upper(Mysql.Query.coalesce(posts.title, "missing")),
+        Mysql.Function.upper(Mysql.Function.coalesce(posts.title, "missing")),
         "desc"
       )
     )
@@ -312,8 +312,8 @@ describe("mysql dialect behavior", () => {
     const selected = Mysql.Query.select({
       titleState: Mysql.Query.case()
         .when(Mysql.Query.isNull(posts.title), "missing")
-        .when(Mysql.Query.eq(Mysql.Query.lower(posts.title), "draft"), "draft")
-        .else(Mysql.Query.upper(Mysql.Query.coalesce(posts.title, "published")))
+        .when(Mysql.Query.eq(Mysql.Function.lower(posts.title), "draft"), "draft")
+        .else(Mysql.Function.upper(Mysql.Function.coalesce(posts.title, "published")))
     })
     const fromUsers = Mysql.Query.from(users)(unsafeNever(selected))
     const plan = Mysql.Query.leftJoin(posts, Mysql.Query.eq(users.id, posts.userId))(fromUsers)
@@ -443,19 +443,19 @@ describe("mysql dialect behavior", () => {
 
     const plan = Mysql.Query.select({
       userId: users.id,
-      rowNumber: Mysql.Query.rowNumber({
+      rowNumber: Mysql.Function.rowNumber({
         partitionBy: [users.id],
         orderBy: [{ value: posts.id, direction: "asc" }]
       }),
-      rankByTitle: Mysql.Query.rank({
+      rankByTitle: Mysql.Function.rank({
         partitionBy: [users.id],
-        orderBy: [{ value: Mysql.Query.lower(posts.title), direction: "desc" }]
+        orderBy: [{ value: Mysql.Function.lower(posts.title), direction: "desc" }]
       }),
-      postCount: Mysql.Query.over(Mysql.Query.count(posts.id), {
+      postCount: Mysql.Function.over(Mysql.Function.count(posts.id), {
         partitionBy: [users.id],
         orderBy: [{ value: posts.id, direction: "asc" }]
       }),
-      latestTitle: Mysql.Query.over(Mysql.Query.max(posts.title), {
+      latestTitle: Mysql.Function.over(Mysql.Function.max(posts.title), {
         partitionBy: [users.id]
       })
     }).pipe(
@@ -1051,11 +1051,11 @@ describe("mysql dialect behavior", () => {
     const plan = Mysql.Query.select({
       profile: {
         id: users.id,
-        email: Mysql.Query.lower(users.email)
+        email: Mysql.Function.lower(users.email)
       },
       post: {
         id: posts.id,
-        title: Mysql.Query.lower(posts.title)
+        title: Mysql.Function.lower(posts.title)
       },
       hasPost: Mysql.Query.isNotNull(posts.id)
     }).pipe(

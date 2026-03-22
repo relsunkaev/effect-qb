@@ -1,6 +1,6 @@
 import * as Mysql from "effect-qb/mysql"
 import * as Postgres from "effect-qb/postgres"
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Query as Q, Function as F, Table } from "effect-qb/postgres"
 import type { BrandedErrorOf } from "../../helpers/branded-error.ts"
 
 const users = Table.make("users", {
@@ -103,7 +103,7 @@ Q.offset(10)(Q.insert(users, {
 const aliasPlan = Q.select({
   profile: {
     id: Q.as(users.id, "user_identifier"),
-    email: Q.as(Q.lower(users.email), "email_lower")
+    email: Q.as(F.lower(users.email), "email_lower")
   }
 }).pipe(
   Q.from(users)

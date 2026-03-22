@@ -15,7 +15,7 @@ describe("dialect behavior", () => {
     const pgPlan = Postgres.Query.select({
       profile: {
         id: pgUsers.id,
-        email: Postgres.Query.lower(pgUsers.email)
+        email: Postgres.Function.lower(pgUsers.email)
       }
     }).pipe(
       Postgres.Query.from(pgUsers)
@@ -23,7 +23,7 @@ describe("dialect behavior", () => {
     const myPlan = Mysql.Query.select({
       profile: {
         id: myUsers.id,
-        email: Mysql.Query.lower(myUsers.email)
+        email: Mysql.Function.lower(myUsers.email)
       }
     }).pipe(
       Mysql.Query.from(myUsers)
@@ -80,8 +80,8 @@ describe("dialect behavior", () => {
     const { users: pgUsers } = makePostgresSocialGraph()
     const { users: myUsers } = makeMysqlSocialGraph()
 
-    const pgExpr = Postgres.Query.concat(Postgres.Query.lower(pgUsers.email), "-user")
-    const myExpr = Mysql.Query.concat(Mysql.Query.lower(myUsers.email), "-user")
+    const pgExpr = Postgres.Function.concat(Postgres.Function.lower(pgUsers.email), "-user")
+    const myExpr = Mysql.Function.concat(Mysql.Function.lower(myUsers.email), "-user")
 
     expect(pgExpr[Postgres.Expression.TypeId].dbType.dialect).toBe("postgres")
     expect(myExpr[Mysql.Expression.TypeId].dbType.dialect).toBe("mysql")

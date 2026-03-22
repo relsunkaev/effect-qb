@@ -1,4 +1,4 @@
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Query as Q, Function as F, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -14,8 +14,8 @@ const posts = Table.make("posts", {
 const leftJoined = Q.select({
   userId: users.id,
   postTitle: posts.title,
-  loweredTitle: Q.lower(posts.title),
-  fallbackTitle: Q.coalesce(posts.title, Q.literal("missing"))
+  loweredTitle: F.lower(posts.title),
+  fallbackTitle: F.coalesce(posts.title, Q.literal("missing"))
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId))
@@ -34,7 +34,7 @@ void nullFallback
 
 const variadicFallbackPlan = Q.select({
   userId: users.id,
-  fallbackTitle: Q.coalesce(null, posts.title, Q.literal("missing"))
+  fallbackTitle: F.coalesce(null, posts.title, Q.literal("missing"))
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId))

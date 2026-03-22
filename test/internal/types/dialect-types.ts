@@ -20,8 +20,8 @@ const pgLiteral = Postgres.Query.literal("user")
 const myLiteral = Mysql.Query.literal("user")
 const pgPredicate = Postgres.Query.eq(pgUsers.email, "alice@example.com")
 const myPredicate = Mysql.Query.eq(myUsers.email, "alice@example.com")
-const pgConcat = Postgres.Query.concat(Postgres.Query.lower(pgUsers.email), "-user")
-const myConcat = Mysql.Query.concat(Mysql.Query.lower(myUsers.email), "-user")
+const pgConcat = Postgres.Function.concat(Postgres.Function.lower(pgUsers.email), "-user")
+const myConcat = Mysql.Function.concat(Mysql.Function.lower(myUsers.email), "-user")
 
 const pgLiteralDialect: Postgres.Expression.DbTypeOf<typeof pgLiteral>["dialect"] = "postgres"
 const myLiteralDialect: Mysql.Expression.DbTypeOf<typeof myLiteral>["dialect"] = "mysql"

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
-import { Executor, Query as Q, Renderer, Table } from "#postgres"
+import { Executor, Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { makeRootSocialGraph } from "../../fixtures/schema.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
@@ -13,7 +13,7 @@ describe("nullability behavior", () => {
 
     const plan = Q.select({
       userId: users.id,
-      fallbackTitle: Q.coalesce(null, posts.title, Q.literal("missing"))
+      fallbackTitle: F.coalesce(null, posts.title, Q.literal("missing"))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
@@ -72,9 +72,9 @@ describe("nullability behavior", () => {
 
     const plan = Q.select({
       userId: users.id,
-      postCount: Q.count(posts.id),
-      maxTitle: Q.max(posts.title),
-      minTitle: Q.min(posts.title)
+      postCount: F.count(posts.id),
+      maxTitle: F.max(posts.title),
+      minTitle: F.min(posts.title)
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -94,7 +94,7 @@ describe("nullability behavior", () => {
       userId: users.id,
       postId: posts.id,
       postTitle: posts.title,
-      upperPostTitle: Q.upper(posts.title)
+      upperPostTitle: F.upper(posts.title)
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -135,7 +135,7 @@ describe("nullability behavior", () => {
 
     const plan = Q.select({
       normalizedTitle: Q.case()
-        .when(Q.isNotNull(posts.title), Q.upper(posts.title))
+        .when(Q.isNotNull(posts.title), F.upper(posts.title))
         .else("missing")
     }).pipe(
       Q.from(users),
@@ -162,7 +162,7 @@ describe("nullability behavior", () => {
 
     const plan = Q.select({
       normalizedTitle: Q.case()
-        .when(Q.isNotNull(posts.title), Q.upper(posts.title))
+        .when(Q.isNotNull(posts.title), F.upper(posts.title))
         .when(Q.isNotNull(posts.id), "UNTITLED")
         .else("missing")
     }).pipe(

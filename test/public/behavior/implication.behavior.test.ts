@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
-import { Column as C, Executor, Query as Q, Renderer, Table } from "#postgres"
+import { Column as C, Executor, Query as Q, Function as F, Renderer, Table } from "#postgres"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const postId = "22222222-2222-2222-2222-222222222222"
@@ -27,7 +27,7 @@ describe("implication behavior", () => {
       post: {
         id: posts.id,
         titleState: Q.case()
-          .when(Q.isNotNull(posts.title), Q.upper(posts.title))
+          .when(Q.isNotNull(posts.title), F.upper(posts.title))
           .else("missing")
       }
     }).pipe(
@@ -71,7 +71,7 @@ describe("implication behavior", () => {
       userId: users.id,
       postId: posts.id,
       titleState: Q.case()
-        .when(Q.isNotNull(posts.title), Q.upper(posts.title))
+        .when(Q.isNotNull(posts.title), F.upper(posts.title))
         .else("missing")
     }).pipe(
       Q.from(users),
@@ -110,7 +110,7 @@ describe("implication behavior", () => {
 
     const plan = Q.select({
       title: posts.title,
-      upperTitle: Q.upper(posts.title)
+      upperTitle: F.upper(posts.title)
     }).pipe(
       Q.from(posts),
       Q.where(Q.isNull(posts.title))

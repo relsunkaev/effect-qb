@@ -1,4 +1,4 @@
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Query as Q, Function as F, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -35,7 +35,7 @@ const leftJoined = Q.select({
   postId: posts.id,
   missingTitle: Q.isNull(posts.title),
   presentTitle: Q.isNotNull(posts.title),
-  fallbackTitle: Q.coalesce(posts.title, Q.literal("missing"))
+  fallbackTitle: F.coalesce(posts.title, Q.literal("missing"))
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId))
@@ -58,9 +58,9 @@ void nullMissingTitle
 
 const aggregatedLeftJoined = Q.select({
   userId: users.id,
-  maxTitle: Q.max(posts.title),
-  minTitle: Q.min(posts.title),
-  postCount: Q.count(posts.id)
+  maxTitle: F.max(posts.title),
+  minTitle: F.min(posts.title),
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -84,7 +84,7 @@ const twoOptionalSources = Q.select({
   userId: users.id,
   commentId: comments.id,
   commentBody: comments.body,
-  fallbackComment: Q.coalesce(null, comments.body, Q.literal("none"))
+  fallbackComment: F.coalesce(null, comments.body, Q.literal("none"))
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -108,7 +108,7 @@ const filteredOptionalSource = Q.select({
   userId: users.id,
   postId: posts.id,
   postTitle: posts.title,
-  upperPostTitle: Q.upper(posts.title)
+  upperPostTitle: F.upper(posts.title)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -135,7 +135,7 @@ void filteredNullUpperPostTitle
 const searchedCasePlan = Q.select({
   userId: users.id,
   normalizedTitle: Q.case()
-    .when(Q.isNotNull(posts.title), Q.upper(posts.title))
+    .when(Q.isNotNull(posts.title), F.upper(posts.title))
     .else("missing")
 }).pipe(
   Q.from(users),

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { Plan, Query as Q, Table } from "#postgres"
+import { Plan, Query as Q, Function as F, Table } from "#postgres"
 import { Column as C } from "#postgres"
 import { makeRootEmployees, makeRootSocialGraph } from "../../fixtures/schema.ts"
 
@@ -9,7 +9,7 @@ describe("query behavior", () => {
     const plan = Q.select({
       answer: Q.literal(42),
       ok: Q.and(true, Q.not(false)),
-      label: Q.concat("a", "b")
+      label: F.concat("a", "b")
     }).pipe(
       Q.where(true)
     )
@@ -70,10 +70,10 @@ describe("query behavior", () => {
     const { users, posts } = makeRootSocialGraph()
 
     const plan = Q.select({
-      postCount: Q.count(posts.id)
+      postCount: F.count(posts.id)
     }).pipe(
       Q.where(Q.eq(users.email, "alice@example.com")),
-      Q.having(Q.eq(Q.count(posts.id), 2))
+      Q.having(Q.eq(F.count(posts.id), 2))
     )
 
     expect(plan[Plan.TypeId].required as unknown as readonly string[]).toEqual(["posts", "users"])

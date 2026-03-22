@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { Column as C, Query as Q, Renderer, Table } from "#postgres"
+import { Column as C, Query as Q, Function as F, Renderer, Table } from "#postgres"
 
 describe("having", () => {
   test("renders aggregate predicates after group by", () => {
@@ -16,12 +16,12 @@ describe("having", () => {
 
     const plan = Q.select({
       email: users.email,
-      postCount: Q.count(posts.id)
+      postCount: F.count(posts.id)
     }).pipe(
       Q.from(users),
       Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
       Q.groupBy(users.email),
-      Q.having(Q.eq(Q.count(posts.id), 1))
+      Q.having(Q.eq(F.count(posts.id), 1))
     )
 
     const rendered = Renderer.make("postgres").render(plan)

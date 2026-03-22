@@ -3,7 +3,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Executor, Query as Q, Renderer, Table } from "#postgres"
+import { Column as C, Executor, Query as Q, Function as F, Renderer, Table } from "#postgres"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
@@ -100,7 +100,7 @@ describe("executor behavior", () => {
     const plan = Q.select({
       profile: {
         id: Q.as(users.id, "user_identifier"),
-        email: Q.as(Q.lower(users.email), "email_lower")
+        email: Q.as(F.lower(users.email), "email_lower")
       }
     }).pipe(
       Q.from(users)
@@ -325,8 +325,8 @@ describe("executor behavior", () => {
     const plan = Q.select({
       titleState: Q.case()
         .when(Q.isNull(posts.title), "missing")
-        .when(Q.eq(Q.lower(posts.title), "draft"), "draft")
-        .else(Q.upper(Q.coalesce(posts.title, "published")))
+        .when(Q.eq(F.lower(posts.title), "draft"), "draft")
+        .else(F.upper(F.coalesce(posts.title, "published")))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
@@ -360,8 +360,8 @@ describe("executor behavior", () => {
     const plan = Q.select({
       titleState: Q.case()
         .when(Q.isNull(posts.title), "missing")
-        .when(Q.eq(Q.lower(posts.title), "draft"), "draft")
-        .else(Q.upper(Q.coalesce(posts.title, "published")))
+        .when(Q.eq(F.lower(posts.title), "draft"), "draft")
+        .else(F.upper(F.coalesce(posts.title, "published")))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -407,8 +407,8 @@ describe("executor behavior", () => {
     const plan = Q.select({
       userId: users.id,
       summary: Q.case()
-        .when(Q.eq(Q.count(posts.id), 0), "empty")
-        .else(Q.coalesce(Q.max(posts.title), "latest"))
+        .when(Q.eq(F.count(posts.id), 0), "empty")
+        .else(F.coalesce(F.max(posts.title), "latest"))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -443,7 +443,7 @@ describe("executor behavior", () => {
 
     const plan = Q.select({
       id: users.id,
-      title: Q.coalesce(posts.title, "missing")
+      title: F.coalesce(posts.title, "missing")
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.id))

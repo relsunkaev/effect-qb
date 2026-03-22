@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema"
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import { renderMysqlPlan } from "#internal/mysql-renderer.ts"
-import { Column as C, Executor, Expression, Plan, Query as Q, Renderer, Table } from "#postgres"
+import { Column as C, Executor, Expression, Plan, Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
@@ -217,7 +217,7 @@ describe("table definitions", () => {
     const query = Q.select({
       userId: users.id,
       postId: posts.id,
-      postTitleUpper: Q.upper(posts.title)
+      postTitleUpper: F.upper(posts.title)
     }).pipe(
       Q.where(Q.eq(users.email, "alice@example.com")),
       Q.from(users),
@@ -234,7 +234,7 @@ describe("table definitions", () => {
     const leftJoined = Q.select({
       userId: users.id,
       postId: posts.id,
-      postTitleUpper: Q.upper(posts.title)
+      postTitleUpper: F.upper(posts.title)
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, true)
@@ -260,7 +260,7 @@ describe("table definitions", () => {
     const plan = Q.select({
       userId: users.id,
       postId: posts.id,
-      postTitleUpper: Q.upper(posts.title)
+      postTitleUpper: F.upper(posts.title)
     }).pipe(
       Q.where(Q.eq(users.email, "alice@example.com")),
       Q.from(users),
@@ -313,17 +313,17 @@ describe("table definitions", () => {
     })
 
     const plan = Q.select({
-      emailUpper: Q.upper(users.email),
-      postCount: Q.count(posts.id),
-      maxPostTitle: Q.max(posts.title),
-      minPostTitle: Q.min(posts.title),
-      fallbackTitle: Q.coalesce(Q.max(posts.title), Q.literal("NONE"))
+      emailUpper: F.upper(users.email),
+      postCount: F.count(posts.id),
+      maxPostTitle: F.max(posts.title),
+      minPostTitle: F.min(posts.title),
+      fallbackTitle: F.coalesce(F.max(posts.title), Q.literal("NONE"))
     }).pipe(
       Q.from(users),
       Q.innerJoin(posts, Q.and(Q.eq(users.id, posts.userId), Q.not(false))),
-      Q.groupBy(Q.upper(users.email)),
-      Q.orderBy(Q.count(posts.id), "desc"),
-      Q.orderBy(Q.upper(users.email))
+      Q.groupBy(F.upper(users.email)),
+      Q.orderBy(F.count(posts.id), "desc"),
+      Q.orderBy(F.upper(users.email))
     )
 
     const renderer = Renderer.make("postgres")
@@ -346,7 +346,7 @@ describe("table definitions", () => {
 
     const invalid = Q.select({
       email: users.email,
-      postCount: Q.count(posts.id)
+      postCount: F.count(posts.id)
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, true)
@@ -370,16 +370,16 @@ describe("table definitions", () => {
 
     const groupedByDerived = Q.select({
       email: users.email,
-      postCount: Q.count(posts.id)
+      postCount: F.count(posts.id)
     }).pipe(
       Q.from(users),
       Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
-      Q.groupBy(Q.lower(users.email))
+      Q.groupBy(F.lower(users.email))
     )
 
     const groupedByBase = Q.select({
-      loweredEmail: Q.lower(users.email),
-      postCount: Q.count(posts.id)
+      loweredEmail: F.lower(users.email),
+      postCount: F.count(posts.id)
     }).pipe(
       Q.from(users),
       Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
@@ -446,7 +446,7 @@ describe("table definitions", () => {
     const plan = Q.select({
       profile: {
         id: Q.as(users.id, "user_identifier"),
-        email: Q.as(Q.lower(users.email), "email_lower")
+        email: Q.as(F.lower(users.email), "email_lower")
       },
       kind: Q.as("user", "kind_label")
     }).pipe(
@@ -653,7 +653,7 @@ describe("table definitions", () => {
 
     const plan = Mysql.Query.select({
       id: users.id,
-      decoratedEmail: Mysql.Query.concat(Mysql.Query.lower(users.email), "-user"),
+      decoratedEmail: Mysql.Function.concat(Mysql.Function.lower(users.email), "-user"),
       kind: Mysql.Query.literal("user")
     }).pipe(
       Mysql.Query.from(users),
@@ -707,7 +707,7 @@ describe("table definitions", () => {
 
     const plan = Mysql.Query.select({
       matches: Mysql.Query.eq(users.email, "alice@example.com"),
-      decorated: Mysql.Query.concat(Mysql.Query.lower(users.email), "-user"),
+      decorated: Mysql.Function.concat(Mysql.Function.lower(users.email), "-user"),
       kind: Mysql.Query.literal("user")
     }).pipe(
       Mysql.Query.from(users)

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect"
 
-import { Column as C, Executor, Query as Q, Renderer, Table } from "effect-qb/postgres"
+import { Column as C, Executor, Query as Q, Function as F, Renderer, Table } from "effect-qb/postgres"
 import type {
   BrandedErrorOf,
   BrandedHintOf,
@@ -250,7 +250,7 @@ Q.select({
 const invalidGroupedExistsSubquery = Q.select({
   userId: posts.userId,
   title: posts.title,
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(posts),
   Q.groupBy(posts.userId)
@@ -262,7 +262,7 @@ void invalidGroupedExists
 
 const aggregatePlan = Q.select({
   email: users.email,
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
@@ -276,19 +276,19 @@ void aggregateCapability
 
 const windowPlan = Q.select({
   userId: users.id,
-  rowNumber: Q.rowNumber({
+  rowNumber: F.rowNumber({
     partitionBy: [users.id],
     orderBy: [{ value: posts.id, direction: "asc" }]
   }),
-  rankedTitle: Q.rank({
+  rankedTitle: F.rank({
     partitionBy: [users.id],
-    orderBy: [{ value: Q.lower(posts.title), direction: "desc" }]
+    orderBy: [{ value: F.lower(posts.title), direction: "desc" }]
   }),
-  postCount: Q.over(Q.count(posts.id), {
+  postCount: F.over(F.count(posts.id), {
     partitionBy: [users.id],
     orderBy: [{ value: posts.id, direction: "asc" }]
   }),
-  latestTitle: Q.over(Q.max(posts.title), {
+  latestTitle: F.over(F.max(posts.title), {
     partitionBy: [users.id]
   })
 }).pipe(
@@ -315,10 +315,10 @@ void runtimeWindowTitle
 
 const invalidGroupedWindowPlan = Q.select({
   email: users.email,
-  rowNumber: Q.rowNumber({
+  rowNumber: F.rowNumber({
     orderBy: [{ value: users.id, direction: "asc" }]
   }),
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
@@ -331,13 +331,13 @@ const invalidGroupedWindowError: BrandedErrorOf<InvalidGroupedWindowPlan> =
 void invalidGroupedWindowError
 
 // @ts-expect-error over requires an aggregate input
-const invalidWindowAggregate = Q.over(users.email, {
+const invalidWindowAggregate = F.over(users.email, {
   partitionBy: [users.id]
 })
 void invalidWindowAggregate
 
 // @ts-expect-error ranking window functions require at least one ordering term
-const invalidRowNumber = Q.rowNumber({
+const invalidRowNumber = F.rowNumber({
   partitionBy: [users.id]
 })
 void invalidRowNumber
@@ -362,7 +362,7 @@ Q.select({
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
   // @ts-expect-error aggregate predicates are not accepted in where
-  Q.where(Q.eq(Q.count(posts.id), 1))
+  Q.where(Q.eq(F.count(posts.id), 1))
 )
 
 const incomplete = Q.select({

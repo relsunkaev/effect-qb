@@ -125,7 +125,7 @@ Use `effect-qb/postgres` when you want explicit Postgres branding throughout the
 
 That entrypoint also exposes `Postgres.Function` for typed SQL functions and JSON helpers.
 
-Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors. It also exposes `Mysql.Function` for MySQL JSON helpers.
+Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors. It also exposes `Mysql.Function` for typed SQL functions and JSON helpers.
 
 ## Postgres Function
 
@@ -153,14 +153,14 @@ const userSummary = Q.select({
 
 - scalar helpers like `coalesce`, `lower`, `upper`, and `concat`
 - aggregate helpers like `count`, `max`, and `min`
-- window helpers like `rowNumber`, `rank`, and `denseRank`
+- window helpers like `over`, `rowNumber`, `rank`, and `denseRank`
 - temporal helpers like `now`, `currentDate`, `currentTime`, `currentTimestamp`, `localTime`, and `localTimestamp`
 - JSON helpers via `Function.json`
 
 ## Quick Start
 
 ```ts
-import { Column as C, Query as Q, Renderer, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Query as Q, Renderer, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -176,7 +176,7 @@ const posts = Table.make("posts", {
 const postsPerUser = Q.select({
   userId: users.id,
   email: users.email,
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -557,7 +557,7 @@ Predicates do more than render SQL. They can narrow result types.
 ```ts
 const allPosts = Q.select({
   title: posts.title,
-  upperTitle: Q.upper(posts.title)
+  upperTitle: F.upper(posts.title)
 }).pipe(
   Q.from(posts)
 )
@@ -570,7 +570,7 @@ type AllPostsRow = Q.ResultRow<typeof allPosts>
 
 const titledPosts = Q.select({
   title: posts.title,
-  upperTitle: Q.upper(posts.title)
+  upperTitle: F.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.isNotNull(posts.title))
@@ -618,7 +618,7 @@ const cityPath = F.json.path(
 const shapedDocs = Q.select({
   title: Q.case()
     .when(Q.isNull(posts.title), "missing")
-    .else(Q.upper(posts.title)),
+    .else(F.upper(posts.title)),
   profileCity: F.json.text(docs.payload, cityPath),
   titleAsText: Q.cast(posts.title, Q.type.text())
 }).pipe(
@@ -646,7 +646,7 @@ Grouped queries are checked structurally, not just by source provenance.
 const invalidPostsPerUser = Q.select({
   userId: users.id,
   title: posts.title,
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -662,7 +662,7 @@ type InvalidPostsPerUser = Q.CompletePlan<typeof invalidPostsPerUser>
 
 const postsPerUser = Q.select({
   userId: users.id,
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -1177,7 +1177,7 @@ Predicates refine result types, not just SQL.
 ```ts
 const helloPosts = Q.select({
   title: posts.title,
-  upperTitle: Q.upper(posts.title)
+  upperTitle: F.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.eq(posts.title, "hello"))
@@ -1237,7 +1237,7 @@ Grouped queries are checked structurally:
 const invalidGroupedPlan = Q.select({
   userId: users.id,
   title: posts.title,
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),

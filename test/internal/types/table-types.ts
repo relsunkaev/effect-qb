@@ -4,7 +4,7 @@ import type * as Effect from "effect/Effect"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
-import { Column as C, Query as Q, Table } from "#postgres"
+import { Column as C, Query as Q, Function as F, Table } from "#postgres"
 import * as Executor from "#internal/executor.ts"
 import * as Expression from "#internal/expression.ts"
 import * as Plan from "#internal/plan.ts"
@@ -146,10 +146,10 @@ void coercedRightKind
 const leftJoined = Q.select({
   userId: users.id,
   postId: posts.id,
-  postTitleUpper: Q.upper(posts.title),
-  loweredPostTitle: Q.lower(posts.title),
-  decoratedPostTitle: Q.concat(Q.upper(posts.title), "-x"),
-  fallbackPostTitle: Q.coalesce(Q.upper(posts.title), Q.literal("NONE"))
+  postTitleUpper: F.upper(posts.title),
+  loweredPostTitle: F.lower(posts.title),
+  decoratedPostTitle: F.concat(F.upper(posts.title), "-x"),
+  fallbackPostTitle: F.coalesce(F.upper(posts.title), Q.literal("NONE"))
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, true)
@@ -246,7 +246,7 @@ void pipelineRow
 const explicitAliasPlan = Q.select({
   profile: {
     id: users.id.pipe(Q.as("user_identifier")),
-    email: Q.lower(users.email).pipe(Q.as("email_lower"))
+    email: F.lower(users.email).pipe(Q.as("email_lower"))
   }
 }).pipe(
   Q.from(users)
@@ -281,17 +281,17 @@ void sqlClientRow
 void sqlClientContext
 
 const aggregatePlan = Q.select({
-  emailUpper: Q.upper(users.email),
-  postCount: Q.count(posts.id),
-  maxPostTitle: Q.max(posts.title),
-  minPostTitle: Q.min(posts.title),
-  fallbackTitle: Q.coalesce(Q.max(posts.title), Q.literal("NONE"))
+  emailUpper: F.upper(users.email),
+  postCount: F.count(posts.id),
+  maxPostTitle: F.max(posts.title),
+  minPostTitle: F.min(posts.title),
+  fallbackTitle: F.coalesce(F.max(posts.title), Q.literal("NONE"))
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.and(Q.eq(users.id, posts.userId), Q.not(false))),
-  Q.groupBy(Q.upper(users.email)),
-  Q.orderBy(Q.count(posts.id), "desc"),
-  Q.orderBy(Q.upper(users.email))
+  Q.groupBy(F.upper(users.email)),
+  Q.orderBy(F.count(posts.id), "desc"),
+  Q.orderBy(F.upper(users.email))
 )
 
 type AggregateRow = Q.ResultRow<typeof aggregatePlan>
@@ -306,7 +306,7 @@ const completeAggregatePlan: Q.CompletePlan<typeof aggregatePlan> = aggregatePla
 void aggregateRow
 void completeAggregatePlan
 
-const aggregatePredicate = Q.count(posts.id)
+const aggregatePredicate = F.count(posts.id)
 const aggregatePredicateAggregation: typeof aggregatePredicate[typeof Expression.TypeId]["aggregation"] = "aggregate"
 void aggregatePredicateAggregation
 
@@ -315,7 +315,7 @@ const badAggregateWhere = Q.where(aggregatePredicate)
 
 const invalidAggregatePlan = Q.select({
   email: users.email,
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, true)
@@ -333,12 +333,12 @@ void invalidAggregateHint
 const badAggregateComplete: Q.CompletePlan<typeof invalidAggregatePlan> = invalidAggregatePlan
 
 const exactGroupedDerivedPlan = Q.select({
-  loweredEmail: Q.lower(users.email),
-  postCount: Q.count(posts.id)
+  loweredEmail: F.lower(users.email),
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(Q.lower(users.email))
+  Q.groupBy(F.lower(users.email))
 )
 
 const exactGroupedDerivedComplete: Q.CompletePlan<typeof exactGroupedDerivedPlan> = exactGroupedDerivedPlan
@@ -346,19 +346,19 @@ void exactGroupedDerivedComplete
 
 const groupedByDerivedButSelectingBase = Q.select({
   email: users.email,
-  postCount: Q.count(posts.id)
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(Q.lower(users.email))
+  Q.groupBy(F.lower(users.email))
 )
 
 // @ts-expect-error grouping a derived expression does not cover the base column
 const badDerivedGroupingComplete: Q.CompletePlan<typeof groupedByDerivedButSelectingBase> = groupedByDerivedButSelectingBase
 
 const groupedByBaseButSelectingDerived = Q.select({
-  loweredEmail: Q.lower(users.email),
-  postCount: Q.count(posts.id)
+  loweredEmail: F.lower(users.email),
+  postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
@@ -461,7 +461,7 @@ const mysqlPlan = Mysql.Query.select({
 )
 const mysqlLiteral = Mysql.Query.literal("user")
 const mysqlEq = Mysql.Query.eq(mysqlUsers.email, "alice@example.com")
-const mysqlConcat = Mysql.Query.concat(Mysql.Query.lower(mysqlUsers.email), "-user")
+const mysqlConcat = Mysql.Function.concat(Mysql.Function.lower(mysqlUsers.email), "-user")
 const postgresPlan = Postgres.Query.select({
   id: postgresUsers.id
 }).pipe(

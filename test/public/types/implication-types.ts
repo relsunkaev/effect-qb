@@ -1,4 +1,4 @@
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Query as Q, Function as F, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -13,7 +13,7 @@ const posts = Table.make("posts", {
 
 const nullFiltered = Q.select({
   title: posts.title,
-  upperTitle: Q.upper(posts.title)
+  upperTitle: F.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.isNull(posts.title))
@@ -38,7 +38,7 @@ void runtimeNullFilteredNullTitle
 
 const conservativeNotNull = Q.select({
   title: posts.title,
-  upperTitle: Q.upper(posts.title)
+  upperTitle: F.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.not(Q.isNull(posts.title)))
@@ -79,7 +79,7 @@ void runtimePromotedPostId
 const promotedByEquality = Q.select({
   userId: users.id,
   postTitle: posts.title,
-  upperPostTitle: Q.upper(posts.title)
+  upperPostTitle: F.upper(posts.title)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),

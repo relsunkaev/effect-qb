@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 
 import * as Mysql from "#mysql"
-import { Query as Q, Renderer, Table } from "#postgres"
+import { Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { Column as C } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
 
@@ -10,14 +10,14 @@ describe("rendering behavior", () => {
     const { users, posts } = makeRootSocialGraph()
 
     const plan = Q.select({
-      label: Q.concat(Q.lower(users.email), "::"),
-      fallbackTitle: Q.coalesce(posts.title, Q.literal("missing")),
+      label: F.concat(F.lower(users.email), "::"),
+      fallbackTitle: F.coalesce(posts.title, Q.literal("missing")),
       ok: Q.not(Q.or(Q.eq(users.email, "a"), Q.isNull(posts.title)))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
       Q.where(Q.and(Q.eq(users.email, "alice@example.com"), Q.isNotNull(posts.title))),
-      Q.orderBy(Q.lower(users.email), "desc")
+      Q.orderBy(F.lower(users.email), "desc")
     )
 
     const rendered = Renderer.make("postgres").render(plan)
@@ -35,14 +35,14 @@ describe("rendering behavior", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
     const plan = Mysql.Query.select({
-      label: Mysql.Query.concat(Mysql.Query.lower(users.email), "::"),
-      fallbackTitle: Mysql.Query.coalesce(posts.title, Mysql.Query.literal("missing")),
+      label: Mysql.Function.concat(Mysql.Function.lower(users.email), "::"),
+      fallbackTitle: Mysql.Function.coalesce(posts.title, Mysql.Query.literal("missing")),
       ok: Mysql.Query.not(Mysql.Query.or(Mysql.Query.eq(users.email, "a"), Mysql.Query.isNull(posts.title)))
     }).pipe(
       Mysql.Query.from(users),
       Mysql.Query.leftJoin(posts, Mysql.Query.eq(users.id, posts.userId)),
       Mysql.Query.where(Mysql.Query.and(Mysql.Query.eq(users.email, "alice@example.com"), Mysql.Query.isNotNull(posts.title))),
-      Mysql.Query.orderBy(Mysql.Query.lower(users.email), "desc")
+      Mysql.Query.orderBy(Mysql.Function.lower(users.email), "desc")
     )
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -81,7 +81,7 @@ describe("rendering behavior", () => {
     const plan = Q.select({
       profile: {
         id: users.id,
-        lowerEmail: Q.as(Q.lower(users.email), "email_lower")
+        lowerEmail: Q.as(F.lower(users.email), "email_lower")
       },
       kind: Q.literal("user")
     }).pipe(
