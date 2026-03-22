@@ -390,6 +390,9 @@ const badIndex = Table.index(["missing"] as const)(Table.make("bad_index", {
   id: C.uuid()
 }))
 
+// @ts-expect-error table checks require expressions, not raw SQL strings
+const badCheck = Table.check("role_not_empty", "role <> ''")
+
 // @ts-expect-error nullable columns cannot participate in table primary keys
 const badCompositePrimaryKey = Table.primaryKey(["id", "slug"] as const)(Table.make("bad_pk", {
   id: C.uuid(),

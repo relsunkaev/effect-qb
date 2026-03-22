@@ -986,22 +986,28 @@ describe("mysql dialect behavior", () => {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       slug: Mysql.Column.text().pipe(Mysql.Column.unique)
     })
-    const memberships = Mysql.Table.make("memberships", {
+    const membershipsFields = {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       orgId: Mysql.Column.uuid(),
       role: Mysql.Column.text(),
       note: Mysql.Column.text().pipe(Mysql.Column.nullable)
-    }).pipe(
+    }
+    const membershipsBase = Mysql.Table.make("memberships", membershipsFields)
+    const memberships = membershipsBase.pipe(
       Mysql.Table.foreignKey("orgId", () => orgs, "id"),
       Mysql.Table.unique(["orgId", "role"] as const),
-      Mysql.Table.index(["role", "orgId"] as const)
+      Mysql.Table.index(["role", "orgId"] as const),
+      Mysql.Table.check("role_not_empty", Mysql.Query.neq(membershipsBase.role, Mysql.Query.literal("")))
     )
 
     expect(Mysql.Renderer.make().render(Mysql.Query.createTable(memberships, {
       ifNotExists: true
     })).sql).toBe(
-      'create table if not exists `memberships` (`id` char(36) not null, `orgId` char(36) not null, `role` text not null, `note` text, primary key (`id`), foreign key (`orgId`) references `orgs` (`id`), unique (`orgId`, `role`))'
+      'create table if not exists `memberships` (`id` char(36) not null, `orgId` char(36) not null, `role` text not null, `note` text, primary key (`id`), foreign key (`orgId`) references `orgs` (`id`), unique (`orgId`, `role`), constraint `role_not_empty` check ((`memberships`.`role` <> ?)))'
     )
+    expect(Mysql.Renderer.make().render(Mysql.Query.createTable(memberships, {
+      ifNotExists: true
+    })).params).toEqual([""])
     expect(Mysql.Renderer.make().render(Mysql.Query.createIndex(memberships, ["role", "orgId"] as const, {
       ifNotExists: true
     })).sql).toBe(

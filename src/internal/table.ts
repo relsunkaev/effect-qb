@@ -2,6 +2,7 @@ import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
 import * as Plan from "./plan.js"
+import type { Any as AnyExpression } from "./expression.js"
 import type { BoundColumnFrom } from "./column-state.js"
 import { bindColumn, type AnyColumnDefinition } from "./column-state.js"
 import {
@@ -646,14 +647,14 @@ export const foreignKey = <
   })
 })
 
-/** Declares a metadata-only check constraint placeholder. */
+/** Declares a check constraint expression. */
 export const check = <Name extends string>(
   name: Name,
-  predicate: unknown
+  predicate: AnyExpression
 ): TableOption<{
   readonly kind: "check"
   readonly name: Name
-  readonly predicate: unknown
+  readonly predicate: AnyExpression
 }> => makeOption({
   kind: "check",
   name,

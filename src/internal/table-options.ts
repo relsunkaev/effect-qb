@@ -4,6 +4,7 @@ import {
   type AnyColumnDefinition,
   type IsNullable
 } from "./column-state.js"
+import type { Any as AnyExpression } from "./expression.js"
 import type { TableFieldMap } from "./schema-derivation.js"
 
 /** Non-empty list of column names. */
@@ -36,7 +37,7 @@ export type TableOptionSpec =
   | {
       readonly kind: "check"
       readonly name: string
-      readonly predicate: unknown
+      readonly predicate: AnyExpression
     }
 
 /** Thin wrapper used by the public `Table.*` option builders. */

@@ -1028,22 +1028,28 @@ describe("postgres dialect behavior", () => {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
       slug: Postgres.Column.text().pipe(Postgres.Column.unique)
     })
-    const memberships = Postgres.Table.make("memberships", {
+    const membershipsFields = {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
       orgId: Postgres.Column.uuid(),
       role: Postgres.Column.text(),
       note: Postgres.Column.text().pipe(Postgres.Column.nullable)
-    }).pipe(
+    }
+    const membershipsBase = Postgres.Table.make("memberships", membershipsFields)
+    const memberships = membershipsBase.pipe(
       Postgres.Table.foreignKey("orgId", () => orgs, "id"),
       Postgres.Table.unique(["orgId", "role"] as const),
-      Postgres.Table.index(["role", "orgId"] as const)
+      Postgres.Table.index(["role", "orgId"] as const),
+      Postgres.Table.check("role_not_empty", Postgres.Query.neq(membershipsBase.role, Postgres.Query.literal("")))
     )
 
     expect(Postgres.Renderer.make().render(Postgres.Query.createTable(memberships, {
       ifNotExists: true
     })).sql).toBe(
-      'create table if not exists "public"."memberships" ("id" uuid not null, "orgId" uuid not null, "role" text not null, "note" text, primary key ("id"), foreign key ("orgId") references "public"."orgs" ("id"), unique ("orgId", "role"))'
+      'create table if not exists "public"."memberships" ("id" uuid not null, "orgId" uuid not null, "role" text not null, "note" text, primary key ("id"), foreign key ("orgId") references "public"."orgs" ("id"), unique ("orgId", "role"), constraint "role_not_empty" check (("memberships"."role" <> $1)))'
     )
+    expect(Postgres.Renderer.make().render(Postgres.Query.createTable(memberships, {
+      ifNotExists: true
+    })).params).toEqual([""])
     expect(Postgres.Renderer.make().render(Postgres.Query.createIndex(memberships, ["role", "orgId"] as const, {
       ifNotExists: true
     })).sql).toBe(

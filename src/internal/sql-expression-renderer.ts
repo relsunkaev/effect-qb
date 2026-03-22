@@ -66,17 +66,11 @@ const renderColumnDefinition = (
 }
 
 const renderCheckPredicate = (
-  predicate: unknown,
+  predicate: Expression.Any,
   state: RenderState,
   dialect: SqlDialect
 ): string => {
-  if (typeof predicate === "string") {
-    return predicate
-  }
-  if (predicate !== null && typeof predicate === "object" && Expression.TypeId in predicate) {
-    return renderExpression(predicate as Expression.Any, state, dialect)
-  }
-  throw new Error("Unsupported check constraint predicate for DDL rendering")
+  return renderExpression(predicate, state, dialect)
 }
 
 const renderCreateTableSql = (
