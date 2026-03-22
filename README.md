@@ -596,7 +596,7 @@ The expression surface is large, but the important point is that result-shaping 
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Function as F } from "effect-qb/postgres"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
