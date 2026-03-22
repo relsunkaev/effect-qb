@@ -2,11 +2,64 @@
 
 Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that carry result shapes, nullability, dialect compatibility, and statement constraints in the type system.
 
+## Overview
+
+`effect-qb` builds immutable query plans and pushes the interesting parts of SQL into the type system:
+
+- exact projection shapes
+- nullability and predicate-driven narrowing
+- join optionality
+- aggregate and grouping validation
+- dialect compatibility
+- statement and execution result types
+
+The main contract is compile-time. `Query.ResultRow<typeof plan>` is the logical row type after query analysis, while `Query.RuntimeResultRow<typeof plan>` describes the conservative runtime remap shape. At runtime, the library renders SQL, executes it, normalizes raw driver values, applies schema-backed transforms where they exist, and remaps aliased columns back into nested objects.
+
+## Why effect-qb
+
+Use `effect-qb` when you want SQL plans to carry more than column names:
+
+- exact nested projection shapes
+- nullability refinement from predicates
+- join optionality that changes with query structure
+- grouped-query validation before SQL is rendered
+- dialect-locked plans, renderers, and executor error channels
+
+It is a query-construction library, not an ORM. It does not manage migrations, model identities, or runtime row decoding.
+
+## Installation
+
+If you only want the typed DSL and SQL rendering:
+
+```bash
+bun add effect-qb
+npm install effect-qb
+```
+
+If you want to execute plans with the built-in Postgres executor:
+
+```bash
+bun add effect-qb effect @effect/sql @effect/sql-pg
+npm install effect-qb effect @effect/sql @effect/sql-pg
+```
+
+If you want to execute plans with the built-in MySQL executor:
+
+```bash
+bun add effect-qb effect @effect/sql @effect/sql-mysql2
+npm install effect-qb effect @effect/sql @effect/sql-mysql2
+```
+
+The built-in executors require an ambient `@effect/sql` `SqlClient`. If your app already uses Effect and `@effect/sql`, you likely already have the extra runtime packages installed.
+
+For local development in this repository:
+
+```bash
+bun install
+```
+
 ## Table of Contents
 
-- [Overview](#overview)
-- [Why effect-qb](#why-effect-qb)
-- [Installation](#installation)
 - [Choose An Entrypoint](#choose-an-entrypoint)
 - [Postgres Function](#postgres-function)
 - [Quick Start](#quick-start)
@@ -57,62 +110,6 @@ Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that
   - [MySQL](#mysql)
 - [Limitations](#limitations)
 - [Contributing](#contributing)
-
-## Overview
-
-`effect-qb` builds immutable query plans and pushes the interesting parts of SQL into the type system:
-
-- exact projection shapes
-- nullability and predicate-driven narrowing
-- join optionality
-- aggregate and grouping validation
-- dialect compatibility
-- statement and execution result types
-
-The main contract is compile-time. `Query.ResultRow<typeof plan>` is the logical row type after query analysis, while `Query.RuntimeResultRow<typeof plan>` describes the conservative runtime remap shape. At runtime, the library renders SQL, executes it, and remaps aliased columns back into nested objects. It does not build or validate query-result schemas.
-
-## Why effect-qb
-
-Use `effect-qb` when you want SQL plans to carry more than column names:
-
-- exact nested projection shapes
-- nullability refinement from predicates
-- join optionality that changes with query structure
-- grouped-query validation before SQL is rendered
-- dialect-locked plans, renderers, and executor error channels
-
-It is a query-construction library, not an ORM. It does not manage migrations, model identities, or runtime row decoding.
-
-## Installation
-
-If you only want the typed DSL and SQL rendering:
-
-```bash
-bun add effect-qb
-npm install effect-qb
-```
-
-If you want to execute plans with the built-in Postgres executor:
-
-```bash
-bun add effect-qb effect @effect/sql @effect/sql-pg
-npm install effect-qb effect @effect/sql @effect/sql-pg
-```
-
-If you want to execute plans with the built-in MySQL executor:
-
-```bash
-bun add effect-qb effect @effect/sql @effect/sql-mysql2
-npm install effect-qb effect @effect/sql @effect/sql-mysql2
-```
-
-The built-in executors require an ambient `@effect/sql` `SqlClient`. If your app already uses Effect and `@effect/sql`, you likely already have the extra runtime packages installed.
-
-For local development in this repository:
-
-```bash
-bun install
-```
 
 ## Choose An Entrypoint
 
@@ -208,14 +205,14 @@ The runtime model is intentionally small:
 4. apply propagated runtime schemas where they exist
 5. remap flat aliases like `profile__email` back into nested objects
 
-`Q.ResultRow<typeof plan>` is the logical static result, while `Q.RuntimeResultRow<typeof plan>` is the conservative runtime shape.
+For the logical/static row split, see `ResultRow vs RuntimeResultRow` below.
 
 ```ts
 import * as SqlClient from "@effect/sql/SqlClient"
 import * as Effect from "effect/Effect"
-import * as Postgres from "effect-qb/postgres"
+import { Executor as PostgresExecutor } from "effect-qb/postgres"
 
-const executor = Postgres.Executor.make()
+const executor = PostgresExecutor.make()
 
 const rowsEffect = executor.execute(postsPerUser)
 
@@ -255,6 +252,8 @@ The schema-aware column APIs are:
 - `C.schema(schema)` to replace a column's runtime schema without changing its SQL type or key/default metadata
 - `C.custom(schema, dbType)` for arbitrary non-JSON columns
 - `C.json(schema)` for JSON columns
+
+### Defaults And Generated Columns
 
 `C.default` and `C.generated` only affect write-shape:
 
@@ -325,7 +324,6 @@ The boundary is still important:
 - table schemas are full `effect/Schema` values for table-shaped data
 - schema-backed columns and preserved projections can enforce runtime transforms on reads
 - arbitrary query plans do not automatically become one big derived query schema
-- `Q.ResultRow<typeof plan>` can still be stricter than `Q.RuntimeResultRow<typeof plan>`
 
 ## Core Concepts
 
@@ -473,8 +471,8 @@ type City = Q.OutputOfExpression<typeof city, {
 Dialect entrypoints expose dialect-specific builders:
 
 ```ts
-import * as Postgres from "effect-qb/postgres"
-import * as Mysql from "effect-qb/mysql"
+import { Query as PostgresQuery } from "effect-qb/postgres"
+import { Query as MysqlQuery } from "effect-qb/mysql"
 ```
 
 This matters for:
@@ -733,15 +731,15 @@ const recentUsers = Q.select({
 Postgres-only `distinct on` is available from the Postgres entrypoint:
 
 ```ts
-import * as Postgres from "effect-qb/postgres"
+import { Query as Q } from "effect-qb/postgres"
 
-const recentEmails = Postgres.Query.select({
+const recentEmails = Q.select({
   id: users.id,
   email: users.email
 }).pipe(
-  Postgres.Query.from(users),
-  Postgres.Query.distinctOn(users.email),
-  Postgres.Query.orderBy(users.email)
+  Q.from(users),
+  Q.distinctOn(users.email),
+  Q.orderBy(users.email)
 )
 ```
 
@@ -886,9 +884,9 @@ This is one of the places where the capability model matters: write-bearing nest
 ### Renderer
 
 ```ts
-import * as Postgres from "effect-qb/postgres"
+import { Renderer as PostgresRenderer } from "effect-qb/postgres"
 
-const rendered = Postgres.Renderer.make().render(postsPerUser)
+const rendered = PostgresRenderer.make().render(postsPerUser)
 
 rendered.sql
 rendered.params
@@ -907,14 +905,14 @@ They do not carry a query-result schema.
 ### Executor
 
 ```ts
-import * as Postgres from "effect-qb/postgres"
+import { Executor as PostgresExecutor, Query as Q } from "effect-qb/postgres"
 
-const executor = Postgres.Executor.make()
+const executor = PostgresExecutor.make()
 
 const rowsEffect = executor.execute(postsPerUser)
 
-type Rows = Postgres.Query.ResultRows<typeof postsPerUser>
-type Error = Postgres.Executor.PostgresQueryError<typeof postsPerUser>
+type Rows = Q.ResultRows<typeof postsPerUser>
+type Error = PostgresExecutor.PostgresQueryError<typeof postsPerUser>
 ```
 
 Pass `{ renderer }`, `{ driver }`, or both when you need to customize execution.
@@ -940,10 +938,10 @@ Those types are narrower than the raw dialect error catalogs. For example, known
 ### Transaction Helpers
 
 ```ts
-import * as Postgres from "effect-qb/postgres"
+import { Executor as PostgresExecutor } from "effect-qb/postgres"
 
-const transactional = Postgres.Executor.withTransaction(rowsEffect)
-const savepoint = Postgres.Executor.withSavepoint(rowsEffect)
+const transactional = PostgresExecutor.withTransaction(rowsEffect)
+const savepoint = PostgresExecutor.withSavepoint(rowsEffect)
 ```
 
 These preserve the original effect type parameters and add the ambient SQL transaction boundary.
@@ -964,8 +962,8 @@ The unusual part is that these are not separate features bolted together. The bu
 Both dialect entrypoints expose an `Errors` module:
 
 ```ts
-import * as Postgres from "effect-qb/postgres"
-import * as Mysql from "effect-qb/mysql"
+import { Errors as PostgresErrors } from "effect-qb/postgres"
+import { Errors as MysqlErrors } from "effect-qb/mysql"
 ```
 
 The catalogs are backed by official vendor references:
@@ -978,7 +976,7 @@ That means the tags and descriptor metadata are systematic, not handwritten one-
 Postgres errors normalize around SQLSTATE codes:
 
 ```ts
-const descriptor = Postgres.Errors.getPostgresErrorDescriptor("23505")
+const descriptor = PostgresErrors.getPostgresErrorDescriptor("23505")
 descriptor.tag
 // "@postgres/integrity-constraint-violation/unique-violation"
 descriptor.classCode
@@ -986,7 +984,7 @@ descriptor.className
 descriptor.condition
 descriptor.primaryFields
 
-const postgresError = Postgres.Errors.normalizePostgresDriverError({
+const postgresError = PostgresErrors.normalizePostgresDriverError({
   code: "23505",
   message: "duplicate key value violates unique constraint",
   constraint: "users_email_key"
@@ -1000,7 +998,7 @@ postgresError.constraintName
 MySQL errors normalize around official symbols and documented numbers:
 
 ```ts
-const descriptor = Mysql.Errors.getMysqlErrorDescriptor("ER_DUP_ENTRY")
+const descriptor = MysqlErrors.getMysqlErrorDescriptor("ER_DUP_ENTRY")
 descriptor.tag
 // "@mysql/server/dup-entry"
 descriptor.category
@@ -1008,7 +1006,7 @@ descriptor.number
 descriptor.sqlState
 descriptor.messageTemplate
 
-const mysqlError = Mysql.Errors.normalizeMysqlDriverError({
+const mysqlError = MysqlErrors.normalizeMysqlDriverError({
   code: "ER_DUP_ENTRY",
   errno: 1062,
   sqlState: "23000",
@@ -1078,11 +1076,13 @@ If the plan really is write-bearing, including write CTEs, the original normaliz
 This is reflected at the type level too:
 
 ```ts
+import { Executor as PostgresExecutor } from "effect-qb/postgres"
+
 type ReadError =
-  Postgres.Executor.PostgresQueryError<typeof readPlan>
+  PostgresExecutor.PostgresQueryError<typeof readPlan>
 
 type WriteError =
-  Postgres.Executor.PostgresQueryError<typeof writePlan>
+  PostgresExecutor.PostgresQueryError<typeof writePlan>
 ```
 
 For a read-only plan, `ReadError` is the narrowed read-query surface. For a write-bearing plan, `WriteError` is the full normalized Postgres executor error surface. The MySQL executor follows the same rule.
@@ -1091,10 +1091,10 @@ You can also inspect requirements directly:
 
 ```ts
 const postgresRequirements =
-  Postgres.Errors.requirements_of_postgres_error(postgresError)
+  PostgresErrors.requirements_of_postgres_error(postgresError)
 
 const mysqlRequirements =
-  Mysql.Errors.requirements_of_mysql_error(mysqlError)
+  MysqlErrors.requirements_of_mysql_error(mysqlError)
 ```
 
 ### Matching Errors In Application Code
@@ -1116,15 +1116,15 @@ const rows = executor.execute(plan).pipe(
 Use the dialect guards for precise narrowing inside shared helpers:
 
 ```ts
-if (Postgres.Errors.hasSqlState(error, "23505")) {
+if (PostgresErrors.hasSqlState(error, "23505")) {
   error.constraintName
 }
 
-if (Mysql.Errors.hasSymbol(error, "ER_DUP_ENTRY")) {
+if (MysqlErrors.hasSymbol(error, "ER_DUP_ENTRY")) {
   error.number
 }
 
-if (Mysql.Errors.hasNumber(error, "1062")) {
+if (MysqlErrors.hasNumber(error, "1062")) {
   error.symbol
 }
 ```
@@ -1259,20 +1259,20 @@ This catches invalid grouped queries before rendering.
 Plans, tables, renderers, and executors are dialect-branded.
 
 ```ts
-import * as Mysql from "effect-qb/mysql"
-import * as Postgres from "effect-qb/postgres"
+import { Column as MysqlColumn, Query as MysqlQuery, Table as MysqlTable } from "effect-qb/mysql"
+import { Executor as PostgresExecutor } from "effect-qb/postgres"
 
-const mysqlUsers = Mysql.Table.make("users", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+const mysqlUsers = MysqlTable.make("users", {
+  id: MysqlColumn.uuid().pipe(MysqlColumn.primaryKey)
 })
 
-const mysqlPlan = Mysql.Query.select({
+const mysqlPlan = MysqlQuery.select({
   id: mysqlUsers.id
 }).pipe(
-  Mysql.Query.from(mysqlUsers)
+  MysqlQuery.from(mysqlUsers)
 )
 
-const postgresExecutor = Postgres.Executor.make()
+const postgresExecutor = PostgresExecutor.make()
 
 // @ts-expect-error mysql plans are not dialect-compatible with the postgres executor
 postgresExecutor.execute(mysqlPlan)
@@ -1285,7 +1285,7 @@ Schema-backed JSON columns are checked on insert and update.
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Function as F } from "effect-qb/postgres"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
