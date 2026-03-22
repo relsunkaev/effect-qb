@@ -14,10 +14,10 @@ const userId = "11111111-1111-1111-1111-111111111111"
 describe("table definitions", () => {
   test("factory tables expose direct columns and schemas", () => {
     const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey, C.generated),
+      id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
       email: C.text().pipe(C.unique),
       bio: C.text().pipe(C.nullable),
-      createdAt: C.timestamp().pipe(C.default)
+      createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
     }).pipe(Table.index("email"))
 
     expect(users.columns.id).toBe(users.id)
@@ -66,7 +66,7 @@ describe("table definitions", () => {
 
   test("class tables expose inherited static columns and schemas", () => {
     class Users extends Table.Class<Users>("users")({
-      id: C.uuid().pipe(C.primaryKey, C.generated),
+      id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
       email: C.text().pipe(C.unique),
       bio: C.text().pipe(C.nullable)
     }) {

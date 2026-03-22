@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Expression, Table } from "#postgres"
+import { Column as C, Expression, Function as F, Query as Q, Table } from "#postgres"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 
 describe("table behavior", () => {
@@ -85,19 +85,19 @@ describe("table behavior", () => {
 
   test("factory and class tables derive the same runtime schemas for equivalent definitions", () => {
     const factoryUsers = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey, C.generated),
+      id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
       email: C.text().pipe(C.unique),
       bio: C.text().pipe(C.nullable),
-      createdAt: C.timestamp().pipe(C.default)
+      createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
     }).pipe(
       Table.index("email")
     )
 
     class ClassUsers extends Table.Class<ClassUsers>("users")({
-      id: C.uuid().pipe(C.primaryKey, C.generated),
+      id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
       email: C.text().pipe(C.unique),
       bio: C.text().pipe(C.nullable),
-      createdAt: C.timestamp().pipe(C.default)
+      createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
     }) {
       static override readonly [Table.options] = [Table.index("email")]
     }

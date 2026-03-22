@@ -42,6 +42,8 @@ export interface ColumnState<
   readonly primaryKey: PrimaryKey
   readonly unique: Unique
   readonly references: Ref
+  readonly defaultValue?: Expression.Any
+  readonly generatedValue?: Expression.Any
   readonly source: Source
   readonly dependencies: Dependencies
 }
@@ -93,6 +95,8 @@ export interface ColumnDefinition<
     readonly primaryKey: PrimaryKey
     readonly unique: Unique
     readonly references: Ref
+    readonly defaultValue?: Expression.Any
+    readonly generatedValue?: Expression.Any
   }
 }
 
@@ -249,6 +253,8 @@ export const makeColumnDefinition = <
     primaryKey: metadata.primaryKey,
     unique: metadata.unique,
     references: metadata.references,
+    defaultValue: metadata.defaultValue,
+    generatedValue: metadata.generatedValue,
     source: undefined as Source,
     dependencies: {} as Dependencies
   }
@@ -338,7 +344,9 @@ export const remapColumnDefinition = <
     generated: metadata.generated,
     primaryKey: metadata.primaryKey,
     unique: metadata.unique,
-    references: metadata.references
+    references: metadata.references,
+    defaultValue: metadata.defaultValue,
+    generatedValue: metadata.generatedValue
   }
   if (ExpressionAst.TypeId in column) {
     next[ExpressionAst.TypeId] = (column as unknown as {

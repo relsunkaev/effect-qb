@@ -46,6 +46,7 @@ const renderCastType = (
 
 const renderColumnDefinition = (
   dialect: SqlDialect,
+  state: RenderState,
   columnName: string,
   column: Table.AnyTable[typeof Table.TypeId]["fields"][string]
 ): string => {
@@ -53,6 +54,11 @@ const renderColumnDefinition = (
     dialect.quoteIdentifier(columnName),
     renderDbType(dialect, column.metadata.dbType)
   ]
+  if (column.metadata.generatedValue) {
+    clauses.push(`generated always as (${renderExpression(column.metadata.generatedValue, state, dialect)}) stored`)
+  } else if (column.metadata.defaultValue) {
+    clauses.push(`default ${renderExpression(column.metadata.defaultValue, state, dialect)}`)
+  }
   if (!column.metadata.nullable) {
     clauses.push("not null")
   }
@@ -82,7 +88,7 @@ const renderCreateTableSql = (
   const table = targetSource.source as Table.AnyTable
   const fields = table[Table.TypeId].fields
   const definitions = Object.entries(fields).map(([columnName, column]) =>
-    renderColumnDefinition(dialect, columnName, column)
+    renderColumnDefinition(dialect, state, columnName, column)
   )
   for (const option of table[Table.OptionsSymbol]) {
     switch (option.kind) {

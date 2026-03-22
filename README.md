@@ -255,11 +255,11 @@ The schema-aware column APIs are:
 
 ### Defaults And Generated Columns
 
-`C.default` and `C.generated` only affect write-shape:
+`C.default(expr)` and `C.generated(expr)` only affect write-shape:
 
-- `C.default` keeps a column selectable and updatable, but optional on insert because the database may fill it
-- `C.generated` omits a column from insert and update because the database owns the value
-- neither helper models a SQL expression in this API yet
+- `C.default(expr)` keeps a column selectable and updatable, but optional on insert because the database may fill it
+- `C.generated(expr)` omits a column from insert and update because the database owns the value
+- both helpers keep the expression around for DDL rendering
 
 The important rule for `C.schema(...)` is that the schema must accept the column's current runtime output, not the raw driver value.
 
@@ -273,12 +273,12 @@ import * as Schema from "effect/Schema"
 import { Column as C, Executor, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey, C.generated),
+  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
   happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
   profile: C.json(Schema.Struct({
     visits: Schema.NumberFromString
   })),
-  createdAt: C.timestamp().pipe(C.default)
+  createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
 })
 
 type UserSelect = Table.SelectOf<typeof users>
@@ -335,10 +335,10 @@ Every table exposes derived Effect Schemas:
 import * as Schema from "effect/Schema"
 
 const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey, C.generated),
+  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
   email: C.text().pipe(C.unique),
   bio: C.text().pipe(C.nullable),
-  createdAt: C.timestamp().pipe(C.default)
+  createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
 })
 
 Schema.isSchema(users.schemas.select)
@@ -756,7 +756,7 @@ const insertUser = Q.insert(users, {
 })
 ```
 
-If every writable column is optional because of `C.default`, `C.generated`, or nullability, `Q.insert(table)` is the default-only form.
+If every writable column is optional because of `C.default(...)`, `C.generated(...)`, or nullability, `Q.insert(table)` is the default-only form.
 
 Composable sources are available when the input rows come from elsewhere:
 

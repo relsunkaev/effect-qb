@@ -13,7 +13,7 @@ const users = Table.make("users", {
   bio: C.text().pipe(C.nullable)
 })
 const auditLogs = Table.make("audit_logs", {
-  id: C.uuid().pipe(C.primaryKey, C.default),
+  id: C.uuid().pipe(C.primaryKey, C.default(Q.literal("audit-log-id"))),
   note: C.text().pipe(C.nullable)
 })
 const mysqlUsers = Mysql.Table.make("users", {

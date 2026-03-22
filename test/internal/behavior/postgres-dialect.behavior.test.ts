@@ -966,7 +966,7 @@ describe("postgres dialect behavior", () => {
 
   test("renders postgres default-values and rich conflict clauses", () => {
     const auditLogs = Postgres.Table.make("audit_logs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey, Postgres.Column.default),
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey, Postgres.Column.default(Postgres.Query.literal("audit-log-id"))),
       note: Postgres.Column.text().pipe(Postgres.Column.nullable)
     })
     const users = Postgres.Table.make("users", {

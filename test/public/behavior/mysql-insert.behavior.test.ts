@@ -92,7 +92,7 @@ describe("mysql insert behavior", () => {
 
   test("renders mysql default-only inserts and duplicate-key conflict clauses", () => {
     const auditLogs = Mysql.Table.make("audit_logs", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey, Mysql.Column.default),
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey, Mysql.Column.default(Mysql.Query.literal("audit-log-id"))),
       note: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
     const users = Mysql.Table.make("users", {

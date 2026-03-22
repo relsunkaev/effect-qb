@@ -11,10 +11,10 @@ import * as Plan from "#internal/plan.ts"
 import * as Renderer from "#internal/renderer.ts"
 
 const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey, C.generated),
+  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
   email: C.text().pipe(C.unique),
   bio: C.text().pipe(C.nullable),
-  createdAt: C.timestamp().pipe(C.default)
+  createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
 }).pipe(
   Table.index(["email", "createdAt"] as const)
 )
@@ -374,8 +374,11 @@ const badNullablePrimaryKey = C.text().pipe(C.nullable, C.primaryKey)
 // @ts-expect-error primary keys cannot become nullable
 const badPrimaryKeyNullable = C.text().pipe(C.primaryKey, C.nullable)
 
-// @ts-expect-error generated and default are mutually exclusive
-const badGeneratedDefault = C.text().pipe(C.generated, C.default)
+const badGeneratedDefault = C.text().pipe(
+  C.generated(Q.literal("generated")),
+  // @ts-expect-error generated and default are mutually exclusive
+  C.default(Q.literal("default"))
+)
 
 const badReferenceType = Table.make("bad_reference", {
   // @ts-expect-error references require compatible base select types
@@ -400,7 +403,7 @@ const badWhere = Q.where("nope")
 const badJoin = Q.select({ postId: posts.id }).pipe(Q.innerJoin(posts, true))
 
 class UsersClass extends Table.Class<UsersClass>("users_class")({
-  id: C.uuid().pipe(C.primaryKey, C.generated),
+  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
   email: C.text()
 }) {
   static readonly [Table.options] = [Table.index("email")]
