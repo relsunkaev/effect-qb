@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -16,13 +16,13 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = Q.json.path(
-  Q.json.key("profile"),
-  Q.json.key("address"),
-  Q.json.key("city")
+const cityPath = F.json.path(
+  F.json.key("profile"),
+  F.json.key("address"),
+  F.json.key("city")
 )
 
-const compatibleObject = Q.json.buildObject({
+const compatibleObject = F.json.buildObject({
   profile: {
     address: {
       city: "Paris",
@@ -32,9 +32,9 @@ const compatibleObject = Q.json.buildObject({
   },
   note: null
 })
-const compatibleMerged = Q.json.merge(
+const compatibleMerged = F.json.merge(
   docs.payload,
-  Q.json.buildObject({
+  F.json.buildObject({
     profile: {
       address: {
         city: "Paris",
@@ -57,8 +57,8 @@ const updatePlan = Q.update(docs, {
 void insertPlan
 void updatePlan
 
-const deletedRequiredField = Q.json.delete(docs.payload, cityPath)
-const incompatibleNestedObject = Q.json.buildObject({
+const deletedRequiredField = F.json.delete(docs.payload, cityPath)
+const incompatibleNestedObject = F.json.buildObject({
   profile: {
     address: {
       city: 123,

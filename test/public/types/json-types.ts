@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -23,50 +23,50 @@ type DocsAvailable = {
   }
 }
 
-const cityPath = Q.json.path(
-  Q.json.key("profile"),
-  Q.json.key("address"),
-  Q.json.key("city")
+const cityPath = F.json.path(
+  F.json.key("profile"),
+  F.json.key("address"),
+  F.json.key("city")
 )
-const tagPath = Q.json.path(
-  Q.json.key("profile"),
-  Q.json.key("tags"),
-  Q.json.index(0)
+const tagPath = F.json.path(
+  F.json.key("profile"),
+  F.json.key("tags"),
+  F.json.index(0)
 )
-const postcodePath = Q.json.path(
-  Q.json.key("profile"),
-  Q.json.key("address"),
-  Q.json.key("postcode")
+const postcodePath = F.json.path(
+  F.json.key("profile"),
+  F.json.key("address"),
+  F.json.key("postcode")
 )
-const suitePath = Q.json.path(
-  Q.json.key("profile"),
-  Q.json.key("address"),
-  Q.json.key("suite")
+const suitePath = F.json.path(
+  F.json.key("profile"),
+  F.json.key("address"),
+  F.json.key("suite")
 )
 
-const cityExpr = Q.json.get(docs.payload, cityPath)
-const cityTextExpr = Q.json.text(docs.payload, cityPath)
-const citySetExpr = Q.json.set(docs.payload, cityPath, "Paris")
-const cityDeleteExpr = Q.json.delete(docs.payload, cityPath)
-const firstTagExpr = Q.json.get(docs.payload, tagPath)
-const hasProfileExpr = Q.json.hasKey(docs.payload, "profile")
-const hasAnyExpr = Q.json.hasAnyKeys(docs.payload, "profile", "note")
-const hasAllExpr = Q.json.hasAllKeys(docs.payload, "profile", "note")
-const setValueExpr = Q.json.set(docs.payload, postcodePath, "1000")
-const insertValueExpr = Q.json.insert(docs.payload, suitePath, "12A")
-const deleteValueExpr = Q.json.delete(docs.payload, Q.json.key("note"))
-const concatValueExpr = Q.json.concat({ a: 1 }, { b: "x" })
-const mergeValueExpr = Q.json.merge({ a: 1 }, { b: "x" })
-const builtObjectExpr = Q.json.buildObject({ a: 1, b: "x" })
-const builtArrayExpr = Q.json.buildArray(1, "x", true)
-const toJsonExpr = Q.json.toJson(1)
-const toJsonbExpr = Q.json.toJsonb("x")
-const typeNameExpr = Q.json.typeOf(docs.payload)
-const lengthExpr = Q.json.length(docs.payload)
-const keysExpr = Q.json.keys(docs.payload)
-const pathExistsExpr = Q.json.pathExists(docs.payload, Q.json.path(Q.json.key("profile"), Q.json.key("tags"), Q.json.wildcard()))
-const pathMatchExpr = Q.json.pathMatch(docs.payload, '$.profile.tags[*] ? (@ == "x")')
-const strippedExpr = Q.json.stripNulls(docs.payload)
+const cityExpr = F.json.get(docs.payload, cityPath)
+const cityTextExpr = F.json.text(docs.payload, cityPath)
+const citySetExpr = F.json.set(docs.payload, cityPath, "Paris")
+const cityDeleteExpr = F.json.delete(docs.payload, cityPath)
+const firstTagExpr = F.json.get(docs.payload, tagPath)
+const hasProfileExpr = F.json.hasKey(docs.payload, "profile")
+const hasAnyExpr = F.json.hasAnyKeys(docs.payload, "profile", "note")
+const hasAllExpr = F.json.hasAllKeys(docs.payload, "profile", "note")
+const setValueExpr = F.json.set(docs.payload, postcodePath, "1000")
+const insertValueExpr = F.json.insert(docs.payload, suitePath, "12A")
+const deleteValueExpr = F.json.delete(docs.payload, F.json.key("note"))
+const concatValueExpr = F.json.concat({ a: 1 }, { b: "x" })
+const mergeValueExpr = F.json.merge({ a: 1 }, { b: "x" })
+const builtObjectExpr = F.json.buildObject({ a: 1, b: "x" })
+const builtArrayExpr = F.json.buildArray(1, "x", true)
+const toJsonExpr = F.json.toJson(1)
+const toJsonbExpr = F.json.toJsonb("x")
+const typeNameExpr = F.json.typeOf(docs.payload)
+const lengthExpr = F.json.length(docs.payload)
+const keysExpr = F.json.keys(docs.payload)
+const pathExistsExpr = F.json.pathExists(docs.payload, F.json.path(F.json.key("profile"), F.json.key("tags"), F.json.wildcard()))
+const pathMatchExpr = F.json.pathMatch(docs.payload, '$.profile.tags[*] ? (@ == "x")')
+const strippedExpr = F.json.stripNulls(docs.payload)
 
 type City = Q.ExpressionOutput<typeof cityExpr, DocsAvailable>
 type CityText = Q.ExpressionOutput<typeof cityTextExpr, DocsAvailable>

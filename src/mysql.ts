@@ -6,6 +6,8 @@ export * as Datatypes from "./mysql/datatypes/index.js"
 export * as Errors from "./mysql/errors/index.js"
 /** Shared scalar SQL expression interfaces and DB-type descriptors. */
 export * as Expression from "./internal/expression.js"
+/** MySQL-specialized SQL function expressions. */
+export * as Function from "./mysql/function/index.js"
 /** MySQL-specialized typed query execution contracts. */
 export * as Executor from "./mysql/executor.js"
 /** Shared logical query-plan interfaces. */

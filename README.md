@@ -123,9 +123,9 @@ Available entrypoints:
 
 Use `effect-qb/postgres` when you want explicit Postgres branding throughout the plan, renderer, executor, datatypes, and errors.
 
-That entrypoint also exposes `Postgres.Function` for typed SQL functions, while `Query` keeps compatibility aliases for the same operators during the migration.
+That entrypoint also exposes `Postgres.Function` for typed SQL functions and JSON helpers.
 
-Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors.
+Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors. It also exposes `Mysql.Function` for MySQL JSON helpers.
 
 ## Postgres Function
 
@@ -155,7 +155,7 @@ const userSummary = Q.select({
 - aggregate helpers like `count`, `max`, and `min`
 - window helpers like `rowNumber`, `rank`, and `denseRank`
 - temporal helpers like `now`, `currentDate`, `currentTime`, `currentTimestamp`, `localTime`, and `localTimestamp`
-- the current `Query.json` surface, now grouped under `Function.json`
+- JSON helpers via `Function.json`
 
 ## Quick Start
 
@@ -233,7 +233,7 @@ The rest of this README goes deeper, but the main surface area is:
 - table builders with keys, indexes, nullability, defaults, and schema-backed JSON columns
 - select plans with joins, CTEs, derived tables, `values(...)`, `unnest(...)`, subqueries, and set operators
 - mutation plans for `insert`, `update`, `delete`, `returning`, and conflict handling
-- typed SQL functions via `Postgres.Function`
+- typed SQL functions via `Postgres.Function` and `Mysql.Function`
 - renderers and executors for Postgres and MySQL
 - type-level checks for missing sources, grouped selections, dialect compatibility, and JSON mutation compatibility
 
@@ -271,7 +271,7 @@ Example:
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Executor, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Executor, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.generated),
@@ -452,13 +452,13 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = Q.json.path(
-  Q.json.key("profile"),
-  Q.json.key("address"),
-  Q.json.key("city")
+const cityPath = F.json.path(
+  F.json.key("profile"),
+  F.json.key("address"),
+  F.json.key("city")
 )
 
-const city = Q.json.get(docs.payload, cityPath)
+const city = F.json.get(docs.payload, cityPath)
 type City = Q.OutputOfExpression<typeof city, {
   readonly docs: {
     readonly name: "docs"
@@ -596,6 +596,7 @@ The expression surface is large, but the important point is that result-shaping 
 
 ```ts
 import * as Schema from "effect/Schema"
+import { Function as F } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -608,17 +609,17 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = Q.json.path(
-  Q.json.key("profile"),
-  Q.json.key("address"),
-  Q.json.key("city")
+const cityPath = F.json.path(
+  F.json.key("profile"),
+  F.json.key("address"),
+  F.json.key("city")
 )
 
 const shapedDocs = Q.select({
   title: Q.case()
     .when(Q.isNull(posts.title), "missing")
     .else(Q.upper(posts.title)),
-  profileCity: Q.json.text(docs.payload, cityPath),
+  profileCity: F.json.text(docs.payload, cityPath),
   titleAsText: Q.cast(posts.title, Q.type.text())
 }).pipe(
   Q.from(posts),
@@ -628,12 +629,12 @@ const shapedDocs = Q.select({
 
 The same JSON path object can be reused across:
 
-- `Q.json.get(...)`
-- `Q.json.text(...)`
-- `Q.json.set(...)`
-- `Q.json.insert(...)`
-- `Q.json.delete(...)`
-- `Q.json.pathExists(...)`
+- `Function.json.get(...)`
+- `Function.json.text(...)`
+- `Function.json.set(...)`
+- `Function.json.insert(...)`
+- `Function.json.delete(...)`
+- `Function.json.pathExists(...)`
 
 Comparison and cast safety are dialect-aware. Incompatible operands are rejected unless you make the conversion explicit with `Q.cast(...)`.
 
@@ -1284,6 +1285,7 @@ Schema-backed JSON columns are checked on insert and update.
 
 ```ts
 import * as Schema from "effect/Schema"
+import { Function as F } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1299,13 +1301,13 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = Q.json.path(
-  Q.json.key("profile"),
-  Q.json.key("address"),
-  Q.json.key("city")
+const cityPath = F.json.path(
+  F.json.key("profile"),
+  F.json.key("address"),
+  F.json.key("city")
 )
 
-const incompatibleObject = Q.json.buildObject({
+const incompatibleObject = F.json.buildObject({
   profile: {
     address: {
       postcode: "1000"
@@ -1315,7 +1317,7 @@ const incompatibleObject = Q.json.buildObject({
   note: null
 })
 
-const deletedRequiredField = Q.json.delete(docs.payload, cityPath)
+const deletedRequiredField = F.json.delete(docs.payload, cityPath)
 
 Q.insert(docs, {
   id: "doc-1",
