@@ -50,6 +50,22 @@ jobs:
       - name: Checkout release tag
         run: git checkout --detach "${{ steps.tag.outputs.tag }}"
 
+      - name: Extract release notes
+        id: notes
+        run: |
+          TAG_VERSION="${{ steps.tag.outputs.tag }}"
+          VERSION="${TAG_VERSION#v}"
+          awk -v version="$VERSION" '
+            $0 ~ "^## " version " - " { capture=1; print; next }
+            capture && $0 ~ "^## " { exit }
+            capture { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          if [ ! -s "$RUNNER_TEMP/release-notes.md" ]; then
+            echo "Missing release notes for ${TAG_VERSION}" >&2
+            exit 1
+          fi
+          echo "notes=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -64,4 +80,4 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ steps.tag.outputs.tag }}" --generate-notes --title "${{ steps.tag.outputs.tag }}"
+        run: gh release create "${{ steps.tag.outputs.tag }}" --notes-file "${{ steps.notes.outputs.notes }}" --title "${{ steps.tag.outputs.tag }}"

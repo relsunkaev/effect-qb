@@ -1362,6 +1362,6 @@ Useful places to start:
 - [test/public/behavior/query.behavior.test.ts](./test/public/behavior/query.behavior.test.ts)
 - [test/public/types/query-composition-types.ts](./test/public/types/query-composition-types.ts)
 
-Releases are manual via the GitHub Actions `Release` workflow. It derives the next version from conventional commits, updates `CHANGELOG.md`, creates a `vX.Y.Z` tag, and the tag push workflow publishes to npm and creates the GitHub release.
+Releases are manual via the GitHub Actions `Release` workflow. It derives the next version from conventional commits, updates `CHANGELOG.md`, creates a `vX.Y.Z` tag, and the tag push workflow publishes to npm and creates the GitHub release using the generated changelog section as the release body.
 
 The codebase is organized around typed plans, dialect-specialized entrypoints, and behavior-first tests.
