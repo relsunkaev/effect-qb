@@ -233,8 +233,8 @@ const insertChangelogSection = (existing: string, section: string): string => {
 }
 
 const ensureGitIdentity = async () => {
-  await run(["git", "config", "user.name", "effect-qb release bot"])
-  await run(["git", "config", "user.email", "release@users.noreply.github.com"])
+  await run(["git", "config", "user.name", "Ramazan Elsunkaev"])
+  await run(["git", "config", "user.email", "relsunkaev@outlook.com"])
 }
 
 const main = async () => {
