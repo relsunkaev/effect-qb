@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.13.0 - 2026-03-23
+
+### Breaking Changes
+
+- feat(api)!: move json helpers under Function namespaces
+- feat(api)!: move scalar helpers under Function namespaces
+- feat(column)!: require expressions for default and generated
+- fix(table)!: require expressions for check constraints
+
+### Fixes
+
+- fix(release): use personal git identity
+- fix(release): fall back to release commits when tags are missing
+
+### Docs
+
+- docs(readme): add postgres functions and defaults note
+- docs(readme): add shaping results imports
+- docs(readme): restructure intro and refresh examples
+- docs(readme): document table options and check constraints
+
 ## 0.12.3 - 2026-03-21
 
 ### Breaking Changes
