@@ -383,6 +383,41 @@ const events = analytics.table("events", {
 })
 ```
 
+### Table Options
+
+Table-level options live on the table definition itself. They are pipeable and render into DDL:
+
+- `Table.primaryKey(...)` for table-level composite keys
+- `Table.unique(...)` for table-level unique constraints
+- `Table.index(...)` for table-level indexes
+- `Table.foreignKey(...)` for table-level foreign keys
+- `Table.check(...)` for expression-only check constraints
+
+```ts
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+
+const orgs = Table.make("orgs", {
+  id: C.uuid().pipe(C.primaryKey),
+  slug: C.text().pipe(C.unique)
+})
+
+const membershipsBase = Table.make("memberships", {
+  id: C.uuid().pipe(C.primaryKey),
+  orgId: C.uuid(),
+  role: C.text(),
+  note: C.text().pipe(C.nullable)
+})
+
+const memberships = membershipsBase.pipe(
+  Table.foreignKey("orgId", () => orgs, "id"),
+  Table.unique(["orgId", "role"] as const),
+  Table.index(["role", "orgId"] as const),
+  Table.check("role_not_empty", Q.neq(membershipsBase.role, Q.literal("")))
+)
+```
+
+The `check` helper must receive an expression. Raw SQL strings are not accepted.
+
 ### Plans, Not Strings
 
 `effect-qb` does not build rows from ad hoc string fragments. It builds typed plans. Partial plans are allowed while assembling a query, but rendering and execution require a complete plan.
