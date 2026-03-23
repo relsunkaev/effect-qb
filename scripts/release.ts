@@ -17,6 +17,10 @@ type Commit = {
 }
 
 type Bump = "major" | "minor" | "patch"
+type ReleaseBoundary = {
+  readonly hash: string
+  readonly version: Semver
+}
 
 const changelogPath = `${cwd}/CHANGELOG.md`
 const packageJsonPath = `${cwd}/package.json`
@@ -67,6 +71,14 @@ const parseSemver = (value: string): Semver => {
   }
 }
 
+const parseReleaseVersion = (subject: string): Semver | null => {
+  const match = /^chore\(release\): v(?<version>\d+\.\d+\.\d+)$/.exec(subject)
+  if (!match?.groups?.version) {
+    return null
+  }
+  return parseSemver(match.groups.version)
+}
+
 const formatSemver = (value: Semver): string => `${value.major}.${value.minor}.${value.patch}`
 
 const bumpSemver = (value: Semver, bump: Bump): Semver => {
@@ -113,6 +125,32 @@ const getLatestTag = async (): Promise<string | null> => {
   ], { allowFailure: true })
 
   return result.exitCode === 0 ? result.stdout.trim() : null
+}
+
+const getLatestReleaseBoundary = async (): Promise<ReleaseBoundary | null> => {
+  const latestTag = await getLatestTag()
+
+  if (latestTag) {
+    const hashResult = await run(["git", "rev-list", "-n", "1", latestTag])
+    return {
+      hash: hashResult.stdout.trim(),
+      version: parseSemver(latestTag.slice(1))
+    }
+  }
+
+  const commits = await getCommits("HEAD")
+  for (let index = commits.length - 1; index >= 0; index -= 1) {
+    const commit = commits[index]!
+    const version = parseReleaseVersion(commit.subject)
+    if (version) {
+      return {
+        hash: commit.hash,
+        version
+      }
+    }
+  }
+
+  return null
 }
 
 const getPackageVersion = async (): Promise<Semver> => {
@@ -248,20 +286,20 @@ const main = async () => {
   }
 
   const packageVersion = await getPackageVersion()
-  const latestTag = await getLatestTag()
-  const commits = await getCommits(latestTag ? `${latestTag}..HEAD` : "HEAD")
+  const boundary = await getLatestReleaseBoundary()
+  const commits = await getCommits(boundary ? `${boundary.hash}..HEAD` : "HEAD")
 
-  if (latestTag && commits.length === 0) {
+  if (boundary && commits.length === 0) {
     throw new Error("No commits to release")
   }
 
-  const baseVersion = latestTag ? parseSemver(latestTag.slice(1)) : packageVersion
-  const nextVersion = latestTag ? bumpSemver(baseVersion, determineBump(commits, baseVersion.major)) : packageVersion
+  const baseVersion = boundary?.version ?? packageVersion
+  const nextVersion = bumpSemver(baseVersion, determineBump(commits, baseVersion.major))
   const changelogSection = renderChangelogSection(formatSemver(nextVersion), commits)
 
   console.log(`Release version: ${formatSemver(nextVersion)}`)
   console.log(`Commits in release: ${commits.length}`)
-  console.log(`Version bump: ${latestTag ? determineBump(commits, baseVersion.major) : "initial"}`)
+  console.log(`Version bump: ${determineBump(commits, baseVersion.major)}`)
 
   if (dryRun) {
     console.log(changelogSection)
