@@ -2,6 +2,7 @@ import { relative } from "node:path"
 
 import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel } from "./postgres-schema-model.js"
+import { defaultConstraintName } from "./postgres-schema-sql.js"
 import { enumKey, tableKey } from "./postgres-schema-model.js"
 import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "./postgres-source-discovery.js"
 import { renderDdlExpressionSql } from "./schema-ddl.js"
@@ -351,7 +352,13 @@ const inlinePrimaryKeyColumn = (
     throw new Error(`Class table '${tableKey(table.schemaName, table.name)}' has multiple primary-key declarations`)
   }
   const primaryKey = primaryKeys[0]!
-  if (primaryKey.columns.length !== 1 || primaryKey.name !== undefined || primaryKey.deferrable || primaryKey.initiallyDeferred) {
+  const defaultName = defaultConstraintName(table, primaryKey)
+  if (
+    primaryKey.columns.length !== 1 ||
+    (primaryKey.name !== undefined && primaryKey.name !== defaultName) ||
+    primaryKey.deferrable ||
+    primaryKey.initiallyDeferred
+  ) {
     throw new Error(`Class table '${tableKey(table.schemaName, table.name)}' cannot represent its primary key inline`)
   }
   return primaryKey.columns[0]
