@@ -221,6 +221,97 @@ const isTableClass = (
     && target.expression.name.text === "Table"
 }
 
+const isTableClassReference = (
+  expression: ts.Expression,
+  importInfo: DiscoveryImportInfo
+): boolean => {
+  let current: ts.Expression = expression
+  if (ts.isCallExpression(current)) {
+    current = current.expression
+  }
+  if (!ts.isCallExpression(current) || !ts.isPropertyAccessExpression(current.expression)) {
+    return false
+  }
+  const target = current.expression
+  if (target.name.text !== "Class") {
+    return false
+  }
+  if (ts.isIdentifier(target.expression)) {
+    return importInfo.tableAliases.has(target.expression.text)
+  }
+  return ts.isPropertyAccessExpression(target.expression)
+    && ts.isIdentifier(target.expression.expression)
+    && importInfo.postgresNamespaceAliases.has(target.expression.expression.text)
+    && target.expression.name.text === "Table"
+}
+
+const expressionContainsDiscoveryConstruct = (
+  expression: ts.Expression,
+  importInfo: DiscoveryImportInfo,
+  schemaBuilders: ReadonlySet<string>
+): boolean => {
+  let found = false
+  const knownSchemaBuilders = new Set(schemaBuilders)
+  const visit = (node: ts.Node): void => {
+    if (found) {
+      return
+    }
+    if (ts.isExpression(node) && (
+      isSchemaCall(node, importInfo) ||
+      isTableMakeRoot(node, importInfo) ||
+      isEnumFactoryRoot(node, importInfo) ||
+      isTableClassReference(node, importInfo) ||
+      isSchemaTableRoot(node, knownSchemaBuilders) !== undefined ||
+      isSchemaEnumRoot(node, knownSchemaBuilders) !== undefined
+    )) {
+      found = true
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(expression)
+  return found
+}
+
+const statementContainsDiscoveryConstruct = (
+  statement: ts.Statement,
+  importInfo: DiscoveryImportInfo,
+  schemaBuilders: ReadonlySet<string>
+): boolean => {
+  if (ts.isVariableStatement(statement)) {
+    return statement.declarationList.declarations.some((declaration) =>
+      declaration.initializer !== undefined
+      && expressionContainsDiscoveryConstruct(declaration.initializer, importInfo, schemaBuilders)
+    )
+  }
+  if (ts.isClassDeclaration(statement)) {
+    return statement.heritageClauses?.some((clause) =>
+      clause.types.some((type) => expressionContainsDiscoveryConstruct(type.expression, importInfo, schemaBuilders))
+    ) ?? false
+  }
+  return false
+}
+
+const validateNestedDiscoveryStatements = (
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  importInfo: DiscoveryImportInfo,
+  schemaBuilders: ReadonlySet<string>
+): void => {
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isVariableStatement(node) || ts.isClassDeclaration(node))
+      && statementContainsDiscoveryConstruct(node, importInfo, schemaBuilders)
+    ) {
+      throw new Error(`Nested schema management declarations are not supported in '${filePath}'`)
+    }
+    ts.forEachChild(node, visit)
+  }
+  for (const statement of sourceFile.statements) {
+    ts.forEachChild(statement, visit)
+  }
+}
+
 const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
   const postgresModules = new Set<string>()
   const postgresNamespaceAliases = new Set<string>()
@@ -276,10 +367,16 @@ const discoverInFile = (
   for (const statement of sourceFile.statements) {
     if (ts.isVariableStatement(statement)) {
       if (statement.declarationList.declarations.length !== 1) {
+        if (statementContainsDiscoveryConstruct(statement, importInfo, schemaBuilders)) {
+          throw new Error(`Non-canonical schema management declaration in '${filePath}'`)
+        }
         continue
       }
       const declaration = statement.declarationList.declarations[0]!
       if (!ts.isIdentifier(declaration.name) || declaration.initializer === undefined) {
+        if (statementContainsDiscoveryConstruct(statement, importInfo, schemaBuilders)) {
+          throw new Error(`Non-canonical schema management declaration in '${filePath}'`)
+        }
         continue
       }
       const identifier = declaration.name.text
@@ -329,19 +426,30 @@ const discoverInFile = (
           end: statement.getEnd(),
           schemaBuilderIdentifier: enumSchemaBuilderIdentifier
         })
+        continue
+      }
+      if (expressionContainsDiscoveryConstruct(declaration.initializer, importInfo, schemaBuilders)) {
+        throw new Error(`Non-canonical schema management declaration '${identifier}' in '${filePath}'`)
       }
       continue
     }
-    if (ts.isClassDeclaration(statement) && statement.name && isTableClass(statement, importInfo)) {
-      declarations.push({
-        kind: "tableClass",
-        filePath,
-        identifier: statement.name.text,
-        start: statement.getStart(sourceFile),
-        end: statement.getEnd()
-      })
+    if (ts.isClassDeclaration(statement)) {
+      if (statement.name && isTableClass(statement, importInfo)) {
+        declarations.push({
+          kind: "tableClass",
+          filePath,
+          identifier: statement.name.text,
+          start: statement.getStart(sourceFile),
+          end: statement.getEnd()
+        })
+        continue
+      }
+      if (statementContainsDiscoveryConstruct(statement, importInfo, schemaBuilders)) {
+        throw new Error(`Non-canonical schema management declaration in '${filePath}'`)
+      }
     }
   }
+  validateNestedDiscoveryStatements(sourceFile, filePath, importInfo, schemaBuilders)
   return declarations
 }
 

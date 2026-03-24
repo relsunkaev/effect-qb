@@ -211,4 +211,45 @@ export class Sessions extends Pg.Table.Class<Sessions>("sessions")({
       await rm(tempDir, { recursive: true, force: true })
     }
   })
+
+  test("rejects nested schema management declarations", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-nested-"))
+    try {
+      await Bun.write(join(tempDir, "nested.ts"), `
+import { Column as C, Table } from "#postgres"
+
+export function loadUsers() {
+  const users = Table.make("users", {
+    id: C.uuid()
+  })
+  return users
+}
+`)
+
+      await expect(discoverSourceSchema(repoRoot, {
+        include: [`${relative(repoRoot, tempDir).replaceAll("\\", "/")}/**/*.ts`]
+      })).rejects.toThrow("Nested schema management declarations are not supported")
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects computed schema management declarations", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-computed-"))
+    try {
+      await Bun.write(join(tempDir, "computed.ts"), `
+import { Column as C, Table } from "#postgres"
+
+export const users = (() => Table.make("users", {
+  id: C.uuid()
+}))()
+`)
+
+      await expect(discoverSourceSchema(repoRoot, {
+        include: [`${relative(repoRoot, tempDir).replaceAll("\\", "/")}/**/*.ts`]
+      })).rejects.toThrow("Non-canonical schema management declaration 'users'")
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
 })
