@@ -352,7 +352,10 @@ const createTemporaryExportModule = async (
   const extension = extname(filePath) || ".ts"
   const tempPath = join(dirname(filePath), `.__effect_qb_discovery_${basename(filePath, extension)}_${randomUUID()}${extension}`)
   const contents = await Bun.file(filePath).text()
-  await Bun.write(tempPath, `${contents}\nexport { ${names.join(", ")} }\n`)
+  await Bun.write(
+    tempPath,
+    `${contents}\nconst __effect_qb_discovery_exports = { ${names.join(", ")} }\nexport default __effect_qb_discovery_exports\n`
+  )
   return tempPath
 }
 
@@ -370,8 +373,9 @@ const importDiscoveredValues = async (
     const tempPath = await createTemporaryExportModule(filePath, [...new Set(names)])
     try {
       const imported = await import(pathToFileURL(tempPath).href)
+      const exportedValues = imported.default as Record<string, unknown> | undefined
       for (const name of names) {
-        values.push(imported[name])
+        values.push(exportedValues?.[name])
       }
     } finally {
       await rm(tempPath, { force: true }).catch(() => undefined)

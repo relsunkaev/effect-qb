@@ -94,8 +94,6 @@ const columnSignature = (column: ColumnModel): string =>
   JSON.stringify({
     ddlType: normalizeType(column.ddlType),
     dbTypeKind: column.dbTypeKind,
-    typeKind: column.typeKind,
-    typeSchema: column.typeSchema ?? null,
     nullable: column.nullable,
     hasDefault: column.hasDefault,
     generated: column.generated,
