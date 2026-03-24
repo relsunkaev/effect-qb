@@ -335,11 +335,13 @@ const users = tables.table("users", {
   orgId: C.uuid(),
   status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
   email: C.text(),
+  alias: C.text().pipe(C.nullable),
   displayName: C.text().pipe(C.default(SchemaExpression.parseExpression("'guest'::text"))),
   emailLower: C.text().pipe(C.generated(SchemaExpression.parseExpression("lower(email)"))),
   note: C.text().pipe(C.nullable)
 }).pipe(
   Table.primaryKey({ columns: ["id"], name: "users_pkey" }),
+  Table.unique({ columns: ["alias"], name: "users_alias_key", nullsNotDistinct: true }),
   Table.foreignKey({
     columns: "orgId",
     target: () => orgs,
@@ -402,6 +404,7 @@ export { status, orgs, users }
       [schemaName]
     )
     expect(indexes).toEqual([
+      { indexname: "users_alias_key" },
       { indexname: "users_email_lookup_idx" },
       { indexname: "users_note_idx" },
       { indexname: "users_pkey" }
@@ -420,6 +423,8 @@ export { status, orgs, users }
     expect(pulledSchema).toContain(`__EffectQbPullColumn.identityByDefault`)
     expect(pulledSchema).toContain(`variant: "enum"`)
     expect(pulledSchema).toContain(`users_org_id_fkey`)
+    expect(pulledSchema).toContain(`users_alias_key`)
+    expect(pulledSchema).toContain(`nullsNotDistinct: true`)
     expect(pulledSchema).toContain(`onDelete: "cascade"`)
     expect(pulledSchema).toContain(`deferrable: true`)
     expect(pulledSchema).toContain(`initiallyDeferred: true`)
@@ -489,6 +494,77 @@ test("postgres cli pull fails for unsupported index collations", async () => {
     expect(pull.exitCode).not.toBe(0)
     expect(`${pull.stdout}\n${pull.stderr}`).toContain(`Unsupported PostgreSQL index collation`)
     expect(`${pull.stdout}\n${pull.stderr}`).toContain(`users_email_c_idx`)
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli pulls composite foreign keys into canonical source definitions", async () => {
+  const { workspace, schemaName } = await makeSourceWorkspace(`
+import { Column as C, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+
+const orgs = db.table("orgs", {
+  tenantId: C.uuid(),
+  slug: C.text(),
+  name: C.text()
+}).pipe(
+  Table.primaryKey({ columns: ["tenantId", "slug"], name: "orgs_pkey" })
+)
+
+const memberships = db.table("memberships", {
+  tenantId: C.uuid(),
+  orgSlug: C.text(),
+  userId: C.uuid().pipe(C.primaryKey)
+})
+
+export { orgs, memberships }
+`)
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      alter table "${schemaName}"."memberships"
+      add constraint "memberships_org_fkey"
+      foreign key ("tenantId", "orgSlug")
+      references "${schemaName}"."orgs" ("tenantId", "slug")
+      on delete cascade
+      on update no action
+      deferrable initially deferred;
+    `)
+
+    const pullDryRun = await runCli("pull", "--config", config, "--dry-run")
+    expect(pullDryRun.exitCode).toBe(0)
+    expect(pullDryRun.stdout).toContain("update schema.ts")
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain("updated 1 file(s)")
+
+    const pulledSchema = await readSchema(workspace)
+    expect(pulledSchema).toContain(`memberships_org_fkey`)
+    expect(pulledSchema).toContain(`columns: ["tenantId", "orgSlug"] as const`)
+    expect(pulledSchema).toContain(`target: () => orgs`)
+    expect(pulledSchema).toContain(`referencedColumns: ["tenantId", "slug"] as const`)
+    expect(pulledSchema).toContain(`onDelete: "cascade"`)
+    expect(pulledSchema).toContain(`onUpdate: "noAction"`)
+    expect(pulledSchema).toContain(`deferrable: true`)
+    expect(pulledSchema).toContain(`initiallyDeferred: true`)
+
+    const secondPullDryRun = await runCli("pull", "--config", config, "--dry-run")
+    expect(secondPullDryRun.exitCode).toBe(0)
+    expect(secondPullDryRun.stdout).toContain("schema definitions are already up to date")
+
+    const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
+    expect(finalPushDryRun.exitCode).toBe(0)
+    expect(finalPushDryRun.stdout).toContain("planned changes: none")
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
