@@ -123,6 +123,46 @@ const listColumns = (schemaName: string, tableName: string) =>
       order by ordinal_position`,
     [schemaName, tableName]
   )
+const describeColumns = (schemaName: string, tableName: string) =>
+  execPostgres(
+    `select column_name, data_type, is_nullable, column_default, is_generated, generation_expression
+      from information_schema.columns
+      where table_schema = $1 and table_name = $2
+      order by ordinal_position`,
+    [schemaName, tableName]
+  )
+const listIndexes = (schemaName: string, tableName: string) =>
+  execPostgres(
+    `select indexname
+      from pg_indexes
+      where schemaname = $1 and tablename = $2
+      order by indexname`,
+    [schemaName, tableName]
+  )
+const listConstraints = (schemaName: string, tableName: string) =>
+  execPostgres(
+    `select c.conname, c.contype
+      from pg_constraint c
+      join pg_class r on r.oid = c.conrelid
+      join pg_namespace n on n.oid = r.relnamespace
+      where n.nspname = $1 and r.relname = $2
+      order by c.conname`,
+    [schemaName, tableName]
+  )
+
+const assertIdempotentPullPush = async (config: string) => {
+  const secondPullDryRun = await runCli("pull", "--config", config, "--dry-run")
+  expect(secondPullDryRun.exitCode).toBe(0)
+  expect(secondPullDryRun.stdout).toContain("schema definitions are already up to date")
+
+  const secondPull = await runCli("pull", "--config", config)
+  expect(secondPull.exitCode).toBe(0)
+  expect(secondPull.stdout).toContain("schema definitions are already up to date")
+
+  const pushDryRun = await runCli("push", "--config", config, "--dry-run")
+  expect(pushDryRun.exitCode).toBe(0)
+  expect(pushDryRun.stdout).toContain("planned changes: none")
+}
 
 test("postgres cli supports push pull and migrations against a live database", async () => {
   const { workspace, schemaName } = await makeWorkspace()
@@ -254,6 +294,104 @@ test("postgres cli blocks destructive push changes unless explicitly allowed", a
     expect(await listColumns(schemaName, "users")).toEqual([
       { column_name: "id" }
     ])
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli safe mode applies additive changes and skips destructive drift", async () => {
+  const { workspace, schemaName } = await makeSourceWorkspace(`
+import { Column as C, SchemaExpression, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+
+export const users = db.table("users", {
+  id: C.int().pipe(C.identityByDefault),
+  email: C.text(),
+  nickname: C.text().pipe(C.nullable),
+  displayName: C.text().pipe(C.default(SchemaExpression.parseExpression("'guest'::text"))),
+  emailLower: C.text().pipe(C.generated(SchemaExpression.parseExpression("lower(email)")))
+}).pipe(
+  Table.primaryKey({ columns: ["id"] as const, name: "users_pkey" }),
+  Table.unique({ columns: ["email"] as const, name: "users_email_key" }),
+  Table.index({ name: "users_email_idx", columns: ["email"] as const }),
+  Table.check("users_email_check", SchemaExpression.parseExpression("email <> 'blocked'"))
+)
+`)
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const initialPush = await runCli("push", "--config", config)
+    expect(initialPush.exitCode).toBe(0)
+
+    await writeFile(schemaFile(workspace), `
+import { Column as C, SchemaExpression, Table } from "#postgres"
+
+const db = Table.schema(${JSON.stringify(schemaName)})
+
+export const users = db.table("users", {
+  id: C.int().pipe(C.identityByDefault),
+  email: C.text().pipe(C.ddlType("character varying(255)")),
+  nickname: C.text(),
+  displayName: C.text().pipe(C.default(SchemaExpression.parseExpression("'member'::text"))),
+  emailLower: C.text().pipe(C.generated(SchemaExpression.parseExpression("upper(email)"))),
+  notes: C.text().pipe(C.nullable)
+}).pipe(
+  Table.primaryKey({ columns: ["id"] as const, name: "users_pkey" })
+)
+`)
+
+    const safePush = await runCli("push", "--config", config)
+    expect(safePush.exitCode).toBe(0)
+    expect(safePush.stdout).toContain(`add column ${schemaName}.users.notes`)
+    expect(safePush.stdout).toContain("applied 1 statement(s)")
+    expect(safePush.stdout).toContain(`drop constraint ${schemaName}.users.users_email_check`)
+    expect(safePush.stdout).toContain(`drop constraint ${schemaName}.users.users_email_key`)
+    expect(safePush.stdout).toContain(`drop index ${schemaName}.users.users_email_idx`)
+    expect(safePush.stdout).toContain(`replace column ${schemaName}.users.displayName (drop)`)
+    expect(safePush.stdout).toContain(`replace column ${schemaName}.users.email (drop)`)
+    expect(safePush.stdout).toContain(`replace column ${schemaName}.users.emailLower (drop)`)
+    expect(safePush.stdout).toContain(`replace column ${schemaName}.users.nickname (drop)`)
+    expect(safePush.stdout).toContain("skipped changes:")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" },
+      { column_name: "email" },
+      { column_name: "nickname" },
+      { column_name: "displayName" },
+      { column_name: "emailLower" },
+      { column_name: "notes" }
+    ])
+
+    const columns = await describeColumns(schemaName, "users")
+    expect(columns.find((column) => column.column_name === "email")?.data_type).toBe("text")
+    expect(columns.find((column) => column.column_name === "nickname")?.is_nullable).toBe("YES")
+    expect(columns.find((column) => column.column_name === "displayName")?.column_default).toContain("'guest'")
+    expect(columns.find((column) => column.column_name === "emailLower")?.is_generated).toBe("ALWAYS")
+    expect(columns.find((column) => column.column_name === "emailLower")?.generation_expression).toContain("lower(")
+
+    expect(await listConstraints(schemaName, "users")).toEqual([
+      { conname: "users_email_check", contype: "c" },
+      { conname: "users_email_key", contype: "u" },
+      { conname: "users_pkey", contype: "p" }
+    ])
+
+    expect(await listIndexes(schemaName, "users")).toEqual([
+      { indexname: "users_email_idx" },
+      { indexname: "users_email_key" },
+      { indexname: "users_pkey" }
+    ])
+
+    const secondSafePush = await runCli("push", "--config", config)
+    expect(secondSafePush.exitCode).toBe(0)
+    expect(secondSafePush.stdout).toContain("no executable statements selected")
+    expect(secondSafePush.stdout).toContain("skipped changes:")
+    expect(secondSafePush.stdout).toContain(`drop constraint ${schemaName}.users.users_email_check`)
+    expect(secondSafePush.stdout).toContain(`drop index ${schemaName}.users.users_email_idx`)
+    expect(secondSafePush.stdout).toContain(`replace column ${schemaName}.users.email (drop)`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
@@ -606,9 +744,7 @@ export const audits = db.table("audits", {
     expect(pulledSchema).toContain(`actorName: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)`)
     expect(pulledSchema).toContain(`audits_actor_name_idx`)
 
-    const pushDryRun = await runCli("push", "--config", config, "--dry-run")
-    expect(pushDryRun.exitCode).toBe(0)
-    expect(pushDryRun.stdout).toContain("planned changes: none")
+    await assertIdempotentPullPush(config)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
@@ -650,9 +786,7 @@ export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
     expect(pulledSchema).toContain(`static readonly [__EffectQbPullTable.options] = [`)
     expect(pulledSchema).toContain(`sessions_email_idx`)
 
-    const pushDryRun = await runCli("push", "--config", config, "--dry-run")
-    expect(pushDryRun.exitCode).toBe(0)
-    expect(pushDryRun.stdout).toContain("planned changes: none")
+    await assertIdempotentPullPush(config)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
