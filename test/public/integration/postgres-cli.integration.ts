@@ -570,3 +570,53 @@ export { orgs, memberships }
     await rm(workspace, { recursive: true, force: true })
   }
 }, 30000)
+
+test("postgres cli pull fails when database enums have no matching source declaration", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      create type "${schemaName}"."status" as enum ('pending', 'active');
+      alter table "${schemaName}"."users"
+      add column "status" "${schemaName}"."status";
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).not.toBe(0)
+    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`No source enum declaration found for '${schemaName}.status'`)
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli pull fails for unsupported check constraint expressions", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      alter table "${schemaName}"."users"
+      add constraint "users_email_c_check"
+      check ((email collate "C") <> ''::text);
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).not.toBe(0)
+    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`Unsupported PostgreSQL expression in check constraint users_email_c_check`)
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
