@@ -67,7 +67,7 @@ export interface Executor<
   Context = never
 > {
   readonly dialect: Dialect
-  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
+  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 }
@@ -304,7 +304,7 @@ export const make = <
   Context = never
 >(
   dialect: Dialect,
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 ): Executor<Dialect, Error, Context> => ({

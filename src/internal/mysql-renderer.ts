@@ -16,7 +16,7 @@ export interface MysqlRenderResult {
 /**
  * Renders the current query AST into MySQL-shaped SQL plus bind parameters.
  */
-export const renderMysqlPlan = <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any>>(
+export const renderMysqlPlan = <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
   plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
 ): MysqlRenderResult => {
   const state: RenderState = {
@@ -25,7 +25,7 @@ export const renderMysqlPlan = <PlanValue extends Query.QueryPlan<any, any, any,
     cteNames: new Set<string>()
   }
   const rendered = renderQueryAst(
-    Query.getAst(plan as Query.QueryPlan<any, any, any, any, any, any, any, any, any>) as any,
+    Query.getAst(plan as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>) as any,
     state,
     mysqlDialect
   )
