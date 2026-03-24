@@ -1,8 +1,11 @@
 export {
+  ddlType,
   boolean,
   date,
   default_ as default,
   generated,
+  identityAlways,
+  identityByDefault,
   int,
   json,
   nullable,

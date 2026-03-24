@@ -5,39 +5,77 @@ import {
   type IsNullable
 } from "./column-state.js"
 import type { Any as AnyExpression } from "./expression.js"
+import type { Any as AnySchemaExpression } from "./schema-expression.js"
 import type { TableFieldMap } from "./schema-derivation.js"
 
 /** Non-empty list of column names. */
 export type ColumnList = readonly [string, ...string[]]
 
+export type DdlExpressionLike = AnyExpression | AnySchemaExpression
+
+export type ReferentialAction = "noAction" | "restrict" | "cascade" | "setNull" | "setDefault"
+
+export type IndexKeySpec =
+  | {
+      readonly kind: "column"
+      readonly column: string
+      readonly order?: "asc" | "desc"
+      readonly nulls?: "first" | "last"
+    }
+  | {
+      readonly kind: "expression"
+      readonly expression: DdlExpressionLike
+      readonly order?: "asc" | "desc"
+      readonly nulls?: "first" | "last"
+    }
+
 /** Normalized table-level option record. */
 export type TableOptionSpec =
   | {
       readonly kind: "index"
-      readonly columns: ColumnList
+      readonly columns?: ColumnList
+      readonly name?: string
+      readonly unique?: boolean
+      readonly method?: string
+      readonly include?: readonly string[]
+      readonly predicate?: DdlExpressionLike
+      readonly keys?: readonly [IndexKeySpec, ...IndexKeySpec[]]
     }
   | {
       readonly kind: "unique"
       readonly columns: ColumnList
+      readonly name?: string
+      readonly nullsNotDistinct?: boolean
+      readonly deferrable?: boolean
+      readonly initiallyDeferred?: boolean
     }
   | {
       readonly kind: "primaryKey"
       readonly columns: ColumnList
+      readonly name?: string
+      readonly deferrable?: boolean
+      readonly initiallyDeferred?: boolean
     }
   | {
       readonly kind: "foreignKey"
       readonly columns: ColumnList
+      readonly name?: string
       readonly references: () => {
         readonly tableName: string
         readonly schemaName?: string
         readonly columns: ColumnList
         readonly knownColumns?: readonly string[]
       }
+      readonly onUpdate?: ReferentialAction
+      readonly onDelete?: ReferentialAction
+      readonly deferrable?: boolean
+      readonly initiallyDeferred?: boolean
     }
   | {
       readonly kind: "check"
       readonly name: string
-      readonly predicate: AnyExpression
+      readonly predicate: DdlExpressionLike
+      readonly noInherit?: boolean
     }
 
 /** Thin wrapper used by the public `Table.*` option builders. */
@@ -174,17 +212,20 @@ export const validateOptions = <Fields extends TableFieldMap>(
       case "primaryKey":
       case "unique":
       case "foreignKey": {
-        if (option.columns.length === 0) {
+        const columns = option.kind === "index"
+          ? option.columns ?? []
+          : option.columns
+        if (columns.length === 0 && option.kind !== "index") {
           throw new Error(`Option '${option.kind}' on table '${tableName}' requires at least one column`)
         }
-        for (const column of option.columns) {
+        for (const column of columns) {
           if (!knownColumns.has(column)) {
             throw new Error(`Unknown column '${column}' on table '${tableName}'`)
           }
         }
         if (option.kind === "foreignKey") {
           const reference = option.references()
-          if (reference.columns.length !== option.columns.length) {
+          if (reference.columns.length !== columns.length) {
             throw new Error(`Foreign key on table '${tableName}' must reference the same number of columns`)
           }
           if (reference.knownColumns) {
@@ -194,6 +235,21 @@ export const validateOptions = <Fields extends TableFieldMap>(
                 throw new Error(`Unknown referenced column '${column}' on table '${reference.tableName}'`)
               }
             }
+          }
+        }
+        if (option.kind === "index") {
+          for (const column of option.include ?? []) {
+            if (!knownColumns.has(column)) {
+              throw new Error(`Unknown included column '${column}' on table '${tableName}'`)
+            }
+          }
+          for (const key of option.keys ?? []) {
+            if (key.kind === "column" && !knownColumns.has(key.column)) {
+              throw new Error(`Unknown index key column '${key.column}' on table '${tableName}'`)
+            }
+          }
+          if (option.columns === undefined && (option.keys === undefined || option.keys.length === 0)) {
+            throw new Error(`Index on table '${tableName}' requires at least one column or key`)
           }
         }
         break

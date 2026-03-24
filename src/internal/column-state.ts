@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 
 import * as Expression from "./expression.js"
 import * as ExpressionAst from "./expression-ast.js"
+import type * as SchemaExpression from "./schema-expression.js"
 
 /** Symbol used to attach column-definition metadata. */
 export const ColumnTypeId: unique symbol = Symbol.for("effect-qb/Column")
@@ -11,6 +12,8 @@ export const BoundColumnTypeId: unique symbol = Symbol.for("effect-qb/BoundColum
 
 export type ColumnTypeId = typeof ColumnTypeId
 export type BoundColumnTypeId = typeof BoundColumnTypeId
+
+export type DdlExpression = Expression.Any | SchemaExpression.Any
 
 /** Lazy reference to another bound column. */
 export interface ColumnReference<Target = unknown> {
@@ -42,8 +45,12 @@ export interface ColumnState<
   readonly primaryKey: PrimaryKey
   readonly unique: Unique
   readonly references: Ref
-  readonly defaultValue?: Expression.Any
-  readonly generatedValue?: Expression.Any
+  readonly defaultValue?: DdlExpression
+  readonly generatedValue?: DdlExpression
+  readonly ddlType?: string
+  readonly identity?: {
+    readonly generation: "always" | "byDefault"
+  }
   readonly source: Source
   readonly dependencies: Dependencies
 }
@@ -95,8 +102,12 @@ export interface ColumnDefinition<
     readonly primaryKey: PrimaryKey
     readonly unique: Unique
     readonly references: Ref
-    readonly defaultValue?: Expression.Any
-    readonly generatedValue?: Expression.Any
+    readonly defaultValue?: DdlExpression
+    readonly generatedValue?: DdlExpression
+    readonly ddlType?: string
+    readonly identity?: {
+      readonly generation: "always" | "byDefault"
+    }
   }
 }
 
@@ -255,6 +266,8 @@ export const makeColumnDefinition = <
     references: metadata.references,
     defaultValue: metadata.defaultValue,
     generatedValue: metadata.generatedValue,
+    ddlType: metadata.ddlType,
+    identity: metadata.identity,
     source: undefined as Source,
     dependencies: {} as Dependencies
   }
@@ -346,7 +359,9 @@ export const remapColumnDefinition = <
     unique: metadata.unique,
     references: metadata.references,
     defaultValue: metadata.defaultValue,
-    generatedValue: metadata.generatedValue
+    generatedValue: metadata.generatedValue,
+    ddlType: metadata.ddlType,
+    identity: metadata.identity
   }
   if (ExpressionAst.TypeId in column) {
     next[ExpressionAst.TypeId] = (column as unknown as {

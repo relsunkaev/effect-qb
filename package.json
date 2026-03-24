@@ -2,6 +2,9 @@
   "name": "effect-qb",
   "version": "0.13.0",
   "type": "module",
+  "bin": {
+    "effect-qb": "./dist/cli.js"
+  },
   "files": [
     "dist",
     "src",
@@ -16,6 +19,10 @@
     "./mysql": {
       "types": "./src/mysql.ts",
       "import": "./dist/mysql.js"
+    },
+    "./cli": {
+      "types": "./src/cli.ts",
+      "import": "./dist/cli.js"
     },
     "./package.json": "./package.json"
   },
@@ -42,8 +49,13 @@
     "@typescript/native-preview": "latest"
   },
   "dependencies": {
+    "@effect/cli": "^0.75.0",
     "@effect/experimental": "^0.57.0",
+    "@effect/platform": "^0.96.0",
+    "@effect/platform-bun": "^0.89.0",
     "@effect/sql": "^0.48.0",
-    "effect": "^3.19.3"
+    "effect": "^3.19.3",
+    "pgsql-ast-parser": "^12.0.2",
+    "typescript": "^6.0.2"
   }
 }

@@ -20,6 +20,7 @@ const main = async () => {
     "external",
     "--root",
     "src",
+    "src/cli.ts",
     "src/postgres.ts",
     "src/mysql.ts"
   ], {

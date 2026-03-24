@@ -7,6 +7,8 @@ import * as ExpressionAst from "./expression-ast.js"
 import * as JsonPath from "./json/path.js"
 import { flattenSelection, type Projection } from "./projections.js"
 import { type SelectionValue, validateAggregationSelection } from "./aggregation-validation.js"
+import * as SchemaExpression from "./schema-expression.js"
+import type { DdlExpressionLike } from "./table-options.js"
 
 const renderDbType = (
   dialect: SqlDialect,
@@ -44,6 +46,15 @@ const renderCastType = (
   }
 }
 
+const renderDdlExpression = (
+  expression: DdlExpressionLike,
+  state: RenderState,
+  dialect: SqlDialect
+): string =>
+  SchemaExpression.isSchemaExpression(expression)
+    ? SchemaExpression.render(expression)
+    : renderExpression(expression, state, dialect)
+
 const renderColumnDefinition = (
   dialect: SqlDialect,
   state: RenderState,
@@ -52,25 +63,19 @@ const renderColumnDefinition = (
 ): string => {
   const clauses = [
     dialect.quoteIdentifier(columnName),
-    renderDbType(dialect, column.metadata.dbType)
+    column.metadata.ddlType ?? renderDbType(dialect, column.metadata.dbType)
   ]
-  if (column.metadata.generatedValue) {
-    clauses.push(`generated always as (${renderExpression(column.metadata.generatedValue, state, dialect)}) stored`)
+  if (column.metadata.identity) {
+    clauses.push(`generated ${column.metadata.identity.generation === "byDefault" ? "by default" : "always"} as identity`)
+  } else if (column.metadata.generatedValue) {
+    clauses.push(`generated always as (${renderDdlExpression(column.metadata.generatedValue, state, dialect)}) stored`)
   } else if (column.metadata.defaultValue) {
-    clauses.push(`default ${renderExpression(column.metadata.defaultValue, state, dialect)}`)
+    clauses.push(`default ${renderDdlExpression(column.metadata.defaultValue, state, dialect)}`)
   }
   if (!column.metadata.nullable) {
     clauses.push("not null")
   }
   return clauses.join(" ")
-}
-
-const renderCheckPredicate = (
-  predicate: Expression.Any,
-  state: RenderState,
-  dialect: SqlDialect
-): string => {
-  return renderExpression(predicate, state, dialect)
 }
 
 const renderCreateTableSql = (
@@ -87,21 +92,21 @@ const renderCreateTableSql = (
   for (const option of table[Table.OptionsSymbol]) {
     switch (option.kind) {
       case "primaryKey":
-        definitions.push(`primary key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`)
+        definitions.push(`${option.name ? `constraint ${dialect.quoteIdentifier(option.name)} ` : ""}primary key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`)
         break
       case "unique":
-        definitions.push(`unique (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`)
+        definitions.push(`${option.name ? `constraint ${dialect.quoteIdentifier(option.name)} ` : ""}unique${option.nullsNotDistinct ? " nulls not distinct" : ""} (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`)
         break
       case "foreignKey": {
         const reference = option.references()
         definitions.push(
-          `foreign key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")}) references ${dialect.renderTableReference(reference.tableName, reference.tableName, reference.schemaName)} (${reference.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+          `${option.name ? `constraint ${dialect.quoteIdentifier(option.name)} ` : ""}foreign key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")}) references ${dialect.renderTableReference(reference.tableName, reference.tableName, reference.schemaName)} (${reference.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${option.onDelete ? ` on delete ${option.onDelete.replace(/[A-Z]/g, (value) => ` ${value.toLowerCase()}`).trim()}` : ""}${option.onUpdate ? ` on update ${option.onUpdate.replace(/[A-Z]/g, (value) => ` ${value.toLowerCase()}`).trim()}` : ""}${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`
         )
         break
       }
       case "check":
         definitions.push(
-          `constraint ${dialect.quoteIdentifier(option.name)} check (${renderCheckPredicate(option.predicate, state, dialect)})`
+          `constraint ${dialect.quoteIdentifier(option.name)} check (${renderDdlExpression(option.predicate, state, dialect)})${option.noInherit ? " no inherit" : ""}`
         )
         break
       case "index":

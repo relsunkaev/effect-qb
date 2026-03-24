@@ -10,7 +10,10 @@ import {
   normalizeColumnList,
   resolvePrimaryKeyColumns,
   type DeclaredTableOptions as InternalDeclaredTableOptions,
+  type DdlExpressionLike,
+  type IndexKeySpec,
   type NormalizeColumns,
+  type ReferentialAction,
   type TableOptionSpec,
   type ValidateKnownColumns,
   type ValidatePrimaryKeyColumns,
@@ -121,6 +124,7 @@ export interface TableSchemaNamespace<SchemaName extends string> {
 }
 
 export type DeclaredTableOptions = InternalDeclaredTableOptions
+export type { DdlExpressionLike, IndexKeySpec, NormalizeColumns, ReferentialAction } from "./table-options.js"
 
 export type TableDefinition<
   Name extends string,
@@ -383,6 +387,9 @@ const makeOption = <Spec extends TableOptionSpec>(option: Spec): TableOption<Spe
   ;(builder as { option: Spec }).option = option
   return builder
 }
+
+export const option = <Spec extends TableOptionSpec>(spec: Spec): TableOption<Spec> =>
+  makeOption(spec)
 
 /** Creates a table definition from a name and field map. */
 export function make<
@@ -650,11 +657,11 @@ export const foreignKey = <
 /** Declares a check constraint expression. */
 export const check = <Name extends string>(
   name: Name,
-  predicate: AnyExpression
+  predicate: DdlExpressionLike
 ): TableOption<{
   readonly kind: "check"
   readonly name: Name
-  readonly predicate: AnyExpression
+  readonly predicate: DdlExpressionLike
 }> => makeOption({
   kind: "check",
   name,
