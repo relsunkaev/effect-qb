@@ -20,6 +20,7 @@ import { runPostgresUrl } from "./internal/postgres-runtime.js"
 import { planPostgresSchemaDiff, type SchemaChange, type SchemaPlan } from "./internal/postgres-schema-diff.js"
 import { introspectPostgresSchema } from "./internal/postgres-introspector.js"
 import { discoverSourceSchema } from "./internal/postgres-source-discovery.js"
+import { tableKey, type SchemaModel } from "./internal/postgres-schema-model.js"
 
 const toError = (cause: unknown): Error =>
   cause instanceof Error
@@ -115,6 +116,24 @@ const withLoadedConfig = <A>(
     })
   })
 
+const managedMigrationTableKey = (tableName: string): string => {
+  const parts = tableName.split(".")
+  return parts.length === 1
+    ? tableKey(undefined, parts[0]!)
+    : tableKey(parts[0], parts.slice(1).join("."))
+}
+
+const withoutManagedMigrationTable = (
+  model: SchemaModel,
+  migrationTableName: string
+): SchemaModel => {
+  const ignoredKey = managedMigrationTableKey(migrationTableName)
+  return {
+    ...model,
+    tables: model.tables.filter((table) => tableKey(table.schemaName, table.name) !== ignoredKey)
+  }
+}
+
 const loadSchemaPlan = (
   cwd: string,
   config: Awaited<ReturnType<typeof loadPostgresConfig>>["config"],
@@ -125,7 +144,10 @@ const loadSchemaPlan = (
 }> =>
   (async () => {
     const discovered = await discoverSourceSchema(cwd, config.source)
-    const database = await runPostgresUrl(databaseUrl, introspectPostgresSchema(config.filter))
+    const database = withoutManagedMigrationTable(
+      await runPostgresUrl(databaseUrl, introspectPostgresSchema(config.filter)),
+      config.migrations.table
+    )
     return {
       plan: planPostgresSchemaDiff(discovered.model, database),
       discovered
@@ -186,7 +208,10 @@ const pull = Command.make(
         const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
         const discovered = await discoverSourceSchema(loaded.cwd, loaded.config.source)
-        const database = await runPostgresUrl(databaseUrl, introspectPostgresSchema(loaded.config.filter))
+        const database = withoutManagedMigrationTable(
+          await runPostgresUrl(databaseUrl, introspectPostgresSchema(loaded.config.filter)),
+          loaded.config.migrations.table
+        )
         const plan = await planPostgresPull(loaded.cwd, discovered, database)
         return { loaded, database, discovered, plan }
       })
