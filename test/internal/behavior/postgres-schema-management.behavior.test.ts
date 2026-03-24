@@ -136,4 +136,31 @@ const users = Table.make("users", {
       await rm(tempDir, { recursive: true, force: true })
     }
   })
+
+  test("rejects duplicate discovered table identities across source files", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-"))
+    try {
+      await Bun.write(join(tempDir, "users-a.ts"), `
+import { Column as C, Table } from "#postgres"
+
+export const users = Table.make("users", {
+  id: C.uuid()
+})
+`)
+
+      await Bun.write(join(tempDir, "users-b.ts"), `
+import { Column as C, Table } from "#postgres"
+
+export const usersDuplicate = Table.make("users", {
+  id: C.uuid()
+})
+`)
+
+      await expect(discoverSourceSchema(repoRoot, {
+        include: [`${relative(repoRoot, tempDir).replaceAll("\\", "/")}/**/*.ts`]
+      })).rejects.toThrow("Duplicate discovered table identity 'public.users'")
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
 })

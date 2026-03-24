@@ -9,10 +9,7 @@ const cliEntry = join(repoRoot, "src", "cli.ts")
 
 const randomId = () => Math.random().toString(36).slice(2, 10)
 
-const makeWorkspace = async () => {
-  const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
-  const schemaName = `cli_it_${randomId()}`
-  await writeFile(join(workspace, "effect-qb.config.ts"), `
+const renderSchemaSource = (schemaName: string) => `
 import { SchemaManagement } from "#postgres"
 
 export default SchemaManagement.defineConfig({
@@ -34,21 +31,31 @@ export default SchemaManagement.defineConfig({
     nonDestructiveDefault: true
   }
 })
-`)
-  await writeFile(join(workspace, "schema.ts"), `
+`
+
+const renderTableSource = (
+  schemaName: string,
+  tableFields = `  id: C.text(),
+  email: C.text()`
+) => `
 import { Column as C, Table } from "#postgres"
 
 const db = Table.schema(${JSON.stringify(schemaName)})
 
 const users = db.table("users", {
-  id: C.text(),
-  email: C.text()
+${tableFields}
 }).pipe(
   Table.primaryKey("id")
 )
 
 export { users }
-`)
+`
+
+const makeWorkspace = async (tableFields?: string) => {
+  const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
+  const schemaName = `cli_it_${randomId()}`
+  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName))
+  await writeFile(join(workspace, "schema.ts"), renderTableSource(schemaName, tableFields))
   return {
     workspace,
     schemaName
@@ -87,6 +94,14 @@ const configFile = (workspace: string) => join(workspace, "effect-qb.config.ts")
 const readSchema = (workspace: string) => readFile(schemaFile(workspace), "utf8")
 const dropSchema = (schemaName: string) =>
   execPostgres(`drop schema if exists "${schemaName}" cascade`)
+const listColumns = (schemaName: string, tableName: string) =>
+  execPostgres(
+    `select column_name
+      from information_schema.columns
+      where table_schema = $1 and table_name = $2
+      order by ordinal_position`,
+    [schemaName, tableName]
+  )
 
 test("postgres cli supports push pull and migrations against a live database", async () => {
   const { workspace, schemaName } = await makeWorkspace()
@@ -151,12 +166,7 @@ test("postgres cli supports push pull and migrations against a live database", a
     expect(migrateUp.exitCode).toBe(0)
     expect(migrateUp.stdout).toContain("applied 1 migration(s)")
 
-    const userColumns = await execPostgres(`
-      select column_name
-      from information_schema.columns
-      where table_schema = '${schemaName}' and table_name = 'users'
-      order by ordinal_position
-    `)
+    const userColumns = await listColumns(schemaName, "users")
     expect(userColumns).toEqual([
       { column_name: "id" },
       { column_name: "email" },
@@ -176,6 +186,72 @@ test("postgres cli supports push pull and migrations against a live database", a
     const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
     expect(finalPushDryRun.exitCode).toBe(0)
     expect(finalPushDryRun.stdout).toContain("planned changes: none")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli blocks destructive push changes unless explicitly allowed", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const initialPush = await runCli("push", "--config", config)
+    expect(initialPush.exitCode).toBe(0)
+
+    await writeFile(
+      schemaFile(workspace),
+      renderTableSource(schemaName, `  id: C.text()`)
+    )
+
+    const safePush = await runCli("push", "--config", config)
+    expect(safePush.exitCode).toBe(0)
+    expect(safePush.stdout).toContain(`drop column ${schemaName}.users.email`)
+    expect(safePush.stdout).toContain("no executable statements selected")
+    expect(safePush.stdout).toContain("skipped changes:")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" },
+      { column_name: "email" }
+    ])
+
+    const destructivePush = await runCli("push", "--config", config, "--allow-destructive")
+    expect(destructivePush.exitCode).toBe(0)
+    expect(destructivePush.stdout).toContain("applied 1 statement(s)")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" }
+    ])
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli pull fails when the database has unmanaged tables", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+    const initialSchema = await readSchema(workspace)
+
+    const initialPush = await runCli("push", "--config", config)
+    expect(initialPush.exitCode).toBe(0)
+
+    await execPostgres(`
+      create table "${schemaName}"."profiles" (
+        "id" text not null primary key
+      );
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).not.toBe(0)
+    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`No source table declaration found for '${schemaName}.profiles'`)
+    expect(await readSchema(workspace)).toBe(initialSchema)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
