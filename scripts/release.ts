@@ -242,7 +242,7 @@ const renderChangelogSection = (version: string, commits: ReadonlyArray<Commit>)
 
   const sections = sectionOrder
     .filter((section) => (buckets.get(section)?.length ?? 0) > 0)
-    .map((section) => renderSection(sectionNames[section], buckets.get(section) ?? []))
+    .map((section) => renderSection(sectionNames[section] ?? section, buckets.get(section) ?? []))
 
   return [
     `## ${version} - ${releaseDate}`,
