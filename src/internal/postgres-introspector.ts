@@ -61,6 +61,7 @@ type IndexRow = {
   readonly indnkeyatts: number
   readonly indnatts: number
   readonly indkey: string
+  readonly indclass: string
   readonly indoption: string
 }
 
@@ -68,6 +69,11 @@ type IndexKeyRow = {
   readonly index_oid: number
   readonly position: number
   readonly key_sql: string
+}
+
+type OpclassRow = {
+  readonly oid: number
+  readonly opcdefault: boolean
 }
 
 type EnumRow = {
@@ -134,6 +140,17 @@ const stripOrderingSuffix = (value: string): {
     order,
     nulls
   }
+}
+
+const quoteIdentifier = (value: string): string =>
+  `"${value.replaceAll("\"", "\"\"")}"`
+
+const isSimpleIndexColumnReference = (
+  sql: string,
+  columnName: string
+): boolean => {
+  const trimmed = sql.trim()
+  return trimmed === columnName || trimmed === quoteIdentifier(columnName)
 }
 
 const parseExpression = (sql: string, context: string) => {
@@ -262,6 +279,7 @@ export const introspectPostgresSchema = (
           ind.indnkeyatts as indnkeyatts,
           ind.indnatts as indnatts,
           ind.indkey::text as indkey,
+          ind.indclass::text as indclass,
           ind.indoption::text as indoption
         from pg_index ind
         join pg_class idx on idx.oid = ind.indexrelid
@@ -288,6 +306,16 @@ export const introspectPostgresSchema = (
             where ind.indexrelid = any($1::oid[])
             order by ind.indexrelid, pos.n
           `, [indexOids])
+
+      const opclassOids = indexes.flatMap((index) => parseVector(index.indclass))
+      const opclassRows = opclassOids.length === 0
+        ? []
+        : yield* sql.unsafe<OpclassRow>(`
+            select oid, opcdefault
+            from pg_opclass
+            where oid = any($1::oid[])
+          `, [[...new Set(opclassOids)]])
+      const opclassDefaults = new Map(opclassRows.map((row) => [row.oid, row.opcdefault]))
 
       const enumTypeNames = columns
         .filter((column) => column.type_kind === "e")
@@ -394,25 +422,33 @@ export const introspectPostgresSchema = (
         const list = optionsByTable.get(key) ?? []
         const attnums = attnumByTable.get(key) ?? new Map<number, string>()
         const indkey = parseVector(index.indkey)
+        const indclass = parseVector(index.indclass)
         const indoption = parseVector(index.indoption)
         const keys = (keySqlByIndex.get(index.index_oid) ?? []).map((entry) => {
           const attnum = indkey[entry.position - 1] ?? 0
+          const opclass = indclass[entry.position - 1]
           const optionBits = indoption[entry.position - 1] ?? 0
           const order = (optionBits & 1) === 1 ? "desc" : "asc"
           const nulls = (optionBits & 2) === 2 ? "first" : "last"
+          const parsed = stripOrderingSuffix(entry.key_sql)
+          if (opclass !== undefined && opclassDefaults.get(opclass) === false) {
+            throw new Error(`Unsupported PostgreSQL index key definition '${entry.key_sql}' on ${index.index_name}`)
+          }
           if (attnum > 0) {
             const columnName = attnums.get(attnum)
             if (columnName === undefined) {
               throw new Error(`Unknown index column attnum '${attnum}' on ${key}`)
             }
+            if (!isSimpleIndexColumnReference(parsed.expressionSql, columnName)) {
+              throw new Error(`Unsupported PostgreSQL index key definition '${entry.key_sql}' on ${index.index_name}`)
+            }
             return {
               kind: "column" as const,
               column: columnName,
-              order,
-              nulls
+              order: parsed.order ?? order,
+              nulls: parsed.nulls ?? nulls
             }
           }
-          const parsed = stripOrderingSuffix(entry.key_sql)
           return {
             kind: "expression" as const,
             expression: parseExpression(parsed.expressionSql, `index ${index.index_name}`),
