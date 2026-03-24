@@ -398,6 +398,75 @@ export const users = db.table("users", {
   }
 }, 30000)
 
+test("postgres cli migrate generate can split safe and destructive changes", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const initialPush = await runCli("push", "--config", config)
+    expect(initialPush.exitCode).toBe(0)
+
+    await writeFile(
+      schemaFile(workspace),
+      renderTableSource(schemaName, `  id: C.text(),\n  nickname: C.text().pipe(C.nullable)`)
+    )
+
+    const safeGenerate = await runCli("migrate", "generate", "--config", config, "--name", "safe_phase")
+    expect(safeGenerate.exitCode).toBe(0)
+    expect(safeGenerate.stdout).toContain("wrote 0001_safe_phase.sql")
+    expect(safeGenerate.stdout).toContain(`drop column ${schemaName}.users.email`)
+    expect(safeGenerate.stdout).toContain("skipped changes:")
+
+    const safeSql = await readFile(join(workspace, "migrations", "0001_safe_phase.sql"), "utf8")
+    expect(safeSql).toContain(`alter table "${schemaName}"."users" add column "nickname" text;`)
+    expect(safeSql).not.toContain(`drop column "email"`)
+
+    const safeUp = await runCli("migrate", "up", "--config", config)
+    expect(safeUp.exitCode).toBe(0)
+    expect(safeUp.stdout).toContain("applied 1 migration(s)")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" },
+      { column_name: "email" },
+      { column_name: "nickname" }
+    ])
+
+    const destructiveGenerate = await runCli(
+      "migrate",
+      "generate",
+      "--config",
+      config,
+      "--allow-destructive",
+      "--name",
+      "destructive_phase"
+    )
+    expect(destructiveGenerate.exitCode).toBe(0)
+    expect(destructiveGenerate.stdout).toContain("wrote 0002_destructive_phase.sql")
+
+    const destructiveSql = await readFile(join(workspace, "migrations", "0002_destructive_phase.sql"), "utf8")
+    expect(destructiveSql).toContain(`alter table "${schemaName}"."users" drop column "email";`)
+    expect(destructiveSql).not.toContain(`add column "nickname"`)
+
+    const destructiveUp = await runCli("migrate", "up", "--config", config)
+    expect(destructiveUp.exitCode).toBe(0)
+    expect(destructiveUp.stdout).toContain("applied 1 migration(s)")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" },
+      { column_name: "nickname" }
+    ])
+
+    const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
+    expect(finalPushDryRun.exitCode).toBe(0)
+    expect(finalPushDryRun.stdout).toContain("planned changes: none")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
 test("postgres cli pull fails when the database has unmanaged tables", async () => {
   const { workspace, schemaName } = await makeWorkspace()
   try {
