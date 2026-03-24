@@ -47,6 +47,7 @@ type ConstraintRow = {
   readonly initially_deferred: boolean
   readonly check_sql: string | null
   readonly no_inherit: boolean
+  readonly nulls_not_distinct: boolean
   readonly on_update: string
   readonly on_delete: string
 }
@@ -258,6 +259,7 @@ export const introspectPostgresSchema = (
           con.condeferred as initially_deferred,
           case when con.contype = 'c' then pg_get_expr(con.conbin, con.conrelid, true) else null end as check_sql,
           con.connoinherit as no_inherit,
+          coalesce(conind.indnullsnotdistinct, false) as nulls_not_distinct,
           con.confupdtype as on_update,
           con.confdeltype as on_delete
         from pg_constraint con
@@ -265,6 +267,7 @@ export const introspectPostgresSchema = (
         join pg_namespace n on n.oid = c.relnamespace
         left join pg_class fc on fc.oid = con.confrelid
         left join pg_namespace fn on fn.oid = fc.relnamespace
+        left join pg_index conind on conind.indexrelid = con.conindid
         where c.oid = any($1::oid[])
           and con.contype in ('p', 'u', 'f', 'c')
         order by n.nspname, c.relname, con.conname
@@ -385,6 +388,7 @@ export const introspectPostgresSchema = (
               kind: "unique",
               name: constraint.constraint_name,
               columns: localColumns as [string, ...string[]],
+              nullsNotDistinct: constraint.nulls_not_distinct,
               deferrable: constraint.deferrable,
               initiallyDeferred: constraint.initially_deferred
             })
