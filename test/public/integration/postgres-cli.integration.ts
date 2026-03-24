@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { dirname, join } from "node:path"
 
 import { execPostgres } from "./helpers.ts"
 
@@ -10,29 +10,43 @@ const postgresUrl = "postgres://effect_qb:effect_qb@127.0.0.1:55432/effect_qb_te
 
 const randomId = () => Math.random().toString(36).slice(2, 10)
 
+type ConfigOptions = {
+  readonly databaseUrl?: string
+  readonly include?: readonly string[]
+  readonly exclude?: readonly string[]
+  readonly filter?: {
+    readonly schemas?: readonly string[]
+    readonly tables?: readonly string[]
+  }
+  readonly migrationsDir?: string
+  readonly migrationsTable?: string
+  readonly nonDestructiveDefault?: boolean
+}
+
 const renderSchemaSource = (
   schemaName: string,
-  databaseUrl = postgresUrl
+  options: ConfigOptions = {}
 ) => `
 import { SchemaManagement } from "#postgres"
 
 export default SchemaManagement.defineConfig({
   dialect: "postgres",
   db: {
-    url: ${JSON.stringify(databaseUrl)}
+    url: ${JSON.stringify(options.databaseUrl ?? postgresUrl)}
   },
   source: {
-    include: ["schema.ts"]
+    include: ${JSON.stringify(options.include ?? ["schema.ts"])}${options.exclude ? `,\n    exclude: ${JSON.stringify(options.exclude)}` : ""}
   },
-  filter: {
-    schemas: [${JSON.stringify(schemaName)}]
-  },
+  filter: ${JSON.stringify({
+    schemas: options.filter?.schemas ?? [schemaName],
+    tables: options.filter?.tables
+  })},
   migrations: {
-    dir: "migrations",
-    table: ${JSON.stringify(`${schemaName}.effect_qb_migrations`)}
+    dir: ${JSON.stringify(options.migrationsDir ?? "migrations")},
+    table: ${JSON.stringify(options.migrationsTable ?? `${schemaName}.effect_qb_migrations`)}
   },
   safety: {
-    nonDestructiveDefault: true
+    nonDestructiveDefault: ${String(options.nonDestructiveDefault ?? true)}
   }
 })
 `
@@ -61,7 +75,9 @@ const makeWorkspace = async (
 ) => {
   const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
   const schemaName = `cli_it_${randomId()}`
-  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName, databaseUrl))
+  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName, {
+    databaseUrl
+  }))
   await writeFile(join(workspace, "schema.ts"), renderTableSource(schemaName, tableFields))
   return {
     workspace,
@@ -75,8 +91,28 @@ const makeSourceWorkspace = async (
 ) => {
   const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
   const schemaName = `cli_it_${randomId()}`
-  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName, databaseUrl))
+  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName, {
+    databaseUrl
+  }))
   await writeFile(join(workspace, "schema.ts"), source.replaceAll("__SCHEMA__", schemaName))
+  return {
+    workspace,
+    schemaName
+  }
+}
+
+const makeWorkspaceWithFiles = async (
+  files: Readonly<Record<string, string>>,
+  configOptions: ConfigOptions = {}
+) => {
+  const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
+  const schemaName = `cli_it_${randomId()}`
+  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName, configOptions))
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const absolutePath = join(workspace, relativePath)
+    await mkdir(dirname(absolutePath), { recursive: true })
+    await writeFile(absolutePath, contents.replaceAll("__SCHEMA__", schemaName))
+  }
   return {
     workspace,
     schemaName
@@ -467,6 +503,153 @@ test("postgres cli migrate generate can split safe and destructive changes", asy
   }
 }, 30000)
 
+test("postgres cli applies pending migrations from alternate dirs and tables in order", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName, {
+      databaseUrl: postgresUrl,
+      migrationsDir: "db/migrations",
+      migrationsTable: `${schemaName}.migration_log`
+    }))
+
+    const config = configFile(workspace)
+
+    const initialPush = await runCli("push", "--config", config)
+    expect(initialPush.exitCode).toBe(0)
+
+    await mkdir(join(workspace, "db", "migrations"), { recursive: true })
+    await Bun.write(join(workspace, "db", "migrations", "0002_add_nickname.sql"), `alter table "${schemaName}"."users" add column "nickname" text;\n`)
+    await Bun.write(join(workspace, "db", "migrations", "0010_add_title.sql"), `alter table "${schemaName}"."users" add column "title" text;\n`)
+    await Bun.write(join(workspace, "db", "migrations", "0001_add_slug.sql"), `alter table "${schemaName}"."users" add column "slug" text;\n`)
+
+    const migrateUp = await runCli("migrate", "up", "--config", config)
+    expect(migrateUp.exitCode).toBe(0)
+    expect(migrateUp.stdout).toContain("applied 3 migration(s)")
+    expect(migrateUp.stdout).toContain("0001_add_slug.sql")
+    expect(migrateUp.stdout).toContain("0002_add_nickname.sql")
+    expect(migrateUp.stdout).toContain("0010_add_title.sql")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" },
+      { column_name: "email" },
+      { column_name: "slug" },
+      { column_name: "nickname" },
+      { column_name: "title" }
+    ])
+
+    const recordedMigrations = await execPostgres(`
+      select name
+      from "${schemaName}"."migration_log"
+      order by name
+    `)
+    expect(recordedMigrations).toEqual([
+      { name: "0001_add_slug.sql" },
+      { name: "0002_add_nickname.sql" },
+      { name: "0010_add_title.sql" }
+    ])
+
+    const secondUp = await runCli("migrate", "up", "--config", config)
+    expect(secondUp.exitCode).toBe(0)
+    expect(secondUp.stdout).toContain("no pending migrations")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli surfaces manual enum changes during push and migrate generate", async () => {
+  const { workspace, schemaName } = await makeSourceWorkspace(`
+import * as Schema from "effect/Schema"
+import { Column as C, Query as Q, SchemaManagement, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+const types = SchemaManagement.schema("__SCHEMA__")
+
+const status = types.enumType("status", ["pending", "active"] as const)
+
+export const users = db.table("users", {
+  id: C.text(),
+  status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\""))
+}).pipe(
+  Table.primaryKey("id")
+)
+
+export { status }
+`)
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const initialPush = await runCli("push", "--config", config)
+    expect(initialPush.exitCode).toBe(0)
+
+    await writeFile(schemaFile(workspace), `
+import * as Schema from "effect/Schema"
+import { Column as C, Query as Q, SchemaManagement, Table } from "#postgres"
+
+const db = Table.schema(${JSON.stringify(schemaName)})
+const types = SchemaManagement.schema(${JSON.stringify(schemaName)})
+
+const status = types.enumType("status", ["pending"] as const)
+
+export const users = db.table("users", {
+  id: C.text(),
+  status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
+}).pipe(
+  Table.primaryKey("id")
+)
+
+export { status }
+`)
+
+    const shrinkPush = await runCli("push", "--config", config)
+    expect(shrinkPush.exitCode).toBe(0)
+    expect(shrinkPush.stdout).toContain(`manual enum migration required for ${schemaName}.status`)
+    expect(shrinkPush.stdout).toContain("no executable statements selected")
+    expect(shrinkPush.stdout).toContain("skipped changes:")
+
+    const shrinkGenerate = await runCli("migrate", "generate", "--config", config, "--name", "enum_shrink")
+    expect(shrinkGenerate.exitCode).toBe(0)
+    expect(shrinkGenerate.stdout).toContain("no executable migration changes selected")
+    expect(shrinkGenerate.stdout).toContain(`manual enum migration required for ${schemaName}.status`)
+
+    await writeFile(schemaFile(workspace), `
+import * as Schema from "effect/Schema"
+import { Column as C, Query as Q, SchemaManagement, Table } from "#postgres"
+
+const db = Table.schema(${JSON.stringify(schemaName)})
+const types = SchemaManagement.schema(${JSON.stringify(schemaName)})
+
+const status = types.enumType("status", ["active", "pending"] as const)
+
+export const users = db.table("users", {
+  id: C.text(),
+  status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
+}).pipe(
+  Table.primaryKey("id")
+)
+
+export { status }
+`)
+
+    const reorderPush = await runCli("push", "--config", config)
+    expect(reorderPush.exitCode).toBe(0)
+    expect(reorderPush.stdout).toContain(`manual enum migration required for ${schemaName}.status`)
+    expect(reorderPush.stdout).toContain("no executable statements selected")
+
+    const reorderGenerate = await runCli("migrate", "generate", "--config", config, "--name", "enum_reorder")
+    expect(reorderGenerate.exitCode).toBe(0)
+    expect(reorderGenerate.stdout).toContain("no executable migration changes selected")
+    expect(reorderGenerate.stdout).toContain(`manual enum migration required for ${schemaName}.status`)
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
 test("postgres cli pull fails when the database has unmanaged tables", async () => {
   const { workspace, schemaName } = await makeWorkspace()
   try {
@@ -494,6 +677,54 @@ test("postgres cli pull fails when the database has unmanaged tables", async () 
   }
 }, 30000)
 
+test("postgres cli pull fails when filtered tables reference missing source targets", async () => {
+  const { workspace, schemaName } = await makeWorkspaceWithFiles({
+    "schema.ts": `
+import { Column as C, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+
+export const users = db.table("users", {
+  id: C.uuid(),
+  email: C.text()
+}).pipe(
+  Table.primaryKey("id")
+)
+`
+  }, {
+    databaseUrl: postgresUrl,
+    filter: {
+      tables: ["users"]
+    }
+  })
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      create table "${schemaName}"."orgs" (
+        "id" uuid not null primary key
+      );
+
+      alter table "${schemaName}"."users"
+      add column "orgId" uuid,
+      add constraint "users_org_id_fkey"
+      foreign key ("orgId") references "${schemaName}"."orgs" ("id");
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).not.toBe(0)
+    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`Cannot render foreign key from ${schemaName}.users to missing source table '${schemaName}.orgs'`)
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
 test("postgres cli accepts --url overrides over the configured database url", async () => {
   const { workspace, schemaName } = await makeWorkspace(
     undefined,
@@ -504,6 +735,10 @@ test("postgres cli accepts --url overrides over the configured database url", as
 
     const config = configFile(workspace)
 
+    const failedPush = await runCli("push", "--config", config)
+    expect(failedPush.exitCode).not.toBe(0)
+    expect(`${failedPush.stdout}\n${failedPush.stderr}`).toContain("PgClient: Failed to connect")
+
     const push = await runCli("push", "--config", config, "--url", postgresUrl)
     expect(push.exitCode).toBe(0)
     expect(push.stdout).toContain("applied 2 statement(s)")
@@ -513,6 +748,138 @@ test("postgres cli accepts --url overrides over the configured database url", as
       [schemaName]
     )
     expect(createdTables).toEqual([{ tablename: "users" }])
+
+    await execPostgres(`
+      alter table "${schemaName}"."users" add column "name" text;
+    `)
+
+    const pull = await runCli("pull", "--config", config, "--url", postgresUrl)
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain("updated 1 file(s)")
+
+    const pulledSchema = await readSchema(workspace)
+    expect(pulledSchema).toContain(`name: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)`)
+
+    await writeFile(
+      schemaFile(workspace),
+      pulledSchema.replace(
+        `    name: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)\n`,
+        `    name: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable),\n    nickname: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)\n`
+      )
+    )
+
+    const migrateGenerate = await runCli("migrate", "generate", "--config", config, "--url", postgresUrl, "--name", "override_path")
+    expect(migrateGenerate.exitCode).toBe(0)
+    expect(migrateGenerate.stdout).toContain("wrote 0001_override_path.sql")
+
+    const migrateUp = await runCli("migrate", "up", "--config", config, "--url", postgresUrl)
+    expect(migrateUp.exitCode).toBe(0)
+    expect(migrateUp.stdout).toContain("applied 1 migration(s)")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" },
+      { column_name: "email" },
+      { column_name: "name" },
+      { column_name: "nickname" }
+    ])
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli honors source include exclude and table filters across multiple files", async () => {
+  const { workspace, schemaName } = await makeWorkspaceWithFiles({
+    "tables/users.ts": `
+import { Column as C, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+
+export const users = db.table("users", {
+  id: C.text(),
+  email: C.text()
+}).pipe(
+  Table.primaryKey("id")
+)
+`,
+    "tables/orgs.ts": `
+import { Column as C, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+
+export const orgs = db.table("orgs", {
+  id: C.text(),
+  name: C.text()
+}).pipe(
+  Table.primaryKey("id")
+)
+`,
+    "tables/ignored.ts": `
+import { Column as C, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+
+export const audits = db.table("audits", {
+  id: C.text()
+}).pipe(
+  Table.primaryKey("id")
+)
+`
+  }, {
+    databaseUrl: postgresUrl,
+    include: ["tables/**/*.ts"],
+    exclude: ["tables/ignored.ts"],
+    filter: {
+      tables: ["users", "orgs"]
+    }
+  })
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    const createdTables = await execPostgres(
+      `select tablename from pg_tables where schemaname = $1 order by tablename`,
+      [schemaName]
+    )
+    expect(createdTables).toEqual([
+      { tablename: "orgs" },
+      { tablename: "users" }
+    ])
+
+    await execPostgres(`
+      create table "${schemaName}"."audits" (
+        "id" text not null primary key
+      );
+
+      alter table "${schemaName}"."users" add column "nickname" text;
+      alter table "${schemaName}"."orgs" add column "slug" text;
+    `)
+
+    const pullDryRun = await runCli("pull", "--config", config, "--dry-run")
+    expect(pullDryRun.exitCode).toBe(0)
+    expect(pullDryRun.stdout).toContain("update tables/orgs.ts")
+    expect(pullDryRun.stdout).toContain("update tables/users.ts")
+    expect(pullDryRun.stdout).not.toContain("ignored.ts")
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain("updated 2 file(s)")
+
+    expect(await readFile(join(workspace, "tables", "users.ts"), "utf8")).toContain("nickname")
+    expect(await readFile(join(workspace, "tables", "orgs.ts"), "utf8")).toContain("slug")
+    expect(await readFile(join(workspace, "tables", "ignored.ts"), "utf8")).not.toContain("__EffectQbPullColumn")
+
+    const secondPullDryRun = await runCli("pull", "--config", config, "--dry-run")
+    expect(secondPullDryRun.exitCode).toBe(0)
+    expect(secondPullDryRun.stdout).toContain("schema definitions are already up to date")
+
+    const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
+    expect(finalPushDryRun.exitCode).toBe(0)
+    expect(finalPushDryRun.stdout).toContain("planned changes: none")
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
@@ -651,6 +1018,55 @@ export { status, orgs, users }
     const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
     expect(finalPushDryRun.exitCode).toBe(0)
     expect(finalPushDryRun.stdout).toContain("planned changes: none")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli pulls supported checks and deferrable constraints into canonical source definitions", async () => {
+  const { workspace, schemaName } = await makeSourceWorkspace(`
+import { Column as C, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+
+export const users = db.table("users", {
+  id: C.int(),
+  email: C.text()
+})
+`)
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      alter table "${schemaName}"."users"
+      add constraint "users_pkey" primary key ("id") deferrable initially deferred,
+      add constraint "users_email_key" unique ("email") deferrable initially deferred,
+      add constraint "users_email_check" check ("email" <> 'blocked') no inherit;
+    `)
+
+    const pullDryRun = await runCli("pull", "--config", config, "--dry-run")
+    expect(pullDryRun.exitCode).toBe(0)
+    expect(pullDryRun.stdout).toContain("update schema.ts")
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain("updated 1 file(s)")
+
+    const pulledSchema = await readSchema(workspace)
+    expect(pulledSchema).toContain(`users_pkey`)
+    expect(pulledSchema).toContain(`deferrable: true`)
+    expect(pulledSchema).toContain(`initiallyDeferred: true`)
+    expect(pulledSchema).toContain(`users_email_key`)
+    expect(pulledSchema).toContain(`users_email_check`)
+    expect(pulledSchema).toContain(`noInherit: true`)
+
+    await assertIdempotentPullPush(config)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })

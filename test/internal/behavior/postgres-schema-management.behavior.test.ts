@@ -75,6 +75,39 @@ describe("postgres schema management", () => {
     expect(plan.unsafeChanges.some((change) => change.kind === "dropColumn" && change.summary.includes("legacy_flag"))).toBe(true)
   })
 
+  test("classifies enum shrink and reorder as manual destructive changes", () => {
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [toEnumModel(SchemaManagement.enumType("status", ["pending", "active"] as const))],
+      tables: []
+    }
+
+    const shrink = planPostgresSchemaDiff({
+      dialect: "postgres",
+      enums: [toEnumModel(SchemaManagement.enumType("status", ["pending"] as const))],
+      tables: []
+    }, database)
+
+    const reorder = planPostgresSchemaDiff({
+      dialect: "postgres",
+      enums: [toEnumModel(SchemaManagement.enumType("status", ["active", "pending"] as const))],
+      tables: []
+    }, database)
+
+    expect(shrink.manualChanges).toEqual([
+      expect.objectContaining({
+        kind: "manual",
+        summary: "manual enum migration required for public.status"
+      })
+    ])
+    expect(reorder.manualChanges).toEqual([
+      expect.objectContaining({
+        kind: "manual",
+        summary: "manual enum migration required for public.status"
+      })
+    ])
+  })
+
   test("builds pull updates for canonical factory tables", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-pull-"))
     try {
