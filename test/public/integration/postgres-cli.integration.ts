@@ -6,16 +6,20 @@ import { execPostgres } from "./helpers.ts"
 
 const repoRoot = process.cwd()
 const cliEntry = join(repoRoot, "src", "cli.ts")
+const postgresUrl = "postgres://effect_qb:effect_qb@127.0.0.1:55432/effect_qb_test"
 
 const randomId = () => Math.random().toString(36).slice(2, 10)
 
-const renderSchemaSource = (schemaName: string) => `
+const renderSchemaSource = (
+  schemaName: string,
+  databaseUrl = postgresUrl
+) => `
 import { SchemaManagement } from "#postgres"
 
 export default SchemaManagement.defineConfig({
   dialect: "postgres",
   db: {
-    url: "postgres://effect_qb:effect_qb@127.0.0.1:55432/effect_qb_test"
+    url: ${JSON.stringify(databaseUrl)}
   },
   source: {
     include: ["schema.ts"]
@@ -51,10 +55,13 @@ ${tableFields}
 export { users }
 `
 
-const makeWorkspace = async (tableFields?: string) => {
+const makeWorkspace = async (
+  tableFields?: string,
+  databaseUrl?: string
+) => {
   const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
   const schemaName = `cli_it_${randomId()}`
-  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName))
+  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName, databaseUrl))
   await writeFile(join(workspace, "schema.ts"), renderTableSource(schemaName, tableFields))
   return {
     workspace,
@@ -166,6 +173,10 @@ test("postgres cli supports push pull and migrations against a live database", a
     expect(migrateUp.exitCode).toBe(0)
     expect(migrateUp.stdout).toContain("applied 1 migration(s)")
 
+    const secondMigrateUp = await runCli("migrate", "up", "--config", config)
+    expect(secondMigrateUp.exitCode).toBe(0)
+    expect(secondMigrateUp.stdout).toContain("no pending migrations")
+
     const userColumns = await listColumns(schemaName, "users")
     expect(userColumns).toEqual([
       { column_name: "id" },
@@ -186,6 +197,10 @@ test("postgres cli supports push pull and migrations against a live database", a
     const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
     expect(finalPushDryRun.exitCode).toBe(0)
     expect(finalPushDryRun.stdout).toContain("planned changes: none")
+
+    const noOpGenerate = await runCli("migrate", "generate", "--config", config)
+    expect(noOpGenerate.exitCode).toBe(0)
+    expect(noOpGenerate.stdout).toContain("no executable migration changes selected")
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
@@ -252,6 +267,31 @@ test("postgres cli pull fails when the database has unmanaged tables", async () 
     expect(pull.exitCode).not.toBe(0)
     expect(`${pull.stdout}\n${pull.stderr}`).toContain(`No source table declaration found for '${schemaName}.profiles'`)
     expect(await readSchema(workspace)).toBe(initialSchema)
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli accepts --url overrides over the configured database url", async () => {
+  const { workspace, schemaName } = await makeWorkspace(
+    undefined,
+    "postgres://effect_qb:effect_qb@127.0.0.1:1/effect_qb_test"
+  )
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config, "--url", postgresUrl)
+    expect(push.exitCode).toBe(0)
+    expect(push.stdout).toContain("applied 2 statement(s)")
+
+    const createdTables = await execPostgres(
+      `select tablename from pg_tables where schemaname = $1 order by tablename`,
+      [schemaName]
+    )
+    expect(createdTables).toEqual([{ tablename: "users" }])
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })

@@ -163,4 +163,52 @@ export const usersDuplicate = Table.make("users", {
       await rm(tempDir, { recursive: true, force: true })
     }
   })
+
+  test("discovers aliased, namespace, and class table declarations", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-shapes-"))
+    try {
+      await Bun.write(join(tempDir, "a-factory.ts"), `
+import { Column as Col, Table as PgTable } from "#postgres"
+
+export const users = PgTable.make("users", {
+  id: Col.uuid()
+})
+`)
+
+      await Bun.write(join(tempDir, "b-schema.ts"), `
+import { Column as Col, Table as PgTable } from "#postgres"
+
+const admin = PgTable.schema("admin")
+
+export const audits = admin.table("audits", {
+  id: Col.uuid()
+})
+`)
+
+      await Bun.write(join(tempDir, "c-class.ts"), `
+import * as Pg from "#postgres"
+
+export class Sessions extends Pg.Table.Class<Sessions>("sessions")({
+  id: Pg.Column.uuid().pipe(Pg.Column.primaryKey)
+}) {}
+`)
+
+      const discovered = await discoverSourceSchema(repoRoot, {
+        include: [`${relative(repoRoot, tempDir).replaceAll("\\", "/")}/**/*.ts`]
+      })
+
+      expect(discovered.declarations.map((declaration) => declaration.kind)).toEqual([
+        "tableFactory",
+        "tableSchema",
+        "tableClass"
+      ])
+      expect(discovered.model.tables.map((table) => `${table.schemaName ?? "public"}.${table.name}`)).toEqual([
+        "public.users",
+        "admin.audits",
+        "public.sessions"
+      ])
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
 })
