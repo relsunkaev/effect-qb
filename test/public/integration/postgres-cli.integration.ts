@@ -69,6 +69,20 @@ const makeWorkspace = async (
   }
 }
 
+const makeSourceWorkspace = async (
+  source: string,
+  databaseUrl?: string
+) => {
+  const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
+  const schemaName = `cli_it_${randomId()}`
+  await writeFile(join(workspace, "effect-qb.config.ts"), renderSchemaSource(schemaName, databaseUrl))
+  await writeFile(join(workspace, "schema.ts"), source.replaceAll("__SCHEMA__", schemaName))
+  return {
+    workspace,
+    schemaName
+  }
+}
+
 const runCli = async (...args: readonly string[]): Promise<{
   readonly exitCode: number
   readonly stdout: string
@@ -292,6 +306,164 @@ test("postgres cli accepts --url overrides over the configured database url", as
       [schemaName]
     )
     expect(createdTables).toEqual([{ tablename: "users" }])
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli round-trips enum, foreign-key, generated, identity, and rich index metadata", async () => {
+  const { workspace, schemaName } = await makeSourceWorkspace(`
+import * as Schema from "effect/Schema"
+import { Column as C, Query as Q, SchemaExpression, SchemaManagement, Table } from "#postgres"
+
+const tables = Table.schema("__SCHEMA__")
+const types = SchemaManagement.schema("__SCHEMA__")
+
+const status = types.enumType("status", ["pending", "active"] as const)
+
+const orgs = tables.table("orgs", {
+  id: C.uuid(),
+  slug: C.text()
+}).pipe(
+  Table.primaryKey({ columns: ["id"], name: "orgs_pkey" }),
+  Table.unique({ columns: ["slug"], name: "orgs_slug_key" })
+)
+
+const users = tables.table("users", {
+  id: C.int().pipe(C.identityByDefault),
+  orgId: C.uuid(),
+  status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
+  email: C.text(),
+  displayName: C.text().pipe(C.default(SchemaExpression.parseExpression("'guest'::text"))),
+  emailLower: C.text().pipe(C.generated(SchemaExpression.parseExpression("lower(email)"))),
+  note: C.text().pipe(C.nullable)
+}).pipe(
+  Table.primaryKey({ columns: ["id"], name: "users_pkey" }),
+  Table.foreignKey({
+    columns: "orgId",
+    target: () => orgs,
+    referencedColumns: "id",
+    name: "users_org_id_fkey",
+    onDelete: "cascade",
+    onUpdate: "noAction",
+    deferrable: true,
+    initiallyDeferred: true
+  }),
+  Table.index({
+    name: "users_email_lookup_idx",
+    method: "btree",
+    keys: [
+      {
+        expression: SchemaExpression.parseExpression("lower(email)"),
+        order: "desc",
+        nulls: "last"
+      }
+    ],
+    include: ["displayName"] as const,
+    predicate: SchemaExpression.parseExpression("email is not null")
+  }),
+  Table.index({
+    name: "users_note_idx",
+    keys: [
+      {
+        column: "note",
+        order: "asc",
+        nulls: "first"
+      }
+    ],
+    predicate: SchemaExpression.parseExpression("note is not null")
+  })
+)
+
+export { status, orgs, users }
+`)
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+    expect(push.stdout).toContain(`create enum ${schemaName}.status`)
+    expect(push.stdout).toContain(`create table ${schemaName}.users`)
+
+    const databaseObjects = await execPostgres(
+      `select tablename from pg_tables where schemaname = $1 order by tablename`,
+      [schemaName]
+    )
+    expect(databaseObjects).toEqual([
+      { tablename: "orgs" },
+      { tablename: "users" }
+    ])
+
+    const indexes = await execPostgres(
+      `select indexname from pg_indexes where schemaname = $1 and tablename = 'users' order by indexname`,
+      [schemaName]
+    )
+    expect(indexes).toEqual([
+      { indexname: "users_email_lookup_idx" },
+      { indexname: "users_note_idx" },
+      { indexname: "users_pkey" }
+    ])
+
+    const pullDryRun = await runCli("pull", "--config", config, "--dry-run")
+    expect(pullDryRun.exitCode).toBe(0)
+    expect(pullDryRun.stdout).toContain("update schema.ts")
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain("updated 1 file(s)")
+
+    const pulledSchema = await readSchema(workspace)
+    expect(pulledSchema).toContain(`const status = types.enumType("status", ["pending", "active"] as const)`)
+    expect(pulledSchema).toContain(`__EffectQbPullColumn.identityByDefault`)
+    expect(pulledSchema).toContain(`variant: "enum"`)
+    expect(pulledSchema).toContain(`users_org_id_fkey`)
+    expect(pulledSchema).toContain(`onDelete: "cascade"`)
+    expect(pulledSchema).toContain(`deferrable: true`)
+    expect(pulledSchema).toContain(`initiallyDeferred: true`)
+    expect(pulledSchema).toContain(`users_email_lookup_idx`)
+    expect(pulledSchema).toContain(`include: ["displayName"] as const`)
+    expect(pulledSchema).toContain(`order: "desc"`)
+    expect(pulledSchema).toContain(`nulls: "last"`)
+    expect(pulledSchema).toContain(`users_note_idx`)
+    expect(pulledSchema).toContain(`nulls: "first"`)
+    expect(pulledSchema).toContain(`emailLower`)
+    expect(pulledSchema).toContain(`__EffectQbPullColumn.generated(`)
+
+    const secondPullDryRun = await runCli("pull", "--config", config, "--dry-run")
+    expect(secondPullDryRun.exitCode).toBe(0)
+    expect(secondPullDryRun.stdout).toContain("schema definitions are already up to date")
+
+    const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
+    expect(finalPushDryRun.exitCode).toBe(0)
+    expect(finalPushDryRun.stdout).toContain("planned changes: none")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli pull fails for unsupported index key definitions", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      create index "users_email_pattern_idx"
+      on "${schemaName}"."users" ("email" text_pattern_ops);
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).not.toBe(0)
+    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`Unsupported PostgreSQL index key definition`)
+    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`users_email_pattern_idx`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
