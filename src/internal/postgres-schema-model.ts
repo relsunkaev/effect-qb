@@ -45,7 +45,9 @@ export interface SchemaModel {
 }
 
 export const isTableDefinition = (value: unknown): value is Table.AnyTable =>
-  typeof value === "object" && value !== null && Table.TypeId in value
+  value !== null &&
+  (typeof value === "object" || typeof value === "function") &&
+  Table.TypeId in value
 
 export const isEnumDefinition = (value: unknown): value is EnumDefinition =>
   typeof value === "object" && value !== null && EnumTypeId in value
