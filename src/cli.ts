@@ -19,6 +19,7 @@ import { planPostgresPull, applyPullPlan, summarizePullPlan } from "./internal/p
 import { runPostgresUrl } from "./internal/postgres-runtime.js"
 import { planPostgresSchemaDiff, type SchemaChange, type SchemaPlan } from "./internal/postgres-schema-diff.js"
 import { introspectPostgresSchema } from "./internal/postgres-introspector.js"
+import { filterDiscoveredSourceSchema } from "./internal/postgres-source-filter.js"
 import { discoverSourceSchema } from "./internal/postgres-source-discovery.js"
 import { tableKey, type SchemaModel } from "./internal/postgres-schema-model.js"
 
@@ -143,7 +144,10 @@ const loadSchemaPlan = (
   readonly discovered: Awaited<ReturnType<typeof discoverSourceSchema>>
 }> =>
   (async () => {
-    const discovered = await discoverSourceSchema(cwd, config.source)
+    const discovered = filterDiscoveredSourceSchema(
+      await discoverSourceSchema(cwd, config.source),
+      config.filter
+    )
     const database = withoutManagedMigrationTable(
       await runPostgresUrl(databaseUrl, introspectPostgresSchema(config.filter)),
       config.migrations.table
@@ -207,7 +211,10 @@ const pull = Command.make(
       const { loaded, database, discovered, plan } = yield* effectFromPromise(async () => {
         const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
-        const discovered = await discoverSourceSchema(loaded.cwd, loaded.config.source)
+        const discovered = filterDiscoveredSourceSchema(
+          await discoverSourceSchema(loaded.cwd, loaded.config.source),
+          loaded.config.filter
+        )
         const database = withoutManagedMigrationTable(
           await runPostgresUrl(databaseUrl, introspectPostgresSchema(loaded.config.filter)),
           loaded.config.migrations.table
