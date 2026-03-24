@@ -31,6 +31,7 @@ type ColumnRow = {
   readonly default_sql: string | null
   readonly generated_sql: string | null
   readonly identity_generation: "" | "a" | "d"
+  readonly attcollation_oid: number
 }
 
 type ConstraintRow = {
@@ -62,6 +63,7 @@ type IndexRow = {
   readonly indnatts: number
   readonly indkey: string
   readonly indclass: string
+  readonly indcollation: string
   readonly indoption: string
 }
 
@@ -228,7 +230,8 @@ export const introspectPostgresSchema = (
           ad.adbin is not null and a.attgenerated = '' as has_default,
           case when a.attgenerated = '' then pg_get_expr(ad.adbin, ad.adrelid, true) else null end as default_sql,
           case when a.attgenerated <> '' then pg_get_expr(ad.adbin, ad.adrelid, true) else null end as generated_sql,
-          a.attidentity as identity_generation
+          a.attidentity as identity_generation,
+          a.attcollation as attcollation_oid
         from pg_attribute a
         join pg_class c on c.oid = a.attrelid
         join pg_namespace n on n.oid = c.relnamespace
@@ -280,6 +283,7 @@ export const introspectPostgresSchema = (
           ind.indnatts as indnatts,
           ind.indkey::text as indkey,
           ind.indclass::text as indclass,
+          ind.indcollation::text as indcollation,
           ind.indoption::text as indoption
         from pg_index ind
         join pg_class idx on idx.oid = ind.indexrelid
@@ -316,6 +320,14 @@ export const introspectPostgresSchema = (
             where oid = any($1::oid[])
           `, [[...new Set(opclassOids)]])
       const opclassDefaults = new Map(opclassRows.map((row) => [row.oid, row.opcdefault]))
+      const defaultCollationRow = yield* sql.unsafe<{ readonly oid: number }>(`
+        select oid
+        from pg_collation
+        where collname = 'default'
+          and collnamespace = 'pg_catalog'::regnamespace
+        limit 1
+      `)
+      const defaultCollationOid = defaultCollationRow[0]?.oid ?? 0
 
       const enumTypeNames = columns
         .filter((column) => column.type_kind === "e")
@@ -338,6 +350,7 @@ export const introspectPostgresSchema = (
 
       const columnsByTable = new Map<string, ColumnModel[]>()
       const attnumByTable = new Map<string, Map<number, string>>()
+      const attcollationByTable = new Map<string, Map<number, number>>()
       for (const column of columns) {
         const key = `${column.schema_name}.${column.table_name}`
         const list = columnsByTable.get(key) ?? []
@@ -346,6 +359,9 @@ export const introspectPostgresSchema = (
         const attnums = attnumByTable.get(key) ?? new Map<number, string>()
         attnums.set(column.attnum, column.column_name)
         attnumByTable.set(key, attnums)
+        const attcollations = attcollationByTable.get(key) ?? new Map<number, number>()
+        attcollations.set(column.attnum, column.attcollation_oid)
+        attcollationByTable.set(key, attcollations)
       }
 
       const optionsByTable = new Map<string, TableOptionSpec[]>()
@@ -421,12 +437,15 @@ export const introspectPostgresSchema = (
         const key = `${index.schema_name}.${index.table_name}`
         const list = optionsByTable.get(key) ?? []
         const attnums = attnumByTable.get(key) ?? new Map<number, string>()
+        const attcollations = attcollationByTable.get(key) ?? new Map<number, number>()
         const indkey = parseVector(index.indkey)
         const indclass = parseVector(index.indclass)
+        const indcollation = parseVector(index.indcollation)
         const indoption = parseVector(index.indoption)
         const keys = (keySqlByIndex.get(index.index_oid) ?? []).map((entry) => {
           const attnum = indkey[entry.position - 1] ?? 0
           const opclass = indclass[entry.position - 1]
+          const collation = indcollation[entry.position - 1]
           const optionBits = indoption[entry.position - 1] ?? 0
           const order = (optionBits & 1) === 1 ? "desc" : "asc"
           const nulls = (optionBits & 2) === 2 ? "first" : "last"
@@ -439,6 +458,10 @@ export const introspectPostgresSchema = (
             if (columnName === undefined) {
               throw new Error(`Unknown index column attnum '${attnum}' on ${key}`)
             }
+            const columnCollation = attcollations.get(attnum) ?? defaultCollationOid
+            if (collation !== undefined && collation !== 0 && collation !== columnCollation) {
+              throw new Error(`Unsupported PostgreSQL index collation on ${index.index_name}`)
+            }
             if (!isSimpleIndexColumnReference(parsed.expressionSql, columnName)) {
               throw new Error(`Unsupported PostgreSQL index key definition '${entry.key_sql}' on ${index.index_name}`)
             }
@@ -448,6 +471,9 @@ export const introspectPostgresSchema = (
               order: parsed.order ?? order,
               nulls: parsed.nulls ?? nulls
             }
+          }
+          if (collation !== undefined && collation !== 0 && collation !== defaultCollationOid) {
+            throw new Error(`Unsupported PostgreSQL index collation on ${index.index_name}`)
           }
           return {
             kind: "expression" as const,
