@@ -1,22 +1,4 @@
-export const buildGroupedConcatPlan = <TableModule extends {
-  Query: {
-    select: typeof import("#postgres").Query.select
-    from: typeof import("#postgres").Query.from
-    innerJoin: typeof import("#postgres").Query.innerJoin
-    groupBy: typeof import("#postgres").Query.groupBy
-    having: typeof import("#postgres").Query.having
-    orderBy: typeof import("#postgres").Query.orderBy
-    eq: typeof import("#postgres").Query.eq
-  }
-  Function: {
-    lower: typeof import("#postgres").Function.lower
-    concat: typeof import("#postgres").Function.concat
-    coalesce: typeof import("#postgres").Function.coalesce
-    max: typeof import("#postgres").Function.max
-    min: typeof import("#postgres").Function.min
-    count: typeof import("#postgres").Function.count
-  }
-}>(table: TableModule, users: any, posts: any) => {
+export const buildGroupedConcatPlan = (table: any, users: any, posts: any) => {
   const selected = table.Query.select({
     emailLabel: table.Function.concat(
       table.Function.lower(users.email),

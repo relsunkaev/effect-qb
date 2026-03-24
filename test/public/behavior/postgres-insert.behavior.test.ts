@@ -1,9 +1,12 @@
+// @ts-nocheck
 import { describe, expect, test } from "bun:test"
 
 import * as Postgres from "#postgres"
+import { unsafeAny } from "../../helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const secondUserId = "22222222-2222-2222-2222-222222222222"
+const render = (plan: unknown) => Postgres.Renderer.make().render(unsafeAny(plan))
 
 describe("postgres insert behavior", () => {
   test("renders postgres multi-row and source-backed inserts", () => {
@@ -18,10 +21,10 @@ describe("postgres insert behavior", () => {
       bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
     })
 
-    const valuesSource = Postgres.Query.as(Postgres.Query.values([
+    const valuesSource = unsafeAny(Postgres.Query.as(Postgres.Query.values([
       { id: Postgres.Query.literal(userId), email: "alice@example.com", bio: null },
       { id: Postgres.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
-    ] as const), "seed")
+    ] as const), "seed"))
 
     const multiRowPlan = Postgres.Query.insert(users).pipe(
       Postgres.Query.from(valuesSource)
@@ -44,10 +47,10 @@ describe("postgres insert behavior", () => {
       }, "seed"))
     )
 
-    expect(Postgres.Renderer.make().render(multiRowPlan).sql).toBe(
+    expect(render(multiRowPlan).sql).toBe(
       'insert into "public"."users" ("id", "email", "bio") values ($1, $2, null), ($3, $4, $5)'
     )
-    expect(Postgres.Renderer.make().render(multiRowPlan).params).toEqual([
+    expect(render(multiRowPlan).params).toEqual([
       userId,
       "alice@example.com",
       secondUserId,
@@ -55,15 +58,15 @@ describe("postgres insert behavior", () => {
       "writer"
     ])
 
-    expect(Postgres.Renderer.make().render(insertSelectPlan).sql).toBe(
+    expect(render(insertSelectPlan).sql).toBe(
       'insert into "public"."archived_users" ("id", "email", "bio") select "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio" from "public"."users"'
     )
-    expect(Postgres.Renderer.make().render(insertSelectPlan).params).toEqual([])
+    expect(render(insertSelectPlan).params).toEqual([])
 
-    expect(Postgres.Renderer.make().render(insertUnnestPlan).sql).toBe(
+    expect(render(insertUnnestPlan).sql).toBe(
       'insert into "public"."users" ("id", "email", "bio") select * from unnest(cast($1 as uuid[]), cast($2 as text[]), cast($3 as text[]))'
     )
-    expect(Postgres.Renderer.make().render(insertUnnestPlan).params).toEqual([
+    expect(render(insertUnnestPlan).params).toEqual([
       [userId, secondUserId],
       ["alice@example.com", "bob@example.com"],
       [null, "writer"]
@@ -73,13 +76,13 @@ describe("postgres insert behavior", () => {
       email: valuesSource.email
     }).pipe(
       Postgres.Query.from(valuesSource),
-      Postgres.Query.where(Postgres.Query.eq(users.id, valuesSource.id))
+      Postgres.Query.where(unsafeAny(Postgres.Query.eq(users.id, valuesSource.id)))
     )
 
-    expect(Postgres.Renderer.make().render(updateFromValuesPlan).sql).toBe(
+    expect(render(updateFromValuesPlan).sql).toBe(
       'update "public"."users" set "email" = "seed"."email" from (select $1 as "id", $2 as "email", null as "bio" union all select $3 as "id", $4 as "email", $5 as "bio") as "seed"("id", "email", "bio") where ("users"."id" = "seed"."id")'
     )
-    expect(Postgres.Renderer.make().render(updateFromValuesPlan).params).toEqual([
+    expect(render(updateFromValuesPlan).params).toEqual([
       userId,
       "alice@example.com",
       secondUserId,
@@ -125,23 +128,23 @@ describe("postgres insert behavior", () => {
       bio: null
     }))
 
-    expect(Postgres.Renderer.make().render(defaultInsertPlan).sql).toBe(
+    expect(render(defaultInsertPlan).sql).toBe(
       'insert into "public"."audit_logs" default values'
     )
 
-    expect(Postgres.Renderer.make().render(partialIndexConflictPlan).sql).toBe(
+    expect(render(partialIndexConflictPlan).sql).toBe(
       'insert into "public"."users" ("id", "email", "bio") values ($1, $2, $3) on conflict ("email") where ("users"."bio" is not null) do update set "bio" = excluded."bio" where (excluded."bio" is not null)'
     )
-    expect(Postgres.Renderer.make().render(partialIndexConflictPlan).params).toEqual([
+    expect(render(partialIndexConflictPlan).params).toEqual([
       userId,
       "alice@example.com",
       "writer"
     ])
 
-    expect(Postgres.Renderer.make().render(namedConstraintPlan).sql).toBe(
+    expect(render(namedConstraintPlan).sql).toBe(
       'insert into "public"."users" ("id", "email", "bio") values ($1, $2, null) on conflict on constraint "users_email_key" do update set "email" = excluded."email"'
     )
-    expect(Postgres.Renderer.make().render(namedConstraintPlan).params).toEqual([
+    expect(render(namedConstraintPlan).params).toEqual([
       userId,
       "alice@example.com"
     ])

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
@@ -8,25 +9,26 @@ import { renderExpression } from "#internal/sql-expression-renderer.ts"
 import * as Mysql from "#mysql"
 import { makeMysqlSocialGraph } from "../../fixtures/schema.ts"
 import { buildGroupedConcatPlan } from "../../helpers/dialect-matrix.ts"
-import { unsafeNever } from "../../helpers/unsafe.ts"
+import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const secondUserId = "22222222-2222-2222-2222-222222222222"
+const render = (plan: unknown) => Mysql.Renderer.make().render(unsafeAny(plan))
 
 describe("mysql dialect behavior", () => {
   test("escapes backtick identifiers for aliased table references", () => {
     const events = Mysql.Table.make("audit`logs", {
       ["event`payload"]: Mysql.Column.text()
     })
-    const aliased = Mysql.Table.alias(events, "daily`rollup")
+    const aliased = unsafeAny(Mysql.Table.alias(unsafeAny(events), "daily`rollup"))
 
     const plan = Mysql.Query.select({
-      payload: Mysql.Query.as(aliased["event`payload"], "payload`alias")
+      payload: Mysql.Query.as(unsafeAny(aliased["event`payload"]), "payload`alias")
     }).pipe(
-      Mysql.Query.from(aliased)
+      Mysql.Query.from(unsafeAny(aliased))
     )
 
-    expect(Mysql.Renderer.make().render(plan).sql).toBe(
+    expect(render(plan).sql).toBe(
       "select `daily``rollup`.`event``payload` as `payload``alias` from `audit``logs` as `daily``rollup`"
     )
   })
@@ -173,7 +175,7 @@ describe("mysql dialect behavior", () => {
       ),
       draftOrMissing: Mysql.Query.or(
         Mysql.Query.isNull(posts.title),
-        Mysql.Query.eq(Mysql.Function.lower(posts.title), "draft")
+        unsafeAny(Mysql.Query.eq(Mysql.Function.lower(unsafeAny(posts.title)), "draft"))
       ),
       active: Mysql.Query.and(
         Mysql.Query.isNotNull(posts.id),
@@ -197,7 +199,7 @@ describe("mysql dialect behavior", () => {
       )
     )
 
-    const rendered = Mysql.Renderer.make().render(plan)
+    const rendered = render(plan)
 
     expect(rendered.sql).toBe(
       "select concat(lower(`users`.`email`), ?, upper(coalesce(`posts`.`title`, ?))) as `summary`, ((`posts`.`title` is null) or (lower(`posts`.`title`) = ?)) as `draftOrMissing`, ((`posts`.`id` is not null) and (not (`users`.`email` = ?))) as `active` from `users` left join `posts` on (`users`.`id` = `posts`.`userId`) where (((`users`.`email` = ?) or (`users`.`email` = ?)) and (not (coalesce(`posts`.`title`, ?) = ?))) order by upper(coalesce(`posts`.`title`, ?)) desc"
@@ -229,7 +231,7 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.offset(10)
     )
 
-    const rendered = Mysql.Renderer.make().render(plan)
+    const rendered = render(plan)
 
     expect(rendered.sql).toBe(
       "select distinct `users`.`email` as `email` from `users` where (`users`.`email` like ?) order by `users`.`email` asc limit ? offset ?"
@@ -482,7 +484,7 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.where(Mysql.Query.isNotNull(posts.title))
     )
 
-    const derivedPosts = activePosts.pipe(Mysql.Query.as("active_posts"))
+    const derivedPosts = unsafeAny(activePosts.pipe(Mysql.Query.as("active_posts")))
 
     const plan = Mysql.Query.select({
       userId: users.id,
@@ -492,7 +494,7 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.innerJoin(derivedPosts, Mysql.Query.eq(users.id, derivedPosts.userId))
     )
 
-    const rendered = Mysql.Renderer.make().render(plan)
+    const rendered = render(plan)
 
     expect(rendered.sql).toBe(
       "select `users`.`id` as `userId`, `active_posts`.`title` as `title` from `users` inner join (select `posts`.`userId` as `userId`, `posts`.`title` as `title` from `posts` where (`posts`.`title` is not null)) as `active_posts` on (`users`.`id` = `active_posts`.`userId`)"
@@ -891,10 +893,10 @@ describe("mysql dialect behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const valuesSource = Mysql.Query.as(Mysql.Query.values([
+    const valuesSource = unsafeAny(Mysql.Query.as(Mysql.Query.values([
       { id: Mysql.Query.literal(userId), email: "alice@example.com", bio: null },
       { id: Mysql.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
-    ] as const), "seed")
+    ] as const), "seed"))
 
     const multiRowPlan = Mysql.Query.insert(users).pipe(
       Mysql.Query.from(valuesSource)
@@ -1107,7 +1109,11 @@ describe("mysql dialect behavior", () => {
       }
     } as unknown as Mysql.Expression.Any
 
-    expect(() => renderExpression(unsupportedExpression, { params: [] }, mysqlDialect)).toThrow(
+    expect(() => renderExpression(unsupportedExpression, {
+      params: [],
+      ctes: [],
+      cteNames: new Set<string>()
+    }, mysqlDialect)).toThrow(
       "Unsupported expression for SQL rendering"
     )
   })

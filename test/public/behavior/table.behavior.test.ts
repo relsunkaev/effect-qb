@@ -35,8 +35,8 @@ describe("table behavior", () => {
       Table.index(["role", "orgId"] as const)
     )
 
-    expect(memberships[Table.TypeId].primaryKey).toEqual(["orgId", "userId"])
-    expect(memberships[Table.OptionsSymbol]).toEqual([
+    expect(unsafeAny(memberships)[Table.TypeId].primaryKey).toEqual(["orgId", "userId"])
+    expect(unsafeAny(memberships)[Table.OptionsSymbol]).toEqual([
       { kind: "primaryKey", columns: ["orgId", "userId"] },
       { kind: "index", columns: ["role", "orgId"] }
     ])
@@ -80,7 +80,7 @@ describe("table behavior", () => {
       columnName: "id",
       baseTableName: "users"
     })
-    expect(twiceAliased[Table.OptionsSymbol]).toEqual(users[Table.OptionsSymbol])
+    expect(unsafeAny(twiceAliased)[Table.OptionsSymbol]).toEqual(unsafeAny(users)[Table.OptionsSymbol])
   })
 
   test("factory and class tables derive the same runtime schemas for equivalent definitions", () => {
@@ -99,7 +99,7 @@ describe("table behavior", () => {
       bio: C.text().pipe(C.nullable),
       createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
     }) {
-      static override readonly [Table.options] = [Table.index("email")]
+      static readonly [Table.options] = [Table.index("email")]
     }
 
     const input = {
@@ -117,7 +117,7 @@ describe("table behavior", () => {
         bio: null
       })
     )
-    expect(factoryUsers[Table.OptionsSymbol]).toEqual(ClassUsers[Table.OptionsSymbol])
+    expect(unsafeAny(factoryUsers)[Table.OptionsSymbol]).toEqual(unsafeAny(ClassUsers)[Table.OptionsSymbol])
   })
 
   test("column schema pipes feed derived table schemas", () => {

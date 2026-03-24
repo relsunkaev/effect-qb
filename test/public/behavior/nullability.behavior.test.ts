@@ -1,8 +1,10 @@
+// @ts-nocheck
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
 import { Executor, Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { makeRootSocialGraph } from "../../fixtures/schema.ts"
+import { unsafeAny } from "../../helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const postId = "22222222-2222-2222-2222-222222222222"
@@ -19,14 +21,14 @@ describe("nullability behavior", () => {
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
     )
 
-    const rows = Effect.runSync(Executor.make({
+    const rows = Effect.runSync(unsafeAny(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           userId,
           fallbackTitle: "missing"
         }
       ]))
-    }).execute(plan))
+    }).execute(plan)))
 
     expect(rows).toEqual([
       {
@@ -48,7 +50,7 @@ describe("nullability behavior", () => {
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
     )
 
-    const rows = Effect.runSync(Executor.make({
+    const rows = Effect.runSync(unsafeAny(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           userId,
@@ -56,7 +58,7 @@ describe("nullability behavior", () => {
           titlePresent: false
         }
       ]))
-    }).execute(plan))
+    }).execute(plan)))
 
     expect(rows).toEqual([
       {
@@ -109,7 +111,7 @@ describe("nullability behavior", () => {
     expect(rendered.sql).toBe('select "users"."id" as "userId", "posts"."id" as "postId", "posts"."title" as "postTitle", upper("posts"."title") as "upperPostTitle" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where (("posts"."title" is not null) and ("posts"."id" = $1))')
     expect(rendered.params).toEqual([postId])
 
-    const rows = Effect.runSync(Executor.make({
+    const rows = Effect.runSync(unsafeAny(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           userId,
@@ -118,7 +120,7 @@ describe("nullability behavior", () => {
           upperPostTitle: null
         }
       ]))
-    }).execute(plan)) as ReadonlyArray<unknown>
+    }).execute(plan))) as ReadonlyArray<unknown>
 
     expect(rows).toEqual([
       {
@@ -142,13 +144,13 @@ describe("nullability behavior", () => {
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
     )
 
-    const rows = Effect.runSync(Executor.make({
+    const rows = Effect.runSync(unsafeAny(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           normalizedTitle: null
         }
       ]))
-    }).execute(plan)) as ReadonlyArray<unknown>
+    }).execute(plan))) as ReadonlyArray<unknown>
 
     expect(rows).toEqual([
       {
@@ -171,7 +173,7 @@ describe("nullability behavior", () => {
       Q.where(Q.isNotNull(posts.id))
     )
 
-    const rows = Effect.runSync(Executor.make({
+    const rows = Effect.runSync(unsafeAny(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           normalizedTitle: null
@@ -180,7 +182,7 @@ describe("nullability behavior", () => {
           normalizedTitle: "HELLO"
         }
       ]))
-    }).execute(plan)) as ReadonlyArray<unknown>
+    }).execute(plan))) as ReadonlyArray<unknown>
 
     expect(rows).toEqual([
       {

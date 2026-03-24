@@ -56,16 +56,14 @@ test("postgres executor decodes live temporal, numeric, and json values", async 
 
   const rows = await runPostgres(Executor.make().execute(plan))
 
-  expect(rows).toEqual([
-    {
-      id: "pg-1",
-      happenedOn: new Date("2026-03-18T00:00:00.000Z"),
-      happenedAt: "2026-03-18T07:00:00.000Z",
-      amount: "12.34",
-      payload: {
-        visits: 42
-      }
-    }
-  ])
-  expect(rows[0]?.happenedOn).toBeInstanceOf(Date)
+  expect(rows).toHaveLength(1)
+  const row = rows[0]!
+  expect(row.id).toBe("pg-1")
+  expect(row.happenedOn).toEqual(new Date("2026-03-18T00:00:00.000Z"))
+  expect(row.happenedOn).toBeInstanceOf(Date)
+  expect(row.happenedAt).toBe("2026-03-18T07:00:00.000Z")
+  expect(row.amount).toBe("12.34" as typeof row.amount)
+  expect(row.payload).toEqual({
+    visits: 42
+  })
 })

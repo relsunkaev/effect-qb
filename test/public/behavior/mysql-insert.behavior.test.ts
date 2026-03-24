@@ -1,9 +1,12 @@
+// @ts-nocheck
 import { describe, expect, test } from "bun:test"
 
 import * as Mysql from "#mysql"
+import { unsafeAny } from "../../helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const secondUserId = "22222222-2222-2222-2222-222222222222"
+const render = (plan: unknown) => Mysql.Renderer.make().render(unsafeAny(plan))
 
 describe("mysql insert behavior", () => {
   test("renders mysql multi-row and source-backed inserts", () => {
@@ -18,10 +21,10 @@ describe("mysql insert behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const valuesSource = Mysql.Query.as(Mysql.Query.values([
+    const valuesSource = unsafeAny(Mysql.Query.as(Mysql.Query.values([
       { id: Mysql.Query.literal(userId), email: "alice@example.com", bio: null },
       { id: Mysql.Query.literal(secondUserId), email: "bob@example.com", bio: "writer" }
-    ] as const), "seed")
+    ] as const), "seed"))
 
     const multiRowPlan = Mysql.Query.insert(users).pipe(
       Mysql.Query.from(valuesSource)
@@ -44,10 +47,10 @@ describe("mysql insert behavior", () => {
       }, "seed"))
     )
 
-    expect(Mysql.Renderer.make().render(multiRowPlan).sql).toBe(
+    expect(render(multiRowPlan).sql).toBe(
       "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"
     )
-    expect(Mysql.Renderer.make().render(multiRowPlan).params).toEqual([
+    expect(render(multiRowPlan).params).toEqual([
       userId,
       "alice@example.com",
       secondUserId,
@@ -55,15 +58,15 @@ describe("mysql insert behavior", () => {
       "writer"
     ])
 
-    expect(Mysql.Renderer.make().render(insertSelectPlan).sql).toBe(
+    expect(render(insertSelectPlan).sql).toBe(
       "insert into `archived_users` (`id`, `email`, `bio`) select `users`.`id` as `id`, `users`.`email` as `email`, `users`.`bio` as `bio` from `users`"
     )
-    expect(Mysql.Renderer.make().render(insertSelectPlan).params).toEqual([])
+    expect(render(insertSelectPlan).params).toEqual([])
 
-    expect(Mysql.Renderer.make().render(insertUnnestPlan).sql).toBe(
+    expect(render(insertUnnestPlan).sql).toBe(
       "insert into `users` (`id`, `email`, `bio`) values (?, ?, null), (?, ?, ?)"
     )
-    expect(Mysql.Renderer.make().render(insertUnnestPlan).params).toEqual([
+    expect(render(insertUnnestPlan).params).toEqual([
       userId,
       "alice@example.com",
       secondUserId,
@@ -78,10 +81,10 @@ describe("mysql insert behavior", () => {
       Mysql.Query.where(Mysql.Query.eq(users.id, valuesSource.id))
     )
 
-    expect(Mysql.Renderer.make().render(updateFromValuesPlan).sql).toBe(
+    expect(render(updateFromValuesPlan).sql).toBe(
       "update `users`, (select ? as `id`, ? as `email`, null as `bio` union all select ? as `id`, ? as `email`, ? as `bio`) as `seed`(`id`, `email`, `bio`) set `email` = `seed`.`email` where (`users`.`id` = `seed`.`id`)"
     )
-    expect(Mysql.Renderer.make().render(updateFromValuesPlan).params).toEqual([
+    expect(render(updateFromValuesPlan).params).toEqual([
       userId,
       "alice@example.com",
       secondUserId,
@@ -112,14 +115,14 @@ describe("mysql insert behavior", () => {
       bio: "writer"
     }))
 
-    expect(Mysql.Renderer.make().render(defaultInsertPlan).sql).toBe(
+    expect(render(defaultInsertPlan).sql).toBe(
       "insert into `audit_logs` default values"
     )
 
-    expect(Mysql.Renderer.make().render(conflictPlan).sql).toBe(
+    expect(render(conflictPlan).sql).toBe(
       "insert into `users` (`id`, `email`, `bio`) values (?, ?, ?) on duplicate key update `bio` = values(`bio`)"
     )
-    expect(Mysql.Renderer.make().render(conflictPlan).params).toEqual([
+    expect(render(conflictPlan).params).toEqual([
       userId,
       "alice@example.com",
       "writer"

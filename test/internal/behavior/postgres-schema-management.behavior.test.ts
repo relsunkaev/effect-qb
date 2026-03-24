@@ -9,6 +9,7 @@ import { planPostgresSchemaDiff } from "../../../src/internal/postgres-schema-di
 import { toEnumModel, toTableModel, type SchemaModel } from "../../../src/internal/postgres-schema-model.js"
 import { discoverSourceSchema } from "../../../src/internal/postgres-source-discovery.js"
 import { planPostgresPull } from "../../../src/internal/postgres-pull.js"
+import { unsafeAny } from "../../helpers/unsafe.ts"
 
 const repoRoot = process.cwd()
 
@@ -26,13 +27,13 @@ describe("postgres schema management", () => {
 
     const source: SchemaModel = {
       dialect: "postgres",
-      enums: [toEnumModel(status)],
-      tables: [toTableModel(users)]
+      enums: [toEnumModel(unsafeAny(status))],
+      tables: [toTableModel(unsafeAny(users))]
     }
 
     const database: SchemaModel = {
       dialect: "postgres",
-      enums: [toEnumModel(SchemaManagement.enumType("status", ["pending", "active"] as const))],
+      enums: [toEnumModel(unsafeAny(SchemaManagement.enumType("status", ["pending", "active"] as const)))],
       tables: [{
         kind: "table",
         schemaName: "public",
@@ -78,19 +79,19 @@ describe("postgres schema management", () => {
   test("classifies enum shrink and reorder as manual destructive changes", () => {
     const database: SchemaModel = {
       dialect: "postgres",
-      enums: [toEnumModel(SchemaManagement.enumType("status", ["pending", "active"] as const))],
+      enums: [toEnumModel(unsafeAny(SchemaManagement.enumType("status", ["pending", "active"] as const)))],
       tables: []
     }
 
     const shrink = planPostgresSchemaDiff({
       dialect: "postgres",
-      enums: [toEnumModel(SchemaManagement.enumType("status", ["pending"] as const))],
+      enums: [toEnumModel(unsafeAny(SchemaManagement.enumType("status", ["pending"] as const)))],
       tables: []
     }, database)
 
     const reorder = planPostgresSchemaDiff({
       dialect: "postgres",
-      enums: [toEnumModel(SchemaManagement.enumType("status", ["active", "pending"] as const))],
+      enums: [toEnumModel(unsafeAny(SchemaManagement.enumType("status", ["active", "pending"] as const)))],
       tables: []
     }, database)
 

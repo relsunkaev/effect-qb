@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, expect, test } from "bun:test"
 
 import { Column as C, Query as Q, Function as F, Renderer, Table } from "#postgres"

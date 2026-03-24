@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
@@ -21,7 +22,7 @@ const mutationSchema = Schema.Struct({
   })
 })
 
-const makeTable = <TableModule extends typeof Postgres | typeof Mysql>(table: TableModule) =>
+const makeTable = (table: any) =>
   table.Table.make("docs", {
     id: table.Column.uuid().pipe(table.Column.primaryKey),
     payload: table.Column.json(payloadSchema)

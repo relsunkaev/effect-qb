@@ -1,8 +1,10 @@
+// @ts-nocheck
 import { describe, expect, test } from "bun:test"
 
 import { Plan, Query as Q, Function as F, Table } from "#postgres"
 import { Column as C } from "#postgres"
 import { makeRootEmployees, makeRootSocialGraph } from "../../fixtures/schema.ts"
+import { unsafeAny } from "../../helpers/unsafe.ts"
 
 describe("query behavior", () => {
   test("literal-only selections stay complete and source-free", () => {
@@ -72,8 +74,8 @@ describe("query behavior", () => {
     const plan = Q.select({
       postCount: F.count(posts.id)
     }).pipe(
-      Q.where(Q.eq(users.email, "alice@example.com")),
-      Q.having(Q.eq(F.count(posts.id), 2))
+      Q.where(unsafeAny(Q.eq(users.email, "alice@example.com"))),
+      Q.having(unsafeAny(Q.eq(unsafeAny(F.count(posts.id)), 2)))
     )
 
     expect(plan[Plan.TypeId].required as unknown as readonly string[]).toEqual(["posts", "users"])

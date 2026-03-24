@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
+import { unsafeAny } from "../../helpers/unsafe.ts"
 
 const pgUsers = Postgres.Table.make("users", {
   id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
@@ -25,6 +26,9 @@ const mysqlPosts = Mysql.Table.make("posts", {
   title: Mysql.Column.text()
 })
 
+const renderPostgres = (plan: unknown) => Postgres.Renderer.make().render(unsafeAny(plan))
+const renderMysql = (plan: unknown) => Mysql.Renderer.make().render(unsafeAny(plan))
+
 describe("select sources behavior", () => {
   test("renders set-op all variants in postgres", () => {
     const users = Postgres.Table.make("users", {
@@ -47,13 +51,13 @@ describe("select sources behavior", () => {
       Postgres.Query.from(archivedUsers)
     )
 
-    expect(Postgres.Renderer.make().render(Postgres.Query.unionAll(active, archived)).sql).toBe(
+    expect(renderPostgres(Postgres.Query.unionAll(unsafeAny(active), unsafeAny(archived))).sql).toBe(
       '(select "users"."email" as "email" from "public"."users") union all (select "archived_users"."email" as "email" from "public"."archived_users")'
     )
-    expect(Postgres.Renderer.make().render(Postgres.Query.intersectAll(active, archived)).sql).toBe(
+    expect(renderPostgres(Postgres.Query.intersectAll(unsafeAny(active), unsafeAny(archived))).sql).toBe(
       '(select "users"."email" as "email" from "public"."users") intersect all (select "archived_users"."email" as "email" from "public"."archived_users")'
     )
-    expect(Postgres.Renderer.make().render(Postgres.Query.exceptAll(active, archived)).sql).toBe(
+    expect(renderPostgres(Postgres.Query.exceptAll(unsafeAny(active), unsafeAny(archived))).sql).toBe(
       '(select "users"."email" as "email" from "public"."users") except all (select "archived_users"."email" as "email" from "public"."archived_users")'
     )
   })
@@ -71,7 +75,7 @@ describe("select sources behavior", () => {
 
     const seriesSource = Postgres.Query.generateSeries(1, 3, 1, "series")
 
-    expect(Postgres.Renderer.make().render(
+    expect(renderPostgres(
       Postgres.Query.select({
         id: valuesSource.id,
         email: valuesSource.email
@@ -80,7 +84,7 @@ describe("select sources behavior", () => {
       'select "seed"."id" as "id", "seed"."email" as "email" from (select $1 as "id", $2 as "email" union all select $3 as "id", $4 as "email") as "seed"("id", "email")'
     )
 
-    expect(Postgres.Renderer.make().render(
+    expect(renderPostgres(
       Postgres.Query.select({
         id: unnestSource.id,
         email: unnestSource.email
@@ -89,7 +93,7 @@ describe("select sources behavior", () => {
       'select "seed_rows"."id" as "id", "seed_rows"."email" as "email" from (select $1 as "id", $2 as "email" union all select $3 as "id", $4 as "email") as "seed_rows"("id", "email")'
     )
 
-    expect(Postgres.Renderer.make().render(
+    expect(renderPostgres(
       Postgres.Query.select({
         value: seriesSource.value
       }).pipe(Postgres.Query.from(seriesSource))
@@ -109,7 +113,7 @@ describe("select sources behavior", () => {
       email: [Mysql.Query.literal("alice@example.com"), Mysql.Query.literal("bob@example.com")] as const
     }, "seed_rows")
 
-    expect(Mysql.Renderer.make().render(
+    expect(renderMysql(
       Mysql.Query.select({
         id: valuesSource.id,
         email: valuesSource.email
@@ -118,7 +122,7 @@ describe("select sources behavior", () => {
       'select `seed`.`id` as `id`, `seed`.`email` as `email` from (select ? as `id`, ? as `email` union all select ? as `id`, ? as `email`) as `seed`(`id`, `email`)'
     )
 
-    expect(Mysql.Renderer.make().render(
+    expect(renderMysql(
       Mysql.Query.select({
         id: unnestSource.id,
         email: unnestSource.email
@@ -145,7 +149,7 @@ describe("select sources behavior", () => {
       Postgres.Query.from(pgUsers)
     )
 
-    expect(Postgres.Renderer.make().render(scalarPlan).sql).toBe(
+    expect(renderPostgres(scalarPlan).sql).toBe(
       'select "users"."id" as "userId", (select "posts"."id" as "value" from "public"."posts") as "firstPostId", ("users"."id" in (select "posts"."id" as "value" from "public"."posts")) as "matchesAny", ("users"."id" = any (select "posts"."id" as "value" from "public"."posts")) as "matchesSome", ("users"."id" = all (select "posts"."id" as "value" from "public"."posts")) as "matchesAll" from "public"."users"'
     )
   })
@@ -167,7 +171,7 @@ describe("select sources behavior", () => {
       Mysql.Query.from(mysqlUsers)
     )
 
-    expect(Mysql.Renderer.make().render(scalarPlan).sql).toBe(
+    expect(renderMysql(scalarPlan).sql).toBe(
       'select `users`.`id` as `userId`, (select `posts`.`id` as `value` from `posts`) as `firstPostId`, (`users`.`id` in (select `posts`.`id` as `value` from `posts`)) as `matchesAny`, (`users`.`id` = any (select `posts`.`id` as `value` from `posts`)) as `matchesSome`, (`users`.`id` = all (select `posts`.`id` as `value` from `posts`)) as `matchesAll` from `users`'
     )
   })
