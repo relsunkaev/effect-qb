@@ -571,6 +571,94 @@ export { orgs, memberships }
   }
 }, 30000)
 
+test("postgres cli pulls schema-builder table declarations into canonical source definitions", async () => {
+  const { workspace, schemaName } = await makeSourceWorkspace(`
+import { Column as C, Table } from "#postgres"
+
+const db = Table.schema("__SCHEMA__")
+
+export const audits = db.table("audits", {
+  id: C.uuid().pipe(C.primaryKey),
+  actorEmail: C.text()
+})
+`)
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      alter table "${schemaName}"."audits"
+      add column "actorName" text;
+
+      create index "audits_actor_name_idx"
+      on "${schemaName}"."audits" ("actorName");
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).toBe(0)
+
+    const pulledSchema = await readSchema(workspace)
+    expect(pulledSchema).toContain(`const audits = db.table(`)
+    expect(pulledSchema).toContain(`actorName: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)`)
+    expect(pulledSchema).toContain(`audits_actor_name_idx`)
+
+    const pushDryRun = await runCli("push", "--config", config, "--dry-run")
+    expect(pushDryRun.exitCode).toBe(0)
+    expect(pushDryRun.stdout).toContain("planned changes: none")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli pulls class table declarations into canonical source definitions", async () => {
+  const { workspace, schemaName } = await makeSourceWorkspace(`
+import { Column as C, Table } from "#postgres"
+
+export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text()
+}) {}
+`)
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      alter table "${schemaName}"."sessions"
+      add column "lastSeenAt" timestamp;
+
+      create index "sessions_email_idx"
+      on "${schemaName}"."sessions" ("email");
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).toBe(0)
+
+    const pulledSchema = await readSchema(workspace)
+    expect(pulledSchema).toContain(`class Sessions extends __EffectQbPullTable.Class<Sessions>("sessions", "${schemaName}")({`)
+    expect(pulledSchema).toContain(`lastSeenAt: __EffectQbPullColumn.timestamp().pipe(`)
+    expect(pulledSchema).toContain(`__EffectQbPullColumn.ddlType("timestamp without time zone"), __EffectQbPullColumn.nullable`)
+    expect(pulledSchema).toContain(`static readonly [__EffectQbPullTable.options] = [`)
+    expect(pulledSchema).toContain(`sessions_email_idx`)
+
+    const pushDryRun = await runCli("push", "--config", config, "--dry-run")
+    expect(pushDryRun.exitCode).toBe(0)
+    expect(pushDryRun.stdout).toContain("planned changes: none")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
 test("postgres cli pull fails when database enums have no matching source declaration", async () => {
   const { workspace, schemaName } = await makeWorkspace()
   try {
@@ -615,6 +703,54 @@ test("postgres cli pull fails for unsupported check constraint expressions", asy
     const pull = await runCli("pull", "--config", config)
     expect(pull.exitCode).not.toBe(0)
     expect(`${pull.stdout}\n${pull.stderr}`).toContain(`Unsupported PostgreSQL expression in check constraint users_email_c_check`)
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli pull fails for unsupported default expressions", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      alter table "${schemaName}"."users"
+      add column "nickname" text default ('foo' collate "C");
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).not.toBe(0)
+    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`Unsupported PostgreSQL expression in default for users.nickname`)
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
+test("postgres cli pull fails for unsupported generated expressions", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      alter table "${schemaName}"."users"
+      add column "email_c" text generated always as (("email" collate "C")) stored;
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).not.toBe(0)
+    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`Unsupported PostgreSQL expression in generated expression for users.email_c`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
