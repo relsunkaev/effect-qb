@@ -642,6 +642,240 @@ export type MutationTargetLike = Table.AnyTable
 export type MutationTargetTuple = readonly [MutationTargetLike, MutationTargetLike, ...MutationTargetLike[]]
 export type MutationTargetInput = MutationTargetLike | MutationTargetTuple
 
+type JsonMutationDbKindError<
+  ColumnName extends string,
+  ExpectedKind extends string,
+  ReceivedKind extends string
+> = {
+  readonly __effect_qb_error__: "effect-qb: incompatible postgres json mutation value"
+  readonly __effect_qb_column__: ColumnName
+  readonly __effect_qb_reason__: "postgres json/jsonb kinds do not match"
+  readonly __effect_qb_expected_json_kind__: ExpectedKind
+  readonly __effect_qb_received_json_kind__: ReceivedKind
+  readonly __effect_qb_hint__: "Use postgres.Function.json for json columns and postgres.Function.jsonb for jsonb columns"
+}
+
+type JsonMutationShapeError<
+  ColumnName extends string,
+  Expected,
+  Received
+> = {
+  readonly __effect_qb_error__: "effect-qb: incompatible postgres json mutation value"
+  readonly __effect_qb_column__: ColumnName
+  readonly __effect_qb_reason__: "json value is not assignable to the target column schema"
+  readonly __effect_qb_json_issues__: JsonShapeIssues<Expected, Received>
+  readonly __effect_qb_hint__: "Inspect __effect_qb_json_issues__ or the __effect_qb_json_issue__... sentinel keys to find the failing nested paths"
+} & JsonIssueSentinels<Expected, Received>
+
+type MutationValueShapeError<
+  ColumnName extends string,
+  Expected,
+  Received
+> = {
+  readonly __effect_qb_error__: "effect-qb: incompatible mutation value"
+  readonly __effect_qb_column__: ColumnName
+  readonly __effect_qb_reason__: "value is not assignable to the target column schema"
+  readonly __effect_qb_expected_type__: Expected
+  readonly __effect_qb_received_type__: Received
+}
+
+type MutationUnknownColumnError<ColumnName extends string> = {
+  readonly __effect_qb_error__: "effect-qb: unknown mutation column"
+  readonly __effect_qb_column__: ColumnName
+  readonly __effect_qb_hint__: "Use only columns that exist on the target table"
+}
+
+type MutationRequiredKeys<Shape> = Extract<{
+  [K in keyof Shape]-?: {} extends Pick<Shape, K> ? never : K
+}[keyof Shape], string>
+
+type MutationExtraKeys<TargetShape, SourceShape> = Exclude<Extract<keyof SourceShape, string>, Extract<keyof TargetShape, string>>
+
+type MutationMissingKeys<TargetShape, SourceShape> = Exclude<MutationRequiredKeys<TargetShape>, Extract<keyof SourceShape, string>>
+
+type JsonPathDisplay<Path extends string> = Path extends "" ? "(root)" : Path
+
+type JsonObjectKeyPath<Path extends string, Key extends string> = Path extends ""
+  ? Key
+  : `${Path}.${Key}`
+
+type JsonArrayPath<Path extends string> = Path extends ""
+  ? "[number]"
+  : `${Path}[number]`
+
+type JsonIssueKeyPath<Path extends string> = Path extends ""
+  ? "root"
+  : Path
+
+type JsonShapeIssue<
+  Path extends string,
+  Kind extends string,
+  Expected,
+  Received
+> = {
+  readonly path: JsonPathDisplay<Path>
+  readonly issue: Kind
+  readonly expected: Expected
+  readonly received: Received
+}
+
+type JsonSharedKeys<Expected, Received> = Extract<Extract<keyof Expected, keyof Received>, string>
+
+type JsonIssueSentinelKeys<Issues> = Issues extends {
+  readonly path: infer Path extends string
+  readonly issue: infer Kind extends string
+}
+  ? `__effect_qb_json_issue__${JsonIssueKeyPath<Path>}__${Kind}`
+  : never
+
+type JsonIssueSentinels<
+  Expected,
+  Received
+> = {
+  readonly [K in JsonIssueSentinelKeys<JsonShapeIssues<Expected, Received>>]: true
+}
+
+type JsonObjectShapeIssues<
+  Expected extends object,
+  Received extends object,
+  Path extends string
+> =
+  | {
+      readonly [K in MutationMissingKeys<Expected, Received>]:
+        JsonShapeIssue<JsonObjectKeyPath<Path, K>, "missing_required_property", Expected[K], undefined>
+    }[MutationMissingKeys<Expected, Received>]
+  | {
+      readonly [K in JsonSharedKeys<Expected, Received>]:
+        JsonShapeIssues<Expected[K], Received[K], JsonObjectKeyPath<Path, K>>
+    }[JsonSharedKeys<Expected, Received>]
+
+type JsonShapeIssues<
+  Expected,
+  Received,
+  Path extends string = ""
+> = [Received] extends [Expected]
+  ? never
+  : [Expected] extends [readonly (infer ExpectedElement)[]]
+    ? [Received] extends [readonly (infer ReceivedElement)[]]
+      ? JsonShapeIssues<ExpectedElement, ReceivedElement, JsonArrayPath<Path>>
+      : JsonShapeIssue<Path, "type_mismatch", Expected, Received>
+    : [Expected] extends [object]
+      ? [Expected] extends [Function]
+        ? JsonShapeIssue<Path, "type_mismatch", Expected, Received>
+        : [Received] extends [object]
+          ? [Received] extends [Function]
+            ? JsonShapeIssue<Path, "type_mismatch", Expected, Received>
+            : JsonObjectShapeIssues<Expected & object, Received & object, Path> extends infer Issues
+              ? [Issues] extends [never]
+                ? JsonShapeIssue<Path, "type_mismatch", Expected, Received>
+                : Issues
+              : never
+          : JsonShapeIssue<Path, "type_mismatch", Expected, Received>
+      : JsonShapeIssue<Path, "type_mismatch", Expected, Received>
+
+type MutationAcceptedInput<Column> =
+  Column extends Expression.Expression<infer Runtime, any, any, any, any, any, any, any>
+    ? MutationValueInput<Runtime>
+    : never
+
+type MutationValueCompatibilityIssue<
+  Column,
+  Value,
+  ColumnName extends string
+> = Column extends Expression.Expression<any, infer ColumnDb extends Expression.DbType.Any, any, any, any, any, any, any>
+  ? ColumnDb extends Expression.DbType.Json<"postgres", infer ExpectedKind>
+    ? Value extends Expression.Expression<any, infer ValueDb extends Expression.DbType.Any, any, any, any, any, any, any>
+      ? ValueDb extends Expression.DbType.Json<"postgres", infer ReceivedKind>
+        ? [ExpectedKind] extends [ReceivedKind]
+          ? [ReceivedKind] extends [ExpectedKind]
+            ? Value extends Expression.Expression<infer ReceivedRuntime, any, any, any, any, any, any, any>
+              ? Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+                ? [ReceivedRuntime] extends [ExpectedRuntime]
+                  ? never
+                  : JsonMutationShapeError<ColumnName, ExpectedRuntime, ReceivedRuntime>
+                : never
+              : never
+            : JsonMutationDbKindError<ColumnName, ExpectedKind, ReceivedKind>
+          : JsonMutationDbKindError<ColumnName, ExpectedKind, ReceivedKind>
+        : Value extends Expression.Expression<infer ReceivedRuntime, any, any, any, any, any, any, any>
+          ? Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+            ? [ReceivedRuntime] extends [ExpectedRuntime]
+              ? never
+              : JsonMutationShapeError<ColumnName, ExpectedRuntime, ReceivedRuntime>
+            : never
+          : Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+            ? [Value] extends [ExpectedRuntime]
+              ? never
+              : JsonMutationShapeError<ColumnName, ExpectedRuntime, Value>
+            : never
+      : Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+        ? [Value] extends [ExpectedRuntime]
+          ? never
+          : JsonMutationShapeError<ColumnName, ExpectedRuntime, Value>
+        : never
+    : Value extends Expression.Expression<infer ReceivedRuntime, any, any, any, any, any, any, any>
+      ? Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+        ? [ReceivedRuntime] extends [ExpectedRuntime]
+          ? never
+          : MutationValueShapeError<ColumnName, ExpectedRuntime, ReceivedRuntime>
+        : never
+      : Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+        ? [Value] extends [ExpectedRuntime]
+          ? never
+          : MutationValueShapeError<ColumnName, ExpectedRuntime, Value>
+        : never
+  : unknown
+
+type MutationExpectedValue<
+  Column,
+  Value,
+  ColumnName extends string
+> = [MutationValueCompatibilityIssue<Column, Value, ColumnName>] extends [never]
+  ? MutationAcceptedInput<Column>
+  : MutationValueCompatibilityIssue<Column, Value, ColumnName>
+
+type MutationShapeOf<
+  Statement extends "insert" | "update",
+  Target extends MutationTargetLike
+> = Statement extends "insert" ? Table.InsertOf<Target> : Table.UpdateOf<Target>
+
+type MutationColumnAt<
+  Target extends MutationTargetLike,
+  Key extends string
+> = Target extends {
+  readonly [Table.TypeId]: {
+    readonly fields: Record<Key, infer Column>
+  }
+}
+  ? Column
+  : never
+
+type MutationValueShape<
+  Shape,
+  Target extends MutationTargetLike,
+  Values extends Record<string, unknown>
+> = {
+  readonly [K in Extract<keyof Values, string>]:
+    K extends Extract<keyof Shape, string>
+      ? MutationExpectedValue<MutationColumnAt<Target, K>, Values[K], K>
+      : MutationUnknownColumnError<K>
+}
+
+type MutationKeyShape<Shape> = {
+  readonly [K in keyof Shape]: unknown
+}
+
+export type MutationValuesInput<
+  Statement extends "insert" | "update",
+  Target extends MutationTargetLike,
+  Values extends Record<string, unknown>,
+  Shape = MutationShapeOf<Statement, Target>
+> = Simplify<
+  Values &
+  MutationKeyShape<Shape> &
+  MutationValueShape<Shape, Target, Values>
+>
+
 /** Extracts a source name from either a table or a derived source. */
 export type SourceNameOf<Source extends SourceLike> =
   Source extends TableLike<infer Name, any> ? Name :
@@ -1047,9 +1281,14 @@ type EffectiveAvailable<
   Available extends Record<string, Plan.Source>,
   Assumptions extends PredicateFormula
 > = {
-  readonly [K in keyof Available]: Available[K] & {
-    readonly mode: K extends RequiredTablesFromAssumptions<Assumptions> ? "required" : Available[K]["mode"]
-  }
+  readonly [K in keyof Available]:
+    Available[K] extends Plan.Source<infer Name extends string, infer Mode extends Plan.SourceMode>
+      ? {
+          readonly name: Name
+          readonly mode: K extends RequiredTablesFromAssumptions<Assumptions> ? "required" : Mode
+          readonly baseName?: Available[K]["baseName"]
+        }
+      : never
 }
 
 type BaseEffectiveNullability<
@@ -1131,7 +1370,9 @@ export type ExpressionOutput<
 > = AstOf<Value> extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
   ? CaseOutputOf<Branches, Else, Available, Assumptions>
   : EffectiveNullability<Value, Available, Assumptions> extends "never"
-    ? Expression.RuntimeOf<Value>
+    ? Expression.NullabilityOf<Value> extends "never"
+      ? Expression.RuntimeOf<Value>
+      : NonNullable<Expression.RuntimeOf<Value>>
     : EffectiveNullability<Value, Available, Assumptions> extends "always"
       ? null
       : Expression.RuntimeOf<Value> | null

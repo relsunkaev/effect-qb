@@ -120,7 +120,9 @@ const filteredUserId: FilteredOptionalSourceRow["userId"] = "user-id"
 const filteredPostId: FilteredOptionalSourceRow["postId"] = "post-id"
 const filteredPostTitle: FilteredOptionalSourceRow["postTitle"] = "hello"
 const filteredUpperPostTitle: FilteredOptionalSourceRow["upperPostTitle"] = "HELLO"
+// @ts-expect-error source promotion should make non-null joined columns non-null
 const filteredNullPostId: FilteredOptionalSourceRow["postId"] = null
+// @ts-expect-error isNotNull should also remove null from the filtered column itself
 const filteredNullPostTitle: FilteredOptionalSourceRow["postTitle"] = null
 // @ts-expect-error source promotion should remove null from derived expressions
 const filteredNullUpperPostTitle: FilteredOptionalSourceRow["upperPostTitle"] = null

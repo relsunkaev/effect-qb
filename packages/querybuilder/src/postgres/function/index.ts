@@ -2,7 +2,7 @@ export * as core from "./core.js"
 export * as string from "./string.js"
 export * as aggregate from "./aggregate.js"
 export * as window from "./window.js"
-export { json } from "./json.js"
+export { json, jsonb } from "./json.js"
 export * as temporal from "./temporal.js"
 
 export { coalesce } from "./core.js"

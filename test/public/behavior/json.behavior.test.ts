@@ -22,25 +22,26 @@ const mutationSchema = Schema.Struct({
   })
 })
 
-const makeTable = (table: any) =>
+const makeJsonTable = (table: any) =>
   table.Table.make("docs", {
     id: table.Column.uuid().pipe(table.Column.primaryKey),
     payload: table.Column.json(payloadSchema)
   })
 
+const makeJsonbTable = (table: typeof Postgres) =>
+  table.Table.make("docs", {
+    id: table.Column.uuid().pipe(table.Column.primaryKey),
+    payload: table.Column.jsonb(payloadSchema)
+  })
+
 describe("json behavior", () => {
-  test("postgres renders the JSON expression surface", () => {
-    const docs = makeTable(Postgres)
+  test("postgres renders the shared json surface for json columns", () => {
+    const docs = makeJsonTable(Postgres)
 
     const exactPath = Postgres.Function.json.path(
       Postgres.Function.json.key("profile"),
       Postgres.Function.json.key("address"),
       Postgres.Function.json.key("city")
-    )
-    const wildcardPath = Postgres.Function.json.path(
-      Postgres.Function.json.key("profile"),
-      Postgres.Function.json.key("tags"),
-      Postgres.Function.json.wildcard()
     )
 
     const plan = Postgres.Query.select({
@@ -48,54 +49,136 @@ describe("json behavior", () => {
       profileText: Postgres.Function.json.text(docs.payload, Postgres.Function.json.key("profile")),
       cityJson: Postgres.Function.json.get(docs.payload, exactPath),
       cityText: Postgres.Function.json.text(docs.payload, exactPath),
-      wildcardJson: Postgres.Function.json.get(docs.payload, wildcardPath),
-      hasProfile: Postgres.Function.json.hasKey(docs.payload, "profile"),
-      hasAny: Postgres.Function.json.hasAnyKeys(docs.payload, "profile", "note"),
-      hasAll: Postgres.Function.json.hasAllKeys(docs.payload, "profile", "note"),
-      contains: Postgres.Function.json.contains(docs.payload, {
-        profile: {
-          address: {
-            city: "Paris"
-          }
-        }
-      }),
-      containedBy: Postgres.Function.json.containedBy(docs.payload, {
-        profile: {
-          address: {
-            city: "Paris"
-          }
-        }
-      }),
-      deleteNote: Postgres.Function.json.delete(docs.payload, Postgres.Function.json.key("note")),
-      removeNote: Postgres.Function.json.remove(docs.payload, Postgres.Function.json.key("note")),
-      setPostcode: Postgres.Function.json.set(
-        docs.payload,
-        Postgres.Function.json.path(Postgres.Function.json.key("profile"), Postgres.Function.json.key("address"), Postgres.Function.json.key("postcode")),
-        "1000"
-      ),
-      insertSuite: Postgres.Function.json.insert(
-        docs.payload,
-        Postgres.Function.json.path(Postgres.Function.json.key("profile"), Postgres.Function.json.key("address"), Postgres.Function.json.key("suite")),
-        "12A"
-      ),
-      concatValue: Postgres.Function.json.concat({ a: 1 }, { b: 2 }),
-      mergeValue: Postgres.Function.json.merge({ a: 1 }, { b: 2 }),
       builtObject: Postgres.Function.json.buildObject({ a: 1, b: "x" }),
       builtArray: Postgres.Function.json.buildArray(1, "x", true),
       toJson: Postgres.Function.json.toJson(Postgres.Query.literal(1)),
-      toJsonb: Postgres.Function.json.toJsonb(Postgres.Query.literal(1)),
       typeName: Postgres.Function.json.typeOf(docs.payload),
       length: Postgres.Function.json.length(docs.payload),
       keys: Postgres.Function.json.keys(docs.payload),
-      pathExists: Postgres.Function.json.pathExists(docs.payload, wildcardPath),
-      pathMatch: Postgres.Function.json.pathMatch(docs.payload, '$.profile.address[*] ? (@.city == "Paris")'),
       stripNulls: Postgres.Function.json.stripNulls(docs.payload)
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", jsonb_path_query_first(cast("docs"."payload" as jsonb), $9) as "wildcardJson", (cast("docs"."payload" as jsonb) ? $10) as "hasProfile", (cast("docs"."payload" as jsonb) ?| array[$11, $12]) as "hasAny", (cast("docs"."payload" as jsonb) ?& array[$13, $14]) as "hasAll", (cast("docs"."payload" as jsonb) @> cast($15 as jsonb)) as "contains", (cast("docs"."payload" as jsonb) <@ cast($16 as jsonb)) as "containedBy", (cast("docs"."payload" as jsonb) - $17) as "deleteNote", (cast("docs"."payload" as jsonb) - $18) as "removeNote", jsonb_set(cast("docs"."payload" as jsonb), array[$19, $20, $21], cast($22 as jsonb), true) as "setPostcode", jsonb_insert(cast("docs"."payload" as jsonb), array[$23, $24, $25], cast($26 as jsonb), false) as "insertSuite", (cast($27 as jsonb) || cast($28 as jsonb)) as "concatValue", (cast($29 as jsonb) || cast($30 as jsonb)) as "mergeValue", jsonb_build_object($31, $32, $33, $34) as "builtObject", jsonb_build_array($35, $36, true) as "builtArray", to_json($37) as "toJson", to_jsonb($38) as "toJsonb", jsonb_typeof(cast("docs"."payload" as jsonb)) as "typeName", (case when jsonb_typeof(cast("docs"."payload" as jsonb)) = \'array\' then jsonb_array_length(cast("docs"."payload" as jsonb)) when jsonb_typeof(cast("docs"."payload" as jsonb)) = \'object\' then jsonb_object_length(cast("docs"."payload" as jsonb)) else null end) as "length", (case when jsonb_typeof(cast("docs"."payload" as jsonb)) = \'object\' then array(select jsonb_object_keys(cast("docs"."payload" as jsonb))) else null end) as "keys", (cast("docs"."payload" as jsonb) @? $39) as "pathExists", (cast("docs"."payload" as jsonb) @@ $40) as "pathMatch", jsonb_strip_nulls(cast("docs"."payload" as jsonb)) as "stripNulls" from "public"."docs"'
+      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", json_build_object($9, $10, $11, $12) as "builtObject", json_build_array($13, $14, true) as "builtArray", to_json($15) as "toJson", json_typeof("docs"."payload") as "typeName", (case when json_typeof("docs"."payload") = \'array\' then json_array_length("docs"."payload") when json_typeof("docs"."payload") = \'object\' then (select count(*)::int from json_object_keys("docs"."payload")) else null end) as "length", (case when json_typeof("docs"."payload") = \'object\' then array(select json_object_keys("docs"."payload")) else null end) as "keys", json_strip_nulls("docs"."payload") as "stripNulls" from "public"."docs"'
+    )
+    expect(rendered.params).toEqual([
+      "profile",
+      "profile",
+      "profile",
+      "address",
+      "city",
+      "profile",
+      "address",
+      "city",
+      "a",
+      1,
+      "b",
+      "x",
+      1,
+      "x",
+      1
+    ])
+  })
+
+  test("postgres shared json helpers still accept jsonb columns for exact paths", () => {
+    const docs = makeJsonbTable(Postgres)
+
+    const cityPath = Postgres.Function.json.path(
+      Postgres.Function.json.key("profile"),
+      Postgres.Function.json.key("address"),
+      Postgres.Function.json.key("city")
+    )
+
+    const plan = Postgres.Query.select({
+      cityJson: Postgres.Function.json.get(docs.payload, cityPath),
+      cityText: Postgres.Function.json.text(docs.payload, cityPath),
+      typeName: Postgres.Function.json.typeOf(docs.payload),
+      stripNulls: Postgres.Function.json.stripNulls(docs.payload)
+    }).pipe(Postgres.Query.from(docs))
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select ("docs"."payload" #> array[$1, $2, $3]) as "cityJson", ("docs"."payload" #>> array[$4, $5, $6]) as "cityText", jsonb_typeof("docs"."payload") as "typeName", jsonb_strip_nulls("docs"."payload") as "stripNulls" from "public"."docs"'
+    )
+    expect(rendered.params).toEqual([
+      "profile",
+      "address",
+      "city",
+      "profile",
+      "address",
+      "city"
+    ])
+  })
+
+  test("postgres renders the jsonb-only expression surface", () => {
+    const docs = makeJsonbTable(Postgres)
+
+    const exactPath = Postgres.Function.jsonb.path(
+      Postgres.Function.jsonb.key("profile"),
+      Postgres.Function.jsonb.key("address"),
+      Postgres.Function.jsonb.key("city")
+    )
+    const wildcardPath = Postgres.Function.jsonb.path(
+      Postgres.Function.jsonb.key("profile"),
+      Postgres.Function.jsonb.key("tags"),
+      Postgres.Function.jsonb.wildcard()
+    )
+
+    const plan = Postgres.Query.select({
+      profileJson: Postgres.Function.jsonb.get(docs.payload, Postgres.Function.jsonb.key("profile")),
+      profileText: Postgres.Function.jsonb.text(docs.payload, Postgres.Function.jsonb.key("profile")),
+      cityJson: Postgres.Function.jsonb.get(docs.payload, exactPath),
+      cityText: Postgres.Function.jsonb.text(docs.payload, exactPath),
+      wildcardJson: Postgres.Function.jsonb.get(docs.payload, wildcardPath),
+      hasProfile: Postgres.Function.jsonb.hasKey(docs.payload, "profile"),
+      hasAny: Postgres.Function.jsonb.hasAnyKeys(docs.payload, "profile", "note"),
+      hasAll: Postgres.Function.jsonb.hasAllKeys(docs.payload, "profile", "note"),
+      contains: Postgres.Function.jsonb.contains(docs.payload, {
+        profile: {
+          address: {
+            city: "Paris"
+          }
+        }
+      }),
+      containedBy: Postgres.Function.jsonb.containedBy(docs.payload, {
+        profile: {
+          address: {
+            city: "Paris"
+          }
+        }
+      }),
+      deleteNote: Postgres.Function.jsonb.delete(docs.payload, Postgres.Function.jsonb.key("note")),
+      removeNote: Postgres.Function.jsonb.remove(docs.payload, Postgres.Function.jsonb.key("note")),
+      setPostcode: Postgres.Function.jsonb.set(
+        docs.payload,
+        Postgres.Function.jsonb.path(Postgres.Function.jsonb.key("profile"), Postgres.Function.jsonb.key("address"), Postgres.Function.jsonb.key("postcode")),
+        "1000"
+      ),
+      insertSuite: Postgres.Function.jsonb.insert(
+        docs.payload,
+        Postgres.Function.jsonb.path(Postgres.Function.jsonb.key("profile"), Postgres.Function.jsonb.key("address"), Postgres.Function.jsonb.key("suite")),
+        "12A"
+      ),
+      concatValue: Postgres.Function.jsonb.concat({ a: 1 }, { b: 2 }),
+      mergeValue: Postgres.Function.jsonb.merge({ a: 1 }, { b: 2 }),
+      builtObject: Postgres.Function.jsonb.buildObject({ a: 1, b: "x" }),
+      builtArray: Postgres.Function.jsonb.buildArray(1, "x", true),
+      toJsonb: Postgres.Function.jsonb.toJsonb(Postgres.Query.literal(1)),
+      typeName: Postgres.Function.jsonb.typeOf(docs.payload),
+      length: Postgres.Function.jsonb.length(docs.payload),
+      keys: Postgres.Function.jsonb.keys(docs.payload),
+      pathExists: Postgres.Function.jsonb.pathExists(docs.payload, wildcardPath),
+      pathMatch: Postgres.Function.jsonb.pathMatch(docs.payload, '$.profile.address[*] ? (@.city == "Paris")'),
+      stripNulls: Postgres.Function.jsonb.stripNulls(docs.payload)
+    }).pipe(Postgres.Query.from(docs))
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", jsonb_path_query_first("docs"."payload", $9) as "wildcardJson", ("docs"."payload" ? cast($10 as text)) as "hasProfile", ("docs"."payload" ?| array[cast($11 as text), cast($12 as text)]) as "hasAny", ("docs"."payload" ?& array[cast($13 as text), cast($14 as text)]) as "hasAll", ("docs"."payload" @> cast($15 as jsonb)) as "contains", ("docs"."payload" <@ cast($16 as jsonb)) as "containedBy", ("docs"."payload" - $17) as "deleteNote", ("docs"."payload" - $18) as "removeNote", jsonb_set("docs"."payload", array[$19, $20, $21], cast($22 as jsonb), true) as "setPostcode", jsonb_insert("docs"."payload", array[$23, $24, $25], cast($26 as jsonb), false) as "insertSuite", (cast($27 as jsonb) || cast($28 as jsonb)) as "concatValue", (cast($29 as jsonb) || cast($30 as jsonb)) as "mergeValue", jsonb_build_object($31, $32, $33, $34) as "builtObject", jsonb_build_array($35, $36, true) as "builtArray", to_jsonb($37) as "toJsonb", jsonb_typeof("docs"."payload") as "typeName", (case when jsonb_typeof("docs"."payload") = \'array\' then jsonb_array_length("docs"."payload") when jsonb_typeof("docs"."payload") = \'object\' then (select count(*)::int from jsonb_object_keys("docs"."payload")) else null end) as "length", (case when jsonb_typeof("docs"."payload") = \'object\' then array(select jsonb_object_keys("docs"."payload")) else null end) as "keys", ("docs"."payload" @? $38) as "pathExists", ("docs"."payload" @@ $39) as "pathMatch", jsonb_strip_nulls("docs"."payload") as "stripNulls" from "public"."docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -155,32 +238,31 @@ describe("json behavior", () => {
       1,
       "x",
       1,
-      1,
       "$.profile.tags[*]",
       "$.profile.address[*] ? (@.city == \"Paris\")"
     ])
   })
 
-  test("postgres reuses the same JSON path object across read and write operators", () => {
-    const docs = makeTable(Postgres)
+  test("postgres reuses the same jsonb path object across read and write operators", () => {
+    const docs = makeJsonbTable(Postgres)
 
-    const cityPath = Postgres.Function.json.path(
-      Postgres.Function.json.key("profile"),
-      Postgres.Function.json.key("address"),
-      Postgres.Function.json.key("city")
+    const cityPath = Postgres.Function.jsonb.path(
+      Postgres.Function.jsonb.key("profile"),
+      Postgres.Function.jsonb.key("address"),
+      Postgres.Function.jsonb.key("city")
     )
 
     const plan = Postgres.Query.select({
-      cityJson: Postgres.Function.json.get(docs.payload, cityPath),
-      cityText: Postgres.Function.json.text(docs.payload, cityPath),
-      setCity: Postgres.Function.json.set(docs.payload, cityPath, "Paris"),
-      deleteCity: Postgres.Function.json.delete(docs.payload, cityPath)
+      cityJson: Postgres.Function.jsonb.get(docs.payload, cityPath),
+      cityText: Postgres.Function.jsonb.text(docs.payload, cityPath),
+      setCity: Postgres.Function.jsonb.set(docs.payload, cityPath, "Paris"),
+      deleteCity: Postgres.Function.jsonb.delete(docs.payload, cityPath)
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" #> array[$1, $2, $3]) as "cityJson", ("docs"."payload" #>> array[$4, $5, $6]) as "cityText", jsonb_set(cast("docs"."payload" as jsonb), array[$7, $8, $9], cast($10 as jsonb), true) as "setCity", (cast("docs"."payload" as jsonb) #- array[$11, $12, $13]) as "deleteCity" from "public"."docs"'
+      'select ("docs"."payload" #> array[$1, $2, $3]) as "cityJson", ("docs"."payload" #>> array[$4, $5, $6]) as "cityText", jsonb_set("docs"."payload", array[$7, $8, $9], cast($10 as jsonb), true) as "setCity", ("docs"."payload" #- array[$11, $12, $13]) as "deleteCity" from "public"."docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -200,7 +282,7 @@ describe("json behavior", () => {
   })
 
   test("mysql rejects unsupported json path match", () => {
-    const docs = makeTable(Mysql)
+    const docs = makeJsonTable(Mysql)
 
     const plan = Mysql.Query.select({
       pathMatch: Mysql.Function.json.pathMatch(docs.payload, '$.profile.address[*] ? (@.city == "Paris")')
@@ -212,7 +294,7 @@ describe("json behavior", () => {
   })
 
   test("mysql renders the JSON expression surface it supports", () => {
-    const docs = makeTable(Mysql)
+    const docs = makeJsonTable(Mysql)
 
     const exactPath = Mysql.Function.json.path(
       Mysql.Function.json.key("profile"),
@@ -337,7 +419,7 @@ describe("json behavior", () => {
   })
 
   test("mysql reuses the same JSON path object across read and write operators", () => {
-    const docs = makeTable(Mysql)
+    const docs = makeJsonTable(Mysql)
 
     const cityPath = Mysql.Function.json.path(
       Mysql.Function.json.key("profile"),
@@ -368,75 +450,103 @@ describe("json behavior", () => {
     ])
   })
 
-  test("postgres and mysql render json-backed insert and update mutations", () => {
-    const renderMutation = <TableModule extends typeof Postgres | typeof Mysql>(table: TableModule) => {
-      const docs = table.Table.make("docs", {
-        id: table.Column.uuid().pipe(table.Column.primaryKey),
-        payload: table.Column.json(mutationSchema)
-      })
+  test("postgres renders json and jsonb mutations with separate helper surfaces", () => {
+    const docsJson = Postgres.Table.make("docs_json", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      payload: Postgres.Column.json(mutationSchema)
+    })
+    const docsJsonb = Postgres.Table.make("docs_jsonb", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      payload: Postgres.Column.jsonb(mutationSchema)
+    })
 
-      const insertPlan = table.Query.insert(docs, {
-        id: "doc-1",
-        payload: table.Function.json.buildObject({
+    const insertPlan = Postgres.Query.insert(docsJson, {
+      id: "doc-1",
+      payload: Postgres.Function.json.buildObject({
+        profile: {
+          city: "Paris"
+        }
+      })
+    })
+
+    const updatePlan = Postgres.Query.update(docsJsonb, {
+      payload: Postgres.Function.jsonb.merge(
+        docsJsonb.payload,
+        Postgres.Function.jsonb.buildObject({
           profile: {
             city: "Paris"
           }
         })
-      })
+      )
+    })
 
-      const updatePlan = table.Query.update(docs, {
-        payload: table.Function.json.merge(
-          docs.payload,
-          table.Function.json.buildObject({
-            profile: {
-              city: "Paris"
-            }
-          })
-        )
-      })
-
-      return {
-        insert: table.Renderer.make().render(insertPlan),
-        update: table.Renderer.make().render(updatePlan)
-      }
-    }
-
-    const postgres = renderMutation(Postgres)
-    expect(postgres.insert.sql).toBe(
-      'insert into "public"."docs" ("id", "payload") values ($1, jsonb_build_object($2, $3))'
+    const insert = Postgres.Renderer.make().render(insertPlan)
+    expect(insert.sql).toBe(
+      'insert into "public"."docs_json" ("id", "payload") values ($1, json_build_object($2, $3))'
     )
-    expect(postgres.insert.params).toEqual([
+    expect(insert.params).toEqual([
       "doc-1",
       "profile",
       {
         city: "Paris"
       }
     ])
-    expect(postgres.update.sql).toBe(
-      'update "public"."docs" set "payload" = (cast("docs"."payload" as jsonb) || cast(jsonb_build_object($1, $2) as jsonb))'
+
+    const update = Postgres.Renderer.make().render(updatePlan)
+    expect(update.sql).toBe(
+      'update "public"."docs_jsonb" set "payload" = ("docs_jsonb"."payload" || jsonb_build_object($1, $2))'
     )
-    expect(postgres.update.params).toEqual([
+    expect(update.params).toEqual([
       "profile",
       {
         city: "Paris"
       }
     ])
+  })
 
-    const mysql = renderMutation(Mysql)
-    expect(mysql.insert.sql).toBe(
+  test("mysql keeps a single json mutation surface", () => {
+    const docs = Mysql.Table.make("docs", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      payload: Mysql.Column.json(mutationSchema)
+    })
+
+    const insertPlan = Mysql.Query.insert(docs, {
+      id: "doc-1",
+      payload: Mysql.Function.json.buildObject({
+        profile: {
+          city: "Paris"
+        }
+      })
+    })
+
+    const updatePlan = Mysql.Query.update(docs, {
+      payload: Mysql.Function.json.merge(
+        docs.payload,
+        Mysql.Function.json.buildObject({
+          profile: {
+            city: "Paris"
+          }
+        })
+      )
+    })
+
+    const insert = Mysql.Renderer.make().render(insertPlan)
+    expect(insert.sql).toBe(
       "insert into `docs` (`id`, `payload`) values (?, json_object(?, ?))"
     )
-    expect(mysql.insert.params).toEqual([
+    expect(insert.params).toEqual([
       "doc-1",
       "profile",
       {
         city: "Paris"
       }
     ])
-    expect(mysql.update.sql).toBe(
+
+    const update = Mysql.Renderer.make().render(updatePlan)
+    expect(update.sql).toBe(
       "update `docs` set `payload` = json_merge_preserve(`docs`.`payload`, json_object(?, ?))"
     )
-    expect(mysql.update.params).toEqual([
+    expect(update.params).toEqual([
       "profile",
       {
         city: "Paris"

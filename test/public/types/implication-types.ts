@@ -46,6 +46,7 @@ const conservativeNotNull = Q.select({
 
 type ConservativeNotNullRow = Q.ResultRow<typeof conservativeNotNull>
 const conservativeTitle: ConservativeNotNullRow["title"] = "hello"
+// @ts-expect-error not(isNull(...)) should narrow the filtered column itself
 const conservativeNullTitle: ConservativeNotNullRow["title"] = null
 const conservativeUpperTitle: ConservativeNotNullRow["upperTitle"] = "HELLO"
 // @ts-expect-error derived expressions should still narrow when the direct column refinement is recognized
@@ -75,6 +76,23 @@ void promotedUserId
 void promotedPostId
 void badPromotedPostId
 void runtimePromotedPostId
+
+const promotedJoinNullableColumn = Q.select({
+  userId: users.id,
+  postTitle: posts.title
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.isNotNull(posts.id))
+)
+
+type PromotedJoinNullableColumnRow = Q.ResultRow<typeof promotedJoinNullableColumn>
+const promotedNullableUserId: PromotedJoinNullableColumnRow["userId"] = "user-id"
+const promotedNullablePostTitle: PromotedJoinNullableColumnRow["postTitle"] = "hello"
+const promotedNullableNullPostTitle: PromotedJoinNullableColumnRow["postTitle"] = null
+void promotedNullableUserId
+void promotedNullablePostTitle
+void promotedNullableNullPostTitle
 
 const promotedByEquality = Q.select({
   userId: users.id,

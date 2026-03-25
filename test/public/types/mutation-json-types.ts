@@ -2,18 +2,25 @@ import * as Schema from "effect/Schema"
 
 import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
-const docs = Table.make("docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(Schema.Struct({
-    profile: Schema.Struct({
-      address: Schema.Struct({
-        city: Schema.String,
-        postcode: Schema.NullOr(Schema.String)
-      }),
-      tags: Schema.Array(Schema.String)
+const payloadSchema = Schema.Struct({
+  profile: Schema.Struct({
+    address: Schema.Struct({
+      city: Schema.String,
+      postcode: Schema.NullOr(Schema.String)
     }),
-    note: Schema.NullOr(Schema.String)
-  }))
+    tags: Schema.Array(Schema.String)
+  }),
+  note: Schema.NullOr(Schema.String)
+})
+
+const docsJson = Table.make("docs_json", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.json(payloadSchema)
+})
+
+const docsJsonb = Table.make("docs_jsonb", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.jsonb(payloadSchema)
 })
 
 const cityPath = F.json.path(
@@ -22,7 +29,7 @@ const cityPath = F.json.path(
   F.json.key("city")
 )
 
-const compatibleObject = F.json.buildObject({
+const compatibleJsonObject = F.json.buildObject({
   profile: {
     address: {
       city: "Paris",
@@ -32,9 +39,10 @@ const compatibleObject = F.json.buildObject({
   },
   note: null
 })
-const compatibleMerged = F.json.merge(
-  docs.payload,
-  F.json.buildObject({
+
+const compatibleJsonbMerged = F.jsonb.merge(
+  docsJsonb.payload,
+  F.jsonb.buildObject({
     profile: {
       address: {
         city: "Paris",
@@ -44,20 +52,31 @@ const compatibleMerged = F.json.merge(
     }
   })
 )
-
-const insertPlan = Q.insert(docs, {
-  id: "doc-1",
-  payload: compatibleObject
+const compatibleJsonbObject = F.jsonb.buildObject({
+  profile: {
+    address: {
+      city: "Paris",
+      postcode: "1000"
+    },
+    tags: ["travel"]
+  },
+  note: null
 })
 
-const updatePlan = Q.update(docs, {
-  payload: compatibleMerged
+const insertPlan = Q.insert(docsJson, {
+  id: "doc-1",
+  payload: compatibleJsonObject
+})
+
+const insertJsonbPlan = Q.insert(docsJsonb, {
+  id: "doc-b",
+  payload: compatibleJsonbObject
 })
 
 void insertPlan
-void updatePlan
+void insertJsonbPlan
+void compatibleJsonbMerged
 
-const deletedRequiredField = F.json.delete(docs.payload, cityPath)
 const incompatibleNestedObject = F.json.buildObject({
   profile: {
     address: {
@@ -69,24 +88,19 @@ const incompatibleNestedObject = F.json.buildObject({
   note: null
 })
 
-Q.insert(docs, {
+Q.insert(docsJson, {
   id: "doc-2",
-  // @ts-expect-error deleting a required field makes the json output incompatible with the column schema
-  payload: deletedRequiredField
-})
-
-// @ts-expect-error deleting a required field makes the json output incompatible with the column schema
-Q.update(docs, {
-  payload: deletedRequiredField
-})
-
-Q.insert(docs, {
-  id: "doc-3",
   // @ts-expect-error nested json output must match the column schema
   payload: incompatibleNestedObject
 })
 
-// @ts-expect-error nested json output must match the column schema
-Q.update(docs, {
+Q.update(docsJson, {
+  // @ts-expect-error nested json output must match the column schema
   payload: incompatibleNestedObject
+})
+
+Q.insert(docsJson, {
+  id: "doc-3",
+  // @ts-expect-error jsonb mutation helpers require a jsonb column
+  payload: compatibleJsonbObject
 })

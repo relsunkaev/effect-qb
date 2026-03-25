@@ -32,6 +32,22 @@ void nullableDerivedField
 void nonNullFallback
 void nullFallback
 
+const promotedLeftJoined = Q.select({
+  userId: users.id,
+  postTitle: posts.title
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.isNotNull(posts.id))
+)
+
+type PromotedLeftJoinedRow = Q.ResultRow<typeof promotedLeftJoined>
+const promotedJoinedField: PromotedLeftJoinedRow["postTitle"] = "title"
+// @ts-expect-error source promotion should make non-null joined columns non-null
+const promotedJoinedNullField: PromotedLeftJoinedRow["postTitle"] = null
+void promotedJoinedField
+void promotedJoinedNullField
+
 const variadicFallbackPlan = Q.select({
   userId: users.id,
   fallbackTitle: F.coalesce(null, posts.title, Q.literal("missing"))
