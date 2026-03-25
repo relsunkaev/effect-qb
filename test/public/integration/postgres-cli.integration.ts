@@ -1329,7 +1329,7 @@ export const audits = db.table("audits", {
   }
 }, 30000)
 
-test("postgres cli pulls jsonb columns as canonical json columns", async () => {
+test("postgres cli pulls builtin postgres columns with dedicated constructors", async () => {
   const { workspace, schemaName } = await makeWorkspace()
   try {
     await dropSchema(schemaName)
@@ -1341,6 +1341,10 @@ test("postgres cli pulls jsonb columns as canonical json columns", async () => {
 
     await execPostgres(`
       alter table "${schemaName}"."users"
+      add column "short_name" varchar(32),
+      add column "code" char(1),
+      add column "amount" bigint,
+      add column "observed_at" timestamp with time zone,
       add column "payload" jsonb;
     `)
 
@@ -1349,7 +1353,14 @@ test("postgres cli pulls jsonb columns as canonical json columns", async () => {
     expect(pull.stdout).toContain("updated 1 file(s)")
 
     const pulledSchema = await readSchema(workspace)
-    expect(pulledSchema).toContain(`payload: Column.json(Schema.Unknown).pipe(Column.nullable)`)
+    expect(pulledSchema).toContain(`payload: Column.jsonb(Schema.Unknown).pipe(Column.nullable)`)
+    expect(pulledSchema).toContain(`Column.varchar()`)
+    expect(pulledSchema).toContain(`Column.char()`)
+    expect(pulledSchema).toContain(`Column.int8()`)
+    expect(pulledSchema).toContain(`Column.timestamptz()`)
+    expect(pulledSchema).not.toContain(`kind: "varchar"`)
+    expect(pulledSchema).not.toContain(`kind: "char"`)
+    expect(pulledSchema).not.toContain(`kind: "int8"`)
     expect(pulledSchema).not.toContain(`Column.ddlType("jsonb")`)
 
     const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")

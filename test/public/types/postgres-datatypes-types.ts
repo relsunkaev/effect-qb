@@ -1,9 +1,21 @@
 import { Query as Q, Table, Column as C, Expression as E } from "effect-qb/postgres"
+import * as Schema from "effect/Schema"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
   email: C.text()
 })
+
+const builtinColumns = Table.make("builtin_columns", {
+  shortName: C.varchar(),
+  code: C.char(),
+  payload: C.jsonb(Schema.Struct({
+    ok: Schema.Boolean
+  })),
+  quantity: C.int8(),
+  createdAt: C.timestamptz()
+})
+void builtinColumns
 
 const plan = Q.select({
   varcharEmail: Q.cast(users.email, Q.type.varchar()),
