@@ -8,6 +8,7 @@ export {
   float4,
   float8,
   generated,
+  array,
   identityAlways,
   identityByDefault,
   int,

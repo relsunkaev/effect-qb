@@ -44,6 +44,12 @@ export const canonicalizePostgresTypeName = (value: string): string => {
   if (normalized.endsWith("[]")) {
     return `${canonicalizePostgresTypeName(normalized.slice(0, -2))}[]`
   }
+  const arrayPrefix = /^_+/.exec(normalized)
+  if (arrayPrefix !== null) {
+    const depth = arrayPrefix[0].length
+    const base = normalized.slice(depth)
+    return `${canonicalBaseType(base)}${"[]".repeat(depth)}`
+  }
   const base = normalized.replace(/\(.+\)$/, "")
   if (base === "character" || base === "bpchar") {
     return `${canonicalBaseType(base)}${normalized === base ? "(1)" : normalized.slice(base.length)}`
@@ -55,6 +61,12 @@ export const inferPostgresTypeKind = (ddlType: string): string => {
   const normalized = normalize(ddlType)
   if (normalized.endsWith("[]")) {
     return normalized
+  }
+  const arrayPrefix = /^_+/.exec(normalized)
+  if (arrayPrefix !== null) {
+    const depth = arrayPrefix[0].length
+    const base = normalized.slice(depth)
+    return `${canonicalBaseType(base)}${"[]".repeat(depth)}`
   }
   const base = normalized.replace(/\(.+\)$/, "")
   return canonicalBaseType(base)

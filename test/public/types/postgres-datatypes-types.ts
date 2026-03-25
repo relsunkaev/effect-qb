@@ -12,9 +12,21 @@ const builtinColumns = Table.make("builtin_columns", {
   payload: C.jsonb(Schema.Struct({
     ok: Schema.Boolean
   })),
+  tags: C.text().pipe(C.array()),
   quantity: C.int8(),
   createdAt: C.timestamptz()
 })
+
+const builtinArrayPlan = Q.select({
+  tags: builtinColumns.tags
+}).pipe(
+  Q.from(builtinColumns)
+)
+
+type BuiltinArrayRow = Q.ResultRow<typeof builtinArrayPlan>
+const tags: BuiltinArrayRow["tags"] = [] as readonly string[]
+void builtinArrayPlan
+void tags
 void builtinColumns
 
 const plan = Q.select({

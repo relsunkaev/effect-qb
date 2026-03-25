@@ -702,21 +702,54 @@ const renderColumnBase = (
 ): {
   readonly code: string
   readonly defaultDdlType?: string
+  readonly arrayDepth?: number
 } => {
+  const normalizeArrayType = (value: string): {
+    readonly baseType: string
+    readonly arrayDepth: number
+  } => {
+    let current = normalizeType(value)
+    let arrayDepth = 0
+    while (current.endsWith("[]")) {
+      current = current.slice(0, -2)
+      arrayDepth += 1
+    }
+    return { baseType: current, arrayDepth }
+  }
+  const effectiveDdlType = column.ddlType ?? column.dbTypeKind
+  const { baseType, arrayDepth } = normalizeArrayType(effectiveDdlType)
+  if (arrayDepth > 0) {
+    const baseColumn = {
+      ...column,
+      ddlType: baseType,
+      dbTypeKind: inferKindFromDdl(baseType),
+      typeSchema: inferSchemaNameFromDdl(baseType) ?? column.typeSchema,
+      typeKind: inferSchemaNameFromDdl(baseType) !== undefined && context.enumKeys.has(enumKey(inferSchemaNameFromDdl(baseType), inferKindFromDdl(baseType)))
+        ? "e"
+        : column.typeKind
+    }
+    const base = renderColumnBase(baseColumn, context)
+    return {
+      code: base.code,
+      defaultDdlType: base.defaultDdlType === undefined
+        ? `${baseType}${"[]".repeat(arrayDepth)}`
+        : `${base.defaultDdlType}${"[]".repeat(arrayDepth)}`,
+      arrayDepth
+    }
+  }
   const sizedTextLength = (
     kind: "char" | "varchar"
   ): number | undefined => {
-    const normalized = normalizeType(column.ddlType)
-    const match = new RegExp(`^${kind}\\((\\d+)\\)$`).exec(normalized)
+    const match = new RegExp(`^${kind}\\((\\d+)\\)$`).exec(baseType)
     if (match !== null) {
       return Number(match[1])
     }
-    if (kind === "char" && (normalized === "char" || normalized === "character" || normalized === "bpchar")) {
+    if (kind === "char" && (baseType === "char" || baseType === "character" || baseType === "bpchar")) {
       return 1
     }
     return undefined
   }
-  if (normalizeType(column.ddlType) === "jsonb" || normalizeType(column.dbTypeKind) === "jsonb") {
+  if (baseType === "jsonb" || normalizeType(column.dbTypeKind) === "jsonb") {
     return {
       code: `${COLUMN_ALIAS}.jsonb(${SCHEMA_ALIAS}.Unknown)`,
       defaultDdlType: "jsonb"
@@ -725,11 +758,6 @@ const renderColumnBase = (
   if (column.typeKind === "e") {
     return {
       code: `${COLUMN_ALIAS}.custom(${SCHEMA_ALIAS}.String, ${renderDbTypeDescriptor(column, context)})`
-    }
-  }
-  if (normalizeType(column.ddlType).endsWith("[]")) {
-    return {
-      code: `${COLUMN_ALIAS}.custom(${SCHEMA_ALIAS}.Unknown, ${renderDbTypeDescriptor(column, context)})`
     }
   }
   switch (column.dbTypeKind) {
@@ -814,7 +842,9 @@ const renderColumnDefinition = (
 ): string => {
   const base = renderColumnBase(column, context)
   const expressionContext = renderExpressionContext(table, context)
-  const pipes: string[] = []
+  const pipes: string[] = base.arrayDepth === undefined
+    ? []
+    : Array.from({ length: base.arrayDepth }, () => `${COLUMN_ALIAS}.array()`)
   if (base.defaultDdlType === undefined || canonicalDdlType(column.ddlType) !== canonicalDdlType(base.defaultDdlType)) {
     pipes.push(`${COLUMN_ALIAS}.ddlType(${renderStringLiteral(column.ddlType)})`)
   }
