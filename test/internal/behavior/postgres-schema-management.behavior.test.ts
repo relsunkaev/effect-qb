@@ -478,10 +478,11 @@ const users = Table.make("users", {
       const plan = await planPostgresPull(repoRoot, { include: ["**/*.ts"] }, discovered, database)
 
       expect(plan.updates).toHaveLength(1)
-      expect(plan.updates[0]?.after).toContain(`import { Table as __EffectQbPullTable`)
-      expect(plan.updates[0]?.after).toContain(`const users = __EffectQbPullTable.make("users"`)
-      expect(plan.updates[0]?.after).toContain(`id: __EffectQbPullColumn.uuid()`)
-      expect(plan.updates[0]?.after).toContain(`__EffectQbPullTable.primaryKey(["id"] as const)`)
+      expect(plan.updates[0]?.after).toContain(`import * as Pg from "effect-qb/postgres"`)
+      expect(plan.updates[0]?.after).toContain(`import { Table, Column, SchemaExpression } from "effect-qb/postgres"`)
+      expect(plan.updates[0]?.after).toContain(`const users = Table.make("users"`)
+      expect(plan.updates[0]?.after).toContain(`id: Column.uuid()`)
+      expect(plan.updates[0]?.after).toContain(`Table.primaryKey(["id"] as const)`)
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }
@@ -532,7 +533,7 @@ const users = Table.make("users", {
       expect(plan.updates).toHaveLength(1)
       const after = plan.updates[0]?.after ?? ""
       expect(after.indexOf("target: () => connections")).toBeGreaterThan(after.indexOf("connections ="))
-      expect(after).toContain(`__EffectQbPullTable.foreignKey({ columns: ["connection_id"] as const, target: () => connections`)
+      expect(after).toContain(`Table.foreignKey({ columns: ["connection_id"] as const, target: () => connections`)
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }

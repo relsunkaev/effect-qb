@@ -237,7 +237,7 @@ test("postgres cli supports push pull and migrations against a live database", a
     expect(pull.stdout).toContain("updated 1 file(s)")
 
     const pulledSchema = await readSchema(workspace)
-    expect(pulledSchema).toContain(`name: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)`)
+    expect(pulledSchema).toContain(`name: Column.text().pipe(Column.nullable)`)
     expect(pulledSchema).toContain(`users_email_idx`)
     expect(pulledSchema).toContain(`export { users }`)
 
@@ -248,8 +248,8 @@ test("postgres cli supports push pull and migrations against a live database", a
     await writeFile(
       schemaFile(workspace),
       pulledSchema.replace(
-        `    email: __EffectQbPullColumn.text(),\n`,
-        `    email: __EffectQbPullColumn.text(),\n    nickname: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable),\n`
+        `    email: Column.text(),\n`,
+        `    email: Column.text(),\n    nickname: Column.text().pipe(Column.nullable),\n`
       )
     )
 
@@ -753,7 +753,7 @@ test("postgres cli pull creates source definitions for unmanaged tables", async 
     expect(pull.stdout).toContain("update schema.ts")
     const nextSchema = await readSchema(workspace)
     expect(nextSchema).not.toBe(initialSchema)
-    expect(nextSchema).toContain(`const profiles = __EffectQbPullTable.make("profiles"`)
+    expect(nextSchema).toContain(`const profiles = Table.make("profiles"`)
     expect(nextSchema).toContain(`export { users, profiles }`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
@@ -843,13 +843,13 @@ test("postgres cli accepts --url overrides over the configured database url", as
     expect(pull.stdout).toContain("updated 1 file(s)")
 
     const pulledSchema = await readSchema(workspace)
-    expect(pulledSchema).toContain(`name: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)`)
+    expect(pulledSchema).toContain(`name: Column.text().pipe(Column.nullable)`)
 
     await writeFile(
       schemaFile(workspace),
       pulledSchema.replace(
-        `    name: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)\n`,
-        `    name: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable),\n    nickname: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)\n`
+        `    name: Column.text().pipe(Column.nullable)\n`,
+        `    name: Column.text().pipe(Column.nullable),\n    nickname: Column.text().pipe(Column.nullable)\n`
       )
     )
 
@@ -925,6 +925,7 @@ export const audits = db.table("audits", {
     await dropSchema(schemaName)
 
     const config = configFile(workspace)
+    const ignoredBefore = await readFile(join(workspace, "tables", "ignored.ts"), "utf8")
 
     const push = await runCli("push", "--config", config)
     expect(push.exitCode).toBe(0)
@@ -959,7 +960,7 @@ export const audits = db.table("audits", {
 
     expect(await readFile(join(workspace, "tables", "users.ts"), "utf8")).toContain("nickname")
     expect(await readFile(join(workspace, "tables", "orgs.ts"), "utf8")).toContain("slug")
-    expect(await readFile(join(workspace, "tables", "ignored.ts"), "utf8")).not.toContain("__EffectQbPullColumn")
+    expect(await readFile(join(workspace, "tables", "ignored.ts"), "utf8")).toBe(ignoredBefore)
 
     const secondPullDryRun = await runCli("pull", "--config", config, "--dry-run")
     expect(secondPullDryRun.exitCode).toBe(0)
@@ -1083,7 +1084,7 @@ export { status, orgs, users }
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`const status = types.enum("status", ["pending", "active"] as const)`)
-    expect(pulledSchema).toContain(`__EffectQbPullColumn.identityByDefault`)
+    expect(pulledSchema).toContain(`Column.identityByDefault`)
     expect(pulledSchema).toContain(`variant: "enum"`)
     expect(pulledSchema).toContain(`users_org_id_fkey`)
     expect(pulledSchema).toContain(`users_alias_key`)
@@ -1098,7 +1099,7 @@ export { status, orgs, users }
     expect(pulledSchema).toContain(`users_note_idx`)
     expect(pulledSchema).toContain(`nulls: "first"`)
     expect(pulledSchema).toContain(`emailLower`)
-    expect(pulledSchema).toContain(`__EffectQbPullColumn.generated(`)
+    expect(pulledSchema).toContain(`Column.generated(`)
 
     const secondPullDryRun = await runCli("pull", "--config", config, "--dry-run")
     expect(secondPullDryRun.exitCode).toBe(0)
@@ -1318,7 +1319,7 @@ export const audits = db.table("audits", {
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`const audits = db.table(`)
-    expect(pulledSchema).toContain(`actorName: __EffectQbPullColumn.text().pipe(__EffectQbPullColumn.nullable)`)
+    expect(pulledSchema).toContain(`actorName: Column.text().pipe(Column.nullable)`)
     expect(pulledSchema).toContain(`audits_actor_name_idx`)
 
     await assertIdempotentPullPush(config)
@@ -1358,10 +1359,10 @@ export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
     expect(pull.exitCode).toBe(0)
 
     const pulledSchema = await readSchema(workspace)
-    expect(pulledSchema).toContain(`class Sessions extends __EffectQbPullTable.Class<Sessions>("sessions", "${schemaName}")({`)
-    expect(pulledSchema).toContain(`lastSeenAt: __EffectQbPullColumn.timestamp().pipe(`)
-    expect(pulledSchema).toContain(`__EffectQbPullColumn.ddlType("timestamp without time zone"), __EffectQbPullColumn.nullable`)
-    expect(pulledSchema).toContain(`static readonly [__EffectQbPullTable.options] = [`)
+    expect(pulledSchema).toContain(`class Sessions extends Table.Class<Sessions>("sessions", "${schemaName}")({`)
+    expect(pulledSchema).toContain(`lastSeenAt: Column.timestamp().pipe(`)
+    expect(pulledSchema).toContain(`Column.ddlType("timestamp without time zone"), Column.nullable`)
+    expect(pulledSchema).toContain(`static readonly [Table.options] = [`)
     expect(pulledSchema).toContain(`sessions_email_idx`)
 
     await assertIdempotentPullPush(config)
@@ -1391,7 +1392,7 @@ test("postgres cli pull creates source definitions for missing enums", async () 
     expect(pull.exitCode).toBe(0)
     expect(pull.stdout).toContain("update schema.ts")
     const nextSchema = await readSchema(workspace)
-    expect(nextSchema).toContain(`const status = __EffectQbPullPg.schema(${JSON.stringify(schemaName)}).enum("status", ["pending", "active"] as const)`)
+    expect(nextSchema).toContain(`const status = Pg.schema(${JSON.stringify(schemaName)}).enum("status", ["pending", "active"] as const)`)
     expect(nextSchema).toContain(`export { users, status }`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)

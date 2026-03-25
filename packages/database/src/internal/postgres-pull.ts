@@ -7,11 +7,11 @@ import { defaultConstraintName } from "./postgres-schema-sql.js"
 import { enumKey, tableKey, renderDdlExpressionSql, toEnumModel, toTableModel } from "effect-qb/postgres/metadata"
 import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "./postgres-source-discovery.js"
 
-const TABLE_ALIAS = "__EffectQbPullTable"
-const COLUMN_ALIAS = "__EffectQbPullColumn"
-const SCHEMA_EXPRESSION_ALIAS = "__EffectQbPullSchemaExpression"
-const PG_ALIAS = "__EffectQbPullPg"
-const SCHEMA_ALIAS = "__EffectQbPullSchema"
+const TABLE_ALIAS = "Table"
+const COLUMN_ALIAS = "Column"
+const SCHEMA_EXPRESSION_ALIAS = "SchemaExpression"
+const PG_ALIAS = "Pg"
+const SCHEMA_ALIAS = "Schema"
 
 export interface PullFileUpdate {
   readonly filePath: string
@@ -641,16 +641,21 @@ const renderEnumDeclaration = (
 }
 
 const ensureImports = (contents: string): string => {
+  const cleaned = contents
+    .replace(/^import \* as [A-Za-z0-9_$]+ from "effect-qb\/postgres"\n?/gm, "")
+    .replace(/^import \{[^}]+\} from "effect-qb\/postgres"\n?/gm, "")
+    .replace(/^import \* as [A-Za-z0-9_$]+ from "effect\/Schema"\n?/gm, "")
+    .trimStart()
   const required = [
     `import * as ${PG_ALIAS} from "effect-qb/postgres"`,
-    `import { Table as ${TABLE_ALIAS}, Column as ${COLUMN_ALIAS}, SchemaExpression as ${SCHEMA_EXPRESSION_ALIAS} } from "effect-qb/postgres"`,
+    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS}, ${SCHEMA_EXPRESSION_ALIAS} } from "effect-qb/postgres"`,
     `import * as ${SCHEMA_ALIAS} from "effect/Schema"`
   ]
-  const missing = required.filter((line) => !contents.includes(line))
+  const missing = required.filter((line) => !cleaned.includes(line))
   if (missing.length === 0) {
-    return contents
+    return cleaned
   }
-  return `${missing.join("\n")}\n${contents}`
+  return `${missing.join("\n")}\n${cleaned}`
 }
 
 const sanitizeIdentifier = (value: string): string => {
