@@ -559,6 +559,81 @@ test("postgres cli applies pending migrations from alternate dirs and tables in 
   }
 }, 30000)
 
+test("postgres cli reports migration status, rolls back, and repairs orphaned records", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const initialPush = await runCli("push", "--config", config)
+    expect(initialPush.exitCode).toBe(0)
+
+    await mkdir(join(workspace, "migrations"), { recursive: true })
+    await Bun.write(join(workspace, "migrations", "0001_add_slug.sql"), `
+-- effect-db:up
+alter table "${schemaName}"."users" add column "slug" text;
+-- effect-db:down
+alter table "${schemaName}"."users" drop column "slug";
+`)
+    await Bun.write(join(workspace, "migrations", "0002_add_nickname.sql"), `
+-- effect-db:up
+alter table "${schemaName}"."users" add column "nickname" text;
+-- effect-db:down
+alter table "${schemaName}"."users" drop column "nickname";
+`)
+
+    const statusBefore = await runCli("migrate", "status", "--config", config)
+    expect(statusBefore.exitCode).toBe(0)
+    expect(statusBefore.stdout).toContain("applied migrations (0):")
+    expect(statusBefore.stdout).toContain("pending migrations (2):")
+
+    const migrateUp = await runCli("migrate", "up", "--config", config)
+    expect(migrateUp.exitCode).toBe(0)
+    expect(migrateUp.stdout).toContain("applied 2 migration(s)")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" },
+      { column_name: "email" },
+      { column_name: "slug" },
+      { column_name: "nickname" }
+    ])
+
+    const statusAfterUp = await runCli("migrate", "status", "--config", config)
+    expect(statusAfterUp.exitCode).toBe(0)
+    expect(statusAfterUp.stdout).toContain("applied migrations (2):")
+    expect(statusAfterUp.stdout).toContain("pending migrations (0):")
+
+    const migrateDown = await runCli("migrate", "down", "--config", config, "--steps", "1")
+    expect(migrateDown.exitCode).toBe(0)
+    expect(migrateDown.stdout).toContain("rolled back 1 migration(s)")
+
+    expect(await listColumns(schemaName, "users")).toEqual([
+      { column_name: "id" },
+      { column_name: "email" },
+      { column_name: "slug" }
+    ])
+
+    await execPostgres(`
+      insert into "${schemaName}"."effect_qb_migrations" (name)
+      values ('9999_orphan.sql');
+    `)
+
+    const repair = await runCli("migrate", "repair", "--config", config)
+    expect(repair.exitCode).toBe(0)
+    expect(repair.stdout).toContain("repaired 1 migration record(s)")
+
+    const statusAfterRepair = await runCli("migrate", "status", "--config", config)
+    expect(statusAfterRepair.exitCode).toBe(0)
+    expect(statusAfterRepair.stdout).toContain("applied migrations (1):")
+    expect(statusAfterRepair.stdout).toContain("pending migrations (1):")
+    expect(statusAfterRepair.stdout).not.toContain("9999_orphan.sql")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
 test("postgres cli surfaces manual enum changes during push and migrate generate", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Schema from "effect/Schema"
@@ -650,7 +725,7 @@ export { status }
   }
 }, 30000)
 
-test("postgres cli pull fails when the database has unmanaged tables", async () => {
+test("postgres cli pull creates source definitions for unmanaged tables", async () => {
   const { workspace, schemaName } = await makeWorkspace()
   try {
     await dropSchema(schemaName)
@@ -668,9 +743,12 @@ test("postgres cli pull fails when the database has unmanaged tables", async () 
     `)
 
     const pull = await runCli("pull", "--config", config)
-    expect(pull.exitCode).not.toBe(0)
-    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`No source table declaration found for '${schemaName}.profiles'`)
-    expect(await readSchema(workspace)).toBe(initialSchema)
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain("update schema.ts")
+    const nextSchema = await readSchema(workspace)
+    expect(nextSchema).not.toBe(initialSchema)
+    expect(nextSchema).toContain(`const profiles = __EffectQbPullTable.make("profiles"`)
+    expect(nextSchema).toContain(`export { users, profiles }`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })
@@ -1278,7 +1356,7 @@ export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
   }
 }, 30000)
 
-test("postgres cli pull fails when database enums have no matching source declaration", async () => {
+test("postgres cli pull creates source definitions for missing enums", async () => {
   const { workspace, schemaName } = await makeWorkspace()
   try {
     await dropSchema(schemaName)
@@ -1295,8 +1373,11 @@ test("postgres cli pull fails when database enums have no matching source declar
     `)
 
     const pull = await runCli("pull", "--config", config)
-    expect(pull.exitCode).not.toBe(0)
-    expect(`${pull.stdout}\n${pull.stderr}`).toContain(`No source enum declaration found for '${schemaName}.status'`)
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain("update schema.ts")
+    const nextSchema = await readSchema(workspace)
+    expect(nextSchema).toContain(`const status = __EffectQbPullSchemaManagement.enumType("status", ["pending", "active"] as const, ${JSON.stringify(schemaName)})`)
+    expect(nextSchema).toContain(`export { users, status }`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })

@@ -109,6 +109,322 @@ describe("postgres schema management", () => {
     ])
   })
 
+  test("detects table, column, constraint, index, and enum renames", () => {
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [
+        {
+          kind: "enum",
+          schemaName: "public",
+          name: "status_new",
+          values: ["pending", "active"]
+        } as any
+      ],
+      tables: [
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "members",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "email",
+              ddlType: "text",
+              dbTypeKind: "text",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "primaryKey",
+              columns: ["id"]
+            }
+          ]
+        } as any,
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "contacts",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "email",
+              ddlType: "text",
+              dbTypeKind: "text",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "phone",
+              ddlType: "text",
+              dbTypeKind: "text",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "primaryKey",
+              columns: ["id"]
+            }
+          ]
+        } as any,
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "flags",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "code",
+              ddlType: "text",
+              dbTypeKind: "text",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "primaryKey",
+              columns: ["id"]
+            },
+            {
+              kind: "unique",
+              name: "flags_code_new_key",
+              columns: ["code"]
+            }
+          ]
+        } as any,
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "events",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "createdAt",
+              ddlType: "timestamp without time zone",
+              dbTypeKind: "timestamp",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "primaryKey",
+              columns: ["id"]
+            },
+            {
+              kind: "index",
+              name: "events_created_at_new_idx",
+              columns: ["createdAt"]
+            }
+          ]
+        } as any
+      ]
+    }
+
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [
+        {
+          kind: "enum",
+          schemaName: "public",
+          name: "status_old",
+          values: ["pending", "active"]
+        } as any
+      ],
+      tables: [
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "users",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "email",
+              ddlType: "text",
+              dbTypeKind: "text",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "primaryKey",
+              columns: ["id"]
+            }
+          ]
+        } as any,
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "contacts",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "emailAddress",
+              ddlType: "text",
+              dbTypeKind: "text",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "phone",
+              ddlType: "text",
+              dbTypeKind: "text",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "primaryKey",
+              columns: ["id"]
+            }
+          ]
+        } as any,
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "flags",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "code",
+              ddlType: "text",
+              dbTypeKind: "text",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "primaryKey",
+              columns: ["id"]
+            },
+            {
+              kind: "unique",
+              name: "flags_code_legacy_key",
+              columns: ["code"]
+            }
+          ]
+        } as any,
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "events",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            },
+            {
+              name: "createdAt",
+              ddlType: "timestamp without time zone",
+              dbTypeKind: "timestamp",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "primaryKey",
+              columns: ["id"]
+            },
+            {
+              kind: "index",
+              name: "events_created_idx",
+              columns: ["createdAt"]
+            }
+          ]
+        } as any
+      ]
+    }
+
+    const plan = planPostgresSchemaDiff(source, database)
+    expect(plan.changes.map((change) => change.kind).sort()).toEqual([
+      "renameColumn",
+      "renameConstraint",
+      "renameConstraint",
+      "renameEnum",
+      "renameIndex",
+      "renameTable"
+    ])
+    expect(plan.safeChanges.map((change) => change.kind).sort()).toEqual([
+      "renameColumn",
+      "renameConstraint",
+      "renameConstraint",
+      "renameEnum",
+      "renameIndex",
+      "renameTable"
+    ])
+  })
+
   test("builds pull updates for canonical factory tables", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-pull-"))
     try {
@@ -159,7 +475,7 @@ const users = Table.make("users", {
         }]
       }
 
-      const plan = await planPostgresPull(repoRoot, discovered, database)
+      const plan = await planPostgresPull(repoRoot, { include: ["**/*.ts"] }, discovered, database)
 
       expect(plan.updates).toHaveLength(1)
       expect(plan.updates[0]?.after).toContain(`import { Table as __EffectQbPullTable`)
