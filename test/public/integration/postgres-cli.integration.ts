@@ -340,7 +340,7 @@ test("postgres cli blocks destructive push changes unless explicitly allowed", a
 test("postgres cli safe mode applies additive changes and skips destructive drift", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "#postgres"
-import { Column as C, SchemaExpression, Table } from "#postgres"
+import { Column as C, Function as F, Query as Q, Table } from "#postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -348,13 +348,13 @@ export const users = db.table("users", {
   id: C.int().pipe(C.identityByDefault),
   email: C.text(),
   nickname: C.text().pipe(C.nullable),
-  displayName: C.text().pipe(C.default(SchemaExpression.parseExpression("'guest'::text"))),
-  emailLower: C.text().pipe(C.generated(SchemaExpression.parseExpression("lower(email)")))
+  displayName: C.text().pipe(C.default(Q.cast(Q.literal("guest"), Q.type.text()))),
+  emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Q.type.text()))))
 }).pipe(
   Table.primaryKey({ columns: ["id"] as const, name: "users_pkey" }),
   Table.unique({ columns: ["email"] as const, name: "users_email_key" }),
   Table.index({ name: "users_email_idx", columns: ["email"] as const }),
-  Table.check("users_email_check", SchemaExpression.parseExpression("email <> 'blocked'"))
+  Table.check("users_email_check", Q.neq(Q.column("email", Q.type.text()), Q.literal("blocked")))
 )
 `)
   try {
@@ -367,7 +367,7 @@ export const users = db.table("users", {
 
     await writeFile(schemaFile(workspace), `
 import * as Pg from "#postgres"
-import { Column as C, SchemaExpression, Table } from "#postgres"
+import { Column as C, Function as F, Query as Q, Table } from "#postgres"
 
 const db = Pg.schema(${JSON.stringify(schemaName)})
 
@@ -375,8 +375,8 @@ export const users = db.table("users", {
   id: C.int().pipe(C.identityByDefault),
   email: C.text().pipe(C.ddlType("character varying(255)")),
   nickname: C.text(),
-  displayName: C.text().pipe(C.default(SchemaExpression.parseExpression("'member'::text"))),
-  emailLower: C.text().pipe(C.generated(SchemaExpression.parseExpression("upper(email)"))),
+  displayName: C.text().pipe(C.default(Q.cast(Q.literal("member"), Q.type.text()))),
+  emailLower: C.text().pipe(C.generated(F.upper(Q.column("email", Q.type.text())))),
   notes: C.text().pipe(C.nullable)
 }).pipe(
   Table.primaryKey({ columns: ["id"] as const, name: "users_pkey" })
@@ -979,7 +979,7 @@ test("postgres cli round-trips enum, foreign-key, generated, identity, and rich 
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Schema from "effect/Schema"
 import * as Pg from "#postgres"
-import { Column as C, Query as Q, SchemaExpression, Table } from "#postgres"
+import { Column as C, Function as F, Query as Q, Table } from "#postgres"
 
 const tables = Pg.schema("__SCHEMA__")
 const types = Pg.schema("__SCHEMA__")
@@ -1000,8 +1000,8 @@ const users = tables.table("users", {
   status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
   email: C.text(),
   alias: C.text().pipe(C.nullable),
-  displayName: C.text().pipe(C.default(SchemaExpression.parseExpression("'guest'::text"))),
-  emailLower: C.text().pipe(C.generated(SchemaExpression.parseExpression("lower(email)"))),
+  displayName: C.text().pipe(C.default(Q.cast(Q.literal("guest"), Q.type.text()))),
+  emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Q.type.text())))),
   note: C.text().pipe(C.nullable)
 }).pipe(
   Table.primaryKey({ columns: ["id"], name: "users_pkey" }),
@@ -1016,31 +1016,31 @@ const users = tables.table("users", {
     deferrable: true,
     initiallyDeferred: true
   }),
-  Table.index({
-    name: "users_email_lookup_idx",
-    method: "btree",
-    keys: [
-      {
-        expression: SchemaExpression.parseExpression("lower(email)"),
-        order: "desc",
-        nulls: "last"
-      }
-    ],
-    include: ["displayName"] as const,
-    predicate: SchemaExpression.parseExpression("email is not null")
-  }),
-  Table.index({
-    name: "users_note_idx",
-    keys: [
-      {
-        column: "note",
-        order: "asc",
-        nulls: "first"
-      }
-    ],
-    predicate: SchemaExpression.parseExpression("note is not null")
-  })
-)
+    Table.index({
+      name: "users_email_lookup_idx",
+      method: "btree",
+      keys: [
+        {
+          expression: F.lower(Q.column("email", Q.type.text())),
+          order: "desc",
+          nulls: "last"
+        }
+      ],
+      include: ["displayName"] as const,
+      predicate: Q.isNotNull(Q.column("email", Q.type.text()))
+    }),
+    Table.index({
+      name: "users_note_idx",
+      keys: [
+        {
+          column: "note",
+          order: "asc",
+          nulls: "first"
+        }
+      ],
+      predicate: Q.isNotNull(Q.column("note", Q.type.text()))
+    })
+  )
 
 export { status, orgs, users }
 `)
@@ -1329,6 +1329,38 @@ export const audits = db.table("audits", {
   }
 }, 30000)
 
+test("postgres cli pulls jsonb columns as canonical json columns", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    await dropSchema(schemaName)
+
+    const config = configFile(workspace)
+
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode).toBe(0)
+
+    await execPostgres(`
+      alter table "${schemaName}"."users"
+      add column "payload" jsonb;
+    `)
+
+    const pull = await runCli("pull", "--config", config)
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain("updated 1 file(s)")
+
+    const pulledSchema = await readSchema(workspace)
+    expect(pulledSchema).toContain(`payload: Column.json(Schema.Unknown).pipe(Column.nullable)`)
+    expect(pulledSchema).not.toContain(`Column.ddlType("jsonb")`)
+
+    const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
+    expect(finalPushDryRun.exitCode).toBe(0)
+    expect(finalPushDryRun.stdout).toContain("planned changes: none")
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
 test("postgres cli pulls class table declarations into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "#postgres"
@@ -1361,7 +1393,7 @@ export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`class Sessions extends Table.Class<Sessions>("sessions", "${schemaName}")({`)
     expect(pulledSchema).toContain(`lastSeenAt: Column.timestamp().pipe(`)
-    expect(pulledSchema).toContain(`Column.ddlType("timestamp without time zone"), Column.nullable`)
+    expect(pulledSchema).toContain(`Column.timestamp().pipe(Column.nullable)`)
     expect(pulledSchema).toContain(`static readonly [Table.options] = [`)
     expect(pulledSchema).toContain(`sessions_email_idx`)
 

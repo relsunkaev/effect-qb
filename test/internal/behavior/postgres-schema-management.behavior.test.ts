@@ -479,7 +479,8 @@ const users = Table.make("users", {
 
       expect(plan.updates).toHaveLength(1)
       expect(plan.updates[0]?.after).toContain(`import * as Pg from "effect-qb/postgres"`)
-      expect(plan.updates[0]?.after).toContain(`import { Table, Column, SchemaExpression } from "effect-qb/postgres"`)
+      expect(plan.updates[0]?.after).toContain(`import { Table, Column } from "effect-qb/postgres"`)
+      expect(plan.updates[0]?.after).toContain(`import * as Schema from "effect/Schema"`)
       expect(plan.updates[0]?.after).toContain(`const users = Table.make("users"`)
       expect(plan.updates[0]?.after).toContain(`id: Column.uuid()`)
       expect(plan.updates[0]?.after).toContain(`Table.primaryKey(["id"] as const)`)
