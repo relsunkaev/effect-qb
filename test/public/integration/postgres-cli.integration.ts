@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
-import { execPostgres } from "./helpers.ts"
+import { execPostgres, withPostgresLock } from "./helpers.ts"
 
 const repoRoot = process.cwd()
 const cliEntry = join(repoRoot, "packages", "database", "src", "cli.ts")
@@ -56,8 +56,8 @@ const renderTableSource = (
   tableFields = `  id: C.text(),
   email: C.text()`
 ) => `
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const db = Pg.schema(${JSON.stringify(schemaName)})
 
@@ -95,7 +95,7 @@ const makeSourceWorkspace = async (
   await writeFile(join(workspace, "effectdb.config.ts"), renderSchemaSource(schemaName, {
     databaseUrl
   }))
-  await writeFile(join(workspace, "schema.ts"), source.replaceAll("__SCHEMA__", schemaName))
+  await writeFile(join(workspace, "schema.ts"), source.replaceAll("__SCHEMA__", schemaName).replaceAll("#postgres", "effect-qb/postgres"))
   return {
     workspace,
     schemaName
@@ -112,7 +112,7 @@ const makeWorkspaceWithFiles = async (
   for (const [relativePath, contents] of Object.entries(files)) {
     const absolutePath = join(workspace, relativePath)
     await mkdir(dirname(absolutePath), { recursive: true })
-    await writeFile(absolutePath, contents.replaceAll("__SCHEMA__", schemaName))
+    await writeFile(absolutePath, contents.replaceAll("__SCHEMA__", schemaName).replaceAll("#postgres", "effect-qb/postgres"))
   }
   return {
     workspace,
@@ -125,26 +125,28 @@ const runCli = async (...args: readonly string[]): Promise<{
   readonly stdout: string
   readonly stderr: string
 }> => {
-  const proc = Bun.spawn([
-    process.execPath,
-    cliEntry,
-    ...args
-  ], {
-    cwd: repoRoot,
-    stdout: "pipe",
-    stderr: "pipe",
-    env: process.env
+  return withPostgresLock(async () => {
+    const proc = Bun.spawn([
+      process.execPath,
+      cliEntry,
+      ...args
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: process.env
+    })
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited
+    ])
+    return {
+      exitCode,
+      stdout,
+      stderr
+    }
   })
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited
-  ])
-  return {
-    exitCode,
-    stdout,
-    stderr
-  }
 }
 
 const schemaFile = (workspace: string) => join(workspace, "schema.ts")
@@ -339,8 +341,8 @@ test("postgres cli blocks destructive push changes unless explicitly allowed", a
 
 test("postgres cli safe mode applies additive changes and skips destructive drift", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
-import * as Pg from "#postgres"
-import { Column as C, Function as F, Query as Q, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -366,8 +368,8 @@ export const users = db.table("users", {
     expect(initialPush.exitCode).toBe(0)
 
     await writeFile(schemaFile(workspace), `
-import * as Pg from "#postgres"
-import { Column as C, Function as F, Query as Q, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const db = Pg.schema(${JSON.stringify(schemaName)})
 
@@ -640,8 +642,8 @@ alter table "${schemaName}"."users" drop column "nickname";
 test("postgres cli surfaces manual enum changes during push and migrate generate", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Schema from "effect/Schema"
-import * as Pg from "#postgres"
-import { Column as C, Query as Q, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 const types = Pg.schema("__SCHEMA__")
@@ -667,8 +669,8 @@ export { status }
 
     await writeFile(schemaFile(workspace), `
 import * as Schema from "effect/Schema"
-import * as Pg from "#postgres"
-import { Column as C, Query as Q, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 
 const db = Pg.schema(${JSON.stringify(schemaName)})
 const types = Pg.schema(${JSON.stringify(schemaName)})
@@ -698,8 +700,8 @@ export { status }
 
     await writeFile(schemaFile(workspace), `
 import * as Schema from "effect/Schema"
-import * as Pg from "#postgres"
-import { Column as C, Query as Q, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 
 const db = Pg.schema(${JSON.stringify(schemaName)})
 const types = Pg.schema(${JSON.stringify(schemaName)})
@@ -764,8 +766,8 @@ test("postgres cli pull creates source definitions for unmanaged tables", async 
 test("postgres cli pull fails when filtered tables reference missing source targets", async () => {
   const { workspace, schemaName } = await makeWorkspaceWithFiles({
     "schema.ts": `
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -876,8 +878,8 @@ test("postgres cli accepts --url overrides over the configured database url", as
 test("postgres cli honors source include exclude and table filters across multiple files", async () => {
   const { workspace, schemaName } = await makeWorkspaceWithFiles({
     "tables/users.ts": `
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -889,8 +891,8 @@ export const users = db.table("users", {
 )
 `,
     "tables/orgs.ts": `
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -902,8 +904,8 @@ export const orgs = db.table("orgs", {
 )
 `,
     "tables/ignored.ts": `
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -978,8 +980,8 @@ export const audits = db.table("audits", {
 test("postgres cli round-trips enum, foreign-key, generated, identity, and rich index metadata", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Schema from "effect/Schema"
-import * as Pg from "#postgres"
-import { Column as C, Function as F, Query as Q, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const tables = Pg.schema("__SCHEMA__")
 const types = Pg.schema("__SCHEMA__")
@@ -1116,8 +1118,8 @@ export { status, orgs, users }
 
 test("postgres cli pulls supported checks and deferrable constraints into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -1216,8 +1218,8 @@ test("postgres cli pull fails for unsupported index collations", async () => {
 
 test("postgres cli pulls composite foreign keys into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -1288,8 +1290,8 @@ export { orgs, memberships }
 
 test("postgres cli pulls schema-builder table declarations into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const db = Pg.schema("__SCHEMA__")
 
@@ -1343,6 +1345,7 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
       alter table "${schemaName}"."users"
       add column "short_name" varchar(32),
       add column "code" char(1),
+      add column "labels" text[],
       add column "amount" bigint,
       add column "observed_at" timestamp with time zone,
       add column "payload" jsonb;
@@ -1356,11 +1359,13 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
     expect(pulledSchema).toContain(`payload: Column.jsonb(Schema.Unknown).pipe(Column.nullable)`)
     expect(pulledSchema).toContain(`Column.varchar(32)`)
     expect(pulledSchema).toContain(`Column.char(1)`)
+    expect(pulledSchema).toContain(`Column.text().pipe(Column.array(), Column.nullable)`)
     expect(pulledSchema).toContain(`Column.int8()`)
     expect(pulledSchema).toContain(`Column.timestamptz()`)
     expect(pulledSchema).not.toContain(`kind: "int8"`)
     expect(pulledSchema).not.toContain(`Column.ddlType("varchar(32)")`)
     expect(pulledSchema).not.toContain(`Column.ddlType("char(1)")`)
+    expect(pulledSchema).not.toContain(`Column.ddlType("text[]")`)
     expect(pulledSchema).not.toContain(`Column.ddlType("jsonb")`)
 
     const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")
@@ -1374,8 +1379,8 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
 
 test("postgres cli pulls class table declarations into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
-import * as Pg from "#postgres"
-import { Column as C, Table } from "#postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
   id: C.uuid().pipe(C.primaryKey),

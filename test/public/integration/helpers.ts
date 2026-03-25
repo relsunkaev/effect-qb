@@ -4,6 +4,8 @@ import * as Redacted from "effect/Redacted"
 import * as SqlClient from "@effect/sql/SqlClient"
 import { MysqlClient } from "@effect/sql-mysql2"
 import { PgClient } from "@effect/sql-pg"
+import { mkdir, rm } from "node:fs/promises"
+import { join } from "node:path"
 
 const pgLayer = PgClient.layer({
   host: "127.0.0.1",
@@ -22,6 +24,33 @@ const mysqlLayer = MysqlClient.layer({
   password: Redacted.make("effect_qb")
 })
 
+const postgresLockPath = join(process.cwd(), "test", ".postgres-integration.lock")
+
+const sleep = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, milliseconds)
+  })
+
+export const withPostgresLock = async <A>(task: () => Promise<A>): Promise<A> => {
+  while (true) {
+    try {
+      await mkdir(postgresLockPath)
+      break
+    } catch (error) {
+      if ((error as { readonly code?: string }).code !== "EEXIST") {
+        throw error
+      }
+      await sleep(50)
+    }
+  }
+
+  try {
+    return await task()
+  } finally {
+    await rm(postgresLockPath, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
 export const runPostgres = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
   Effect.runPromise(Effect.provide(effect, pgLayer))
 
@@ -32,10 +61,12 @@ export const execPostgres = <Row extends Record<string, unknown> = Record<string
   statement: string,
   params?: ReadonlyArray<unknown>
 ) =>
-  runPostgres(Effect.gen(function*() {
-    const sql = yield* SqlClient.SqlClient
-    return yield* sql.unsafe<Row>(statement, params)
-  }))
+  withPostgresLock(() =>
+    runPostgres(Effect.gen(function*() {
+      const sql = yield* SqlClient.SqlClient
+      return yield* sql.unsafe<Row>(statement, params)
+    }))
+  )
 
 export const execMysql = <Row extends Record<string, unknown> = Record<string, unknown>>(
   statement: string,
