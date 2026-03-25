@@ -132,4 +132,23 @@ describe("table behavior", () => {
     expect(decoded.happenedOn).toBeInstanceOf(Date)
     expect(decoded.happenedOn.toISOString()).toBe("2026-03-20T00:00:00.000Z")
   })
+
+  test("array columns can opt into nullable elements", () => {
+    const strict = Table.make("strict_events", {
+      tags: C.text().pipe(C.array())
+    })
+    const relaxed = Table.make("relaxed_events", {
+      tags: C.text().pipe(C.array({ nullableElements: true }))
+    })
+
+    expect(() => Schema.decodeUnknownSync(strict.schemas.select)({
+      tags: ["alpha", null]
+    })).toThrow()
+
+    expect(Schema.decodeUnknownSync(relaxed.schemas.select)({
+      tags: ["alpha", null]
+    })).toEqual({
+      tags: ["alpha", null]
+    })
+  })
 })

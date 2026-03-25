@@ -13,6 +13,7 @@ const builtinColumns = Table.make("builtin_columns", {
     ok: Schema.Boolean
   })),
   tags: C.text().pipe(C.array()),
+  nullableTags: C.text().pipe(C.array({ nullableElements: true })),
   quantity: C.int8(),
   createdAt: C.timestamptz()
 })
@@ -23,10 +24,20 @@ const builtinArrayPlan = Q.select({
   Q.from(builtinColumns)
 )
 
+const builtinNullableArrayPlan = Q.select({
+  nullableTags: builtinColumns.nullableTags
+}).pipe(
+  Q.from(builtinColumns)
+)
+
 type BuiltinArrayRow = Q.ResultRow<typeof builtinArrayPlan>
+type BuiltinNullableArrayRow = Q.ResultRow<typeof builtinNullableArrayPlan>
 const tags: BuiltinArrayRow["tags"] = [] as readonly string[]
+const nullableTags: BuiltinNullableArrayRow["nullableTags"] = [] as readonly (string | null)[]
 void builtinArrayPlan
+void builtinNullableArrayPlan
 void tags
+void nullableTags
 void builtinColumns
 
 const plan = Q.select({
