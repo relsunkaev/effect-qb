@@ -6,6 +6,7 @@ import type { ColumnModel, EnumModel, SchemaModel, TableModel, DdlExpressionLike
 import { defaultConstraintName } from "./postgres-schema-sql.js"
 import { enumKey, tableKey, renderDdlExpressionSql, normalizeDdlExpressionSql, toEnumModel, toTableModel } from "effect-qb/postgres/metadata"
 import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "./postgres-source-discovery.js"
+import { canonicalizePostgresTypeName, inferPostgresTypeKind } from "./postgres-type-utils.js"
 import { parse, type Expr as PgSqlExpr } from "pgsql-ast-parser"
 
 const TABLE_ALIAS = "Table"
@@ -105,20 +106,7 @@ const normalizeType = (value: string): string =>
   value.trim().replace(/\s+/g, " ").toLowerCase()
 
 const canonicalDdlType = (value: string): string => {
-  const normalized = normalizeType(value)
-  if (normalized.endsWith("[]")) {
-    return `${canonicalDdlType(normalized.slice(0, -2))}[]`
-  }
-  switch (normalized) {
-    case "boolean":
-      return "bool"
-    case "timestamp without time zone":
-      return "timestamp"
-    case "jsonb":
-      return "json"
-    default:
-      return normalized
-  }
+  return canonicalizePostgresTypeName(value)
 }
 
 const renderQueryTypeName = (
@@ -180,13 +168,62 @@ const renderQueryTypeName = (
       return `${PG_ALIAS}.Query.type.bytea()`
     case "json":
       return `${PG_ALIAS}.Query.type.json()`
+    case "jsonb":
+      return `${PG_ALIAS}.Query.type.jsonb()`
     case "regclass":
       return `${PG_ALIAS}.Query.type.regclass()`
     case "oid":
       return `${PG_ALIAS}.Query.type.oid()`
+    case "bit":
+      return `${PG_ALIAS}.Query.type.bit()`
+    case "varbit":
+      return `${PG_ALIAS}.Query.type.varbit()`
+    case "xml":
+      return `${PG_ALIAS}.Query.type.xml()`
+    case "pg_lsn":
+      return `${PG_ALIAS}.Query.type.pg_lsn()`
     default:
       return `${PG_ALIAS}.Query.type.custom(${renderStringLiteral(typeName)})`
   }
+}
+
+const renderCastTarget = (
+  target: unknown,
+  context?: ExpressionRenderContext
+): string => {
+  if (typeof target === "string") {
+    return renderQueryTypeName(target, context)
+  }
+  if (target !== null && typeof target === "object") {
+    const record = target as {
+      readonly kind?: unknown
+      readonly schema?: unknown
+      readonly name?: unknown
+      readonly type?: unknown
+      readonly config?: unknown
+      readonly arrayOf?: unknown
+    }
+    if (record.kind === "array" && record.arrayOf !== undefined) {
+      return `${PG_ALIAS}.Query.type.array(${renderCastTarget(record.arrayOf, context)})`
+    }
+    if (typeof record.schema === "string" && typeof record.name === "string") {
+      const qualified = `${record.schema}.${record.name}`
+      if (Array.isArray(record.config) && record.config.length > 0) {
+        return `${PG_ALIAS}.Query.type.custom(${renderStringLiteral(`${qualified}(${record.config.join(", ")})`)})`
+      }
+      return renderQueryTypeName(qualified, context)
+    }
+    if (typeof record.name === "string") {
+      if (Array.isArray(record.config) && record.config.length > 0) {
+        return `${PG_ALIAS}.Query.type.custom(${renderStringLiteral(`${record.name}(${record.config.join(", ")})`)})`
+      }
+      return renderQueryTypeName(record.name, context)
+    }
+    if (typeof record.type === "string") {
+      return renderQueryTypeName(record.type, context)
+    }
+  }
+  throw new Error(`Unsupported cast target in pulled schema: ${JSON.stringify(target)}`)
 }
 
 const renderQueryTypeExpression = (
@@ -242,8 +279,43 @@ const renderSqlExpressionCode = (
       return `${PG_ALIAS}.Query.literal(${String(expression.value)})`
     case "null":
       return `${PG_ALIAS}.Query.literal(null)`
+    case "keyword": {
+      const keyword = (expression.keyword as string).toLowerCase()
+      switch (keyword) {
+        case "current_date":
+          return `${PG_ALIAS}.Function.currentDate()`
+        case "current_time":
+          return `${PG_ALIAS}.Function.currentTime()`
+        case "current_timestamp":
+          return `${PG_ALIAS}.Function.currentTimestamp()`
+        case "localtime":
+          return `${PG_ALIAS}.Function.localTime()`
+        case "localtimestamp":
+          return `${PG_ALIAS}.Function.localTimestamp()`
+        case "current_schema":
+        case "current_catalog":
+        case "current_role":
+        case "current_user":
+        case "session_user":
+        case "user":
+          return `${PG_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
+        case "distinct":
+          throw new Error("Unsupported PostgreSQL keyword in pulled schema: distinct")
+      }
+      return `${PG_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
+    }
     case "cast":
-      return `${PG_ALIAS}.Query.cast(${renderSqlExpressionCode(expression.operand, context)}, ${renderQueryTypeName((expression.to as { readonly name: string }).name, context)})`
+      return `${PG_ALIAS}.Query.cast(${renderSqlExpressionCode(expression.operand, context)}, ${renderCastTarget(expression.to, context)})`
+    case "member": {
+      const base = renderSqlExpressionCode(expression.operand, context)
+      const member = expression.member as string | number
+      const path = typeof member === "number"
+        ? `${PG_ALIAS}.Function.json.index(${member})`
+        : `${PG_ALIAS}.Function.json.key(${renderStringLiteral(member)})`
+      return expression.op === "->>"
+        ? `${PG_ALIAS}.Function.json.text(${base}, ${path})`
+        : `${PG_ALIAS}.Function.json.get(${base}, ${path})`
+    }
     case "call": {
       const name = ((expression.function as { readonly name?: string }).name ?? "").toLowerCase()
       const args = Array.isArray(expression.args) ? expression.args : []
@@ -267,6 +339,7 @@ const renderSqlExpressionCode = (
         case "localtimestamp":
           return `${PG_ALIAS}.Function.localTimestamp()`
         case "uuid_generate_v4":
+        case "gen_random_uuid":
           return `${PG_ALIAS}.Function.uuidGenerateV4()`
         case "nextval":
           return `${PG_ALIAS}.Function.nextVal(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
@@ -296,7 +369,7 @@ const renderSqlExpressionCode = (
         case "jsonb_typeof":
           return `${PG_ALIAS}.Function.json.typeOf(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
       }
-      throw new Error(`Unsupported PostgreSQL function in pulled schema: ${(expression.function as { readonly name?: string }).name ?? "<anonymous>"}`)
+      return `${PG_ALIAS}.Function.call(${renderStringLiteral(name)}${args.length === 0 ? "" : `, ${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")}`})`
     }
     case "binary": {
       const op = expression.op as string
@@ -335,6 +408,24 @@ const renderSqlExpressionCode = (
         case "ILIKE":
         case "ilike":
           return `${PG_ALIAS}.Query.ilike(${left}, ${right})`
+        case "~":
+          return `${PG_ALIAS}.Query.regexMatch(${left}, ${right})`
+        case "~*":
+          return `${PG_ALIAS}.Query.regexIMatch(${left}, ${right})`
+        case "!~":
+          return `${PG_ALIAS}.Query.regexNotMatch(${left}, ${right})`
+        case "!~*":
+          return `${PG_ALIAS}.Query.regexNotIMatch(${left}, ${right})`
+        case "?":
+          return `${PG_ALIAS}.Function.json.hasKey(${left}, ${right})`
+        case "?|":
+          return `${PG_ALIAS}.Function.json.hasAnyKeys(${left}, ${right})`
+        case "?&":
+          return `${PG_ALIAS}.Function.json.hasAllKeys(${left}, ${right})`
+        case "@?":
+          return `${PG_ALIAS}.Function.json.pathExists(${left}, ${right})`
+        case "@@":
+          return `${PG_ALIAS}.Function.json.pathMatch(${left}, ${right})`
         case "IS DISTINCT FROM":
           return `${PG_ALIAS}.Query.isDistinctFrom(${left}, ${right})`
         case "IS NOT DISTINCT FROM":
@@ -355,15 +446,50 @@ const renderSqlExpressionCode = (
           return `${PG_ALIAS}.Query.isNull(${operand})`
         case "IS NOT NULL":
           return `${PG_ALIAS}.Query.isNotNull(${operand})`
+        case "IS TRUE":
+          return `${PG_ALIAS}.Query.and(${PG_ALIAS}.Query.isNotNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(true)))`
+        case "IS FALSE":
+          return `${PG_ALIAS}.Query.and(${PG_ALIAS}.Query.isNotNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(false)))`
+        case "IS NOT TRUE":
+          return `${PG_ALIAS}.Query.or(${PG_ALIAS}.Query.isNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(false)))`
+        case "IS NOT FALSE":
+          return `${PG_ALIAS}.Query.or(${PG_ALIAS}.Query.isNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(true)))`
+        case "IS UNKNOWN":
+          return `${PG_ALIAS}.Query.isNull(${operand})`
+        case "IS NOT UNKNOWN":
+          return `${PG_ALIAS}.Query.isNotNull(${operand})`
         case "NOT":
           return `${PG_ALIAS}.Query.not(${operand})`
       }
       throw new Error(`Unsupported PostgreSQL unary operator in pulled schema: ${expression.op}`)
     }
     case "array":
-      throw new Error("Unsupported PostgreSQL array expression in pulled schema")
-    case "case":
-      throw new Error("Unsupported PostgreSQL case expression in pulled schema")
+      {
+        const values = Array.isArray(expression.expressions) ? expression.expressions : []
+        return values.length === 0
+          ? `${PG_ALIAS}.Function.call("array")`
+          : `${PG_ALIAS}.Function.call("array", ${values.map((item: PgSqlExpr) => renderSqlExpressionCode(item, context)).join(", ")})`
+      }
+    case "case": {
+      const whens = Array.isArray(expression.whens) ? expression.whens : []
+      if (whens.length === 0) {
+        throw new Error("Unsupported PostgreSQL case expression in pulled schema")
+      }
+      const base = expression.value === null
+        ? `${PG_ALIAS}.Query.case()`
+        : expression.value === undefined
+          ? `${PG_ALIAS}.Query.case()`
+          : `${PG_ALIAS}.Query.match(${renderSqlExpressionCode(expression.value, context)})`
+      const chained = whens.reduce(
+        (acc, branch) => `${acc}.when(${renderSqlExpressionCode(branch.when, context)}, ${renderSqlExpressionCode(branch.value, context)})`,
+        base
+      )
+      return expression.else == null
+        ? `${chained}.else(${PG_ALIAS}.Query.literal(null))`
+        : `${chained}.else(${renderSqlExpressionCode(expression.else, context)})`
+    }
+    case "extract":
+      return `${PG_ALIAS}.Function.call("extract", ${renderStringLiteral((expression.field as { readonly name: string }).name)}, ${renderSqlExpressionCode(expression.from, context)})`
     default:
       throw new Error(`Unsupported PostgreSQL expression in pulled schema: ${expression.type}`)
   }
@@ -485,43 +611,7 @@ const stripOuterQuotes = (value: string): string =>
     : value
 
 const inferKindFromDdl = (ddlType: string): string => {
-  const normalized = normalizeType(ddlType)
-  if (normalized.endsWith("[]")) {
-    return normalized
-  }
-  switch (normalized) {
-    case "smallint":
-      return "int2"
-    case "integer":
-      return "int4"
-    case "bigint":
-      return "int8"
-    case "real":
-      return "float4"
-    case "double precision":
-      return "float8"
-    case "boolean":
-      return "bool"
-    case "jsonb":
-      return "json"
-    case "character varying":
-      return "varchar"
-    case "character":
-      return "char"
-    case "timestamp with time zone":
-      return "timestamptz"
-    case "timestamp without time zone":
-      return "timestamp"
-    case "time with time zone":
-      return "timetz"
-    case "time without time zone":
-      return "time"
-    case "bit varying":
-      return "varbit"
-  }
-  const withoutParams = normalized.replace(/\(.+\)$/, "")
-  const segments = withoutParams.split(".")
-  return stripOuterQuotes(segments[segments.length - 1] ?? withoutParams)
+  return inferPostgresTypeKind(ddlType)
 }
 
 const inferSchemaNameFromDdl = (ddlType: string): string | undefined => {
@@ -615,8 +705,8 @@ const renderColumnBase = (
 } => {
   if (normalizeType(column.ddlType) === "jsonb" || normalizeType(column.dbTypeKind) === "jsonb") {
     return {
-      code: `${COLUMN_ALIAS}.json(${SCHEMA_ALIAS}.Unknown)`,
-      defaultDdlType: "json"
+      code: `${COLUMN_ALIAS}.jsonb(${SCHEMA_ALIAS}.Unknown)`,
+      defaultDdlType: "jsonb"
     }
   }
   if (column.typeKind === "e") {
@@ -634,16 +724,52 @@ const renderColumnBase = (
       return { code: `${COLUMN_ALIAS}.uuid()`, defaultDdlType: "uuid" }
     case "text":
       return { code: `${COLUMN_ALIAS}.text()`, defaultDdlType: "text" }
+    case "varchar":
+      return { code: `${COLUMN_ALIAS}.varchar()`, defaultDdlType: "varchar" }
+    case "char":
+      return { code: `${COLUMN_ALIAS}.char()`, defaultDdlType: "char" }
+    case "int2":
+      return { code: `${COLUMN_ALIAS}.int2()`, defaultDdlType: "int2" }
     case "int4":
       return { code: `${COLUMN_ALIAS}.int()`, defaultDdlType: "int4" }
+    case "int8":
+      return { code: `${COLUMN_ALIAS}.int8()`, defaultDdlType: "int8" }
+    case "float4":
+      return { code: `${COLUMN_ALIAS}.float4()`, defaultDdlType: "float4" }
+    case "float8":
+      return { code: `${COLUMN_ALIAS}.float8()`, defaultDdlType: "float8" }
     case "bool":
       return { code: `${COLUMN_ALIAS}.boolean()`, defaultDdlType: "bool" }
     case "date":
       return { code: `${COLUMN_ALIAS}.date()`, defaultDdlType: "date" }
+    case "time":
+      return { code: `${COLUMN_ALIAS}.time()`, defaultDdlType: "time" }
+    case "timetz":
+      return { code: `${COLUMN_ALIAS}.timetz()`, defaultDdlType: "timetz" }
     case "timestamp":
       return { code: `${COLUMN_ALIAS}.timestamp()`, defaultDdlType: "timestamp" }
+    case "timestamptz":
+      return { code: `${COLUMN_ALIAS}.timestamptz()`, defaultDdlType: "timestamptz" }
+    case "interval":
+      return { code: `${COLUMN_ALIAS}.interval()`, defaultDdlType: "interval" }
+    case "bytea":
+      return { code: `${COLUMN_ALIAS}.bytea()`, defaultDdlType: "bytea" }
     case "json":
       return { code: `${COLUMN_ALIAS}.json(${SCHEMA_ALIAS}.Unknown)`, defaultDdlType: "json" }
+    case "name":
+      return { code: `${COLUMN_ALIAS}.name()`, defaultDdlType: "name" }
+    case "oid":
+      return { code: `${COLUMN_ALIAS}.oid()`, defaultDdlType: "oid" }
+    case "regclass":
+      return { code: `${COLUMN_ALIAS}.regclass()`, defaultDdlType: "regclass" }
+    case "bit":
+      return { code: `${COLUMN_ALIAS}.bit()`, defaultDdlType: "bit" }
+    case "varbit":
+      return { code: `${COLUMN_ALIAS}.varbit()`, defaultDdlType: "varbit" }
+    case "xml":
+      return { code: `${COLUMN_ALIAS}.xml()`, defaultDdlType: "xml" }
+    case "pg_lsn":
+      return { code: `${COLUMN_ALIAS}.pg_lsn()`, defaultDdlType: "pg_lsn" }
     default:
       return {
         code: `${COLUMN_ALIAS}.custom(${schemaExpressionForRuntimeTag(runtimeTagOfColumn(column))}, ${renderDbTypeDescriptor(column, context)})`

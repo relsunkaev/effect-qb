@@ -4,6 +4,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import { SchemaExpression } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, ReferentialAction, TableOptionSpec } from "effect-qb/postgres/metadata"
 import type { FilterConfig } from "./postgres-config.js"
+import { canonicalizePostgresTypeName } from "./postgres-type-utils.js"
 
 type TableRow = {
   readonly schema_name: string
@@ -159,29 +160,12 @@ const parseExpression = (sql: string, context: string) => {
   }
 }
 
-const canonicalType = (value: string): string => {
-  const normalized = value.trim().replace(/\s+/g, " ").toLowerCase()
-  if (normalized.endsWith("[]")) {
-    return `${canonicalType(normalized.slice(0, -2))}[]`
-  }
-  switch (normalized) {
-    case "boolean":
-      return "bool"
-    case "timestamp without time zone":
-      return "timestamp"
-    case "jsonb":
-      return "json"
-    default:
-      return normalized
-  }
-}
-
 const makeColumnModel = (row: ColumnRow): ColumnModel => ({
   name: row.column_name,
-  ddlType: canonicalType(row.ddl_type),
+  ddlType: canonicalizePostgresTypeName(row.ddl_type),
   dbTypeKind: row.ddl_type.trim().endsWith("[]")
-    ? canonicalType(row.ddl_type.trim().replace(/\s+/g, " ").toLowerCase())
-    : canonicalType(row.db_type_kind),
+    ? canonicalizePostgresTypeName(row.ddl_type.trim().replace(/\s+/g, " ").toLowerCase())
+    : canonicalizePostgresTypeName(row.db_type_kind),
   typeKind: row.type_kind,
   typeSchema: row.type_schema,
   nullable: row.nullable,
