@@ -1,5 +1,5 @@
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, IndexKeySpec, TableOptionSpec } from "effect-qb/postgres/metadata"
-import { enumKey, tableKey, renderDdlExpressionSql } from "effect-qb/postgres/metadata"
+import { enumKey, tableKey, normalizeDdlExpressionSql } from "effect-qb/postgres/metadata"
 import {
   defaultConstraintName,
   defaultIndexName,
@@ -62,6 +62,23 @@ const normalizeSql = (value: string | undefined): string | undefined =>
 const normalizeType = (value: string): string =>
   normalizeSql(value)?.toLowerCase() ?? value.toLowerCase()
 
+const canonicalType = (value: string): string => {
+  const normalized = normalizeType(value)
+  if (normalized.endsWith("[]")) {
+    return `${canonicalType(normalized.slice(0, -2))}[]`
+  }
+  switch (normalized) {
+    case "boolean":
+      return "bool"
+    case "timestamp without time zone":
+      return "timestamp"
+    case "jsonb":
+      return "json"
+    default:
+      return normalized
+  }
+}
+
 const schemaNamesOf = (model: SchemaModel): Set<string> => {
   const schemas = new Set<string>()
   for (const enumType of model.enums) {
@@ -101,8 +118,8 @@ const effectiveIndexName = (
 
 const columnSignature = (column: ColumnModel): string =>
   JSON.stringify({
-    ddlType: normalizeType(column.ddlType),
-    dbTypeKind: column.dbTypeKind,
+    ddlType: canonicalType(column.ddlType),
+    dbTypeKind: canonicalType(column.dbTypeKind),
     nullable: column.nullable,
     hasDefault: column.hasDefault,
     generated: column.generated,
@@ -152,7 +169,7 @@ const constraintSignature = (
       return JSON.stringify({
         kind: option.kind,
         name: effectiveConstraintName(table, option),
-        predicate: renderDdlExpressionSql(option.predicate),
+        predicate: normalizeDdlExpressionSql(option.predicate),
         noInherit: option.noInherit ?? false
       })
   }
@@ -168,7 +185,7 @@ const indexSignature = (
     unique: option.unique ?? false,
     method: option.method ?? null,
     include: option.include ?? [],
-    predicate: option.predicate ? renderDdlExpressionSql(option.predicate) : null,
+    predicate: option.predicate ? normalizeDdlExpressionSql(option.predicate) : null,
     keys: indexKeysOf(option).map((key) => key.kind === "column"
       ? {
           kind: key.kind,
@@ -178,7 +195,7 @@ const indexSignature = (
         }
       : {
           kind: key.kind,
-          expression: renderDdlExpressionSql(key.expression),
+          expression: normalizeDdlExpressionSql(key.expression),
           order: key.order ?? null,
           nulls: key.nulls ?? null
       })
@@ -220,7 +237,7 @@ const constraintShapeSignature = (
     case "check":
       return JSON.stringify({
         kind: option.kind,
-        predicate: renderDdlExpressionSql(option.predicate),
+        predicate: normalizeDdlExpressionSql(option.predicate),
         noInherit: option.noInherit ?? false
       })
   }
@@ -234,7 +251,7 @@ const indexShapeSignature = (
     unique: option.unique ?? false,
     method: option.method ?? null,
     include: option.include ?? [],
-    predicate: option.predicate ? renderDdlExpressionSql(option.predicate) : null,
+    predicate: option.predicate ? normalizeDdlExpressionSql(option.predicate) : null,
     keys: indexKeysOf(option).map((key) => key.kind === "column"
       ? {
           kind: key.kind,
@@ -244,10 +261,10 @@ const indexShapeSignature = (
         }
       : {
           kind: key.kind,
-          expression: renderDdlExpressionSql(key.expression),
+          expression: normalizeDdlExpressionSql(key.expression),
           order: key.order ?? null,
           nulls: key.nulls ?? null
-        })
+      })
   })
 
 const tableShapeSignature = (table: TableModel): string =>

@@ -159,12 +159,29 @@ const parseExpression = (sql: string, context: string) => {
   }
 }
 
+const canonicalType = (value: string): string => {
+  const normalized = value.trim().replace(/\s+/g, " ").toLowerCase()
+  if (normalized.endsWith("[]")) {
+    return `${canonicalType(normalized.slice(0, -2))}[]`
+  }
+  switch (normalized) {
+    case "boolean":
+      return "bool"
+    case "timestamp without time zone":
+      return "timestamp"
+    case "jsonb":
+      return "json"
+    default:
+      return normalized
+  }
+}
+
 const makeColumnModel = (row: ColumnRow): ColumnModel => ({
   name: row.column_name,
-  ddlType: row.ddl_type,
+  ddlType: canonicalType(row.ddl_type),
   dbTypeKind: row.ddl_type.trim().endsWith("[]")
-    ? row.ddl_type.trim().replace(/\s+/g, " ").toLowerCase()
-    : row.db_type_kind,
+    ? canonicalType(row.ddl_type.trim().replace(/\s+/g, " ").toLowerCase())
+    : canonicalType(row.db_type_kind),
   typeKind: row.type_kind,
   typeSchema: row.type_schema,
   nullable: row.nullable,
