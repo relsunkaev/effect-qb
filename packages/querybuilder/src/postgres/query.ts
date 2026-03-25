@@ -38,6 +38,7 @@ import {
 } from "../internal/query.js"
 
 export const literal = postgresQuery.literal
+export const column = postgresQuery.column
 export const cast = postgresQuery.cast
 export const type = postgresQuery.type
 export const eq = postgresQuery.eq

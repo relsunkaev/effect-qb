@@ -1206,9 +1206,11 @@ export const renderExpression = (
             : operator === "gt"
               ? ">"
               : ">="
-  switch (ast.kind) {
+    switch (ast.kind) {
     case "column":
-      return `${dialect.quoteIdentifier(ast.tableName)}.${dialect.quoteIdentifier(ast.columnName)}`
+      return ast.tableName.length === 0
+        ? dialect.quoteIdentifier(ast.columnName)
+        : `${dialect.quoteIdentifier(ast.tableName)}.${dialect.quoteIdentifier(ast.columnName)}`
     case "literal":
       return dialect.renderLiteral(ast.value, state)
     case "excluded":

@@ -1318,6 +1318,51 @@ export function makeDialectQuery<
       value
     })
 
+  const column = <
+    Name extends string,
+    Db extends Expression.DbType.Any
+  >(
+    name: Name,
+    dbType: Db,
+    nullable = false
+  ): Expression.Expression<
+    Expression.RuntimeOfDbType<Db> | null,
+    Db,
+    Expression.Nullability,
+    Dialect,
+    "scalar",
+    never,
+    {},
+    "resolved"
+  > & {
+    readonly [ExpressionAst.TypeId]: ExpressionAst.ColumnNode<"", Name>
+  } =>
+    makeExpression({
+      runtime: undefined as unknown as Expression.RuntimeOfDbType<Db> | (typeof nullable extends true ? null : never),
+      dbType,
+      nullability: (nullable ? "maybe" : "never") as typeof nullable extends true ? "maybe" : "never",
+      dialect: profile.dialect as Dialect,
+      aggregation: "scalar",
+      source: undefined as never,
+      sourceNullability: "resolved" as const,
+      dependencies: {}
+    }, {
+      kind: "column",
+      tableName: "",
+      columnName: name
+    }) as Expression.Expression<
+      Expression.RuntimeOfDbType<Db> | null,
+      Db,
+      Expression.Nullability,
+      Dialect,
+      "scalar",
+      never,
+      {},
+      "resolved"
+    > & {
+      readonly [ExpressionAst.TypeId]: ExpressionAst.ColumnNode<"", Name>
+    }
+
   const toDialectExpression = <Value extends ExpressionInput>(
     value: Value
   ): DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
@@ -1812,6 +1857,13 @@ export function makeDialectQuery<
     variant: "set"
   })
 
+  const custom = <Kind extends string>(
+    kind: Kind
+  ): Expression.DbType.Base<Dialect, Kind> => ({
+    dialect: profile.dialect,
+    kind
+  })
+
   const type = {
     ...profile.type,
     array,
@@ -1820,7 +1872,8 @@ export function makeDialectQuery<
     record,
     domain,
     enum: enum_,
-    set
+    set,
+    custom
   }
 
   const makeJsonDb = <Kind extends string>(
@@ -3369,6 +3422,60 @@ export function makeDialectQuery<
       "resolved"
     >
   }
+
+  const uuidGenerateV4 = (): Expression.Expression<
+    string,
+    Expression.DbType.PgUuid,
+    "never",
+    Dialect,
+    "scalar",
+    never,
+    {},
+    "resolved"
+  > & {
+    readonly [ExpressionAst.TypeId]: ExpressionAst.FunctionCallNode<"uuid_generate_v4", readonly []>
+  } => makeExpression({
+    runtime: undefined as unknown as string,
+    dbType: { dialect: "postgres", kind: "uuid" } as Expression.DbType.PgUuid,
+    nullability: "never",
+    dialect: profile.dialect as Dialect,
+    aggregation: "scalar",
+    source: undefined as never,
+    sourceNullability: "resolved" as const,
+    dependencies: {}
+  }, {
+    kind: "function",
+    name: "uuid_generate_v4",
+    args: []
+  })
+
+  const nextVal = <Value extends ExpressionInput>(
+    value: Value
+  ): Expression.Expression<
+    Expression.RuntimeOfDbType<Expression.DbType.PgInt8>,
+    Expression.DbType.PgInt8,
+    "never",
+    Dialect,
+    "scalar",
+    never,
+    {},
+    "resolved"
+  > & {
+    readonly [ExpressionAst.TypeId]: ExpressionAst.FunctionCallNode<"nextval", readonly [Expression.Any]>
+  } => makeExpression({
+    runtime: undefined as unknown as Expression.RuntimeOfDbType<Expression.DbType.PgInt8>,
+    dbType: { dialect: "postgres", kind: "int8" } as Expression.DbType.PgInt8,
+    nullability: "never",
+    dialect: profile.dialect as Dialect,
+    aggregation: "scalar",
+    source: undefined as never,
+    sourceNullability: "resolved" as const,
+    dependencies: {}
+  }, {
+    kind: "function",
+    name: "nextval",
+    args: [toDialectExpression(value as any)]
+  })
 
   type RuntimeCaseBranch = {
     readonly when: Expression.Any
@@ -6646,6 +6753,7 @@ type AsCurriedResult<
 
   const api = {
     literal,
+    column,
     cast,
     type,
     json,
@@ -6669,6 +6777,8 @@ type AsCurriedResult<
     case: case_,
     match,
     coalesce,
+    uuidGenerateV4,
+    nextVal,
     in: in_,
     notIn,
     between,

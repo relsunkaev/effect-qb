@@ -38,6 +38,7 @@ import {
 import { mysqlQuery } from "./private/query.js"
 
 export const literal = mysqlQuery.literal
+export const column = mysqlQuery.column
 export const cast = mysqlQuery.cast
 export const type = mysqlQuery.type
 export const eq = mysqlQuery.eq
