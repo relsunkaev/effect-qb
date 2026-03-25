@@ -6,13 +6,17 @@ import * as Option from "effect/Option"
 
 import { loadPostgresConfig, resolveDatabaseUrl } from "./internal/postgres-config.js"
 import {
+  deleteAppliedMigrationNames,
   applyMigrationFiles,
   applyStatements,
   ensureMigrationTable,
   migrationDirFromConfig,
   migrationFileLabel,
   readAppliedMigrationNames,
+  readAppliedMigrationRows,
+  readMigrationFiles,
   readPendingMigrationFiles,
+  rollbackMigrationFiles,
   writeMigrationFile
 } from "./internal/postgres-migrations.js"
 import { planPostgresPull, applyPullPlan, summarizePullPlan } from "./internal/postgres-pull.js"
@@ -97,6 +101,11 @@ const nameOption = Options.text("name").pipe(
   Options.withDescription("Migration name")
 )
 
+const stepsOption = Options.integer("steps").pipe(
+  Options.optional,
+  Options.withDescription("Number of applied migrations to roll back")
+)
+
 const withLoadedConfig = <A>(
   explicitConfigPath: Option.Option<string>,
   explicitUrl: Option.Option<string>,
@@ -157,6 +166,22 @@ const loadSchemaPlan = (
       discovered
     }
   })()
+
+const loadMigrationState = async (loaded: Awaited<ReturnType<typeof loadPostgresConfig>>, databaseUrl: string) => {
+  const files = await readMigrationFiles(migrationDirFromConfig(loaded.cwd, loaded.config.migrations.dir))
+  const appliedRows = await runPostgresUrl(databaseUrl, Effect.gen(function*() {
+    yield* ensureMigrationTable(loaded.config.migrations.table)
+    return yield* readAppliedMigrationRows(loaded.config.migrations.table)
+  }))
+  const appliedNames = new Set(appliedRows.map((row) => row.name))
+  const pending = files.filter((file) => !appliedNames.has(file.name))
+  return {
+    files,
+    appliedRows,
+    appliedNames,
+    pending
+  }
+}
 
 const push = Command.make(
   "push",
@@ -219,7 +244,7 @@ const pull = Command.make(
           await runPostgresUrl(databaseUrl, introspectPostgresSchema(loaded.config.filter)),
           loaded.config.migrations.table
         )
-        const plan = await planPostgresPull(loaded.cwd, discovered, database)
+        const plan = await planPostgresPull(loaded.cwd, loaded.config.source, discovered, database)
         return { loaded, database, discovered, plan }
       })
       void database
@@ -321,16 +346,140 @@ const migrateUp = Command.make(
     })
 )
 
-const migrate = Command.make("migrate", {}, () => Effect.void).pipe(
-  Command.withSubcommands([migrateGenerate, migrateUp])
+const migrateStatus = Command.make(
+  "status",
+  {
+    config: configOption,
+    url: urlOption
+  },
+  ({ config, url }) =>
+    Effect.gen(function*() {
+      const { loaded, databaseUrl, appliedRows, pending } = yield* effectFromPromise(async () => {
+        const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
+        const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
+        const state = await loadMigrationState(loaded, databaseUrl)
+        return {
+          loaded,
+          databaseUrl,
+          appliedRows: state.appliedRows,
+          pending: state.pending
+        }
+      })
+      void loaded
+      void databaseUrl
+      yield* logLines([
+        `applied migrations (${appliedRows.length}):`,
+        ...appliedRows.map((row) => `  - ${row.name}`),
+        `pending migrations (${pending.length}):`,
+        ...pending.map((file) => `  - ${file.name}`)
+      ])
+    })
 )
 
-const root = Command.make("effect-qb", {}, () => Effect.void).pipe(
+const migrateDown = Command.make(
+  "down",
+  {
+    config: configOption,
+    url: urlOption,
+    dryRun: dryRunOption,
+    steps: stepsOption
+  },
+  ({ config, url, dryRun, steps }) =>
+    Effect.gen(function*() {
+      const { loaded, databaseUrl, selected } = yield* effectFromPromise(async () => {
+        const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
+        const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
+        const state = await loadMigrationState(loaded, databaseUrl)
+        const stepCount = Math.max(1, Option.getOrElse(steps, () => 1))
+        const applied = [...state.appliedRows].slice(Math.max(0, state.appliedRows.length - stepCount)).reverse()
+        const fileByName = new Map(state.files.map((file) => [file.name, file]))
+        const selected = applied.map((row) => {
+          const file = fileByName.get(row.name)
+          if (file === undefined) {
+            throw new Error(`Migration file '${row.name}' is missing from '${loaded.config.migrations.dir}'`)
+          }
+          if (file.downSql === undefined) {
+            throw new Error(`Migration '${row.name}' does not have a rollback section`)
+          }
+          return file
+        })
+        return {
+          loaded,
+          databaseUrl,
+          selected
+        }
+      })
+      if (selected.length === 0) {
+        return yield* log("no applied migrations")
+      }
+      yield* logLines([
+        `rollback migrations (${selected.length}):`,
+        ...selected.map((file) => `  - ${file.name}`)
+      ])
+      if (!dryRun) {
+        yield* effectFromPromise(() =>
+          runPostgresUrl(
+            databaseUrl,
+            rollbackMigrationFiles(loaded.config.migrations.table, selected)
+          )
+        )
+        yield* log(`rolled back ${selected.length} migration(s)`)
+      }
+    })
+)
+
+const migrateRepair = Command.make(
+  "repair",
+  {
+    config: configOption,
+    url: urlOption,
+    dryRun: dryRunOption
+  },
+  ({ config, url, dryRun }) =>
+    Effect.gen(function*() {
+      const { loaded, databaseUrl, orphanNames } = yield* effectFromPromise(async () => {
+        const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
+        const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
+        const state = await loadMigrationState(loaded, databaseUrl)
+        const fileNames = new Set(state.files.map((file) => file.name))
+        const orphanNames = state.appliedRows
+          .map((row) => row.name)
+          .filter((name) => !fileNames.has(name))
+        return {
+          loaded,
+          databaseUrl,
+          orphanNames
+        }
+      })
+      if (orphanNames.length === 0) {
+        return yield* log("migration ledger is already aligned")
+      }
+      yield* logLines([
+        `repairing ${orphanNames.length} orphaned migration record(s):`,
+        ...orphanNames.map((name) => `  - ${name}`)
+      ])
+      if (!dryRun) {
+        yield* effectFromPromise(() =>
+          runPostgresUrl(
+            databaseUrl,
+            deleteAppliedMigrationNames(loaded.config.migrations.table, orphanNames)
+          )
+        )
+        yield* log(`repaired ${orphanNames.length} migration record(s)`)
+      }
+    })
+)
+
+const migrate = Command.make("migrate", {}, () => Effect.void).pipe(
+  Command.withSubcommands([migrateGenerate, migrateStatus, migrateUp, migrateDown, migrateRepair])
+)
+
+const root = Command.make("effect-db", {}, () => Effect.void).pipe(
   Command.withSubcommands([push, pull, migrate])
 )
 
 const cli = Command.run(root, {
-  name: "effect-qb",
+  name: "effect-db",
   version: "0.13.0"
 })
 

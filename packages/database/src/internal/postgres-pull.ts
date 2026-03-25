@@ -1,9 +1,10 @@
-import { relative } from "node:path"
+import { mkdir } from "node:fs/promises"
+import { dirname, extname, relative, resolve } from "node:path"
 
 import { Datatypes } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, DdlExpressionLike, IndexKeySpec, TableOptionSpec } from "effect-qb/postgres/metadata"
 import { defaultConstraintName } from "./postgres-schema-sql.js"
-import { enumKey, tableKey, renderDdlExpressionSql } from "effect-qb/postgres/metadata"
+import { enumKey, tableKey, renderDdlExpressionSql, toEnumModel, toTableModel } from "effect-qb/postgres/metadata"
 import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "./postgres-source-discovery.js"
 
 const TABLE_ALIAS = "__EffectQbPullTable"
@@ -44,6 +45,39 @@ const renderPropertyKey = (value: string): string =>
 const renderStringTuple = (values: readonly string[]): string =>
   `[${values.map(renderStringLiteral).join(", ")}] as const`
 
+const pairUniqueBySignature = <Source, Db>(
+  sourceItems: readonly Source[],
+  dbItems: readonly Db[],
+  sourceSignatureOf: (item: Source) => string,
+  dbSignatureOf: (item: Db) => string
+): readonly { readonly source: Source; readonly db: Db }[] => {
+  const sourceBySignature = new Map<string, Source[]>()
+  for (const item of sourceItems) {
+    const signature = sourceSignatureOf(item)
+    const list = sourceBySignature.get(signature) ?? []
+    list.push(item)
+    sourceBySignature.set(signature, list)
+  }
+  const dbBySignature = new Map<string, Db[]>()
+  for (const item of dbItems) {
+    const signature = dbSignatureOf(item)
+    const list = dbBySignature.get(signature) ?? []
+    list.push(item)
+    dbBySignature.set(signature, list)
+  }
+  const pairs: Array<{ readonly source: Source; readonly db: Db }> = []
+  for (const [signature, source] of sourceBySignature) {
+    const db = dbBySignature.get(signature)
+    if (source.length === 1 && db?.length === 1) {
+      pairs.push({
+        source: source[0]!,
+        db: db[0]!
+      })
+    }
+  }
+  return pairs
+}
+
 const renderSchemaExpression = (sql: string): string =>
   `${SCHEMA_EXPRESSION_ALIAS}.parseExpression(${renderStringLiteral(sql)})`
 
@@ -52,6 +86,110 @@ const renderOptionExpression = (value: DdlExpressionLike): string =>
 
 const normalizeType = (value: string): string =>
   value.trim().replace(/\s+/g, " ").toLowerCase()
+
+const columnShapeSignature = (column: ColumnModel): string =>
+  JSON.stringify({
+    ddlType: normalizeType(column.ddlType),
+    dbTypeKind: column.dbTypeKind,
+    typeSchema: column.typeSchema ?? null,
+    typeKind: column.typeKind ?? null,
+    nullable: column.nullable,
+    hasDefault: column.hasDefault,
+    generated: column.generated,
+    defaultSql: column.defaultSql ?? null,
+    generatedSql: column.generatedSql ?? null,
+    identity: column.identity ?? null
+  })
+
+const constraintShapeSignature = (option: Exclude<TableOptionSpec, { readonly kind: "index" }>): string => {
+  switch (option.kind) {
+    case "primaryKey":
+      return JSON.stringify({
+        kind: option.kind,
+        columns: option.columns,
+        deferrable: option.deferrable ?? false,
+        initiallyDeferred: option.initiallyDeferred ?? false
+      })
+    case "unique":
+      return JSON.stringify({
+        kind: option.kind,
+        columns: option.columns,
+        nullsNotDistinct: option.nullsNotDistinct ?? false,
+        deferrable: option.deferrable ?? false,
+        initiallyDeferred: option.initiallyDeferred ?? false
+      })
+    case "foreignKey": {
+      const reference = option.references()
+      return JSON.stringify({
+        kind: option.kind,
+        columns: option.columns,
+        referencedSchemaName: reference.schemaName ?? "public",
+        referencedTableName: reference.tableName,
+        referencedColumns: reference.columns,
+        onUpdate: option.onUpdate ?? null,
+        onDelete: option.onDelete ?? null,
+        deferrable: option.deferrable ?? false,
+        initiallyDeferred: option.initiallyDeferred ?? false
+      })
+    }
+    case "check":
+      return JSON.stringify({
+        kind: option.kind,
+        predicate: renderDdlExpressionSql(option.predicate),
+        noInherit: option.noInherit ?? false
+      })
+  }
+}
+
+const indexShapeSignature = (option: Extract<TableOptionSpec, { readonly kind: "index" }>): string => {
+  const keys: readonly IndexKeySpec[] = option.keys ?? (option.columns ?? []).map((column) => ({
+    kind: "column" as const,
+    column
+  }))
+  return JSON.stringify({
+    kind: option.kind,
+    unique: option.unique ?? false,
+    method: option.method ?? null,
+    include: option.include ?? [],
+    predicate: option.predicate ? renderDdlExpressionSql(option.predicate) : null,
+    keys: keys.map((key) => key.kind === "column"
+      ? {
+          kind: key.kind,
+          column: key.column,
+          order: key.order ?? null,
+          nulls: key.nulls ?? null
+        }
+      : {
+          kind: key.kind,
+          expression: renderDdlExpressionSql(key.expression),
+          order: key.order ?? null,
+          nulls: key.nulls ?? null
+        })
+  })
+}
+
+const tableShapeSignature = (table: TableModel): string =>
+  JSON.stringify({
+    schemaName: table.schemaName ?? "public",
+    columns: table.columns.map((column) => columnShapeSignature(column)),
+    options: table.options.map((option) =>
+      option.kind === "index"
+        ? indexShapeSignature(option)
+        : constraintShapeSignature(option))
+      .sort()
+  })
+
+const enumShapeSignature = (enumType: EnumModel): string =>
+  JSON.stringify({
+    schemaName: enumType.schemaName ?? "public",
+    values: enumType.values
+  })
+
+const schemaNameOfTable = (table: TableModel): string =>
+  table.schemaName ?? "public"
+
+const schemaNameOfEnum = (enumType: EnumModel): string =>
+  enumType.schemaName ?? "public"
 
 const stripOuterQuotes = (value: string): string =>
   value.startsWith("\"") && value.endsWith("\"")
@@ -439,8 +577,94 @@ const ensureImports = (contents: string): string => {
   return `${missing.join("\n")}\n${contents}`
 }
 
+const sanitizeIdentifier = (value: string): string => {
+  const normalized = value.trim().replace(/[^A-Za-z0-9_$]+/g, "_").replace(/^_+|_+$/g, "")
+  if (normalized.length === 0) {
+    return "item"
+  }
+  return /^[A-Za-z_$]/.test(normalized)
+    ? normalized
+    : `_${normalized}`
+}
+
+const uniqueIdentifier = (
+  preferred: string,
+  used: Set<string>
+): string => {
+  const base = sanitizeIdentifier(preferred)
+  if (!used.has(base)) {
+    used.add(base)
+    return base
+  }
+  let index = 2
+  while (used.has(`${base}_${index}`)) {
+    index += 1
+  }
+  const identifier = `${base}_${index}`
+  used.add(identifier)
+  return identifier
+}
+
+const inferSourceRoot = (
+  cwd: string,
+  includes: readonly string[]
+): string => {
+  const first = includes[0] ?? "src/**/*.ts"
+  const wildcard = first.search(/[*?{\[]/)
+  const prefix = wildcard === -1 ? first : first.slice(0, wildcard)
+  if (prefix.length === 0) {
+    return cwd
+  }
+  if (prefix.endsWith("/")) {
+    return resolve(cwd, prefix)
+  }
+  if (extname(prefix).length > 0) {
+    return resolve(cwd, dirname(prefix))
+  }
+  return resolve(cwd, prefix)
+}
+
+const renderDeclaredModule = (
+  original: string,
+  declarations: readonly string[],
+  exportNames: readonly string[]
+): string => {
+  const declarationBlock = declarations.join("\n\n")
+  if (!original.includes("export {")) {
+    const body = declarationBlock.length > 0
+      ? `${declarationBlock}\nexport { ${exportNames.join(", ")} }`
+      : `export { ${exportNames.join(", ")} }`
+    return ensureImports(body)
+  }
+
+  const exportIndex = original.lastIndexOf("export {")
+  const beforeExport = original.slice(0, exportIndex).trimEnd()
+  const exportLine = original.slice(exportIndex).trim()
+  const match = /^export\s*\{([^}]*)\}/.exec(exportLine)
+  if (match === null) {
+    const body = declarationBlock.length > 0
+      ? `${original.trimEnd()}\n${declarationBlock}\nexport { ${exportNames.join(", ")} }`
+      : original.trimEnd()
+    return ensureImports(body)
+  }
+  const existingNames = match[1]!
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+  const merged = [...new Set([...existingNames, ...exportNames])]
+  const replacement = `export { ${merged.join(", ")} }`
+  const body = declarationBlock.length > 0
+    ? `${beforeExport}\n${declarationBlock}\n${replacement}`
+    : `${beforeExport}\n${replacement}`
+  return ensureImports(body)
+}
+
 export const planPostgresPull = async (
   cwd: string,
+  source: {
+    readonly include: readonly string[]
+    readonly exclude?: readonly string[]
+  },
   discovered: DiscoveredSourceSchema,
   database: SchemaModel
 ): Promise<PullPlan> => {
@@ -451,63 +675,276 @@ export const planPostgresPull = async (
     bindingByKey,
     enumKeys: new Set(databaseEnumsByKey.keys())
   }
+  const sourceRoot = inferSourceRoot(cwd, source.include)
 
-  for (const key of databaseTablesByKey.keys()) {
-    const binding = bindingByKey.get(key)
-    if (binding === undefined || binding.kind !== "table") {
-      throw new Error(`No source table declaration found for '${key}'`)
-    }
-  }
-  for (const key of databaseEnumsByKey.keys()) {
-    const binding = bindingByKey.get(key)
-    if (binding === undefined || binding.kind !== "enum") {
-      throw new Error(`No source enum declaration found for '${key}'`)
-    }
-  }
-
-  const byFile = new Map<string, SourceBinding[]>()
+  const schemaFilePathByName = new Map<string, string>()
   for (const binding of discovered.bindings) {
-    if (binding.kind === "table" && !databaseTablesByKey.has(binding.key)) {
+    const schemaName = binding.kind === "table"
+      ? schemaNameOfTable(toTableModel(binding.value as any))
+      : schemaNameOfEnum(toEnumModel(binding.value as any))
+    if (!schemaFilePathByName.has(schemaName)) {
+      schemaFilePathByName.set(schemaName, binding.declaration.filePath)
+    }
+  }
+
+  const matchedSourceBindings = new Set<SourceBinding>()
+  const matchedDbTableKeys = new Set<string>()
+  const matchedDbEnumKeys = new Set<string>()
+  const filePlans = new Map<string, {
+    readonly original: string
+    readonly replacements: SourceBinding[]
+    readonly additions: Array<{
+      readonly binding: SourceBinding
+      readonly model: TableModel | EnumModel
+    }>
+  }>()
+
+  const ensureFilePlan = async (filePath: string): Promise<{
+    readonly original: string
+    readonly replacements: SourceBinding[]
+    readonly additions: Array<{
+      readonly binding: SourceBinding
+      readonly model: TableModel | EnumModel
+    }>
+  }> => {
+    const existing = filePlans.get(filePath)
+    if (existing !== undefined) {
+      return existing
+    }
+    const original = await Bun.file(filePath).exists()
+      ? await Bun.file(filePath).text()
+      : ""
+    const created = {
+      original,
+      replacements: [] as SourceBinding[],
+      additions: [] as Array<{
+        readonly binding: SourceBinding
+        readonly model: TableModel | EnumModel
+      }>
+    }
+    filePlans.set(filePath, created)
+    return created
+  }
+
+  const scheduleReplacement = async (
+    binding: SourceBinding,
+    model: TableModel | EnumModel
+  ): Promise<void> => {
+    const plan = await ensureFilePlan(binding.declaration.filePath)
+    plan.replacements.push(binding)
+    bindingByKey.set(binding.key, binding)
+    void model
+  }
+
+  for (const [key, table] of databaseTablesByKey) {
+    const binding = bindingByKey.get(key)
+    if (binding !== undefined && binding.kind === "table") {
+      matchedSourceBindings.add(binding)
+      matchedDbTableKeys.add(key)
+      await scheduleReplacement(binding, table)
+    }
+  }
+
+  for (const [key, enumType] of databaseEnumsByKey) {
+    const binding = bindingByKey.get(key)
+    if (binding !== undefined && binding.kind === "enum") {
+      matchedSourceBindings.add(binding)
+      matchedDbEnumKeys.add(key)
+      await scheduleReplacement(binding, enumType)
+    }
+  }
+
+  const renameTablePairs = pairUniqueBySignature(
+    discovered.bindings.filter((binding) => binding.kind === "table" && !matchedSourceBindings.has(binding)),
+    database.tables.filter((table) => !matchedDbTableKeys.has(tableKey(table.schemaName, table.name))),
+    (binding) => tableShapeSignature(toTableModel(binding.value as any)),
+    (table) => tableShapeSignature(table)
+  )
+  for (const { source: binding, db: table } of renameTablePairs) {
+    matchedSourceBindings.add(binding)
+    matchedDbTableKeys.add(tableKey(table.schemaName, table.name))
+    await scheduleReplacement(binding, table)
+  }
+
+  const renameEnumPairs = pairUniqueBySignature(
+    discovered.bindings.filter((binding) => binding.kind === "enum" && !matchedSourceBindings.has(binding)),
+    database.enums.filter((enumType) => !matchedDbEnumKeys.has(enumKey(enumType.schemaName, enumType.name))),
+    (binding) => enumShapeSignature(toEnumModel(binding.value as any)),
+    (enumType) => enumShapeSignature(enumType)
+  )
+  for (const { source: binding, db: enumType } of renameEnumPairs) {
+    matchedSourceBindings.add(binding)
+    matchedDbEnumKeys.add(enumKey(enumType.schemaName, enumType.name))
+    await scheduleReplacement(binding, enumType)
+  }
+
+  const newBindingsByFile = new Map<string, Array<{
+    readonly binding: SourceBinding
+    readonly model: TableModel | EnumModel
+  }>>()
+
+  for (const table of database.tables) {
+    const key = tableKey(table.schemaName, table.name)
+    if (matchedDbTableKeys.has(key)) {
       continue
     }
-    if (binding.kind === "enum" && !databaseEnumsByKey.has(binding.key)) {
+    const sourceBinding = discovered.bindings.find((binding) =>
+      binding.kind === "table" &&
+      !matchedSourceBindings.has(binding) &&
+      tableShapeSignature(toTableModel(binding.value as any)) === tableShapeSignature(table)
+    )
+    if (sourceBinding !== undefined) {
+      matchedSourceBindings.add(sourceBinding)
+      matchedDbTableKeys.add(key)
+      await scheduleReplacement(sourceBinding, table)
       continue
     }
-    const list = byFile.get(binding.declaration.filePath) ?? []
-    list.push(binding)
-    byFile.set(binding.declaration.filePath, list)
+    const schemaName = schemaNameOfTable(table)
+    const filePath = schemaFilePathByName.get(schemaName) ?? resolve(sourceRoot, `${schemaName}.schema.ts`)
+    const list = newBindingsByFile.get(filePath) ?? []
+    const declaration: SourceDeclaration = {
+      kind: "tableFactory",
+      filePath,
+      identifier: "",
+      start: 0,
+      end: 0
+    }
+    list.push({
+      binding: {
+        declaration,
+        kind: "table",
+        key,
+        value: table
+      },
+      model: table
+    })
+    newBindingsByFile.set(filePath, list)
+  }
+
+  for (const enumType of database.enums) {
+    const key = enumKey(enumType.schemaName, enumType.name)
+    if (matchedDbEnumKeys.has(key)) {
+      continue
+    }
+    const sourceBinding = discovered.bindings.find((binding) =>
+      binding.kind === "enum" &&
+      !matchedSourceBindings.has(binding) &&
+      enumShapeSignature(toEnumModel(binding.value as any)) === enumShapeSignature(enumType)
+    )
+    if (sourceBinding !== undefined) {
+      matchedSourceBindings.add(sourceBinding)
+      matchedDbEnumKeys.add(key)
+      await scheduleReplacement(sourceBinding, enumType)
+      continue
+    }
+    const schemaName = schemaNameOfEnum(enumType)
+    const filePath = schemaFilePathByName.get(schemaName) ?? resolve(sourceRoot, `${schemaName}.schema.ts`)
+    const list = newBindingsByFile.get(filePath) ?? []
+    const declaration: SourceDeclaration = {
+      kind: "enumFactory",
+      filePath,
+      identifier: "",
+      start: 0,
+      end: 0
+    }
+    list.push({
+      binding: {
+        declaration,
+        kind: "enum",
+        key,
+        value: enumType
+      },
+      model: enumType
+    })
+    newBindingsByFile.set(filePath, list)
+  }
+
+  for (const [filePath, additions] of newBindingsByFile) {
+    const plan = await ensureFilePlan(filePath)
+    plan.additions.push(...additions)
   }
 
   const updates: PullFileUpdate[] = []
-  for (const [filePath, bindings] of byFile) {
-    const original = await Bun.file(filePath).text()
-    let next = ensureImports(original)
-    const importOffset = next.length - original.length
-
-    for (const binding of [...bindings].sort((left, right) => right.declaration.start - left.declaration.start)) {
+  for (const [filePath, plan] of filePlans) {
+    let next = ensureImports(plan.original)
+    const importOffset = next.length - plan.original.length
+    for (const binding of [...plan.replacements].sort((left, right) => right.declaration.start - left.declaration.start)) {
+      const model = binding.kind === "table"
+        ? databaseTablesByKey.get(binding.key) ?? (() => {
+            throw new Error(`Missing database table '${binding.key}'`)
+          })()
+        : databaseEnumsByKey.get(binding.key) ?? (() => {
+            throw new Error(`Missing database enum '${binding.key}'`)
+          })()
       const replacement = binding.kind === "table"
         ? renderTableDeclaration(
             binding.declaration,
-            databaseTablesByKey.get(binding.key) ?? (() => {
-              throw new Error(`Missing database table '${binding.key}'`)
-            })(),
+            model as TableModel,
             context
           )
         : renderEnumDeclaration(
             binding.declaration,
-            databaseEnumsByKey.get(binding.key) ?? (() => {
-              throw new Error(`Missing database enum '${binding.key}'`)
-            })()
+            model as EnumModel
           )
       const start = binding.declaration.start + importOffset
       const end = binding.declaration.end + importOffset
       next = `${next.slice(0, start)}${replacement}${next.slice(end)}`
     }
 
-    if (next !== original) {
+    if (plan.additions.length > 0) {
+      const usedIdentifiers = new Set(
+        discovered.bindings
+          .filter((binding) => binding.declaration.filePath === filePath)
+          .map((binding) => binding.declaration.identifier)
+      )
+      const syntheticBindings = plan.additions.map(({ binding, model }) => {
+        const identifier = uniqueIdentifier(
+          binding.kind === "table"
+            ? model.name
+            : model.name,
+          usedIdentifiers
+        )
+        return {
+          ...binding,
+          declaration: {
+            ...binding.declaration,
+            identifier
+          }
+        }
+      })
+      const combinedBindingByKey = new Map(bindingByKey)
+      for (const binding of syntheticBindings) {
+        combinedBindingByKey.set(binding.key, binding)
+      }
+      const combinedEnumKeys = new Set(context.enumKeys)
+      for (const binding of syntheticBindings) {
+        if (binding.kind === "enum") {
+          combinedEnumKeys.add(binding.key)
+        }
+      }
+      const fileContext: RenderContext = {
+        bindingByKey: combinedBindingByKey,
+        enumKeys: combinedEnumKeys
+      }
+      const renderedAdditions = syntheticBindings.map((binding) =>
+        binding.kind === "table"
+          ? renderTableDeclaration(
+              binding.declaration,
+              binding.value as TableModel,
+              fileContext
+            )
+          : renderEnumDeclaration(
+              binding.declaration,
+              binding.value as EnumModel
+            )
+      )
+      next = renderDeclaredModule(next, renderedAdditions, syntheticBindings.map((binding) => binding.declaration.identifier))
+    }
+
+    if (next !== plan.original) {
       updates.push({
         filePath,
-        before: original,
+        before: plan.original,
         after: next
       })
     }
@@ -520,9 +957,10 @@ export const planPostgresPull = async (
 
 export const applyPullPlan = async (plan: PullPlan): Promise<void> => {
   for (const update of plan.updates) {
+    await mkdir(dirname(update.filePath), { recursive: true })
     await Bun.write(update.filePath, update.after)
   }
 }
 
 export const summarizePullPlan = (cwd: string, plan: PullPlan): readonly string[] =>
-  plan.updates.map((update) => `update ${relative(cwd, update.filePath)}`)
+  plan.updates.map((update) => `${update.before.length === 0 ? "create" : "update"} ${relative(cwd, update.filePath)}`)

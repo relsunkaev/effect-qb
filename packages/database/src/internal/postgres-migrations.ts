@@ -6,6 +6,9 @@ import * as Effect from "effect/Effect"
 
 import type { SchemaChange } from "./postgres-schema-diff.js"
 
+const MIGRATION_UP_MARKER = "-- effect-db:up"
+const MIGRATION_DOWN_MARKER = "-- effect-db:down"
+
 const quoteIdentifier = (value: string): string =>
   `"${value.replaceAll("\"", "\"\"")}"`
 
@@ -28,14 +31,87 @@ const migrationTableSql = (tableName: string): string =>
     applied_at timestamptz not null default now()
   )`
 
-export const renderMigrationFile = (
-  changes: readonly SchemaChange[]
-): string =>
-  changes
-    .map((change) => change.sql)
-    .filter((statement): statement is string => statement !== undefined)
+export interface MigrationFile {
+  readonly name: string
+  readonly path: string
+  readonly sql: string
+  readonly downSql?: string
+}
+
+export interface AppliedMigrationRow {
+  readonly id: number
+  readonly name: string
+}
+
+const renderStatements = (statements: readonly string[]): string =>
+  statements
     .map((statement) => statement.endsWith(";") ? statement : `${statement};`)
     .join("\n")
+
+const parseMigrationSections = (
+  contents: string
+): {
+  readonly sql: string
+  readonly downSql?: string
+} => {
+  const normalized = contents.replaceAll("\r\n", "\n")
+  if (!normalized.includes(MIGRATION_UP_MARKER)) {
+    const sql = normalized.trim()
+    return {
+      sql
+    }
+  }
+
+  const lines = normalized.split("\n")
+  let section: "up" | "down" | undefined
+  const upLines: string[] = []
+  const downLines: string[] = []
+  for (const line of lines) {
+    const marker = line.trim()
+    if (marker === MIGRATION_UP_MARKER) {
+      section = "up"
+      continue
+    }
+    if (marker === MIGRATION_DOWN_MARKER) {
+      section = "down"
+      continue
+    }
+    if (section === "down") {
+      downLines.push(line)
+    } else {
+      upLines.push(line)
+    }
+  }
+  const sql = upLines.join("\n").trim()
+  const downSql = downLines.join("\n").trim()
+  return {
+    sql,
+    downSql: downSql.length > 0 ? downSql : undefined
+  }
+}
+
+export const renderMigrationFile = (
+  changes: readonly SchemaChange[]
+): string => {
+  const upStatements = changes
+    .map((change) => change.sql)
+    .filter((statement): statement is string => statement !== undefined)
+  const reversible = changes.every((change) => change.rollbackSql !== undefined)
+  const downStatements = reversible
+    ? [...changes]
+      .reverse()
+      .map((change) => change.rollbackSql)
+      .filter((statement): statement is string => statement !== undefined)
+    : []
+  const sections = [
+    MIGRATION_UP_MARKER,
+    renderStatements(upStatements)
+  ]
+  if (reversible && downStatements.length > 0) {
+    sections.push(MIGRATION_DOWN_MARKER, renderStatements(downStatements))
+  }
+  return sections.join("\n")
+}
 
 export const writeMigrationFile = async (
   migrationsDir: string,
@@ -78,34 +154,53 @@ export const applyStatements = (
 export const readPendingMigrationFiles = async (
   migrationsDir: string,
   appliedNames: ReadonlySet<string>
-): Promise<ReadonlyArray<{
-  readonly name: string
-  readonly path: string
-  readonly sql: string
-}>> => {
+): Promise<ReadonlyArray<MigrationFile>> => {
   await ensureDirectory(migrationsDir)
   const directory = resolve(migrationsDir)
   const files = (await Array.fromAsync(new Bun.Glob("*.sql").scan({
     cwd: directory,
     absolute: true
   }))).sort()
-  const pending: Array<{
-    readonly name: string
-    readonly path: string
-    readonly sql: string
-  }> = []
+  const pending: MigrationFile[] = []
   for (const path of files) {
     const name = path.slice(path.lastIndexOf("/") + 1)
     if (appliedNames.has(name)) {
       continue
     }
+    const contents = await Bun.file(path).text()
+    const parsed = parseMigrationSections(contents)
     pending.push({
       name,
       path,
-      sql: await Bun.file(path).text()
+      sql: parsed.sql,
+      downSql: parsed.downSql
     })
   }
   return pending
+}
+
+export const readMigrationFiles = async (
+  migrationsDir: string
+): Promise<ReadonlyArray<MigrationFile>> => {
+  await ensureDirectory(migrationsDir)
+  const directory = resolve(migrationsDir)
+  const files = (await Array.fromAsync(new Bun.Glob("*.sql").scan({
+    cwd: directory,
+    absolute: true
+  }))).sort()
+  const parsed: MigrationFile[] = []
+  for (const path of files) {
+    const name = path.slice(path.lastIndexOf("/") + 1)
+    const contents = await Bun.file(path).text()
+    const sections = parseMigrationSections(contents)
+    parsed.push({
+      name,
+      path,
+      sql: sections.sql,
+      downSql: sections.downSql
+    })
+  }
+  return parsed
 }
 
 export const ensureMigrationTable = (
@@ -123,13 +218,22 @@ export const readAppliedMigrationNames = (
       (rows) => new Set(rows.map((row) => row.name))
     ))
 
+export const readAppliedMigrationRows = (
+  tableName: string
+): Effect.Effect<ReadonlyArray<AppliedMigrationRow>, unknown, SqlClient.SqlClient> =>
+  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+    Effect.map(
+      sql.unsafe<AppliedMigrationRow>(`select id, name from ${qualifyIdentifier(tableName)} order by id`),
+      (rows) => rows
+    ))
+
 export const applyMigrationFiles = (
   tableName: string,
   files: ReadonlyArray<{
     readonly name: string
     readonly sql: string
   }>
-): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
+  ): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
   Effect.flatMap(SqlClient.SqlClient, (sql) =>
     sql.withTransaction(
       Effect.forEach(files, (file) =>
@@ -139,6 +243,43 @@ export const applyMigrationFiles = (
             `insert into ${qualifyIdentifier(tableName)} (name) values ($1)`,
             [file.name]
           )
+        ), {
+          discard: true
+        })
+    ))
+
+export const rollbackMigrationFiles = (
+  tableName: string,
+  files: ReadonlyArray<MigrationFile>
+): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
+  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+    sql.withTransaction(
+      Effect.forEach(files, (file) => {
+        if (file.downSql === undefined) {
+          return Effect.fail(new Error(`Migration '${file.name}' does not have a rollback section`))
+        }
+        return Effect.zipRight(
+          sql.unsafe(file.downSql),
+          sql.unsafe(
+            `delete from ${qualifyIdentifier(tableName)} where name = $1`,
+            [file.name]
+          )
+        )
+      }, {
+        discard: true
+      })
+    ))
+
+export const deleteAppliedMigrationNames = (
+  tableName: string,
+  names: readonly string[]
+): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
+  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+    sql.withTransaction(
+      Effect.forEach(names, (name) =>
+        sql.unsafe(
+          `delete from ${qualifyIdentifier(tableName)} where name = $1`,
+          [name]
         ), {
           discard: true
         })

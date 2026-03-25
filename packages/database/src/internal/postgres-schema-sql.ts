@@ -122,8 +122,41 @@ export const renderCreateEnum = (enumType: EnumModel): string =>
 export const renderDropEnum = (enumType: EnumModel): string =>
   `drop type ${qualify(enumType.schemaName, enumType.name)}`
 
+export const renderRenameEnum = (
+  enumType: EnumModel,
+  nextName: string
+): string =>
+  `alter type ${qualify(enumType.schemaName, enumType.name)} rename to ${quote(nextName)}`
+
 export const renderDropTable = (table: TableModel): string =>
   `drop table ${qualify(table.schemaName, table.name)}`
+
+export const renderRenameTable = (
+  table: TableModel,
+  nextName: string
+): string =>
+  `alter table ${qualify(table.schemaName, table.name)} rename to ${quote(nextName)}`
+
+export const renderRenameColumn = (
+  table: TableModel,
+  column: string,
+  nextName: string
+): string =>
+  `alter table ${qualify(table.schemaName, table.name)} rename column ${quote(column)} to ${quote(nextName)}`
+
+export const renderRenameConstraint = (
+  table: TableModel,
+  name: string,
+  nextName: string
+): string =>
+  `alter table ${qualify(table.schemaName, table.name)} rename constraint ${quote(name)} to ${quote(nextName)}`
+
+export const renderRenameIndex = (
+  table: TableModel,
+  name: string,
+  nextName: string
+): string =>
+  `alter index ${qualify(table.schemaName, name)} rename to ${quote(nextName)}`
 
 export const renderAddColumn = (table: TableModel, column: ColumnModel): string =>
   `alter table ${qualify(table.schemaName, table.name)} add column ${renderColumnDefinition(column)}`
