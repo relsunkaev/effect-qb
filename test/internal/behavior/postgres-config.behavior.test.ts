@@ -73,6 +73,41 @@ export default {
     }
   })
 
+  test("ignores legacy effect-db config filenames", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-config-"))
+    try {
+      await Bun.write(join(tempDir, "effect-db.config.ts"), `
+export default {
+  dialect: "mysql",
+  db: {
+    url: "postgres://example"
+  },
+  source: {
+    include: ["schema.ts"]
+  },
+  migrations: {
+    dir: "migrations",
+    table: "effect_qb_migrations"
+  },
+  safety: {
+    nonDestructiveDefault: true
+  }
+}
+`)
+
+      const loaded = await loadPostgresConfig(tempDir)
+      expect(loaded.path).toBeUndefined()
+      expect(loaded.config.source.include).toEqual([
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "src/**/*.js",
+        "src/**/*.jsx"
+      ])
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("resolves override and env database urls", () => {
     process.env.EFFECT_QB_TEST_URL = "postgres://env-url"
     try {

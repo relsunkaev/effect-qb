@@ -42,11 +42,7 @@ const DEFAULT_CONFIG_NAMES = [
   "effectdb.config.ts",
   "effectdb.config.mts",
   "effectdb.config.js",
-  "effectdb.config.mjs",
-  "effect-db.config.ts",
-  "effect-db.config.mts",
-  "effect-db.config.js",
-  "effect-db.config.mjs"
+  "effectdb.config.mjs"
 ] as const
 
 const defaultConfig = (): EffectDbConfig => ({
