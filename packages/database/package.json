@@ -3,6 +3,7 @@
   "version": "0.13.0",
   "type": "module",
   "bin": {
+    "effectdb": "./dist/cli.js",
     "effect-db": "./dist/cli.js"
   },
   "files": [

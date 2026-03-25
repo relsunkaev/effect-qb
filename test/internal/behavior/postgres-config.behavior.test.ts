@@ -11,7 +11,7 @@ describe("postgres config", () => {
   test("rejects invalid dialects", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-config-"))
     try {
-      await Bun.write(join(tempDir, "effect-db.config.ts"), `
+      await Bun.write(join(tempDir, "effectdb.config.ts"), `
 export default {
   dialect: "mysql",
   db: {
@@ -39,7 +39,7 @@ export default {
   test("rejects empty include globs", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-config-"))
     try {
-      await Bun.write(join(tempDir, "effect-db.config.ts"), `
+      await Bun.write(join(tempDir, "effectdb.config.ts"), `
 export default {
   dialect: "postgres",
   db: {

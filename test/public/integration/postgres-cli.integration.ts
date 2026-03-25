@@ -76,7 +76,7 @@ const makeWorkspace = async (
 ) => {
   const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
   const schemaName = `cli_it_${randomId()}`
-  await writeFile(join(workspace, "effect-db.config.ts"), renderSchemaSource(schemaName, {
+  await writeFile(join(workspace, "effectdb.config.ts"), renderSchemaSource(schemaName, {
     databaseUrl
   }))
   await writeFile(join(workspace, "schema.ts"), renderTableSource(schemaName, tableFields))
@@ -92,7 +92,7 @@ const makeSourceWorkspace = async (
 ) => {
   const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
   const schemaName = `cli_it_${randomId()}`
-  await writeFile(join(workspace, "effect-db.config.ts"), renderSchemaSource(schemaName, {
+  await writeFile(join(workspace, "effectdb.config.ts"), renderSchemaSource(schemaName, {
     databaseUrl
   }))
   await writeFile(join(workspace, "schema.ts"), source.replaceAll("__SCHEMA__", schemaName))
@@ -108,7 +108,7 @@ const makeWorkspaceWithFiles = async (
 ) => {
   const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
   const schemaName = `cli_it_${randomId()}`
-  await writeFile(join(workspace, "effect-db.config.ts"), renderSchemaSource(schemaName, configOptions))
+  await writeFile(join(workspace, "effectdb.config.ts"), renderSchemaSource(schemaName, configOptions))
   for (const [relativePath, contents] of Object.entries(files)) {
     const absolutePath = join(workspace, relativePath)
     await mkdir(dirname(absolutePath), { recursive: true })
@@ -148,7 +148,7 @@ const runCli = async (...args: readonly string[]): Promise<{
 }
 
 const schemaFile = (workspace: string) => join(workspace, "schema.ts")
-const configFile = (workspace: string) => join(workspace, "effect-db.config.ts")
+const configFile = (workspace: string) => join(workspace, "effectdb.config.ts")
 const readSchema = (workspace: string) => readFile(schemaFile(workspace), "utf8")
 const dropSchema = (schemaName: string) =>
   execPostgres(`drop schema if exists "${schemaName}" cascade`)
@@ -511,7 +511,7 @@ test("postgres cli applies pending migrations from alternate dirs and tables in 
   try {
     await dropSchema(schemaName)
 
-    await writeFile(join(workspace, "effect-db.config.ts"), renderSchemaSource(schemaName, {
+    await writeFile(join(workspace, "effectdb.config.ts"), renderSchemaSource(schemaName, {
       databaseUrl: postgresUrl,
       migrationsDir: "db/migrations",
       migrationsTable: `${schemaName}.migration_log`

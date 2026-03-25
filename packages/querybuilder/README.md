@@ -14,4 +14,4 @@ bun add effect-qb
 - `effect-qb/mysql`
 - `effect-qb/postgres/metadata`
 
-`effect-qb/postgres/metadata` exposes normalized table and enum metadata helpers used by `effect-db`.
+`effect-qb/postgres/metadata` exposes normalized table and enum metadata helpers used by `effectdb`.

@@ -19,13 +19,13 @@ bun add effect-db
 
 ## CLI
 
-`effect-db` exposes:
+`effectdb` exposes:
 
 ```sh
-effect-db push
-effect-db pull
-effect-db migrate generate
-effect-db migrate up
+effectdb push
+effectdb pull
+effectdb migrate generate
+effectdb migrate up
 ```
 
-Config files use `effect-db.config.ts` and `defineConfig` from `effect-db`.
+Config files use `effectdb.config.ts` and `defineConfig` from `effect-db`.

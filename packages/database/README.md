@@ -1,6 +1,6 @@
 # effect-db
 
-`effect-db` is the Postgres schema tooling package in this workspace.
+`effect-db` is the Postgres schema tooling package in this workspace. It ships the `effectdb` binary.
 
 ## Install
 
@@ -10,7 +10,7 @@ bun add effect-db
 
 ## Config
 
-Use `effect-db.config.ts` and import `defineConfig` from `effect-db`:
+Use `effectdb.config.ts` and import `defineConfig` from `effect-db`:
 
 ```ts
 import { defineConfig } from "effect-db"
@@ -36,8 +36,8 @@ export default defineConfig({
 ## CLI
 
 ```sh
-effect-db push
-effect-db pull
-effect-db migrate generate
-effect-db migrate up
+effectdb push
+effectdb pull
+effectdb migrate generate
+effectdb migrate up
 ```

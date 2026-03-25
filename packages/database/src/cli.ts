@@ -80,7 +80,7 @@ const skippedChanges = (
 const configOption = Options.text("config").pipe(
   Options.optional,
   Options.withAlias("c"),
-  Options.withDescription("Path to effect-db.config.ts")
+  Options.withDescription("Path to effectdb.config.ts")
 )
 
 const urlOption = Options.text("url").pipe(
@@ -474,12 +474,12 @@ const migrate = Command.make("migrate", {}, () => Effect.void).pipe(
   Command.withSubcommands([migrateGenerate, migrateStatus, migrateUp, migrateDown, migrateRepair])
 )
 
-const root = Command.make("effect-db", {}, () => Effect.void).pipe(
+const root = Command.make("effectdb", {}, () => Effect.void).pipe(
   Command.withSubcommands([push, pull, migrate])
 )
 
 const cli = Command.run(root, {
-  name: "effect-db",
+  name: "effectdb",
   version: "0.13.0"
 })
 

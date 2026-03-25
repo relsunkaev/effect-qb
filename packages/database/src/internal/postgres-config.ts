@@ -39,6 +39,10 @@ export interface LoadedPostgresConfig {
 }
 
 const DEFAULT_CONFIG_NAMES = [
+  "effectdb.config.ts",
+  "effectdb.config.mts",
+  "effectdb.config.js",
+  "effectdb.config.mjs",
   "effect-db.config.ts",
   "effect-db.config.mts",
   "effect-db.config.js",
