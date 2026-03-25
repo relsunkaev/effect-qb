@@ -25,7 +25,7 @@ Use `effect-qb` when you want SQL plans to carry more than column names:
 - grouped-query validation before SQL is rendered
 - dialect-locked plans, renderers, and executor error channels
 
-It is a query-construction library, not an ORM. It does not manage migrations, model identities, or runtime row decoding.
+It is a query-construction library, not an ORM. It does not manage model identities or runtime row decoding.
 
 ## Installation
 
@@ -360,7 +360,7 @@ Tables are typed sources, not loose name strings. Columns carry DB types, nullab
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Table } from "effect-qb/postgres"
+import { Column as C, Table, schema } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -375,7 +375,7 @@ const users = Table.make("users", {
 Schema-qualified tables are also typed:
 
 ```ts
-const analytics = Table.schema("analytics")
+const analytics = schema("analytics")
 
 const events = analytics.table("events", {
   id: C.uuid().pipe(C.primaryKey),
@@ -493,7 +493,7 @@ const cityPath = F.json.path(
 
 const city = F.json.get(docs.payload, cityPath)
 
-type City = Q.OutputOfExpression<typeof city, {
+type City = Q.ExpressionOutput<typeof city, {
   readonly docs: {
     readonly name: "docs"
     readonly mode: "required"
@@ -1424,9 +1424,9 @@ bun run release
 
 Useful places to start:
 
-- [src/postgres.ts](./src/postgres.ts)
-- [src/internal/query-factory.ts](./src/internal/query-factory.ts)
-- [src/postgres/private/query.ts](./src/postgres/private/query.ts)
+- [packages/querybuilder/src/postgres.ts](./packages/querybuilder/src/postgres.ts)
+- [packages/querybuilder/src/internal/query-factory.ts](./packages/querybuilder/src/internal/query-factory.ts)
+- [packages/querybuilder/src/postgres/private/query.ts](./packages/querybuilder/src/postgres/private/query.ts)
 - [test/public/behavior/query.behavior.test.ts](./test/public/behavior/query.behavior.test.ts)
 - [test/public/types/query-composition-types.ts](./test/public/types/query-composition-types.ts)
 

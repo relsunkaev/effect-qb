@@ -76,6 +76,7 @@ import {
   type MutationTargetOfPlan,
   type MergeCapabilities,
   type MutationTargetInput,
+  type MutationValuesInput,
   type SourceOf,
   type SourceDialectOf,
   type SourceLike,
@@ -844,6 +845,29 @@ type JsonExpressionLike<Runtime = unknown> = Expression.Expression<
   Expression.SourceDependencies,
   Expression.SourceNullabilityMode
 >
+
+type JsonDbOfExpression<Value extends JsonExpressionLike<any>> = Expression.DbTypeOf<Value>
+
+type JsonKindOfInput<
+  Value,
+  Fallback extends string = "json"
+> = Value extends Expression.Any
+  ? Expression.DbTypeOf<Value> extends Expression.DbType.Json<any, infer Kind> ? Kind : Fallback
+  : Fallback
+
+type JsonConcatKind<
+  Left,
+  Right,
+  EngineDialect extends string
+> = EngineDialect extends "postgres"
+  ? "jsonb"
+  : JsonKindOfInput<Left> extends "jsonb"
+    ? "jsonb"
+    : JsonKindOfInput<Right> extends "jsonb"
+      ? "jsonb"
+      : "json"
+
+type JsonbKindForDialect<EngineDialect extends string> = EngineDialect extends "postgres" ? "jsonb" : "json"
 
 type JsonValueInput = JsonLiteralInput | Expression.Any
 
@@ -1925,7 +1949,7 @@ export function makeDialectQuery<
   })
 
   const jsonDb = makeJsonDb("json")
-  const jsonbDb = makeJsonDb((profile.dialect === "postgres" ? "jsonb" : "json") as string)
+  const jsonbDb = makeJsonDb((profile.dialect === "postgres" ? "jsonb" : "json") as JsonbKindForDialect<Dialect>)
 
   const isExpressionValue = (value: unknown): value is Expression.Any =>
     value !== null && typeof value === "object" && Expression.TypeId in value
@@ -1994,6 +2018,17 @@ export function makeDialectQuery<
     SourceNullability
   >
 
+  const jsonDbTypeOf = <Base extends JsonExpressionLike<any>>(
+    base: Base
+  ): JsonDbOfExpression<Base> => base[Expression.TypeId].dbType as JsonDbOfExpression<Base>
+
+  const resolveJsonMergeDbType = (
+    ...values: readonly Expression.Any[]
+  ): Expression.DbType.Json<any, any> =>
+    profile.dialect === "postgres" || values.some((value) => value[Expression.TypeId].dbType.kind === "jsonb")
+      ? jsonbDb
+      : jsonDb
+
   const makeJsonLiteralExpression = <Value extends JsonLiteralInput>(
     value: Value,
     dbType: Expression.DbType.Json<any, any> = jsonDb
@@ -2054,7 +2089,7 @@ export function makeDialectQuery<
     target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.get">
   ): JsonExpression<
     JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
-    JsonDb<Dialect>,
+    JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>,
     DialectOf<Base>,
     AggregationOf<Base>,
@@ -2070,7 +2105,7 @@ export function makeDialectQuery<
       [base],
       {
         runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
-        dbType: jsonDb,
+        dbType: jsonDbTypeOf(base),
         nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>
       },
       {
@@ -2080,7 +2115,7 @@ export function makeDialectQuery<
       }
     ) as JsonExpression<
       JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
-      JsonDb<Dialect>,
+      JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>,
       DialectOf<Base>,
       AggregationOf<Base>,
@@ -2149,7 +2184,7 @@ export function makeDialectQuery<
       [base],
       {
         runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.access">,
-        dbType: jsonDb,
+        dbType: jsonDbTypeOf(base),
         nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.access">>
       },
       {
@@ -2172,7 +2207,7 @@ export function makeDialectQuery<
       [base],
       {
         runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverse">,
-        dbType: jsonDb,
+        dbType: jsonDbTypeOf(base),
         nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverse">>
       },
       {
@@ -2318,7 +2353,7 @@ export function makeDialectQuery<
     target: Target & JsonDeleteGuard<Expression.RuntimeOf<Base>, Target, "json.delete">
   ): JsonExpression<
     JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
-    JsonDb<Dialect>,
+    JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>,
     DialectOf<Base>,
     AggregationOf<Base>,
@@ -2331,7 +2366,7 @@ export function makeDialectQuery<
       [base],
       {
         runtime: undefined as unknown as JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
-        dbType: jsonDb,
+        dbType: jsonDbTypeOf(base),
         nullability: undefined as unknown as JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>
       },
       {
@@ -2341,7 +2376,7 @@ export function makeDialectQuery<
       }
     ) as JsonExpression<
       JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
-      JsonDb<Dialect>,
+      JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>,
       DialectOf<Base>,
       AggregationOf<Base>,
@@ -2359,7 +2394,7 @@ export function makeDialectQuery<
     target: Target & JsonDeleteGuard<Expression.RuntimeOf<Base>, Target, "json.remove">
   ): JsonExpression<
     JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
-    JsonDb<Dialect>,
+    JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>,
     DialectOf<Base>,
     AggregationOf<Base>,
@@ -2372,7 +2407,7 @@ export function makeDialectQuery<
       [base],
       {
         runtime: undefined as unknown as JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
-        dbType: jsonDb,
+        dbType: jsonDbTypeOf(base),
         nullability: undefined as unknown as JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>
       },
       {
@@ -2382,7 +2417,7 @@ export function makeDialectQuery<
       }
     ) as JsonExpression<
       JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
-      JsonDb<Dialect>,
+      JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>,
       DialectOf<Base>,
       AggregationOf<Base>,
@@ -2405,7 +2440,7 @@ export function makeDialectQuery<
     } = {}
   ): JsonExpression<
     JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
-    JsonDb<Dialect>,
+    JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>,
     DialectOf<Base>,
     AggregationOf<Base>,
@@ -2419,7 +2454,7 @@ export function makeDialectQuery<
       [base, newValue],
       {
         runtime: undefined as unknown as JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
-        dbType: jsonDb,
+        dbType: jsonDbTypeOf(base),
         nullability: undefined as unknown as JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>
       },
       {
@@ -2431,7 +2466,7 @@ export function makeDialectQuery<
       }
     ) as JsonExpression<
       JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
-      JsonDb<Dialect>,
+      JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>,
       DialectOf<Base>,
       AggregationOf<Base>,
@@ -2455,7 +2490,7 @@ export function makeDialectQuery<
     } = {}
   ): JsonExpression<
     JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
-    JsonDb<Dialect>,
+    JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>,
     DialectOf<Base>,
     AggregationOf<Base>,
@@ -2470,7 +2505,7 @@ export function makeDialectQuery<
       [base, insert],
       {
         runtime: undefined as unknown as JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
-        dbType: jsonDb,
+        dbType: jsonDbTypeOf(base),
         nullability: undefined as unknown as JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>
       },
       {
@@ -2482,7 +2517,7 @@ export function makeDialectQuery<
       }
     ) as JsonExpression<
       JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
-      JsonDb<Dialect>,
+      JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>,
       DialectOf<Base>,
       AggregationOf<Base>,
@@ -2492,7 +2527,11 @@ export function makeDialectQuery<
     >
   }
 
-  const jsonConcat = <
+  const jsonConcatAs = <
+    Db extends Expression.DbType.Json<any, any>
+  >(
+    dbType: Db
+  ) => <
     Left extends JsonValueInput,
     Right extends JsonValueInput
   >(
@@ -2500,7 +2539,7 @@ export function makeDialectQuery<
     right: Right
   ): JsonExpression<
     JsonConcatResult<JsonOutputOfInput<Left>, JsonOutputOfInput<Right>>,
-    JsonDb<Dialect>,
+    Db,
     "maybe",
     Dialect,
     Expression.AggregationKind,
@@ -2514,7 +2553,7 @@ export function makeDialectQuery<
       [leftExpression, rightExpression],
       {
         runtime: undefined as unknown as JsonConcatResult<JsonOutputOfInput<Left>, JsonOutputOfInput<Right>>,
-        dbType: jsonDb,
+        dbType,
         nullability: "maybe" as const
       },
       {
@@ -2524,7 +2563,7 @@ export function makeDialectQuery<
       }
     ) as JsonExpression<
       JsonConcatResult<JsonOutputOfInput<Left>, JsonOutputOfInput<Right>>,
-      JsonDb<Dialect>,
+      Db,
       "maybe",
       Dialect,
       Expression.AggregationKind,
@@ -2534,7 +2573,11 @@ export function makeDialectQuery<
     >
   }
 
-  const jsonMerge = <
+  const jsonMergeAs = <
+    Db extends Expression.DbType.Json<any, any>
+  >(
+    dbType: Db
+  ) => <
     Left extends JsonValueInput,
     Right extends JsonValueInput
   >(
@@ -2547,7 +2590,7 @@ export function makeDialectQuery<
       [leftExpression, rightExpression],
       {
         runtime: undefined as unknown as JsonConcatResult<JsonOutputOfInput<Left>, JsonOutputOfInput<Right>>,
-        dbType: jsonDb,
+        dbType,
         nullability: "maybe" as const
       },
       {
@@ -2557,6 +2600,9 @@ export function makeDialectQuery<
       }
     )
   }
+
+  const jsonConcat = jsonConcatAs(resolveJsonMergeDbType())
+  const jsonMerge = jsonMergeAs(resolveJsonMergeDbType())
 
   const jsonKeyExists = <
     Base extends JsonExpressionLike<any>,
@@ -2579,7 +2625,11 @@ export function makeDialectQuery<
     }
   )
 
-  const jsonBuildObject = <
+  const jsonBuildObjectAs = <
+    Db extends Expression.DbType.Json<any, any>
+  >(
+    dbType: Db
+  ) => <
     Shape extends Record<string, JsonValueInput>
   >(
     shape: Shape
@@ -2592,7 +2642,7 @@ export function makeDialectQuery<
       entries.map((entry) => entry.value),
       {
         runtime: {} as JsonObjectOutput<Shape>,
-        dbType: jsonDb,
+        dbType,
         nullability: "never" as const,
         sourceNullability: "resolved" as const
       },
@@ -2603,7 +2653,11 @@ export function makeDialectQuery<
     )
   }
 
-  const jsonBuildArray = <
+  const jsonBuildArrayAs = <
+    Db extends Expression.DbType.Json<any, any>
+  >(
+    dbType: Db
+  ) => <
     Values extends readonly JsonValueInput[]
   >(
     ...values: Values
@@ -2613,7 +2667,7 @@ export function makeDialectQuery<
       expressions,
       {
         runtime: [] as JsonArrayOutput<Values>,
-        dbType: jsonDb,
+        dbType,
         nullability: "never" as const,
         sourceNullability: "resolved" as const
       },
@@ -2623,6 +2677,11 @@ export function makeDialectQuery<
       }
     )
   }
+
+  const jsonBuildObject = jsonBuildObjectAs(jsonDb)
+  const jsonBuildArray = jsonBuildArrayAs(jsonDb)
+  const jsonbBuildObject = jsonBuildObjectAs(jsonbDb)
+  const jsonbBuildArray = jsonBuildArrayAs(jsonbDb)
 
   const jsonToJson = <Value extends JsonValueInput>(
     value: Value
@@ -2641,7 +2700,7 @@ export function makeDialectQuery<
     value: Value
   ) => toJsonValueExpression(value, "jsonToJsonb", jsonbDb) as JsonExpression<
     JsonOutputOfInput<Value>,
-    JsonDb<Dialect, string>,
+    JsonDb<Dialect, JsonbKindForDialect<Dialect>>,
     JsonNullabilityOf<JsonOutputOfInput<Value>>,
     string,
     Expression.AggregationKind,
@@ -2738,7 +2797,7 @@ export function makeDialectQuery<
     [base],
     {
       runtime: undefined as unknown as JsonStripNullsResult<Expression.RuntimeOf<Base>>,
-      dbType: jsonDb,
+      dbType: jsonDbTypeOf(base),
       nullability: undefined as unknown as JsonNullabilityOf<JsonStripNullsResult<Expression.RuntimeOf<Base>>>
     },
     {
@@ -2812,6 +2871,42 @@ export function makeDialectQuery<
     buildObject: jsonBuildObject,
     buildArray: jsonBuildArray,
     toJson: jsonToJson,
+    toJsonb: jsonToJsonb,
+    typeOf: jsonTypeOf,
+    length: jsonLength,
+    keys: jsonKeys,
+    stripNulls: jsonStripNulls,
+    pathExists: jsonPathExists,
+    pathMatch: jsonPathMatch
+  }
+
+  const jsonb = {
+    key: JsonPath.key,
+    index: JsonPath.index,
+    wildcard: JsonPath.wildcard,
+    slice: JsonPath.slice,
+    descend: JsonPath.descend,
+    path: JsonPath.path,
+    get: jsonGet,
+    access: jsonAccess,
+    traverse: jsonTraverse,
+    text: jsonText,
+    accessText: jsonAccessText,
+    traverseText: jsonTraverseText,
+    contains: jsonContains,
+    containedBy: jsonContainedBy,
+    hasKey: jsonHasKey,
+    keyExists: jsonKeyExists,
+    hasAnyKeys: jsonHasAnyKeys,
+    hasAllKeys: jsonHasAllKeys,
+    delete: jsonDelete,
+    remove: jsonRemove,
+    set: jsonSet,
+    insert: jsonInsert,
+    concat: jsonConcatAs(jsonbDb),
+    merge: jsonMergeAs(jsonbDb),
+    buildObject: jsonbBuildObject,
+    buildArray: jsonbBuildArray,
     toJsonb: jsonToJsonb,
     typeOf: jsonTypeOf,
     length: jsonLength,
@@ -5864,10 +5959,10 @@ type AsCurriedResult<
   >
   function insert<
     Target extends MutationTargetLike,
-    Values extends MutationInputOf<Table.InsertOf<Target>>
+    Values extends Record<string, unknown>
   >(
     target: Target,
-    values: Values
+    values: MutationValuesInput<"insert", Target, Values>
   ): QueryPlan<
     {},
     Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
@@ -6050,24 +6145,6 @@ type AsCurriedResult<
     }
 
   function update<
-    Target extends MutationTargetLike,
-    Values extends MutationInputOf<Table.UpdateOf<Target>>
-  >(
-    target: Target,
-    values: Values
-  ): QueryPlan<
-    {},
-    Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
-    AddAvailable<{}, SourceNameOf<Target>>,
-    TableDialectOf<Target>,
-    never,
-    SourceNameOf<Target>,
-    Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
-    TrueFormula,
-    "write",
-    "update"
-  >
-  function update<
     Targets extends MutationTargetTuple,
     Values extends UpdateInputOfTarget<Targets>
   >(
@@ -6081,6 +6158,24 @@ type AsCurriedResult<
     never,
     MutationTargetNamesOf<Targets>,
     Exclude<NestedMutationRequiredFromValues<Values>, MutationTargetNamesOf<Targets>>,
+    TrueFormula,
+    "write",
+    "update"
+  >
+  function update<
+    Target extends MutationTargetLike,
+    Values extends Record<string, unknown>
+  >(
+    target: Target,
+    values: MutationValuesInput<"update", Target, Values>
+  ): QueryPlan<
+    {},
+    Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
+    AddAvailable<{}, SourceNameOf<Target>>,
+    TableDialectOf<Target>,
+    never,
+    SourceNameOf<Target>,
+    Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
     TrueFormula,
     "write",
     "update"
@@ -6821,6 +6916,7 @@ type AsCurriedResult<
     cast,
     type,
     json,
+    jsonb,
     eq,
     neq,
     lt,
