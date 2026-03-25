@@ -78,6 +78,24 @@ const pairUniqueBySignature = <Source, Db>(
   return pairs
 }
 
+type PulledAddition = {
+  readonly declaration: SourceDeclaration
+  readonly kind: SourceBinding["kind"]
+  readonly key: string
+  readonly value: unknown
+  readonly model: TableModel | EnumModel
+  readonly sourceIndex: number
+}
+
+const sortPulledAdditions = (
+  additions: readonly PulledAddition[]
+): readonly PulledAddition[] => {
+  if (additions.length <= 1) {
+    return additions
+  }
+  return [...additions].sort((left, right) => left.sourceIndex - right.sourceIndex)
+}
+
 const renderSchemaExpression = (sql: string): string =>
   `${SCHEMA_EXPRESSION_ALIAS}.parseExpression(${renderStringLiteral(sql)})`
 
@@ -323,6 +341,15 @@ const renderColumnBase = (
   readonly code: string
   readonly defaultDdlType?: string
 } => {
+  if (normalizeType(column.ddlType) === "jsonb" || normalizeType(column.dbTypeKind) === "jsonb") {
+    return {
+      code: `${COLUMN_ALIAS}.custom(${SCHEMA_ALIAS}.Unknown, {
+  dialect: "postgres",
+  kind: "jsonb"
+})`,
+      defaultDdlType: "jsonb"
+    }
+  }
   if (column.typeKind === "e") {
     return {
       code: `${COLUMN_ALIAS}.custom(${SCHEMA_ALIAS}.String, ${renderDbTypeDescriptor(column, context)})`
@@ -546,6 +573,56 @@ const renderTableDeclaration = (
     default:
       throw new Error(`Cannot render table declaration for kind '${declaration.kind}'`)
   }
+}
+
+const renderTableAdditionBase = (
+  declaration: SourceDeclaration,
+  table: TableModel,
+  context: RenderContext
+): string => {
+  const inlinePrimaryKey = inlinePrimaryKeyColumn(declaration, table)
+  const hasForeignKeys = table.options.some((option) => option.kind === "foreignKey")
+  const tableOptions = table.options.filter((option) =>
+    option.kind !== "foreignKey" &&
+    !(declaration.kind === "tableClass" && option.kind === "primaryKey" && inlinePrimaryKey !== undefined)
+  )
+  const renderedOptions = tableOptions.map((option) => renderTableOption(table, option, context))
+  const fields = renderFieldBlock(declaration, table, context)
+  const nameLiteral = renderStringLiteral(table.name)
+  const schemaLiteral = table.schemaName && table.schemaName !== "public"
+    ? `, ${renderStringLiteral(table.schemaName)}`
+    : ""
+
+  switch (declaration.kind) {
+    case "tableFactory": {
+      const head = `${hasForeignKeys ? "let" : "const"} ${declaration.identifier} = ${TABLE_ALIAS}.make(${nameLiteral}, ${fields}${schemaLiteral})`
+      return renderedOptions.length === 0
+        ? head
+        : `${head}.pipe(\n${indent(renderedOptions.join(",\n"))}\n)`
+    }
+    case "tableClass":
+      return renderTableDeclaration(declaration, table, context)
+    case "tableSchema": {
+      const head = `${hasForeignKeys ? "let" : "const"} ${declaration.identifier} = ${declaration.schemaBuilderIdentifier}.table(${nameLiteral}, ${fields})`
+      return renderedOptions.length === 0
+        ? head
+        : `${head}.pipe(\n${indent(renderedOptions.join(",\n"))}\n)`
+    }
+    default:
+      throw new Error(`Cannot render table declaration for kind '${declaration.kind}'`)
+  }
+}
+
+const renderTableForeignKeyUpdate = (
+  declaration: SourceDeclaration,
+  table: TableModel,
+  context: RenderContext
+): string | undefined => {
+  const foreignKeys = table.options.filter((option): option is Extract<TableOptionSpec, { readonly kind: "foreignKey" }> => option.kind === "foreignKey")
+  if (foreignKeys.length === 0) {
+    return undefined
+  }
+  return `${declaration.identifier} = ${declaration.identifier}.pipe(\n${indent(foreignKeys.map((option) => renderTableOption(table, option, context)).join(",\n"))}\n)`
 }
 
 const renderEnumDeclaration = (
@@ -896,7 +973,7 @@ export const planPostgresPull = async (
           .filter((binding) => binding.declaration.filePath === filePath)
           .map((binding) => binding.declaration.identifier)
       )
-      const syntheticBindings = plan.additions.map(({ binding, model }) => {
+      const syntheticAdditions = plan.additions.map(({ binding, model }, sourceIndex) => {
         const identifier = uniqueIdentifier(
           binding.kind === "table"
             ? model.name
@@ -905,12 +982,15 @@ export const planPostgresPull = async (
         )
         return {
           ...binding,
+          model,
+          sourceIndex,
           declaration: {
             ...binding.declaration,
             identifier
           }
         }
       })
+      const syntheticBindings = syntheticAdditions.map(({ model: _model, sourceIndex: _sourceIndex, ...binding }) => binding)
       const combinedBindingByKey = new Map(bindingByKey)
       for (const binding of syntheticBindings) {
         combinedBindingByKey.set(binding.key, binding)
@@ -925,19 +1005,31 @@ export const planPostgresPull = async (
         bindingByKey: combinedBindingByKey,
         enumKeys: combinedEnumKeys
       }
-      const renderedAdditions = syntheticBindings.map((binding) =>
-        binding.kind === "table"
-          ? renderTableDeclaration(
-              binding.declaration,
-              binding.value as TableModel,
-              fileContext
-            )
-          : renderEnumDeclaration(
-              binding.declaration,
-              binding.value as EnumModel
-            )
-      )
-      next = renderDeclaredModule(next, renderedAdditions, syntheticBindings.map((binding) => binding.declaration.identifier))
+      const orderedAdditions = sortPulledAdditions(syntheticAdditions)
+      const renderedAdditions = [
+        ...orderedAdditions.map((binding) =>
+          binding.kind === "table"
+            ? renderTableAdditionBase(
+                binding.declaration,
+                binding.model as TableModel,
+                fileContext
+              )
+            : renderEnumDeclaration(
+                binding.declaration,
+                binding.model as EnumModel
+              )
+        ),
+        ...orderedAdditions.flatMap((binding) =>
+          binding.kind === "table"
+            ? [renderTableForeignKeyUpdate(
+                binding.declaration,
+                binding.model as TableModel,
+                fileContext
+              )]
+            : []
+        ).filter((value): value is string => value !== undefined)
+      ]
+      next = renderDeclaredModule(next, renderedAdditions, orderedAdditions.map((binding) => binding.declaration.identifier))
     }
 
     if (next !== plan.original) {

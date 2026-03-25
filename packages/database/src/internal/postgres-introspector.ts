@@ -162,7 +162,9 @@ const parseExpression = (sql: string, context: string) => {
 const makeColumnModel = (row: ColumnRow): ColumnModel => ({
   name: row.column_name,
   ddlType: row.ddl_type,
-  dbTypeKind: row.db_type_kind,
+  dbTypeKind: row.ddl_type.trim().endsWith("[]")
+    ? row.ddl_type.trim().replace(/\s+/g, " ").toLowerCase()
+    : row.db_type_kind,
   typeKind: row.type_kind,
   typeSchema: row.type_schema,
   nullable: row.nullable,

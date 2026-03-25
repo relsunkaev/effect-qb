@@ -487,6 +487,57 @@ const users = Table.make("users", {
     }
   })
 
+  test("orders pulled additions so foreign-key targets appear first", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-pull-order-"))
+    try {
+      const discovered = {
+        declarations: [],
+        bindings: [],
+        model: {
+          dialect: "postgres",
+          enums: [],
+          tables: []
+        }
+      } as const
+
+      const connections = Pg.schema("payment").table("connections", {
+        id: C.uuid()
+      }).pipe(
+        Table.primaryKey("id")
+      )
+
+      const accountMappings = Pg.schema("payment").table("account_mappings", {
+        id: C.uuid(),
+        connection_id: C.uuid()
+      }).pipe(
+        Table.primaryKey("id"),
+        Table.foreignKey({
+          columns: ["connection_id"],
+          target: () => connections,
+          referencedColumns: ["id"]
+        })
+      )
+
+      const database: SchemaModel = {
+        dialect: "postgres",
+        enums: [],
+        tables: [
+          toTableModel(unsafeAny(accountMappings)),
+          toTableModel(unsafeAny(connections))
+        ]
+      }
+
+      const plan = await planPostgresPull(tempDir, { include: ["src/**/*.ts"] }, discovered, database)
+
+      expect(plan.updates).toHaveLength(1)
+      const after = plan.updates[0]?.after ?? ""
+      expect(after.indexOf("target: () => connections")).toBeGreaterThan(after.indexOf("connections ="))
+      expect(after).toContain(`__EffectQbPullTable.foreignKey({ columns: ["connection_id"] as const, target: () => connections`)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("rejects duplicate discovered table identities across source files", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-"))
     try {
