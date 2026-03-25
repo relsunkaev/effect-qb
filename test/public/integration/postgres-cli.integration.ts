@@ -1351,6 +1351,11 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
       add column "observed_at" timestamp with time zone,
       add column "payload" jsonb;
     `)
+    await execPostgres(`
+      create index "users_payload_has_foo_idx"
+      on "${schemaName}"."users" ("id")
+      where "payload" ? 'foo';
+    `)
 
     const pull = await runCli("pull", "--config", config)
     expect(pull.exitCode).toBe(0)
@@ -1364,6 +1369,8 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
     expect(pulledSchema).toContain(`Column.number({ precision: 10, scale: 4 }).pipe(Column.nullable)`)
     expect(pulledSchema).toContain(`Column.int8()`)
     expect(pulledSchema).toContain(`Column.timestamptz()`)
+    expect(pulledSchema).toContain(`Pg.Function.jsonb.hasKey(`)
+    expect(pulledSchema).not.toContain(`Pg.Function.json.hasKey(`)
     expect(pulledSchema).not.toContain(`kind: "int8"`)
     expect(pulledSchema).not.toContain(`Column.ddlType("numeric(10,4)")`)
     expect(pulledSchema).not.toContain(`Column.ddlType("varchar(32)")`)

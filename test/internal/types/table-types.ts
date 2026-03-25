@@ -24,6 +24,10 @@ const events = analytics.table("events", {
   id: C.uuid().pipe(C.primaryKey),
   userId: C.uuid()
 })
+const auditLog = Table.make("audit_log", {
+  createdAt: C.timestamp().pipe(C.default(F.now())),
+  publishedAt: C.timestamptz().pipe(C.default(F.now()))
+})
 const datedEvents = Table.make("dated_events", {
   happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
 })
@@ -39,6 +43,7 @@ type UsersSchemaName = typeof users extends Table.TableDefinition<any, any, any,
   ? SchemaName
   : never
 type DatedEventSelect = Schema.Schema.Type<typeof datedEvents.schemas.select>
+type AuditLogInsert = Schema.Schema.Type<typeof auditLog.schemas.insert>
 
 const goodInsert: UserInsert = {
   email: "alice@example.com"
@@ -55,6 +60,8 @@ const goodUpdate: UserUpdate = {
 void goodInsert
 void goodNullableInsert
 void goodUpdate
+const goodAuditInsert: AuditLogInsert = {}
+void goodAuditInsert
 
 const uuidKind: UserExpressionDbType["kind"] = "uuid"
 const selectedId = (null as never as UserPlanSelection).id

@@ -263,6 +263,12 @@ const renderPostgresJsonPathArray = (
   }
 }).join(", ")}]`
 
+const renderPostgresTextLiteral = (
+  value: string,
+  state: RenderState,
+  dialect: SqlDialect
+): string => `cast(${dialect.renderLiteral(value, state)} as text)`
+
 const renderPostgresJsonAccessStep = (
   segment: JsonPath.AnySegment,
   textMode: boolean,
@@ -292,6 +298,10 @@ const renderPostgresJsonValue = (
     ? rendered
     : `cast(${rendered} as jsonb)`
 }
+
+const renderPostgresJsonKind = (
+  value: Expression.Any
+): "json" | "jsonb" => value[Expression.TypeId].dbType.kind === "jsonb" ? "jsonb" : "json"
 
 const renderJsonOpaquePath = (
   value: unknown,
@@ -351,6 +361,7 @@ const renderFunctionCall = (
 }
 
 const renderJsonExpression = (
+  expression: Expression.Any,
   ast: Record<string, unknown>,
   state: RenderState,
   dialect: SqlDialect
@@ -363,6 +374,12 @@ const renderJsonExpression = (
   const base = extractJsonBase(ast)
   const segments = extractJsonPathSegments(ast)
   const exact = segments.every((segment) => segment.kind === "key" || segment.kind === "index")
+  const postgresExpressionKind = dialect.name === "postgres" && isJsonExpression(expression)
+    ? renderPostgresJsonKind(expression)
+    : undefined
+  const postgresBaseKind = dialect.name === "postgres" && isJsonExpression(base)
+    ? renderPostgresJsonKind(base)
+    : undefined
 
   switch (kind) {
     case "jsonGet":
@@ -386,7 +403,7 @@ const renderJsonExpression = (
         }
         const jsonPathLiteral = dialect.renderLiteral(renderJsonPathStringLiteral(segments), state)
         const queried = `jsonb_path_query_first(${renderPostgresJsonValue(base, state, dialect)}, ${jsonPathLiteral})`
-        return textMode ? `cast(${queried} as text)` : queried
+        return textMode ? `(${queried} #>> '{}')` : queried
       }
       if (dialect.name === "mysql") {
         const extracted = `json_extract(${baseSql}, ${renderMySqlJsonPath(segments, state, dialect)})`
@@ -410,12 +427,12 @@ const renderJsonExpression = (
       }
       if (dialect.name === "postgres") {
         if (kind === "jsonHasAnyKeys") {
-          return `(${baseSql} ?| ${renderPostgresJsonPathArray(keys, state, dialect)})`
+          return `(${baseSql} ?| array[${keys.map((key) => renderPostgresTextLiteral(String(key), state, dialect)).join(", ")}])`
         }
         if (kind === "jsonHasAllKeys") {
-          return `(${baseSql} ?& ${renderPostgresJsonPathArray(keys, state, dialect)})`
+          return `(${baseSql} ?& array[${keys.map((key) => renderPostgresTextLiteral(String(key), state, dialect)).join(", ")}])`
         }
-        return `(${baseSql} ? ${dialect.renderLiteral(keys[0]!, state)})`
+        return `(${baseSql} ? ${renderPostgresTextLiteral(String(keys[0]!), state, dialect)})`
       }
       if (dialect.name === "mysql") {
         const mode = kind === "jsonHasAllKeys" ? "all" : "one"
@@ -446,7 +463,7 @@ const renderJsonExpression = (
         renderExpression(entry.value, state, dialect)
       ])
       if (dialect.name === "postgres") {
-        return `jsonb_build_object(${renderedEntries.join(", ")})`
+        return `${postgresExpressionKind === "jsonb" ? "jsonb" : "json"}_build_object(${renderedEntries.join(", ")})`
       }
       if (dialect.name === "mysql") {
         return `json_object(${renderedEntries.join(", ")})`
@@ -459,7 +476,7 @@ const renderJsonExpression = (
         : []
       const renderedValues = values.map((value) => renderExpression(value, state, dialect)).join(", ")
       if (dialect.name === "postgres") {
-        return `jsonb_build_array(${renderedValues})`
+        return `${postgresExpressionKind === "jsonb" ? "jsonb" : "json"}_build_array(${renderedValues})`
       }
       if (dialect.name === "mysql") {
         return `json_array(${renderedValues})`
@@ -493,7 +510,8 @@ const renderJsonExpression = (
         return undefined
       }
       if (dialect.name === "postgres") {
-        return `jsonb_typeof(${renderPostgresJsonValue(base, state, dialect)})`
+        const baseSql = renderExpression(base, state, dialect)
+        return `${postgresBaseKind === "jsonb" ? "jsonb" : "json"}_typeof(${baseSql})`
       }
       if (dialect.name === "mysql") {
         return `json_type(${renderExpression(base, state, dialect)})`
@@ -504,8 +522,11 @@ const renderJsonExpression = (
         return undefined
       }
       if (dialect.name === "postgres") {
-        const jsonb = renderPostgresJsonValue(base, state, dialect)
-        return `(case when jsonb_typeof(${jsonb}) = 'array' then jsonb_array_length(${jsonb}) when jsonb_typeof(${jsonb}) = 'object' then jsonb_object_length(${jsonb}) else null end)`
+        const baseSql = renderExpression(base, state, dialect)
+        const typeOf = `${postgresBaseKind === "jsonb" ? "jsonb" : "json"}_typeof`
+        const arrayLength = `${postgresBaseKind === "jsonb" ? "jsonb" : "json"}_array_length`
+        const objectKeys = `${postgresBaseKind === "jsonb" ? "jsonb" : "json"}_object_keys`
+        return `(case when ${typeOf}(${baseSql}) = 'array' then ${arrayLength}(${baseSql}) when ${typeOf}(${baseSql}) = 'object' then (select count(*)::int from ${objectKeys}(${baseSql})) else null end)`
       }
       if (dialect.name === "mysql") {
         return `json_length(${renderExpression(base, state, dialect)})`
@@ -516,8 +537,10 @@ const renderJsonExpression = (
         return undefined
       }
       if (dialect.name === "postgres") {
-        const jsonb = renderPostgresJsonValue(base, state, dialect)
-        return `(case when jsonb_typeof(${jsonb}) = 'object' then array(select jsonb_object_keys(${jsonb})) else null end)`
+        const baseSql = renderExpression(base, state, dialect)
+        const typeOf = `${postgresBaseKind === "jsonb" ? "jsonb" : "json"}_typeof`
+        const objectKeys = `${postgresBaseKind === "jsonb" ? "jsonb" : "json"}_object_keys`
+        return `(case when ${typeOf}(${baseSql}) = 'object' then array(select ${objectKeys}(${baseSql})) else null end)`
       }
       if (dialect.name === "mysql") {
         return `json_keys(${renderExpression(base, state, dialect)})`
@@ -528,7 +551,7 @@ const renderJsonExpression = (
         return undefined
       }
       if (dialect.name === "postgres") {
-        return `jsonb_strip_nulls(${renderPostgresJsonValue(base, state, dialect)})`
+        return `${postgresBaseKind === "jsonb" ? "jsonb" : "json"}_strip_nulls(${renderExpression(base, state, dialect)})`
       }
       unsupportedJsonFeature(dialect, "jsonStripNulls")
       return undefined
@@ -1207,7 +1230,7 @@ export const renderExpression = (
   const rawAst = (expression as Expression.Any & {
     readonly [ExpressionAst.TypeId]: ExpressionAst.Any
   })[ExpressionAst.TypeId] as ExpressionAst.Any | Record<string, unknown>
-  const jsonSql = renderJsonExpression(rawAst as Record<string, unknown>, state, dialect)
+  const jsonSql = renderJsonExpression(expression, rawAst as Record<string, unknown>, state, dialect)
   if (jsonSql !== undefined) {
     return jsonSql
   }

@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema"
 
 import * as Expression from "./expression.js"
+import type { CanCastDbType } from "./datatypes/lookup.js"
 import {
   BigIntStringSchema,
   InstantStringSchema,
@@ -156,7 +157,15 @@ type AlwaysIdentityColumn<Column extends AnyColumnDefinition> = ColumnDefinition
 type CompatibleColumnExpression<
   Column extends AnyColumnDefinition,
   Value extends Expression.Any
-> = [Expression.RuntimeOf<Value>] extends [SelectType<Column>] ? Column : never
+> = [Expression.RuntimeOf<Value>] extends [SelectType<Column>]
+  ? Column
+  : CanCastDbType<
+      Expression.DbTypeOf<Value>,
+      Column[typeof ColumnTypeId]["dbType"],
+      Column[typeof ColumnTypeId]["dbType"]["dialect"]
+    > extends true
+    ? Column
+    : never
 
 type CompatibleDdlExpression<
   Column extends AnyColumnDefinition,

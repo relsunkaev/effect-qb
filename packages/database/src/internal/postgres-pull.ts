@@ -266,6 +266,38 @@ const renderSqlExpressionCode = (
   expression: PgSqlExpr,
   context: ExpressionRenderContext
 ): string => {
+  const isTextCastTarget = (value: unknown): boolean => {
+    if (typeof value !== "object" || value === null || !("name" in value)) {
+      return false
+    }
+    const name = String((value as { readonly name: unknown }).name).toLowerCase()
+    return name === "text" || name === "varchar" || name === "char" || name === "character varying" || name === "character" || name === "bpchar"
+  }
+
+  const extractStringLiteral = (value: PgSqlExpr): string | undefined => {
+    switch (value.type) {
+      case "string":
+        return value.value
+      case "cast":
+        return isTextCastTarget(value.to) ? extractStringLiteral(value.operand) : undefined
+      default:
+        return undefined
+    }
+  }
+
+  const extractStringArrayLiterals = (value: PgSqlExpr): readonly string[] | undefined => {
+    switch (value.type) {
+      case "array": {
+        const values = value.expressions.map((item) => extractStringLiteral(item))
+        return values.every((item): item is string => item !== undefined) ? values : undefined
+      }
+      case "cast":
+        return extractStringArrayLiterals(value.operand)
+      default:
+        return undefined
+    }
+  }
+
   switch (expression.type) {
     case "ref":
       return renderQueryColumnReference(expression.name, context)
@@ -416,16 +448,31 @@ const renderSqlExpressionCode = (
           return `${PG_ALIAS}.Query.regexNotMatch(${left}, ${right})`
         case "!~*":
           return `${PG_ALIAS}.Query.regexNotIMatch(${left}, ${right})`
-        case "?":
-          return `${PG_ALIAS}.Function.json.hasKey(${left}, ${right})`
-        case "?|":
-          return `${PG_ALIAS}.Function.json.hasAnyKeys(${left}, ${right})`
-        case "?&":
-          return `${PG_ALIAS}.Function.json.hasAllKeys(${left}, ${right})`
+        case "?": {
+          const key = extractStringLiteral(expression.right)
+          if (key === undefined) {
+            throw new Error("Unsupported PostgreSQL expression: jsonb key predicate requires a literal string key")
+          }
+          return `${PG_ALIAS}.Function.jsonb.hasKey(${left}, ${renderStringLiteral(key)})`
+        }
+        case "?|": {
+          const keys = extractStringArrayLiterals(expression.right)
+          if (keys === undefined || keys.length === 0) {
+            throw new Error("Unsupported PostgreSQL expression: jsonb any-key predicate requires a literal text array")
+          }
+          return `${PG_ALIAS}.Function.jsonb.hasAnyKeys(${left}, ${keys.map((key) => renderStringLiteral(key)).join(", ")})`
+        }
+        case "?&": {
+          const keys = extractStringArrayLiterals(expression.right)
+          if (keys === undefined || keys.length === 0) {
+            throw new Error("Unsupported PostgreSQL expression: jsonb all-keys predicate requires a literal text array")
+          }
+          return `${PG_ALIAS}.Function.jsonb.hasAllKeys(${left}, ${keys.map((key) => renderStringLiteral(key)).join(", ")})`
+        }
         case "@?":
-          return `${PG_ALIAS}.Function.json.pathExists(${left}, ${right})`
+          return `${PG_ALIAS}.Function.jsonb.pathExists(${left}, ${right})`
         case "@@":
-          return `${PG_ALIAS}.Function.json.pathMatch(${left}, ${right})`
+          return `${PG_ALIAS}.Function.jsonb.pathMatch(${left}, ${right})`
         case "IS DISTINCT FROM":
           return `${PG_ALIAS}.Query.isDistinctFrom(${left}, ${right})`
         case "IS NOT DISTINCT FROM":
