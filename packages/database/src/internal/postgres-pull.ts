@@ -703,6 +703,19 @@ const renderColumnBase = (
   readonly code: string
   readonly defaultDdlType?: string
 } => {
+  const sizedTextLength = (
+    kind: "char" | "varchar"
+  ): number | undefined => {
+    const normalized = normalizeType(column.ddlType)
+    const match = new RegExp(`^${kind}\\((\\d+)\\)$`).exec(normalized)
+    if (match !== null) {
+      return Number(match[1])
+    }
+    if (kind === "char" && (normalized === "char" || normalized === "character" || normalized === "bpchar")) {
+      return 1
+    }
+    return undefined
+  }
   if (normalizeType(column.ddlType) === "jsonb" || normalizeType(column.dbTypeKind) === "jsonb") {
     return {
       code: `${COLUMN_ALIAS}.jsonb(${SCHEMA_ALIAS}.Unknown)`,
@@ -725,9 +738,17 @@ const renderColumnBase = (
     case "text":
       return { code: `${COLUMN_ALIAS}.text()`, defaultDdlType: "text" }
     case "varchar":
-      return { code: `${COLUMN_ALIAS}.varchar()`, defaultDdlType: "varchar" }
+      {
+        const length = sizedTextLength("varchar")
+        return length === undefined
+          ? { code: `${COLUMN_ALIAS}.varchar()`, defaultDdlType: "varchar" }
+          : { code: `${COLUMN_ALIAS}.varchar(${length})`, defaultDdlType: `varchar(${length})` }
+      }
     case "char":
-      return { code: `${COLUMN_ALIAS}.char()`, defaultDdlType: "char" }
+      {
+        const length = sizedTextLength("char") ?? 1
+        return { code: `${COLUMN_ALIAS}.char(${length})`, defaultDdlType: `char(${length})` }
+      }
     case "int2":
       return { code: `${COLUMN_ALIAS}.int2()`, defaultDdlType: "int2" }
     case "int4":

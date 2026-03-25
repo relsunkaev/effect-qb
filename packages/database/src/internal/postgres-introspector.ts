@@ -4,7 +4,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import { SchemaExpression } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, ReferentialAction, TableOptionSpec } from "effect-qb/postgres/metadata"
 import type { FilterConfig } from "./postgres-config.js"
-import { canonicalizePostgresTypeName } from "./postgres-type-utils.js"
+import { canonicalizePostgresTypeName, inferPostgresTypeKind } from "./postgres-type-utils.js"
 
 type TableRow = {
   readonly schema_name: string
@@ -164,8 +164,8 @@ const makeColumnModel = (row: ColumnRow): ColumnModel => ({
   name: row.column_name,
   ddlType: canonicalizePostgresTypeName(row.ddl_type),
   dbTypeKind: row.ddl_type.trim().endsWith("[]")
-    ? canonicalizePostgresTypeName(row.ddl_type.trim().replace(/\s+/g, " ").toLowerCase())
-    : canonicalizePostgresTypeName(row.db_type_kind),
+    ? inferPostgresTypeKind(row.ddl_type.trim().replace(/\s+/g, " ").toLowerCase())
+    : inferPostgresTypeKind(row.db_type_kind),
   typeKind: row.type_kind,
   typeSchema: row.type_schema,
   nullable: row.nullable,

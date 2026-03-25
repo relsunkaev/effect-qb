@@ -1354,13 +1354,13 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`payload: Column.jsonb(Schema.Unknown).pipe(Column.nullable)`)
-    expect(pulledSchema).toContain(`Column.varchar()`)
-    expect(pulledSchema).toContain(`Column.char()`)
+    expect(pulledSchema).toContain(`Column.varchar(32)`)
+    expect(pulledSchema).toContain(`Column.char(1)`)
     expect(pulledSchema).toContain(`Column.int8()`)
     expect(pulledSchema).toContain(`Column.timestamptz()`)
-    expect(pulledSchema).not.toContain(`kind: "varchar"`)
-    expect(pulledSchema).not.toContain(`kind: "char"`)
     expect(pulledSchema).not.toContain(`kind: "int8"`)
+    expect(pulledSchema).not.toContain(`Column.ddlType("varchar(32)")`)
+    expect(pulledSchema).not.toContain(`Column.ddlType("char(1)")`)
     expect(pulledSchema).not.toContain(`Column.ddlType("jsonb")`)
 
     const finalPushDryRun = await runCli("push", "--config", config, "--dry-run")

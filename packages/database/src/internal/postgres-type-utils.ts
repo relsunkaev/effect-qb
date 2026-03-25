@@ -45,6 +45,9 @@ export const canonicalizePostgresTypeName = (value: string): string => {
     return `${canonicalizePostgresTypeName(normalized.slice(0, -2))}[]`
   }
   const base = normalized.replace(/\(.+\)$/, "")
+  if (base === "character" || base === "bpchar") {
+    return `${canonicalBaseType(base)}${normalized === base ? "(1)" : normalized.slice(base.length)}`
+  }
   return `${canonicalBaseType(base)}${normalized.slice(base.length)}`
 }
 
