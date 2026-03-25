@@ -7,9 +7,9 @@
     "packages/*"
   ],
   "imports": {
-    "#postgres": "./src/postgres.ts",
-    "#mysql": "./src/mysql.ts",
-    "#internal/*": "./src/internal/*"
+    "#postgres": "./packages/querybuilder/src/postgres.ts",
+    "#mysql": "./packages/querybuilder/src/mysql.ts",
+    "#internal/*": "./packages/querybuilder/src/internal/*"
   },
   "scripts": {
     "build": "bun scripts/build-package.ts",

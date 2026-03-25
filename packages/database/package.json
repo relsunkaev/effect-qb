@@ -10,6 +10,11 @@
     "src",
     "README.md"
   ],
+  "imports": {
+    "#postgres": "../querybuilder/src/postgres.ts",
+    "#mysql": "../querybuilder/src/mysql.ts",
+    "#internal/*": "../querybuilder/src/internal/*"
+  },
   "exports": {
     ".": {
       "types": "./src/index.ts",
