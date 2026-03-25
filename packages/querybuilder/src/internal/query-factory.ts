@@ -1629,6 +1629,46 @@ export function makeDialectQuery<
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "ilike")
   }
 
+  const regexMatch = <
+    Left extends StringExpressionInput,
+    Right extends StringExpressionInput
+  >(
+    ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexMatch">
+  ): BinaryPredicateExpression<Left, Right, "regexMatch"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexMatch")
+  }
+
+  const regexIMatch = <
+    Left extends StringExpressionInput,
+    Right extends StringExpressionInput
+  >(
+    ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexIMatch">
+  ): BinaryPredicateExpression<Left, Right, "regexIMatch"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexIMatch")
+  }
+
+  const regexNotMatch = <
+    Left extends StringExpressionInput,
+    Right extends StringExpressionInput
+  >(
+    ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexNotMatch">
+  ): BinaryPredicateExpression<Left, Right, "regexNotMatch"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexNotMatch")
+  }
+
+  const regexNotIMatch = <
+    Left extends StringExpressionInput,
+    Right extends StringExpressionInput
+  >(
+    ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexNotIMatch">
+  ): BinaryPredicateExpression<Left, Right, "regexNotIMatch"> => {
+    const [left, right] = args as [Left, Right]
+    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexNotIMatch")
+  }
+
   const isDistinctFrom = <
     Left extends ExpressionInput,
     Right extends ExpressionInput
@@ -3421,6 +3461,30 @@ export function makeDialectQuery<
       ExpressionAst.VariadicNode<"coalesce", DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       "resolved"
     >
+  }
+
+  const call = <
+    Name extends string,
+    Args extends readonly ExpressionInput[]
+  >(
+    name: Name,
+    ...args: Args
+  ): Expression.Any => {
+    const expressions = args.map((value) => toDialectExpression(value)) as readonly Expression.Any[]
+    return makeExpression({
+      runtime: undefined as never,
+      dbType: profile.textDb,
+      nullability: "maybe",
+      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
+      aggregation: mergeAggregationManyRuntime(expressions),
+      source: mergeManySources(expressions),
+      sourceNullability: "resolved" as const,
+      dependencies: mergeManyDependencies(expressions)
+    }, {
+      kind: "function",
+      name,
+      args: expressions
+    }) as Expression.Any
   }
 
   const uuidGenerateV4 = (): Expression.Expression<
@@ -6769,6 +6833,10 @@ type AsCurriedResult<
     lower,
     like,
     ilike,
+    regexMatch,
+    regexIMatch,
+    regexNotMatch,
+    regexNotIMatch,
     and,
     or,
     not,
@@ -6777,6 +6845,7 @@ type AsCurriedResult<
     case: case_,
     match,
     coalesce,
+    call,
     uuidGenerateV4,
     nextVal,
     in: in_,

@@ -2,12 +2,20 @@ import * as Schema from "effect/Schema"
 
 import * as Expression from "./expression.js"
 import {
+  BigIntStringSchema,
+  InstantStringSchema,
   LocalDateStringSchema,
   DecimalStringSchema,
   LocalDateTimeStringSchema,
+  LocalTimeStringSchema,
+  OffsetTimeStringSchema,
   type LocalDateString,
+  type LocalTimeString,
+  type OffsetTimeString,
+  type InstantString,
   type DecimalString,
-  type LocalDateTimeString
+  type LocalDateTimeString,
+  type BigIntString
 } from "./runtime-value.js"
 import {
   type AnyBoundColumn,
@@ -279,11 +287,58 @@ type ColumnModule<
   >
 }
 
+type PostgresColumnModule = ColumnModule<
+  "postgres",
+  "uuid",
+  "text",
+  "int4",
+  "numeric",
+  "bool",
+  "date",
+  "timestamp",
+  "json"
+> & {
+  readonly int2: () => ColumnDefinition<number, number, number, Expression.DbType.Base<"postgres", "int2">, false, false, false, false, false, undefined>
+  readonly int8: () => ColumnDefinition<BigIntString, BigIntString, BigIntString, Expression.DbType.Base<"postgres", "int8">, false, false, false, false, false, undefined>
+  readonly float4: () => ColumnDefinition<number, number, number, Expression.DbType.Base<"postgres", "float4">, false, false, false, false, false, undefined>
+  readonly float8: () => ColumnDefinition<number, number, number, Expression.DbType.Base<"postgres", "float8">, false, false, false, false, false, undefined>
+  readonly char: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "char">, false, false, false, false, false, undefined>
+  readonly varchar: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "varchar">, false, false, false, false, false, undefined>
+  readonly time: () => ColumnDefinition<LocalTimeString, LocalTimeString, LocalTimeString, Expression.DbType.Base<"postgres", "time">, false, false, false, false, false, undefined>
+  readonly timetz: () => ColumnDefinition<OffsetTimeString, OffsetTimeString, OffsetTimeString, Expression.DbType.Base<"postgres", "timetz">, false, false, false, false, false, undefined>
+  readonly timestamptz: () => ColumnDefinition<InstantString, InstantString, InstantString, Expression.DbType.Base<"postgres", "timestamptz">, false, false, false, false, false, undefined>
+  readonly interval: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "interval">, false, false, false, false, false, undefined>
+  readonly bytea: () => ColumnDefinition<Uint8Array, Uint8Array, Uint8Array, Expression.DbType.Base<"postgres", "bytea">, false, false, false, false, false, undefined>
+  readonly name: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "name">, false, false, false, false, false, undefined>
+  readonly oid: () => ColumnDefinition<number, number, number, Expression.DbType.Base<"postgres", "oid">, false, false, false, false, false, undefined>
+  readonly regclass: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "regclass">, false, false, false, false, false, undefined>
+  readonly bit: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "bit">, false, false, false, false, false, undefined>
+  readonly varbit: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "varbit">, false, false, false, false, false, undefined>
+  readonly xml: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "xml">, false, false, false, false, false, undefined>
+  readonly pg_lsn: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "pg_lsn">, false, false, false, false, false, undefined>
+  readonly jsonb: <SchemaType extends Schema.Schema.Any>(
+    schema: SchemaType
+  ) => ColumnDefinition<
+    Schema.Schema.Type<SchemaType>,
+    Schema.Schema.Type<SchemaType>,
+    Schema.Schema.Type<SchemaType>,
+    Expression.DbType.Json<"postgres", "jsonb">,
+    false,
+    false,
+    false,
+    false,
+    false,
+    undefined
+  >
+}
+
 const typeFactory = <Dialect extends string>(dialect: Dialect) =>
   <Kind extends string>(kind: Kind): Expression.DbType.Base<Dialect, Kind> => ({
     dialect,
     kind
   })
+
+const postgresType = typeFactory("postgres")
 
 const makeColumnModule = <
   Dialect extends string,
@@ -350,8 +405,7 @@ const makeColumnModule = <
   }
 }
 
-/** Postgres-specialized column constructors. */
-export const postgres = makeColumnModule("postgres", {
+const postgresBase = makeColumnModule("postgres", {
   uuid: "uuid",
   text: "text",
   int: "int4",
@@ -361,6 +415,44 @@ export const postgres = makeColumnModule("postgres", {
   timestamp: "timestamp",
   json: "json"
 })
+
+/** Postgres-specialized column constructors. */
+export const postgres: PostgresColumnModule = {
+  ...postgresBase,
+  int2: () => primitive(Schema.Int, postgresType("int2")),
+  int8: () => primitive(BigIntStringSchema, postgresType("int8")),
+  float4: () => primitive(Schema.Number, postgresType("float4")),
+  float8: () => primitive(Schema.Number, postgresType("float8")),
+  char: () => primitive(Schema.String, postgresType("char")),
+  varchar: () => primitive(Schema.String, postgresType("varchar")),
+  time: () => primitive(LocalTimeStringSchema, postgresType("time")),
+  timetz: () => primitive(OffsetTimeStringSchema, postgresType("timetz")),
+  timestamptz: () => primitive(InstantStringSchema, postgresType("timestamptz")),
+  interval: () => primitive(Schema.String, postgresType("interval")),
+  bytea: () => primitive(Schema.Uint8ArrayFromSelf, postgresType("bytea")),
+  name: () => primitive(Schema.String, postgresType("name")),
+  oid: () => primitive(Schema.Int, postgresType("oid")),
+  regclass: () => primitive(Schema.String, postgresType("regclass")),
+  bit: () => primitive(Schema.String, postgresType("bit")),
+  varbit: () => primitive(Schema.String, postgresType("varbit")),
+  xml: () => primitive(Schema.String, postgresType("xml")),
+  pg_lsn: () => primitive(Schema.String, postgresType("pg_lsn")),
+  jsonb: <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
+    makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+      dbType: {
+        ...postgresType("jsonb"),
+        variant: "json"
+      } as Expression.DbType.Json<"postgres", "jsonb">,
+      nullable: false,
+      hasDefault: false,
+      generated: false,
+      primaryKey: false,
+      unique: false,
+      references: undefined,
+      ddlType: undefined,
+      identity: undefined
+    })
+}
 
 /** MySQL-specialized column constructors. */
 export const mysql = makeColumnModule("mysql", {
@@ -380,17 +472,55 @@ export const uuid = postgres.uuid
 export const text = postgres.text
 /** Creates a Postgres `int4` column. */
 export const int = postgres.int
+/** Creates a Postgres `int2` column. */
+export const int2 = postgres.int2
+/** Creates a Postgres `int8` column. */
+export const int8 = postgres.int8
 /** Creates a Postgres `numeric` column decoded as `DecimalString`. */
 export const number = postgres.number
+/** Creates a Postgres `float4` column. */
+export const float4 = postgres.float4
+/** Creates a Postgres `float8` column. */
+export const float8 = postgres.float8
 /** Creates a Postgres `bool` column. */
 export const boolean = postgres.boolean
 /** Creates a Postgres `date` column decoded as `LocalDateString`. */
 export const date = postgres.date
 /** Creates a Postgres `timestamp` column decoded as `LocalDateTimeString`. */
 export const timestamp = postgres.timestamp
+/** Creates a Postgres `time` column decoded as `LocalTimeString`. */
+export const time = postgres.time
+/** Creates a Postgres `timetz` column decoded as `OffsetTimeString`. */
+export const timetz = postgres.timetz
+/** Creates a Postgres `timestamptz` column decoded as `InstantString`. */
+export const timestamptz = postgres.timestamptz
+/** Creates a Postgres `char` column. */
+export const char = postgres.char
+/** Creates a Postgres `varchar` column. */
+export const varchar = postgres.varchar
+/** Creates a Postgres `interval` column. */
+export const interval = postgres.interval
+/** Creates a Postgres `bytea` column. */
+export const bytea = postgres.bytea
+/** Creates a Postgres `name` column. */
+export const name = postgres.name
+/** Creates a Postgres `oid` column. */
+export const oid = postgres.oid
+/** Creates a Postgres `regclass` column. */
+export const regclass = postgres.regclass
+/** Creates a Postgres `bit` column. */
+export const bit = postgres.bit
+/** Creates a Postgres `varbit` column. */
+export const varbit = postgres.varbit
+/** Creates a Postgres `xml` column. */
+export const xml = postgres.xml
+/** Creates a Postgres `pg_lsn` column. */
+export const pg_lsn = postgres.pg_lsn
 
 /** Creates a Postgres `json` column backed by an arbitrary Effect schema. */
 export const json = postgres.json
+/** Creates a Postgres `jsonb` column backed by an arbitrary Effect schema. */
+export const jsonb = postgres.jsonb
 /** Creates a Postgres column backed by an arbitrary SQL type and Effect schema. */
 export const custom = postgres.custom
 

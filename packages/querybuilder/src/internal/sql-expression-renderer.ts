@@ -316,6 +316,24 @@ const renderFunctionCall = (
   state: RenderState,
   dialect: SqlDialect
 ): string => {
+  if (name === "array") {
+    return `ARRAY[${args.map((arg) => renderExpression(arg, state, dialect)).join(", ")}]`
+  }
+  if (name === "extract" && args.length === 2) {
+    const field = args[0]
+    const source = args[1]
+    if (field === undefined) {
+      throw new Error("Unsupported SQL extract expression")
+    }
+    if (source === undefined) {
+      throw new Error("Unsupported SQL extract expression")
+    }
+    const fieldRuntime = isExpression(field) && field[Expression.TypeId].dbType.kind === "text" && typeof field[Expression.TypeId].runtime === "string"
+      ? field[Expression.TypeId].runtime
+      : undefined
+    const renderedField = fieldRuntime ?? renderExpression(field, state, dialect)
+    return `extract(${renderedField} from ${renderExpression(source, state, dialect)})`
+  }
   const renderedArgs = args.map((arg) => renderExpression(arg, state, dialect)).join(", ")
   if (args.length === 0) {
     switch (name) {
@@ -1239,6 +1257,22 @@ export const renderExpression = (
       return dialect.name === "postgres"
         ? `(${renderExpression(ast.left, state, dialect)} ilike ${renderExpression(ast.right, state, dialect)})`
         : `(lower(${renderExpression(ast.left, state, dialect)}) like lower(${renderExpression(ast.right, state, dialect)}))`
+    case "regexMatch":
+      return dialect.name === "postgres"
+        ? `(${renderExpression(ast.left, state, dialect)} ~ ${renderExpression(ast.right, state, dialect)})`
+        : `(${renderExpression(ast.left, state, dialect)} regexp ${renderExpression(ast.right, state, dialect)})`
+    case "regexIMatch":
+      return dialect.name === "postgres"
+        ? `(${renderExpression(ast.left, state, dialect)} ~* ${renderExpression(ast.right, state, dialect)})`
+        : `(${renderExpression(ast.left, state, dialect)} regexp ${renderExpression(ast.right, state, dialect)})`
+    case "regexNotMatch":
+      return dialect.name === "postgres"
+        ? `(${renderExpression(ast.left, state, dialect)} !~ ${renderExpression(ast.right, state, dialect)})`
+        : `(${renderExpression(ast.left, state, dialect)} not regexp ${renderExpression(ast.right, state, dialect)})`
+    case "regexNotIMatch":
+      return dialect.name === "postgres"
+        ? `(${renderExpression(ast.left, state, dialect)} !~* ${renderExpression(ast.right, state, dialect)})`
+        : `(${renderExpression(ast.left, state, dialect)} not regexp ${renderExpression(ast.right, state, dialect)})`
     case "isDistinctFrom":
       return dialect.name === "mysql"
         ? `(not (${renderExpression(ast.left, state, dialect)} <=> ${renderExpression(ast.right, state, dialect)}))`

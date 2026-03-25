@@ -6,7 +6,7 @@ export { json } from "./json.js"
 export * as temporal from "./temporal.js"
 
 export { coalesce } from "./core.js"
-export { uuidGenerateV4, nextVal } from "./core.js"
+export { call, uuidGenerateV4, nextVal } from "./core.js"
 export { lower, upper, concat } from "./string.js"
 export { count, max, min } from "./aggregate.js"
 export { over, rowNumber, rank, denseRank } from "./window.js"
