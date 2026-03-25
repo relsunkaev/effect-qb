@@ -50,7 +50,7 @@ describe("table definitions", () => {
   })
 
   test("table schema namespaces preserve physical schema metadata", () => {
-    const analytics = Table.schema("analytics")
+    const analytics = Postgres.schema("analytics")
     const events = analytics.table("events", {
       id: C.uuid().pipe(C.primaryKey),
       userId: C.uuid()

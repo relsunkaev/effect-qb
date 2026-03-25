@@ -53,19 +53,6 @@ type SchemaNameOfTable<Table> = Table extends BaseTable.TableDefinition<any, any
     ? SchemaName
     : never
 
-export type TableSchemaNamespace<SchemaName extends string> = {
-  readonly schemaName: SchemaName
-  readonly table: <
-    Name extends string,
-    Fields extends DialectFieldMap,
-    PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
-  >(
-    name: Name,
-    fields: Fields,
-    ...options: BaseTable.DeclaredTableOptions
-  ) => TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
-}
-
 export type TableOption = BaseTable.TableOption
 export type DdlExpressionLike = BaseTable.DdlExpressionLike
 export type IndexKey = BaseTable.IndexKeySpec
@@ -85,26 +72,6 @@ export const make = <
   schemaName: SchemaName = "public" as SchemaName
 ): TableDefinition<Name, Fields> =>
   BaseTable.make(name, fields, schemaName) as TableDefinition<Name, Fields>
-
-export const schema = <SchemaName extends string>(
-  schemaName: SchemaName
-): TableSchemaNamespace<SchemaName> => ({
-  schemaName,
-  table: <
-    Name extends string,
-    Fields extends DialectFieldMap,
-    PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
-  >(
-    name: Name,
-    fields: Fields,
-    ...declaredOptions: BaseTable.DeclaredTableOptions
-  ) =>
-    BaseTable.schema(schemaName).table(
-      name,
-      fields,
-      ...declaredOptions
-    ) as TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
-})
 
 export const alias = <
   Table extends AnyTable,

@@ -3,8 +3,8 @@ import { join, relative } from "node:path"
 
 import { describe, expect, test } from "bun:test"
 
-import { SchemaManagement, Table } from "#postgres"
-import { Column as C } from "#postgres"
+import * as Pg from "#postgres"
+import { Column as C, Table } from "#postgres"
 import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/postgres-schema-diff.js"
 import { toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
 import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
@@ -23,7 +23,7 @@ describe("postgres schema management", () => {
       Table.index("email")
     )
 
-    const status = SchemaManagement.enumType("status", ["pending", "active", "archived"] as const)
+    const status = Pg.schema("public").enum("status", ["pending", "active", "archived"] as const)
 
     const source: SchemaModel = {
       dialect: "postgres",
@@ -33,7 +33,7 @@ describe("postgres schema management", () => {
 
     const database: SchemaModel = {
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(SchemaManagement.enumType("status", ["pending", "active"] as const)))],
+      enums: [toEnumModel(unsafeAny(Pg.schema("public").enum("status", ["pending", "active"] as const)))],
       tables: [{
         kind: "table",
         schemaName: "public",
@@ -79,19 +79,19 @@ describe("postgres schema management", () => {
   test("classifies enum shrink and reorder as manual destructive changes", () => {
     const database: SchemaModel = {
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(SchemaManagement.enumType("status", ["pending", "active"] as const)))],
+      enums: [toEnumModel(unsafeAny(Pg.schema("public").enum("status", ["pending", "active"] as const)))],
       tables: []
     }
 
     const shrink = planPostgresSchemaDiff({
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(SchemaManagement.enumType("status", ["pending"] as const)))],
+      enums: [toEnumModel(unsafeAny(Pg.schema("public").enum("status", ["pending"] as const)))],
       tables: []
     }, database)
 
     const reorder = planPostgresSchemaDiff({
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(SchemaManagement.enumType("status", ["active", "pending"] as const)))],
+      enums: [toEnumModel(unsafeAny(Pg.schema("public").enum("status", ["active", "pending"] as const)))],
       tables: []
     }, database)
 
@@ -526,9 +526,10 @@ export const users = PgTable.make("users", {
 `)
 
       await Bun.write(join(tempDir, "b-schema.ts"), `
+import * as Pg from "#postgres"
 import { Column as Col, Table as PgTable } from "#postgres"
 
-const admin = PgTable.schema("admin")
+const admin = Pg.schema("admin")
 
 export const audits = admin.table("audits", {
   id: Col.uuid()
@@ -562,7 +563,7 @@ export class Sessions extends Pg.Table.Class<Sessions>("sessions")({
     }
   })
 
-  test("rejects nested schema management declarations", async () => {
+  test("rejects nested schema declarations", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-nested-"))
     try {
       await Bun.write(join(tempDir, "nested.ts"), `
@@ -578,13 +579,13 @@ export function loadUsers() {
 
       await expect(discoverSourceSchema(repoRoot, {
         include: [`${relative(repoRoot, tempDir).replaceAll("\\", "/")}/**/*.ts`]
-      })).rejects.toThrow("Nested schema management declarations are not supported")
+      })).rejects.toThrow("Nested schema declarations are not supported")
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }
   })
 
-  test("rejects computed schema management declarations", async () => {
+  test("rejects computed schema declarations", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-computed-"))
     try {
       await Bun.write(join(tempDir, "computed.ts"), `
@@ -597,7 +598,7 @@ export const users = (() => Table.make("users", {
 
       await expect(discoverSourceSchema(repoRoot, {
         include: [`${relative(repoRoot, tempDir).replaceAll("\\", "/")}/**/*.ts`]
-      })).rejects.toThrow("Non-canonical schema management declaration 'users'")
+      })).rejects.toThrow("Non-canonical schema declaration 'users'")
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }

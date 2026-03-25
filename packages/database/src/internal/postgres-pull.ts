@@ -10,7 +10,7 @@ import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from ".
 const TABLE_ALIAS = "__EffectQbPullTable"
 const COLUMN_ALIAS = "__EffectQbPullColumn"
 const SCHEMA_EXPRESSION_ALIAS = "__EffectQbPullSchemaExpression"
-const SCHEMA_MANAGEMENT_ALIAS = "__EffectQbPullSchemaManagement"
+const PG_ALIAS = "__EffectQbPullPg"
 const SCHEMA_ALIAS = "__EffectQbPullSchema"
 
 export interface PullFileUpdate {
@@ -555,11 +555,9 @@ const renderEnumDeclaration = (
   const values = renderStringTuple(enumType.values)
   switch (declaration.kind) {
     case "enumFactory":
-      return enumType.schemaName === undefined || enumType.schemaName === "public"
-        ? `const ${declaration.identifier} = ${SCHEMA_MANAGEMENT_ALIAS}.enumType(${renderStringLiteral(enumType.name)}, ${values})`
-        : `const ${declaration.identifier} = ${SCHEMA_MANAGEMENT_ALIAS}.enumType(${renderStringLiteral(enumType.name)}, ${values}, ${renderStringLiteral(enumType.schemaName)})`
+      return `const ${declaration.identifier} = ${PG_ALIAS}.schema(${renderStringLiteral(enumType.schemaName ?? "public")}).enum(${renderStringLiteral(enumType.name)}, ${values})`
     case "enumSchema":
-      return `const ${declaration.identifier} = ${declaration.schemaBuilderIdentifier}.enumType(${renderStringLiteral(enumType.name)}, ${values})`
+      return `const ${declaration.identifier} = ${declaration.schemaBuilderIdentifier}.enum(${renderStringLiteral(enumType.name)}, ${values})`
     default:
       throw new Error(`Cannot render enum declaration for kind '${declaration.kind}'`)
   }
@@ -567,7 +565,8 @@ const renderEnumDeclaration = (
 
 const ensureImports = (contents: string): string => {
   const required = [
-    `import { Table as ${TABLE_ALIAS}, Column as ${COLUMN_ALIAS}, SchemaExpression as ${SCHEMA_EXPRESSION_ALIAS}, SchemaManagement as ${SCHEMA_MANAGEMENT_ALIAS} } from "effect-qb/postgres"`,
+    `import * as ${PG_ALIAS} from "effect-qb/postgres"`,
+    `import { Table as ${TABLE_ALIAS}, Column as ${COLUMN_ALIAS}, SchemaExpression as ${SCHEMA_EXPRESSION_ALIAS} } from "effect-qb/postgres"`,
     `import * as ${SCHEMA_ALIAS} from "effect/Schema"`
   ]
   const missing = required.filter((line) => !contents.includes(line))

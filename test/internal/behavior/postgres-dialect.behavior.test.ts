@@ -1070,7 +1070,7 @@ describe("postgres dialect behavior", () => {
   })
 
   test("renders schema-qualified postgres tables in queries and ddl", () => {
-    const analytics = Postgres.Table.schema("analytics")
+    const analytics = Postgres.schema("analytics")
     const users = analytics.table("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
     })

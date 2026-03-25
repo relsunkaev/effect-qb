@@ -56,9 +56,10 @@ const renderTableSource = (
   tableFields = `  id: C.text(),
   email: C.text()`
 ) => `
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
-const db = Table.schema(${JSON.stringify(schemaName)})
+const db = Pg.schema(${JSON.stringify(schemaName)})
 
 const users = db.table("users", {
 ${tableFields}
@@ -338,9 +339,10 @@ test("postgres cli blocks destructive push changes unless explicitly allowed", a
 
 test("postgres cli safe mode applies additive changes and skips destructive drift", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
+import * as Pg from "#postgres"
 import { Column as C, SchemaExpression, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
 
 export const users = db.table("users", {
   id: C.int().pipe(C.identityByDefault),
@@ -364,9 +366,10 @@ export const users = db.table("users", {
     expect(initialPush.exitCode).toBe(0)
 
     await writeFile(schemaFile(workspace), `
+import * as Pg from "#postgres"
 import { Column as C, SchemaExpression, Table } from "#postgres"
 
-const db = Table.schema(${JSON.stringify(schemaName)})
+const db = Pg.schema(${JSON.stringify(schemaName)})
 
 export const users = db.table("users", {
   id: C.int().pipe(C.identityByDefault),
@@ -637,12 +640,13 @@ alter table "${schemaName}"."users" drop column "nickname";
 test("postgres cli surfaces manual enum changes during push and migrate generate", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Schema from "effect/Schema"
-import { Column as C, Query as Q, SchemaManagement, Table } from "#postgres"
+import * as Pg from "#postgres"
+import { Column as C, Query as Q, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
-const types = SchemaManagement.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
+const types = Pg.schema("__SCHEMA__")
 
-const status = types.enumType("status", ["pending", "active"] as const)
+const status = types.enum("status", ["pending", "active"] as const)
 
 export const users = db.table("users", {
   id: C.text(),
@@ -663,12 +667,13 @@ export { status }
 
     await writeFile(schemaFile(workspace), `
 import * as Schema from "effect/Schema"
-import { Column as C, Query as Q, SchemaManagement, Table } from "#postgres"
+import * as Pg from "#postgres"
+import { Column as C, Query as Q, Table } from "#postgres"
 
-const db = Table.schema(${JSON.stringify(schemaName)})
-const types = SchemaManagement.schema(${JSON.stringify(schemaName)})
+const db = Pg.schema(${JSON.stringify(schemaName)})
+const types = Pg.schema(${JSON.stringify(schemaName)})
 
-const status = types.enumType("status", ["pending"] as const)
+const status = types.enum("status", ["pending"] as const)
 
 export const users = db.table("users", {
   id: C.text(),
@@ -693,12 +698,13 @@ export { status }
 
     await writeFile(schemaFile(workspace), `
 import * as Schema from "effect/Schema"
-import { Column as C, Query as Q, SchemaManagement, Table } from "#postgres"
+import * as Pg from "#postgres"
+import { Column as C, Query as Q, Table } from "#postgres"
 
-const db = Table.schema(${JSON.stringify(schemaName)})
-const types = SchemaManagement.schema(${JSON.stringify(schemaName)})
+const db = Pg.schema(${JSON.stringify(schemaName)})
+const types = Pg.schema(${JSON.stringify(schemaName)})
 
-const status = types.enumType("status", ["active", "pending"] as const)
+const status = types.enum("status", ["active", "pending"] as const)
 
 export const users = db.table("users", {
   id: C.text(),
@@ -758,9 +764,10 @@ test("postgres cli pull creates source definitions for unmanaged tables", async 
 test("postgres cli pull fails when filtered tables reference missing source targets", async () => {
   const { workspace, schemaName } = await makeWorkspaceWithFiles({
     "schema.ts": `
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
 
 export const users = db.table("users", {
   id: C.uuid(),
@@ -869,9 +876,10 @@ test("postgres cli accepts --url overrides over the configured database url", as
 test("postgres cli honors source include exclude and table filters across multiple files", async () => {
   const { workspace, schemaName } = await makeWorkspaceWithFiles({
     "tables/users.ts": `
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
 
 export const users = db.table("users", {
   id: C.text(),
@@ -881,9 +889,10 @@ export const users = db.table("users", {
 )
 `,
     "tables/orgs.ts": `
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
 
 export const orgs = db.table("orgs", {
   id: C.text(),
@@ -893,9 +902,10 @@ export const orgs = db.table("orgs", {
 )
 `,
     "tables/ignored.ts": `
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
 
 export const audits = db.table("audits", {
   id: C.text()
@@ -967,12 +977,13 @@ export const audits = db.table("audits", {
 test("postgres cli round-trips enum, foreign-key, generated, identity, and rich index metadata", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Schema from "effect/Schema"
-import { Column as C, Query as Q, SchemaExpression, SchemaManagement, Table } from "#postgres"
+import * as Pg from "#postgres"
+import { Column as C, Query as Q, SchemaExpression, Table } from "#postgres"
 
-const tables = Table.schema("__SCHEMA__")
-const types = SchemaManagement.schema("__SCHEMA__")
+const tables = Pg.schema("__SCHEMA__")
+const types = Pg.schema("__SCHEMA__")
 
-const status = types.enumType("status", ["pending", "active"] as const)
+const status = types.enum("status", ["pending", "active"] as const)
 
 const orgs = tables.table("orgs", {
   id: C.uuid(),
@@ -1071,7 +1082,7 @@ export { status, orgs, users }
     expect(pull.stdout).toContain("updated 1 file(s)")
 
     const pulledSchema = await readSchema(workspace)
-    expect(pulledSchema).toContain(`const status = types.enumType("status", ["pending", "active"] as const)`)
+    expect(pulledSchema).toContain(`const status = types.enum("status", ["pending", "active"] as const)`)
     expect(pulledSchema).toContain(`__EffectQbPullColumn.identityByDefault`)
     expect(pulledSchema).toContain(`variant: "enum"`)
     expect(pulledSchema).toContain(`users_org_id_fkey`)
@@ -1104,9 +1115,10 @@ export { status, orgs, users }
 
 test("postgres cli pulls supported checks and deferrable constraints into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
 
 export const users = db.table("users", {
   id: C.int(),
@@ -1203,9 +1215,10 @@ test("postgres cli pull fails for unsupported index collations", async () => {
 
 test("postgres cli pulls composite foreign keys into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
 
 const orgs = db.table("orgs", {
   tenantId: C.uuid(),
@@ -1274,9 +1287,10 @@ export { orgs, memberships }
 
 test("postgres cli pulls schema-builder table declarations into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
-const db = Table.schema("__SCHEMA__")
+const db = Pg.schema("__SCHEMA__")
 
 export const audits = db.table("audits", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1316,6 +1330,7 @@ export const audits = db.table("audits", {
 
 test("postgres cli pulls class table declarations into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
+import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 
 export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
@@ -1376,7 +1391,7 @@ test("postgres cli pull creates source definitions for missing enums", async () 
     expect(pull.exitCode).toBe(0)
     expect(pull.stdout).toContain("update schema.ts")
     const nextSchema = await readSchema(workspace)
-    expect(nextSchema).toContain(`const status = __EffectQbPullSchemaManagement.enumType("status", ["pending", "active"] as const, ${JSON.stringify(schemaName)})`)
+    expect(nextSchema).toContain(`const status = __EffectQbPullPg.schema(${JSON.stringify(schemaName)}).enum("status", ["pending", "active"] as const)`)
     expect(nextSchema).toContain(`export { users, status }`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)

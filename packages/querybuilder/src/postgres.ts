@@ -14,12 +14,13 @@ export * as Executor from "./postgres/executor.js"
 export * as Plan from "./internal/plan.js"
 /** Postgres-specialized query-construction DSL. */
 export * as Query from "./postgres/query.js"
-/** Postgres enum and named-type helpers. */
-export * as SchemaManagement from "./postgres/schema-management.js"
 /** Postgres normalized table/enum metadata helpers. */
 export * as Metadata from "./postgres/metadata.js"
 /** Postgres schema-expression helpers for DDL-only metadata. */
 export * as SchemaExpression from "./postgres/schema-expression.js"
+/** Postgres schema-scoped table and enum builder helpers. */
+export { schema } from "./postgres/schema.js"
+export type { SchemaNamespace } from "./postgres/schema.js"
 /** Postgres-specialized table-definition DSL. */
 export * as Table from "./postgres/table.js"
 /** Postgres-specialized built-in renderer entrypoint. */

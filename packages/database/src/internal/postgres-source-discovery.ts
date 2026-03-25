@@ -18,7 +18,7 @@ type DiscoveryImportInfo = {
   readonly postgresModules: Set<string>
   readonly postgresNamespaceAliases: Set<string>
   readonly tableAliases: Set<string>
-  readonly schemaManagementAliases: Set<string>
+  readonly schemaAliases: Set<string>
 }
 
 export type SourceDeclaration =
@@ -94,6 +94,9 @@ const isSchemaCall = (
   if (!ts.isCallExpression(expression)) {
     return false
   }
+  if (ts.isIdentifier(expression.expression)) {
+    return importInfo.schemaAliases.has(expression.expression.text)
+  }
   if (!ts.isPropertyAccessExpression(expression.expression)) {
     return false
   }
@@ -102,11 +105,7 @@ const isSchemaCall = (
     return false
   }
   if (ts.isIdentifier(target.expression)) {
-    return importInfo.tableAliases.has(target.expression.text) || importInfo.schemaManagementAliases.has(target.expression.text)
-  }
-  if (ts.isPropertyAccessExpression(target.expression) && ts.isIdentifier(target.expression.expression)) {
-    return importInfo.postgresNamespaceAliases.has(target.expression.expression.text)
-      && (target.expression.name.text === "Table" || target.expression.name.text === "SchemaManagement")
+    return importInfo.postgresNamespaceAliases.has(target.expression.text)
   }
   return false
 }
@@ -164,16 +163,10 @@ const isEnumFactoryRoot = (
     return false
   }
   const target = expression.expression
-  if (target.name.text !== "enumType") {
+  if (target.name.text !== "enum") {
     return false
   }
-  if (ts.isIdentifier(target.expression)) {
-    return importInfo.schemaManagementAliases.has(target.expression.text)
-  }
-  return ts.isPropertyAccessExpression(target.expression)
-    && ts.isIdentifier(target.expression.expression)
-    && importInfo.postgresNamespaceAliases.has(target.expression.expression.text)
-    && target.expression.name.text === "SchemaManagement"
+  return isSchemaCall(target.expression, importInfo)
 }
 
 const isSchemaEnumRoot = (
@@ -184,7 +177,7 @@ const isSchemaEnumRoot = (
     return undefined
   }
   const target = expression.expression
-  if (target.name.text !== "enumType" || !ts.isIdentifier(target.expression)) {
+  if (target.name.text !== "enum" || !ts.isIdentifier(target.expression)) {
     return undefined
   }
   return schemaBuilders.has(target.expression.text)
@@ -303,7 +296,7 @@ const validateNestedDiscoveryStatements = (
       (ts.isVariableStatement(node) || ts.isClassDeclaration(node))
       && statementContainsDiscoveryConstruct(node, importInfo, schemaBuilders)
     ) {
-      throw new Error(`Nested schema management declarations are not supported in '${filePath}'`)
+      throw new Error(`Nested schema declarations are not supported in '${filePath}'`)
     }
     ts.forEachChild(node, visit)
   }
@@ -316,7 +309,7 @@ const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
   const postgresModules = new Set<string>()
   const postgresNamespaceAliases = new Set<string>()
   const tableAliases = new Set<string>()
-  const schemaManagementAliases = new Set<string>()
+  const schemaAliases = new Set<string>()
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || statement.importClause === undefined) {
       continue
@@ -340,8 +333,8 @@ const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
       const imported = element.propertyName?.text ?? element.name.text
       if (imported === "Table") {
         tableAliases.add(element.name.text)
-      } else if (imported === "SchemaManagement") {
-        schemaManagementAliases.add(element.name.text)
+      } else if (imported === "schema") {
+        schemaAliases.add(element.name.text)
       }
     }
   }
@@ -349,7 +342,7 @@ const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
     postgresModules,
     postgresNamespaceAliases,
     tableAliases,
-    schemaManagementAliases
+    schemaAliases
   }
 }
 
@@ -359,7 +352,7 @@ const discoverInFile = (
 ): readonly SourceDeclaration[] => {
   const sourceFile = ts.createSourceFile(filePath, contents, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const importInfo = collectImportInfo(sourceFile)
-  if (importInfo.postgresModules.size === 0 && importInfo.postgresNamespaceAliases.size === 0 && importInfo.tableAliases.size === 0 && importInfo.schemaManagementAliases.size === 0) {
+  if (importInfo.postgresModules.size === 0 && importInfo.postgresNamespaceAliases.size === 0 && importInfo.tableAliases.size === 0 && importInfo.schemaAliases.size === 0) {
     return []
   }
   const schemaBuilders = new Set<string>()
@@ -368,14 +361,14 @@ const discoverInFile = (
     if (ts.isVariableStatement(statement)) {
       if (statement.declarationList.declarations.length !== 1) {
         if (statementContainsDiscoveryConstruct(statement, importInfo, schemaBuilders)) {
-          throw new Error(`Non-canonical schema management declaration in '${filePath}'`)
+          throw new Error(`Non-canonical schema declaration in '${filePath}'`)
         }
         continue
       }
       const declaration = statement.declarationList.declarations[0]!
       if (!ts.isIdentifier(declaration.name) || declaration.initializer === undefined) {
         if (statementContainsDiscoveryConstruct(statement, importInfo, schemaBuilders)) {
-          throw new Error(`Non-canonical schema management declaration in '${filePath}'`)
+          throw new Error(`Non-canonical schema declaration in '${filePath}'`)
         }
         continue
       }
@@ -429,7 +422,7 @@ const discoverInFile = (
         continue
       }
       if (expressionContainsDiscoveryConstruct(declaration.initializer, importInfo, schemaBuilders)) {
-        throw new Error(`Non-canonical schema management declaration '${identifier}' in '${filePath}'`)
+        throw new Error(`Non-canonical schema declaration '${identifier}' in '${filePath}'`)
       }
       continue
     }
@@ -445,7 +438,7 @@ const discoverInFile = (
         continue
       }
       if (statementContainsDiscoveryConstruct(statement, importInfo, schemaBuilders)) {
-        throw new Error(`Non-canonical schema management declaration in '${filePath}'`)
+        throw new Error(`Non-canonical schema declaration in '${filePath}'`)
       }
     }
   }
