@@ -5,10 +5,10 @@ import { describe, expect, test } from "bun:test"
 
 import { SchemaManagement, Table } from "#postgres"
 import { Column as C } from "#postgres"
-import { planPostgresSchemaDiff } from "../../../src/internal/postgres-schema-diff.js"
-import { toEnumModel, toTableModel, type SchemaModel } from "../../../src/internal/postgres-schema-model.js"
-import { discoverSourceSchema } from "../../../src/internal/postgres-source-discovery.js"
-import { planPostgresPull } from "../../../src/internal/postgres-pull.js"
+import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/postgres-schema-diff.js"
+import { toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
+import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
+import { planPostgresPull } from "../../../packages/database/src/internal/postgres-pull.js"
 import { unsafeAny } from "../../helpers/unsafe.ts"
 
 const repoRoot = process.cwd()

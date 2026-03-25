@@ -4,7 +4,7 @@
     "noEmit": true
   },
   "include": [
-    "src/**/*.ts",
+    "packages/**/*.ts",
     "test/public/types/**/*.ts",
     "test/internal/types/**/*.ts"
   ]

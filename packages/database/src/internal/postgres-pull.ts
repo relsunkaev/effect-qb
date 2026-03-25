@@ -1,12 +1,10 @@
 import { relative } from "node:path"
 
-import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
-import type { ColumnModel, EnumModel, SchemaModel, TableModel } from "./postgres-schema-model.js"
+import { Datatypes } from "effect-qb/postgres"
+import type { ColumnModel, EnumModel, SchemaModel, TableModel, DdlExpressionLike, IndexKeySpec, TableOptionSpec } from "effect-qb/postgres/metadata"
 import { defaultConstraintName } from "./postgres-schema-sql.js"
-import { enumKey, tableKey } from "./postgres-schema-model.js"
+import { enumKey, tableKey, renderDdlExpressionSql } from "effect-qb/postgres/metadata"
 import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "./postgres-source-discovery.js"
-import { renderDdlExpressionSql } from "./schema-ddl.js"
-import type { DdlExpressionLike, IndexKeySpec, TableOptionSpec } from "./table-options.js"
 
 const TABLE_ALIAS = "__EffectQbPullTable"
 const COLUMN_ALIAS = "__EffectQbPullColumn"
@@ -114,7 +112,7 @@ const runtimeTagOfColumn = (column: ColumnModel): string | undefined => {
   if (column.typeKind === "e") {
     return "string"
   }
-  return postgresDatatypeKinds[column.dbTypeKind as keyof typeof postgresDatatypeKinds]?.runtime
+  return Datatypes.postgresDatatypeKinds[column.dbTypeKind as keyof typeof Datatypes.postgresDatatypeKinds]?.runtime
 }
 
 const schemaExpressionForRuntimeTag = (runtimeTag: string | undefined): string => {

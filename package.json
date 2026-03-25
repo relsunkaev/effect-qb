@@ -1,60 +1,36 @@
 {
-  "name": "effect-qb",
+  "name": "effect-qb-workspace",
+  "private": true,
   "version": "0.13.0",
   "type": "module",
-  "bin": {
-    "effect-qb": "./dist/cli.js"
-  },
-  "files": [
-    "dist",
-    "src",
-    "CHANGELOG.md",
-    "README.md"
+  "workspaces": [
+    "packages/*"
   ],
-  "exports": {
-    "./postgres": {
-      "types": "./src/postgres.ts",
-      "import": "./dist/postgres.js"
-    },
-    "./mysql": {
-      "types": "./src/mysql.ts",
-      "import": "./dist/mysql.js"
-    },
-    "./cli": {
-      "types": "./src/cli.ts",
-      "import": "./dist/cli.js"
-    },
-    "./package.json": "./package.json"
-  },
   "imports": {
     "#postgres": "./src/postgres.ts",
     "#mysql": "./src/mysql.ts",
     "#internal/*": "./src/internal/*"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "scripts": {
     "build": "bun scripts/build-package.ts",
     "release": "bun scripts/release.ts",
     "test": "bun test",
     "test:types": "bunx tsgo -p tsconfig.type-tests.json",
-    "test:integration": "bun scripts/test-integration.ts",
-    "prepack": "bun run build"
+    "test:integration": "bun scripts/test-integration.ts"
   },
   "devDependencies": {
-    "@effect/sql-mysql2": "0.48.0",
-    "@effect/sql-pg": "0.48.0",
-    "@types/bun": "latest",
-    "@typescript/native-preview": "latest"
-  },
-  "dependencies": {
     "@effect/cli": "^0.75.0",
     "@effect/experimental": "^0.57.0",
     "@effect/platform": "^0.96.0",
     "@effect/platform-bun": "^0.89.0",
     "@effect/sql": "^0.48.0",
+    "@effect/sql-mysql2": "0.48.0",
+    "@effect/sql-pg": "0.48.0",
+    "@types/bun": "latest",
+    "@typescript/native-preview": "latest",
     "effect": "^3.19.3",
+    "effect-db": "workspace:*",
+    "effect-qb": "workspace:*",
     "pgsql-ast-parser": "^12.0.2",
     "typescript": "^6.0.2"
   }

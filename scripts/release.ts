@@ -1,4 +1,9 @@
 const cwd = process.cwd()
+const packageJsonPaths = [
+  `${cwd}/package.json`,
+  `${cwd}/packages/querybuilder/package.json`,
+  `${cwd}/packages/database/package.json`
+] as const
 
 type Semver = {
   readonly major: number
@@ -23,8 +28,6 @@ type ReleaseBoundary = {
 }
 
 const changelogPath = `${cwd}/CHANGELOG.md`
-const packageJsonPath = `${cwd}/package.json`
-
 const releaseDate = new Date().toISOString().slice(0, 10)
 const recordSeparator = "\u001e"
 const fieldSeparator = "\u001f"
@@ -154,16 +157,18 @@ const getLatestReleaseBoundary = async (): Promise<ReleaseBoundary | null> => {
 }
 
 const getPackageVersion = async (): Promise<Semver> => {
-  const raw = await Bun.file(packageJsonPath).text()
+  const raw = await Bun.file(packageJsonPaths[0]).text()
   const parsed = JSON.parse(raw) as { version: string }
   return parseSemver(parsed.version)
 }
 
 const setPackageVersion = async (version: Semver) => {
-  const raw = await Bun.file(packageJsonPath).text()
-  const parsed = JSON.parse(raw) as Record<string, unknown>
-  parsed.version = formatSemver(version)
-  await Bun.write(packageJsonPath, `${JSON.stringify(parsed, null, 2)}\n`)
+  for (const packageJsonPath of packageJsonPaths) {
+    const raw = await Bun.file(packageJsonPath).text()
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    parsed.version = formatSemver(version)
+    await Bun.write(packageJsonPath, `${JSON.stringify(parsed, null, 2)}\n`)
+  }
 }
 
 const parseCommit = (hash: string, subject: string, body: string): Commit => {
@@ -317,7 +322,7 @@ const main = async () => {
   await Bun.write(changelogPath, insertChangelogSection(existingChangelog, changelogSection))
 
   await ensureGitIdentity()
-  await run(["git", "add", "package.json", "CHANGELOG.md"])
+  await run(["git", "add", "package.json", "packages/querybuilder/package.json", "packages/database/package.json", "CHANGELOG.md"])
   await run(["git", "commit", "-m", `chore(release): v${formatSemver(nextVersion)}`])
   await run(["git", "tag", "-a", `v${formatSemver(nextVersion)}`, "-m", `v${formatSemver(nextVersion)}`])
 

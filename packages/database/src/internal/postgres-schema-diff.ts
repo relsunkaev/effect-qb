@@ -1,5 +1,5 @@
-import type { ColumnModel, EnumModel, SchemaModel, TableModel } from "./postgres-schema-model.js"
-import { enumKey, tableKey } from "./postgres-schema-model.js"
+import type { ColumnModel, EnumModel, SchemaModel, TableModel, IndexKeySpec, TableOptionSpec } from "effect-qb/postgres/metadata"
+import { enumKey, tableKey, renderDdlExpressionSql } from "effect-qb/postgres/metadata"
 import {
   defaultConstraintName,
   defaultIndexName,
@@ -14,8 +14,6 @@ import {
   renderDropTable,
   renderIndexDefinition
 } from "./postgres-schema-sql.js"
-import { renderDdlExpressionSql } from "./schema-ddl.js"
-import type { IndexKeySpec, TableOptionSpec } from "./table-options.js"
 
 export interface SchemaChange {
   readonly kind:

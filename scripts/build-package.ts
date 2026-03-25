@@ -1,45 +1,33 @@
-import { mkdir, rm, stat } from "node:fs/promises"
+import { stat } from "node:fs/promises"
 import { join } from "node:path"
 
-const distDir = join(process.cwd(), "dist")
+const cwd = process.cwd()
 
-const main = async () => {
-  await rm(distDir, { recursive: true, force: true })
-  await mkdir(distDir, { recursive: true })
-
+const runBuild = async (packageDir: string) => {
   const proc = Bun.spawn([
     process.execPath,
-    "build",
-    "--outdir",
-    "dist",
-    "--target",
-    "node",
-    "--format",
-    "esm",
-    "--packages",
-    "external",
-    "--root",
-    "src",
-    "src/cli.ts",
-    "src/postgres.ts",
-    "src/mysql.ts"
+    "run",
+    "build"
   ], {
-    cwd: process.cwd(),
+    cwd: join(cwd, packageDir),
     stdout: "inherit",
     stderr: "inherit"
   })
 
   const exitCode = await proc.exited
-
   if (exitCode !== 0) {
     process.exit(exitCode)
   }
 
-  const distStat = await stat(distDir)
-
+  const distStat = await stat(join(cwd, packageDir, "dist"))
   if (!distStat.isDirectory()) {
-    throw new Error("build did not produce a dist directory")
+    throw new Error(`build did not produce a dist directory for ${packageDir}`)
   }
+}
+
+const main = async () => {
+  await runBuild("packages/querybuilder")
+  await runBuild("packages/database")
 }
 
 await main()

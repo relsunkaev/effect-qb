@@ -11,8 +11,8 @@ import {
   isTableDefinition,
   tableKey,
   type SchemaModel
-} from "./postgres-schema-model.js"
-import * as Table from "./table.js"
+} from "effect-qb/postgres/metadata"
+import { Table } from "effect-qb/postgres"
 
 type DiscoveryImportInfo = {
   readonly postgresModules: Set<string>
@@ -546,7 +546,10 @@ export const discoverSourceSchema = async (
       continue
     }
     if (isTableDefinition(value)) {
-      const state = value[Table.TypeId]
+      const state = (value as any)[Table.TypeId] as {
+        readonly schemaName?: string
+        readonly baseName: string
+      }
       const key = tableKey(state.schemaName, state.baseName)
       const existing = seenKeys.get(key)
       if (existing) {

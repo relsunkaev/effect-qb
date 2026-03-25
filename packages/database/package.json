@@ -1,0 +1,41 @@
+{
+  "name": "effect-db",
+  "version": "0.13.0",
+  "type": "module",
+  "bin": {
+    "effect-db": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./src/cli.ts",
+      "import": "./dist/cli.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "prepack": "bun run build"
+  },
+  "dependencies": {
+    "@effect/cli": "^0.75.0",
+    "@effect/platform": "^0.96.0",
+    "@effect/platform-bun": "^0.89.0",
+    "@effect/sql": "^0.48.0",
+    "@effect/sql-pg": "^0.48.0",
+    "effect": "^3.19.3",
+    "effect-qb": "workspace:*",
+    "typescript": "^6.0.2"
+  }
+}

@@ -21,7 +21,7 @@ import { planPostgresSchemaDiff, type SchemaChange, type SchemaPlan } from "./in
 import { introspectPostgresSchema } from "./internal/postgres-introspector.js"
 import { filterDiscoveredSourceSchema } from "./internal/postgres-source-filter.js"
 import { discoverSourceSchema } from "./internal/postgres-source-discovery.js"
-import { tableKey, type SchemaModel } from "./internal/postgres-schema-model.js"
+import { tableKey, type SchemaModel } from "effect-qb/postgres/metadata"
 
 const toError = (cause: unknown): Error =>
   cause instanceof Error
@@ -76,7 +76,7 @@ const skippedChanges = (
 const configOption = Options.text("config").pipe(
   Options.optional,
   Options.withAlias("c"),
-  Options.withDescription("Path to effect-qb.config.ts")
+  Options.withDescription("Path to effect-db.config.ts")
 )
 
 const urlOption = Options.text("url").pipe(

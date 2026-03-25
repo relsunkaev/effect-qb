@@ -26,37 +26,6 @@ export interface EnumDefinition<
 
 export type AnyDefinition = EnumDefinition
 
-export type FilterConfig = {
-  readonly schemas?: readonly string[]
-  readonly tables?: readonly string[]
-}
-
-export type SchemaSourceConfig = {
-  readonly include: readonly string[]
-  readonly exclude?: readonly string[]
-}
-
-export type PostgresSchemaManagementConfig = {
-  readonly dialect: "postgres"
-  readonly db: {
-    readonly url?: string
-    readonly urlEnv?: string
-  }
-  readonly source: SchemaSourceConfig
-  readonly filter?: FilterConfig
-  readonly migrations: {
-    readonly dir: string
-    readonly table: string
-  }
-  readonly safety: {
-    readonly nonDestructiveDefault: boolean
-  }
-}
-
-export const defineConfig = <Config extends PostgresSchemaManagementConfig>(
-  config: Config
-): Config => config
-
 export const enumType = <
   Name extends string,
   Values extends readonly [string, ...string[]]

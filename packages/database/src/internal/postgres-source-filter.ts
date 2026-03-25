@@ -1,5 +1,5 @@
-import type { FilterConfig } from "../postgres/schema-management.js"
-import { enumKey, tableKey, type ColumnModel } from "./postgres-schema-model.js"
+import type { FilterConfig } from "./postgres-config.js"
+import { enumKey, tableKey, type ColumnModel } from "effect-qb/postgres/metadata"
 import type { DiscoveredSourceSchema } from "./postgres-source-discovery.js"
 
 const normalizeSchemas = (filter?: FilterConfig): ReadonlySet<string> | undefined =>

@@ -1,14 +1,9 @@
 import * as Effect from "effect/Effect"
 import * as SqlClient from "@effect/sql/SqlClient"
 
-import * as SchemaExpression from "./schema-expression.js"
-import type { ColumnModel, EnumModel, SchemaModel, TableModel } from "./postgres-schema-model.js"
-import type { ReferentialAction, TableOptionSpec } from "./table-options.js"
-
-type FilterConfig = {
-  readonly schemas?: readonly string[]
-  readonly tables?: readonly string[]
-}
+import { SchemaExpression } from "effect-qb/postgres"
+import type { ColumnModel, EnumModel, SchemaModel, TableModel, ReferentialAction, TableOptionSpec } from "effect-qb/postgres/metadata"
+import type { FilterConfig } from "./postgres-config.js"
 
 type TableRow = {
   readonly schema_name: string

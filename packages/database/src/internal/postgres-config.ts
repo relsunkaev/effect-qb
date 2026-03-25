@@ -1,22 +1,51 @@
 import { dirname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
-import type { PostgresSchemaManagementConfig } from "../postgres/schema-management.js"
+export type FilterConfig = {
+  readonly schemas?: readonly string[]
+  readonly tables?: readonly string[]
+}
+
+export type SchemaSourceConfig = {
+  readonly include: readonly string[]
+  readonly exclude?: readonly string[]
+}
+
+export type EffectDbConfig = {
+  readonly dialect: "postgres"
+  readonly db: {
+    readonly url?: string
+    readonly urlEnv?: string
+  }
+  readonly source: SchemaSourceConfig
+  readonly filter?: FilterConfig
+  readonly migrations: {
+    readonly dir: string
+    readonly table: string
+  }
+  readonly safety: {
+    readonly nonDestructiveDefault: boolean
+  }
+}
+
+export const defineConfig = <Config extends EffectDbConfig>(
+  config: Config
+): Config => config
 
 export interface LoadedPostgresConfig {
-  readonly config: PostgresSchemaManagementConfig
+  readonly config: EffectDbConfig
   readonly cwd: string
   readonly path?: string
 }
 
 const DEFAULT_CONFIG_NAMES = [
-  "effect-qb.config.ts",
-  "effect-qb.config.mts",
-  "effect-qb.config.js",
-  "effect-qb.config.mjs"
+  "effect-db.config.ts",
+  "effect-db.config.mts",
+  "effect-db.config.js",
+  "effect-db.config.mjs"
 ] as const
 
-const defaultConfig = (): PostgresSchemaManagementConfig => ({
+const defaultConfig = (): EffectDbConfig => ({
   dialect: "postgres",
   db: {},
   source: {
@@ -74,24 +103,24 @@ export const loadPostgresConfig = async (
 
   const merged = {
     ...defaultConfig(),
-    ...(loaded as Partial<PostgresSchemaManagementConfig>),
+    ...(loaded as Partial<EffectDbConfig>),
     db: {
       ...defaultConfig().db,
-      ...((loaded as Partial<PostgresSchemaManagementConfig>).db ?? {})
+      ...((loaded as Partial<EffectDbConfig>).db ?? {})
     },
     source: {
       ...defaultConfig().source,
-      ...((loaded as Partial<PostgresSchemaManagementConfig>).source ?? {})
+      ...((loaded as Partial<EffectDbConfig>).source ?? {})
     },
     migrations: {
       ...defaultConfig().migrations,
-      ...((loaded as Partial<PostgresSchemaManagementConfig>).migrations ?? {})
+      ...((loaded as Partial<EffectDbConfig>).migrations ?? {})
     },
     safety: {
       ...defaultConfig().safety,
-      ...((loaded as Partial<PostgresSchemaManagementConfig>).safety ?? {})
+      ...((loaded as Partial<EffectDbConfig>).safety ?? {})
     }
-  } satisfies PostgresSchemaManagementConfig
+  } satisfies EffectDbConfig
 
   if (merged.dialect !== "postgres") {
     throw new Error(`Unsupported dialect '${String((loaded as Record<string, unknown>).dialect)}'; only 'postgres' is supported`)
@@ -109,7 +138,7 @@ export const loadPostgresConfig = async (
 }
 
 export const resolveDatabaseUrl = (
-  config: PostgresSchemaManagementConfig,
+  config: EffectDbConfig,
   overrideUrl?: string
 ): string => {
   if (overrideUrl) {

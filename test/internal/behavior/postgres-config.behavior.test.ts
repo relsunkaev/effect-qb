@@ -3,7 +3,7 @@ import { join } from "node:path"
 
 import { describe, expect, test } from "bun:test"
 
-import { loadPostgresConfig, resolveDatabaseUrl } from "../../../src/internal/postgres-config.js"
+import { loadPostgresConfig, resolveDatabaseUrl } from "effect-db"
 
 const repoRoot = process.cwd()
 
@@ -11,7 +11,7 @@ describe("postgres config", () => {
   test("rejects invalid dialects", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-config-"))
     try {
-      await Bun.write(join(tempDir, "effect-qb.config.ts"), `
+      await Bun.write(join(tempDir, "effect-db.config.ts"), `
 export default {
   dialect: "mysql",
   db: {
@@ -39,7 +39,7 @@ export default {
   test("rejects empty include globs", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-config-"))
     try {
-      await Bun.write(join(tempDir, "effect-qb.config.ts"), `
+      await Bun.write(join(tempDir, "effect-db.config.ts"), `
 export default {
   dialect: "postgres",
   db: {

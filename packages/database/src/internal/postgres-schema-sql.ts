@@ -1,9 +1,9 @@
-import type { ColumnModel, EnumModel, TableModel } from "./postgres-schema-model.js"
-import { postgresDialect } from "./postgres-dialect.js"
-import { renderDdlExpressionSql } from "./schema-ddl.js"
-import type { IndexKeySpec, ReferentialAction, TableOptionSpec } from "./table-options.js"
+import type { ColumnModel, EnumModel, TableModel } from "effect-qb/postgres/metadata"
+import { SchemaExpression } from "effect-qb/postgres"
+import type { IndexKeySpec, ReferentialAction, TableOptionSpec } from "effect-qb/postgres/metadata"
 
-const quote = postgresDialect.quoteIdentifier
+const quote = (value: string): string =>
+  `"${value.replaceAll("\"", "\"\"")}"`
 
 const qualify = (schemaName: string | undefined, name: string): string =>
   `${quote(schemaName ?? "public")}.${quote(name)}`
@@ -77,7 +77,7 @@ const renderConstraint = (table: TableModel, option: Exclude<TableOptionSpec, { 
       return `${option.name ? `constraint ${quote(option.name)} ` : ""}foreign key (${option.columns.map(quote).join(", ")}) references ${qualify(reference.schemaName, reference.tableName)} (${reference.columns.map(quote).join(", ")})${option.onDelete ? ` on delete ${renderAction(option.onDelete)}` : ""}${option.onUpdate ? ` on update ${renderAction(option.onUpdate)}` : ""}${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`
     }
     case "check":
-      return `constraint ${quote(option.name)} check (${renderDdlExpressionSql(option.predicate)})${option.noInherit ? " no inherit" : ""}`
+      return `constraint ${quote(option.name)} check (${SchemaExpression.renderDdlExpressionSql(option.predicate)})${option.noInherit ? " no inherit" : ""}`
   }
 }
 
@@ -100,10 +100,10 @@ export const renderIndexDefinition = (
   const renderedKeys = keys.map((key) => {
     const base = key.kind === "column"
       ? quote(key.column)
-      : `(${renderDdlExpressionSql(key.expression)})`
+      : `(${SchemaExpression.renderDdlExpressionSql(key.expression)})`
     return `${base}${key.order ? ` ${key.order}` : ""}${key.nulls ? ` nulls ${key.nulls}` : ""}`
   }).join(", ")
-  return `create${option.unique ? " unique" : ""} index ${quote(name)} on ${qualify(table.schemaName, table.name)}${option.method ? ` using ${option.method}` : ""} (${renderedKeys})${option.include && option.include.length > 0 ? ` include (${option.include.map(quote).join(", ")})` : ""}${option.predicate ? ` where ${renderDdlExpressionSql(option.predicate)}` : ""}`
+  return `create${option.unique ? " unique" : ""} index ${quote(name)} on ${qualify(table.schemaName, table.name)}${option.method ? ` using ${option.method}` : ""} (${renderedKeys})${option.include && option.include.length > 0 ? ` include (${option.include.map(quote).join(", ")})` : ""}${option.predicate ? ` where ${SchemaExpression.renderDdlExpressionSql(option.predicate)}` : ""}`
 }
 
 export const renderCreateTable = (table: TableModel): string => {

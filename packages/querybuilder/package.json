@@ -1,0 +1,47 @@
+{
+  "name": "effect-qb",
+  "version": "0.13.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "exports": {
+    "./postgres": {
+      "types": "./src/postgres.ts",
+      "import": "./dist/postgres.js"
+    },
+    "./postgres/metadata": {
+      "types": "./src/postgres/metadata.ts",
+      "import": "./dist/postgres/metadata.js"
+    },
+    "./mysql": {
+      "types": "./src/mysql.ts",
+      "import": "./dist/mysql.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "imports": {
+    "#postgres": "./src/postgres.ts",
+    "#mysql": "./src/mysql.ts",
+    "#internal/*": "./src/internal/*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "prepack": "bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@typescript/native-preview": "latest"
+  },
+  "dependencies": {
+    "@effect/experimental": "^0.57.0",
+    "@effect/sql": "^0.48.0",
+    "effect": "^3.19.3",
+    "pgsql-ast-parser": "^12.0.2"
+  }
+}
