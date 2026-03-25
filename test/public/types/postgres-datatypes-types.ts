@@ -9,6 +9,7 @@ const users = Table.make("users", {
 const builtinColumns = Table.make("builtin_columns", {
   shortName: C.varchar(32),
   code: C.char(1),
+  amount: C.number({ precision: 10, scale: 4 }),
   payload: C.jsonb(Schema.Struct({
     ok: Schema.Boolean
   })),

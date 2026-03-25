@@ -10,7 +10,7 @@ const events = Table.make(tableName, {
   id: C.text().pipe(C.primaryKey),
   happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
   happenedAt: C.custom(Schema.String, Q.type.timestamptz()),
-  amount: C.number(),
+  amount: C.number({ precision: 10, scale: 4 }),
   payload: C.custom(Schema.Struct({
     visits: Schema.NumberFromString
   }), Q.type.jsonb())

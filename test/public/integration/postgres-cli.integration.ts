@@ -1346,6 +1346,7 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
       add column "short_name" varchar(32),
       add column "code" char(1),
       add column "labels" text[],
+      add column "price" numeric(10,4),
       add column "amount" bigint,
       add column "observed_at" timestamp with time zone,
       add column "payload" jsonb;
@@ -1360,9 +1361,11 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
     expect(pulledSchema).toContain(`Column.varchar(32)`)
     expect(pulledSchema).toContain(`Column.char(1)`)
     expect(pulledSchema).toContain(`Column.text().pipe(Column.array(), Column.nullable)`)
+    expect(pulledSchema).toContain(`Column.number({ precision: 10, scale: 4 }).pipe(Column.nullable)`)
     expect(pulledSchema).toContain(`Column.int8()`)
     expect(pulledSchema).toContain(`Column.timestamptz()`)
     expect(pulledSchema).not.toContain(`kind: "int8"`)
+    expect(pulledSchema).not.toContain(`Column.ddlType("numeric(10,4)")`)
     expect(pulledSchema).not.toContain(`Column.ddlType("varchar(32)")`)
     expect(pulledSchema).not.toContain(`Column.ddlType("char(1)")`)
     expect(pulledSchema).not.toContain(`Column.ddlType("text[]")`)

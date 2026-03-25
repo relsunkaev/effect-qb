@@ -10,7 +10,7 @@ const events = Table.make(tableName, {
   id: C.text().pipe(C.primaryKey),
   happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
   happenedAt: C.datetime(),
-  amount: C.number(),
+  amount: C.number({ precision: 10, scale: 4 }),
   payload: C.json(Schema.Struct({
     visits: Schema.NumberFromString
   }))

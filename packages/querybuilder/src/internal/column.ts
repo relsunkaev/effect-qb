@@ -219,6 +219,16 @@ export interface ArrayOptions {
   readonly nullableElements?: boolean
 }
 
+export type NumericOptions =
+  | {
+    readonly precision?: undefined
+    readonly scale?: undefined
+  }
+  | {
+    readonly precision: number
+    readonly scale?: number
+  }
+
 type ArrayElementSelect<
   Column extends AnyColumnDefinition,
   Options extends ArrayOptions | undefined
@@ -318,7 +328,7 @@ type ColumnModule<
   readonly uuid: () => ColumnDefinition<string, string, string, Expression.DbType.Base<Dialect, UuidKind>, false, false, false, false, false, undefined>
   readonly text: () => ColumnDefinition<string, string, string, Expression.DbType.Base<Dialect, TextKind>, false, false, false, false, false, undefined>
   readonly int: () => ColumnDefinition<number, number, number, Expression.DbType.Base<Dialect, IntKind>, false, false, false, false, false, undefined>
-  readonly number: () => ColumnDefinition<DecimalString, DecimalString, DecimalString, Expression.DbType.Base<Dialect, NumberKind>, false, false, false, false, false, undefined>
+  readonly number: (options?: NumericOptions) => ColumnDefinition<DecimalString, DecimalString, DecimalString, Expression.DbType.Base<Dialect, NumberKind>, false, false, false, false, false, undefined>
   readonly boolean: () => ColumnDefinition<boolean, boolean, boolean, Expression.DbType.Base<Dialect, BooleanKind>, false, false, false, false, false, undefined>
   readonly date: () => ColumnDefinition<LocalDateString, LocalDateString, LocalDateString, Expression.DbType.Base<Dialect, DateKind>, false, false, false, false, false, undefined>
   readonly timestamp: () => ColumnDefinition<LocalDateTimeString, LocalDateTimeString, LocalDateTimeString, Expression.DbType.Base<Dialect, TimestampKind>, false, false, false, false, false, undefined>
@@ -391,6 +401,18 @@ const typeFactory = <Dialect extends string>(dialect: Dialect) =>
 
 const postgresType = typeFactory("postgres")
 
+const renderNumericDdlType = (
+  kind: string,
+  options?: NumericOptions
+): string | undefined => {
+  if (options === undefined || options.precision === undefined) {
+    return undefined
+  }
+  return options.scale === undefined
+    ? `${kind}(${options.precision})`
+    : `${kind}(${options.precision},${options.scale})`
+}
+
 const makeColumnModule = <
   Dialect extends string,
   UuidKind extends string,
@@ -434,7 +456,18 @@ const makeColumnModule = <
     uuid: () => primitive(Schema.UUID, dialectType(kinds.uuid)),
     text: () => primitive(Schema.String, dialectType(kinds.text)),
     int: () => primitive(Schema.Int, dialectType(kinds.int)),
-    number: () => primitive(DecimalStringSchema, dialectType(kinds.number)),
+    number: (options?: NumericOptions) =>
+      makeColumnDefinition(DecimalStringSchema, {
+        dbType: dialectType(kinds.number),
+        nullable: false,
+        hasDefault: false,
+        generated: false,
+        primaryKey: false,
+        unique: false,
+        references: undefined,
+        ddlType: renderNumericDdlType(kinds.number, options),
+        identity: undefined
+      }),
     boolean: () => primitive(Schema.Boolean, dialectType(kinds.boolean)),
     date: () => primitive(LocalDateStringSchema, dialectType(kinds.date)),
     timestamp: () => primitive(LocalDateTimeStringSchema, dialectType(kinds.timestamp)),

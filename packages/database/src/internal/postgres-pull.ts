@@ -749,6 +749,19 @@ const renderColumnBase = (
     }
     return undefined
   }
+  const numericConfig = (): {
+    readonly precision: number
+    readonly scale?: number
+  } | undefined => {
+    const match = /^numeric\((\d+)(?:,\s*(\d+))?\)$/.exec(baseType)
+    if (match === null) {
+      return undefined
+    }
+    return {
+      precision: Number(match[1]),
+      scale: match[2] === undefined ? undefined : Number(match[2])
+    }
+  }
   if (baseType === "jsonb" || normalizeType(column.dbTypeKind) === "jsonb") {
     return {
       code: `${COLUMN_ALIAS}.jsonb(${SCHEMA_ALIAS}.Unknown)`,
@@ -783,6 +796,20 @@ const renderColumnBase = (
       return { code: `${COLUMN_ALIAS}.int()`, defaultDdlType: "int4" }
     case "int8":
       return { code: `${COLUMN_ALIAS}.int8()`, defaultDdlType: "int8" }
+    case "numeric":
+      {
+        const config = numericConfig()
+        return config === undefined
+          ? { code: `${COLUMN_ALIAS}.number()`, defaultDdlType: "numeric" }
+          : {
+            code: config.scale === undefined
+              ? `${COLUMN_ALIAS}.number({ precision: ${config.precision} })`
+              : `${COLUMN_ALIAS}.number({ precision: ${config.precision}, scale: ${config.scale} })`,
+            defaultDdlType: config.scale === undefined
+              ? `numeric(${config.precision})`
+              : `numeric(${config.precision},${config.scale})`
+          }
+      }
     case "float4":
       return { code: `${COLUMN_ALIAS}.float4()`, defaultDdlType: "float4" }
     case "float8":
