@@ -302,8 +302,8 @@ type PostgresColumnModule = ColumnModule<
   readonly int8: () => ColumnDefinition<BigIntString, BigIntString, BigIntString, Expression.DbType.Base<"postgres", "int8">, false, false, false, false, false, undefined>
   readonly float4: () => ColumnDefinition<number, number, number, Expression.DbType.Base<"postgres", "float4">, false, false, false, false, false, undefined>
   readonly float8: () => ColumnDefinition<number, number, number, Expression.DbType.Base<"postgres", "float8">, false, false, false, false, false, undefined>
-  readonly char: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "char">, false, false, false, false, false, undefined>
-  readonly varchar: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "varchar">, false, false, false, false, false, undefined>
+  readonly char: (length?: number) => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "char">, false, false, false, false, false, undefined>
+  readonly varchar: (length?: number) => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "varchar">, false, false, false, false, false, undefined>
   readonly time: () => ColumnDefinition<LocalTimeString, LocalTimeString, LocalTimeString, Expression.DbType.Base<"postgres", "time">, false, false, false, false, false, undefined>
   readonly timetz: () => ColumnDefinition<OffsetTimeString, OffsetTimeString, OffsetTimeString, Expression.DbType.Base<"postgres", "timetz">, false, false, false, false, false, undefined>
   readonly timestamptz: () => ColumnDefinition<InstantString, InstantString, InstantString, Expression.DbType.Base<"postgres", "timestamptz">, false, false, false, false, false, undefined>
@@ -423,8 +423,30 @@ export const postgres: PostgresColumnModule = {
   int8: () => primitive(BigIntStringSchema, postgresType("int8")),
   float4: () => primitive(Schema.Number, postgresType("float4")),
   float8: () => primitive(Schema.Number, postgresType("float8")),
-  char: () => primitive(Schema.String, postgresType("char")),
-  varchar: () => primitive(Schema.String, postgresType("varchar")),
+  char: (length = 1) =>
+    makeColumnDefinition(Schema.String, {
+      dbType: postgresType("char"),
+      nullable: false,
+      hasDefault: false,
+      generated: false,
+      primaryKey: false,
+      unique: false,
+      references: undefined,
+      ddlType: `char(${length})`,
+      identity: undefined
+    }),
+  varchar: (length?: number) =>
+    makeColumnDefinition(Schema.String, {
+      dbType: postgresType("varchar"),
+      nullable: false,
+      hasDefault: false,
+      generated: false,
+      primaryKey: false,
+      unique: false,
+      references: undefined,
+      ddlType: length === undefined ? "varchar" : `varchar(${length})`,
+      identity: undefined
+    }),
   time: () => primitive(LocalTimeStringSchema, postgresType("time")),
   timetz: () => primitive(OffsetTimeStringSchema, postgresType("timetz")),
   timestamptz: () => primitive(InstantStringSchema, postgresType("timestamptz")),
