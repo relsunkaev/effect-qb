@@ -148,6 +148,18 @@ describe("table behavior", () => {
     })
   })
 
+  test("brands derived from aliases stay plain strings at runtime", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey),
+      email: C.text()
+    })
+    const aliasedUsers = Table.alias(users, "u")
+    const id = "550e8400-e29b-41d4-a716-446655440000"
+
+    expect(Schema.decodeUnknownSync(users.id.pipe(C.brand).schema)(id)).toBe(id)
+    expect(Schema.decodeUnknownSync(aliasedUsers.id.pipe(C.brand).schema)(id)).toBe(id)
+  })
+
   test("array columns can opt into nullable elements", () => {
     const strict = Table.make("strict_events", {
       tags: C.text().pipe(C.array())

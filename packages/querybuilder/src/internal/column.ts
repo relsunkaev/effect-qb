@@ -259,9 +259,9 @@ type PreserveBrand<Column extends AnyColumnDefinition> = Column["metadata"]["bra
   ? BrandMetadata<Column>
   : {}
 
-type BrandedColumn<
+type BrandedBoundColumn<
   Column extends AnyBoundColumn
-> = ColumnDefinition<
+> = BoundColumn<
   BrandedValue<SelectType<Column>, BrandNameOf<Column>>,
   BrandedValue<InsertType<Column>, BrandNameOf<Column>>,
   BrandedValue<UpdateType<Column>, BrandNameOf<Column>>,
@@ -272,8 +272,9 @@ type BrandedColumn<
   IsPrimaryKey<Column>,
   Column[typeof ColumnTypeId]["unique"],
   ReferencesOf<Column>,
-  Column[typeof ColumnTypeId]["source"],
-  Column[typeof ColumnTypeId]["dependencies"]
+  Column[typeof BoundColumnTypeId]["tableName"],
+  Column[typeof BoundColumnTypeId]["columnName"],
+  Column[typeof BoundColumnTypeId]["baseTableName"]
 > & BrandMetadata<Column>
 
 type BrandMarkedColumn<
@@ -721,7 +722,7 @@ export const schema = <SchemaType extends Schema.Schema.Any>(nextSchema: SchemaT
     }) as ColumnWithSchema<Column, SchemaType>
 
 type BrandResult<Column extends AnyColumnDefinition> = Column extends AnyBoundColumn
-  ? BrandedColumn<Column>
+  ? BrandedBoundColumn<Column>
   : BrandMarkedColumn<Column>
 
 /** Brands a column with its `table.column` provenance. */

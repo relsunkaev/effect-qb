@@ -89,6 +89,19 @@ type InlineBrandedPostgresRow = Postgres.Query.ResultRow<
   typeof inlineBrandedPostgresPlan
 >;
 
+type _AssertPostgresRowId = Assert<
+  PostgresRow["id"] extends string & Brand.Brand<"accounts.id"> ? true : false
+>;
+type _AssertPostgresRowNickname = Assert<
+  PostgresRow["nickname"] extends
+    | (string & Brand.Brand<"accounts.nickname">)
+    | null
+    ? true
+    : false
+>;
+type _AssertPostgresRowAge = Assert<
+  PostgresRow["age"] extends number & Brand.Brand<"accounts.age"> ? true : false
+>;
 type _AssertInlineBrandedPostgresRowId = Assert<
   InlineBrandedPostgresRow["id"] extends string &
     Brand.Brand<"inline_accounts.id">
@@ -108,6 +121,38 @@ type _AssertInlineBrandedPostgresRowAge = Assert<
     ? true
     : false
 >;
+
+const aliasedPostgresAccounts = Postgres.Table.alias(postgresAccounts, "u");
+
+const aliasedPostgresPlan = Postgres.Query.select({
+  id: postgresAccounts.id.pipe(Postgres.Column.brand),
+  aliasedId: aliasedPostgresAccounts.id.pipe(Postgres.Column.brand),
+}).pipe(
+  Postgres.Query.from(postgresAccounts),
+  Postgres.Query.innerJoin(
+    aliasedPostgresAccounts,
+    Postgres.Query.eq(postgresAccounts.id, aliasedPostgresAccounts.id),
+  ),
+);
+
+type AliasedPostgresRow = Postgres.Query.ResultRow<typeof aliasedPostgresPlan>;
+
+type _AssertAliasedPostgresRowId = Assert<
+  AliasedPostgresRow["id"] extends string & Brand.Brand<"accounts.id">
+    ? true
+    : false
+>;
+type _AssertAliasedPostgresRowAliasedId = Assert<
+  AliasedPostgresRow["aliasedId"] extends string & Brand.Brand<"u.id">
+    ? true
+    : false
+>;
+
+const loadAccount = (id: AliasedPostgresRow["id"]) => id;
+declare const aliasedPostgresRow: AliasedPostgresRow;
+
+// @ts-expect-error aliases derive a distinct provenance brand
+loadAccount(aliasedPostgresRow.aliasedId);
 
 const mysqlAccounts = Mysql.Table.make("mysql_accounts", {
   id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
@@ -140,10 +185,23 @@ const mysqlPlan = Mysql.Query.select({
 
 type MysqlRow = Mysql.Query.ResultRow<typeof mysqlPlan>;
 
+type _AssertMysqlRowEmail = Assert<
+  MysqlRow["email"] extends string & Brand.Brand<"mysql_accounts.email">
+    ? true
+    : false
+>;
+type _AssertMysqlRowQuota = Assert<
+  MysqlRow["quota"] extends number & Brand.Brand<"mysql_accounts.quota">
+    ? true
+    : false
+>;
+
 void brandedPostgresId;
 void brandedPostgresNickname;
 void brandedPostgresAge;
 void postgresPlan;
+void aliasedPostgresAccounts;
+void aliasedPostgresPlan;
 void inlineBrandedPostgresAccounts;
 void inlineBrandedPostgresPlan;
 void brandedMysqlEmail;
