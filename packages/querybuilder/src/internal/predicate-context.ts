@@ -246,12 +246,9 @@ type ApplyNegativeAtom<
 type FramesFromItems<
   Items extends readonly PredicateFormula[],
   Direction extends Polarity
-> = Items extends readonly [
-  infer Head extends PredicateFormula,
-  ...infer Tail extends readonly PredicateFormula[]
-]
-  ? readonly [Frame<Head, Direction>, ...FramesFromItems<Tail, Direction>]
-  : readonly []
+> = {
+  readonly [K in keyof Items]: Items[K] extends PredicateFormula ? Frame<Items[K], Direction> : never
+} & readonly Frame[]
 
 type IntersectEqLiteralMaps<
   Left,
@@ -294,7 +291,7 @@ type AnalyzeAnyBranches<
   infer Head extends PredicateFormula,
   ...infer Tail extends readonly PredicateFormula[]
 ]
-  ? AnalyzeStack<Ctx, readonly [Frame<Head, Direction>]> extends infer Branch extends AnyContext
+  ? AnalyzeBranch<Ctx, Head, Direction> extends infer Branch extends AnyContext
     ? Branch["contradiction"] extends true
       ? AnalyzeAnyBranches<Ctx, Tail, Direction, Current>
       : [Current] extends [never]
@@ -307,6 +304,41 @@ type AnalyzeAnyBranches<
 
 type Flip<Direction extends Polarity> = Direction extends "positive" ? "negative" : "positive"
 
+type AnalyzeBranch<
+  Ctx extends AnyContext,
+  Formula extends PredicateFormula,
+  Direction extends Polarity
+> = AnalyzeStack<Ctx, readonly [Frame<Formula, Direction>]>
+
+type AnalyzeFrame<
+  Ctx extends AnyContext,
+  Formula extends PredicateFormula,
+  Direction extends Polarity,
+  Tail extends readonly Frame[]
+> = [Formula] extends [TrueFormula]
+  ? Direction extends "positive"
+    ? AnalyzeStack<Ctx, Tail>
+    : MarkContradiction<Ctx>
+  : [Formula] extends [FalseFormula]
+    ? Direction extends "positive"
+      ? MarkContradiction<Ctx>
+      : AnalyzeStack<Ctx, Tail>
+    : [Formula] extends [AtomFormula<infer Atom extends PredicateAtom>]
+      ? Direction extends "positive"
+        ? AnalyzeStack<ApplyAtom<Ctx, Atom>, Tail>
+        : AnalyzeStack<ApplyNegativeAtom<Ctx, Atom>, Tail>
+      : [Formula] extends [NotFormula<infer Item extends PredicateFormula>]
+        ? AnalyzeStack<Ctx, readonly [Frame<Item, Flip<Direction>>, ...Tail]>
+        : [Formula] extends [AllFormula<infer Items extends readonly PredicateFormula[]>]
+          ? Direction extends "positive"
+            ? AnalyzeStack<Ctx, readonly [...FramesFromItems<Items, "positive">, ...Tail]>
+            : AnalyzeStack<AnalyzeAnyBranches<Ctx, Items, "negative">, Tail>
+          : [Formula] extends [AnyFormula<infer Items extends readonly PredicateFormula[]>]
+            ? Direction extends "positive"
+              ? AnalyzeStack<AnalyzeAnyBranches<Ctx, Items, "positive">, Tail>
+              : AnalyzeStack<Ctx, readonly [...FramesFromItems<Items, "negative">, ...Tail]>
+            : AnalyzeStack<MarkUnknown<Ctx>, Tail>
+
 export type AnalyzeStack<
   Ctx extends AnyContext,
   Stack extends readonly Frame[]
@@ -316,29 +348,7 @@ export type AnalyzeStack<
       infer Head extends Frame,
       ...infer Tail extends readonly Frame[]
     ]
-    ? Head["formula"] extends TrueFormula
-      ? Head["polarity"] extends "positive"
-        ? AnalyzeStack<Ctx, Tail>
-        : MarkContradiction<Ctx>
-      : Head["formula"] extends FalseFormula
-        ? Head["polarity"] extends "positive"
-          ? MarkContradiction<Ctx>
-          : AnalyzeStack<Ctx, Tail>
-        : Head["formula"] extends AtomFormula<infer Atom extends PredicateAtom>
-          ? Head["polarity"] extends "positive"
-            ? AnalyzeStack<ApplyAtom<Ctx, Atom>, Tail>
-            : AnalyzeStack<ApplyNegativeAtom<Ctx, Atom>, Tail>
-          : Head["formula"] extends NotFormula<infer Item extends PredicateFormula>
-            ? AnalyzeStack<Ctx, readonly [Frame<Item, Flip<Head["polarity"]>>, ...Tail]>
-            : Head["formula"] extends AllFormula<infer Items extends readonly PredicateFormula[]>
-              ? Head["polarity"] extends "positive"
-                ? AnalyzeStack<Ctx, readonly [...FramesFromItems<Items, "positive">, ...Tail]>
-                : AnalyzeStack<AnalyzeAnyBranches<Ctx, Items, "negative">, Tail>
-              : Head["formula"] extends AnyFormula<infer Items extends readonly PredicateFormula[]>
-                ? Head["polarity"] extends "positive"
-                  ? AnalyzeStack<AnalyzeAnyBranches<Ctx, Items, "positive">, Tail>
-                  : AnalyzeStack<Ctx, readonly [...FramesFromItems<Items, "negative">, ...Tail]>
-                : AnalyzeStack<MarkUnknown<Ctx>, Tail>
+    ? AnalyzeFrame<Ctx, Head["formula"], Head["polarity"], Tail>
     : Ctx
 
 export type AnalyzeFormula<Formula extends PredicateFormula> =
