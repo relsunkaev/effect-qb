@@ -1214,180 +1214,15 @@ These preserve the original effect type parameters and add the ambient SQL trans
 
 ## Error Handling
 
-The error system does more than expose raw driver failures. It gives you:
+The built-in executors return tagged errors for both read and write plans. Which tags are available depends on the plan's capabilities.
 
-- generated dialect catalogs for known Postgres SQLSTATEs and MySQL error symbols
-- normalization from driver-specific wire shapes into stable tagged unions
-- rendered query context attached to execution failures when available
-- query-capability narrowing so read-only plans do not expose write-only failures directly
+### Catch Capability Errors On Read Plans
 
-The unusual part is that these are not separate features bolted together. The built-in executors normalize every driver failure at the execution boundary, attach rendered-query context, preserve the raw payload, and then narrow the resulting error surface against the query plan capabilities. Runtime behavior and type-level behavior stay aligned.
-
-### Catalogs And Normalization
-
-Both dialect entrypoints expose an `Errors` module:
-
-```ts
-import { Errors as PostgresErrors } from "effect-qb/postgres"
-import { Errors as MysqlErrors } from "effect-qb/mysql"
-```
-
-The catalogs are backed by official vendor references:
-
-- Postgres uses the SQLSTATE catalog from the current Appendix A docs
-- MySQL uses the official server, client, and global error references
-
-That means the tags and descriptor metadata are systematic, not handwritten one-offs.
-
-Postgres errors normalize around SQLSTATE codes:
-
-```ts
-const descriptor = PostgresErrors.getPostgresErrorDescriptor("23505")
-descriptor.tag
-// "@postgres/integrity-constraint-violation/unique-violation"
-descriptor.classCode
-descriptor.className
-descriptor.condition
-descriptor.primaryFields
-
-const postgresError = PostgresErrors.normalizePostgresDriverError({
-  code: "23505",
-  message: "duplicate key value violates unique constraint",
-  constraint: "users_email_key"
-})
-
-postgresError._tag
-if (PostgresErrors.hasSqlState(postgresError, "23505")) {
-  postgresError.code
-  postgresError.constraintName
-}
-```
-
-MySQL errors normalize around official symbols and documented numbers:
-
-```ts
-const mysqlDescriptor = MysqlErrors.getMysqlErrorDescriptor("ER_DUP_ENTRY")
-mysqlDescriptor.tag
-// "@mysql/server/dup-entry"
-mysqlDescriptor.category
-mysqlDescriptor.number
-mysqlDescriptor.sqlState
-mysqlDescriptor.messageTemplate
-
-const mysqlError = MysqlErrors.normalizeMysqlDriverError({
-  code: "ER_DUP_ENTRY",
-  errno: 1062,
-  sqlState: "23000",
-  sqlMessage: "Duplicate entry 'alice@example.com' for key 'users.email'"
-})
-
-mysqlError._tag
-if (MysqlErrors.hasSymbol(mysqlError, "ER_DUP_ENTRY")) {
-  mysqlError.symbol
-  mysqlError.number
-}
-```
-
-The two dialects are intentionally modeled differently:
-
-- Postgres is SQLSTATE-first. Normalized errors expose `code`, `classCode`, `className`, `condition`, and the semantic fields associated with that SQLSTATE.
-- MySQL is symbol-first. Normalized errors expose `symbol`, `number`, `category`, `documentedSqlState`, and the official message template from the generated catalog.
-
-Normalization preserves structured fields where the driver provides them. For example:
-
-- Postgres surfaces fields like `detail`, `hint`, `position`, `schemaName`, `tableName`, and `constraintName`
-- MySQL surfaces fields like `errno`, `sqlState`, `sqlMessage`, `fatal`, `syscall`, `address`, and `port`
-
-Normalized errors also preserve the original payload on `raw` for known and catalog-miss cases, so you can still reach driver-specific data without losing the stable tagged surface.
-
-Unknown failures are still classified:
-
-- Postgres uses `@postgres/unknown/sqlstate` for well-formed but uncataloged SQLSTATEs and `@postgres/unknown/driver` for non-Postgres failures
-- MySQL uses `@mysql/unknown/code` for MySQL-like catalog misses and `@mysql/unknown/driver` for non-MySQL failures
-
-That fallback behavior is deliberate. Future server versions can introduce new codes without collapsing the executor back to `unknown`.
-
-The normalized runtime variants are:
-
-- Postgres: known SQLSTATE error, unknown SQLSTATE error, unknown driver error
-- MySQL: known catalog error, unknown MySQL code error, unknown driver error
-
-When normalization happens during execution, the normalized error also carries `query.sql` and `query.params`.
-
-One MySQL-specific detail: number lookups can be ambiguous because one documented number may correspond to multiple official symbols. The catalog API preserves that instead of guessing:
-
-```ts
-const descriptors =
-  MysqlErrors.findMysqlErrorDescriptorsByNumber("MY-015144")
-```
-
-### Query-capability Narrowing
-
-Executors narrow their error channels based on what the plan is allowed to do.
-
-This happens in the built-in `Executor.make(...)` and `Executor.driver(...)` paths. They normalize the raw failure first, then decide whether the plan should expose the full dialect error surface or the read-only narrowed surface.
-
-That matters most for read-only plans. If a raw driver error clearly requires write capabilities, the executor does not surface it directly on a read query. It wraps it in a query-requirements error instead:
-
-- `@postgres/unknown/query-requirements`
-- `@mysql/unknown/query-requirements`
-
-Those wrappers include:
-
-- `requiredCapabilities`
-- `actualCapabilities`
-- `cause`
-- `query`
-
-This makes the error channel honest about the plan you executed. A plain `select(...)` should not advertise direct unique-violation handling as though it were a write plan, even if the underlying driver returned one.
-
-If the plan really is write-bearing, including write CTEs, the original normalized write error is preserved.
-
-This is reflected at the type level too:
-
-```ts
-import { Column as C, Query as Q, Executor as PostgresExecutor, Table } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const readPlan = Q.select({
-  id: users.id,
-  email: users.email
-}).pipe(
-  Q.from(users)
-)
-
-const writePlan = Q.insert(users, {
-  id: "user-1",
-  email: "alice@example.com"
-}).pipe(
-  Q.returning({
-    id: users.id,
-    email: users.email
-  })
-)
-
-type ReadError =
-  PostgresExecutor.PostgresQueryError<typeof readPlan>
-
-type WriteError =
-  PostgresExecutor.PostgresQueryError<typeof writePlan>
-```
-
-For a read-only plan, `ReadError` is the narrowed read-query surface. For a write-bearing plan, `WriteError` is the full normalized Postgres executor error surface. The MySQL executor follows the same rule.
-
-### Matching Errors In Application Code
-
-The executor error channel is intended to be pattern-matched, not string-parsed.
-
-Use Effect tag handling for high-level branching:
+Read-only plans do not expose write-only database errors directly. Those cases surface as query-requirements errors instead:
 
 ```ts
 import * as Effect from "effect/Effect"
-import { Column as C, Executor as PostgresExecutor, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Executor, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1401,7 +1236,7 @@ const plan = Q.select({
   Q.from(users)
 )
 
-const executor = PostgresExecutor.make()
+const executor = Executor.make()
 
 const rows = executor.execute(plan).pipe(
   Effect.catchTag("@postgres/unknown/query-requirements", (error) =>
@@ -1410,53 +1245,107 @@ const rows = executor.execute(plan).pipe(
 )
 ```
 
-Use the dialect guards for precise narrowing inside shared helpers:
+### Catch Direct Database Errors On Write Plans
+
+For write-bearing plans, you can match semantic database errors with `catchTag(...)`:
 
 ```ts
-import { Errors as MysqlErrors } from "effect-qb/mysql"
+import * as Effect from "effect/Effect"
+import { Column as C, Executor, Query as Q, Table } from "effect-qb/postgres"
+
+class EmailAlreadyTaken extends Error {
+  constructor(readonly details: {
+    readonly constraint?: string
+    readonly table?: string
+  }) {
+    super("Email already taken")
+  }
+}
+
+const users = Table.make("users", {
+  id: C.text().pipe(C.primaryKey),
+  email: C.text()
+})
+
+const plan = Q.insert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}).pipe(
+  Q.returning({
+    id: users.id,
+    email: users.email
+  })
+)
+
+const executor = Executor.make()
+
+const rows = executor.execute(plan).pipe(
+  Effect.catchTag("@postgres/integrity-constraint-violation/unique-violation", (error) =>
+    Effect.fail(new EmailAlreadyTaken({
+      constraint: error.constraintName,
+      table: error.tableName
+    }))
+  )
+)
+```
+
+### Inspect Errors Without Recovering
+
+Use `tapErrorTag(...)` when you want query context or raw driver data without changing the failure:
+
+```ts
+import * as Effect from "effect/Effect"
+import { Column as C, Executor, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.text().pipe(C.primaryKey),
+  email: C.text()
+})
+
+const plan = Q.insert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}).pipe(
+  Q.returning({
+    id: users.id,
+    email: users.email
+  })
+)
+
+const executor = Executor.make()
+
+const logged = executor.execute(plan).pipe(
+  Effect.tapErrorTag(
+    "@postgres/integrity-constraint-violation/unique-violation",
+    (error) =>
+      Effect.logError("query failed", {
+        tag: error._tag,
+        sql: error.query?.sql,
+        params: error.query?.params,
+        constraint: error.constraintName,
+        raw: error.raw
+      })
+  )
+)
+```
+
+### Helper Utilities Are Available Too
+
+The dialect modules also expose helper predicates and descriptors:
+
+```ts
 import { Errors as PostgresErrors } from "effect-qb/postgres"
 
-const postgresError = PostgresErrors.normalizePostgresDriverError({
+const error = PostgresErrors.normalizePostgresDriverError({
   code: "23505",
   message: "duplicate key value violates unique constraint",
   constraint: "users_email_key"
 })
 
-if (PostgresErrors.hasSqlState(postgresError, "23505")) {
-  postgresError.constraintName
-}
-
-const mysqlError = MysqlErrors.normalizeMysqlDriverError({
-  code: "ER_DUP_ENTRY",
-  errno: 1062,
-  sqlState: "23000",
-  sqlMessage: "Duplicate entry 'alice@example.com' for key 'users.email'"
-})
-
-if (MysqlErrors.hasSymbol(mysqlError, "ER_DUP_ENTRY")) {
-  mysqlError.number
-}
-
-if (MysqlErrors.hasNumber(mysqlError, "1062")) {
-  mysqlError.symbol
+if (PostgresErrors.hasSqlState(error, "23505")) {
+  error.constraintName
 }
 ```
-
-The recommended pattern is:
-
-- match `_tag` for application-level control flow
-- use `hasSqlState(...)`, `hasSymbol(...)`, or `hasNumber(...)` for dialect-specific detail work
-- fall back to `query`, `raw`, and structured fields when you need logging or translation
-
-Because the tags are catalog-derived, they are stable enough to use as application error boundaries without inventing a second error taxonomy in your app.
-
-In practice, the error flow is:
-
-1. driver throws some unknown failure
-2. dialect normalizer turns it into a tagged dialect error
-3. executor optionally narrows it against plan capabilities
-4. application code matches on `_tag` or a dialect guard
-5. application code decides whether to recover, rethrow, or translate the failure
 
 ## Type Safety
 

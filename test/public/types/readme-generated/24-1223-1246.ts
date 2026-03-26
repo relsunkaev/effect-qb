@@ -1,10 +1,10 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1388-1411
+// Code fences: 1223-1246
 
-// README.md:1388-1411
+// README.md:1223-1246
 import * as Effect from "effect/Effect"
-import { Column as C, Executor as PostgresExecutor, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Executor, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -18,7 +18,7 @@ const plan = Q.select({
   Q.from(users)
 )
 
-const executor = PostgresExecutor.make()
+const executor = Executor.make()
 
 const rows = executor.execute(plan).pipe(
   Effect.catchTag("@postgres/unknown/query-requirements", (error) =>

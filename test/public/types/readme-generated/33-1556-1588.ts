@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1498-1527
+// Code fences: 1556-1588
 
-// README.md:1498-1527
+// README.md:1556-1588
 import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
@@ -18,18 +18,21 @@ const posts = Table.make("posts", {
   status: C.text()
 })
 
-const helloPosts = Q.select({
+const invalidGroupedPlan = Q.select({
+  userId: users.id,
   title: posts.title,
-  upperTitle: F.upper(posts.title)
+  postCount: F.count(posts.id)
 }).pipe(
-  Q.from(posts),
-  Q.where(Q.eq(posts.title, "hello"))
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.groupBy(users.id)
 )
 
-type HelloPostsRow = Q.ResultRow<typeof helloPosts>
+type InvalidGroupedPlan = Q.CompletePlan<typeof invalidGroupedPlan>
 // {
-//   title: string
-//   upperTitle: string
+//   __effect_qb_error__: "effect-qb: invalid grouped selection"
+//   __effect_qb_hint__:
+//     "Scalar selections must be covered by groupBy(...) when aggregates are present"
 // }
 
 export {};

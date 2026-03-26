@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1732-1774, 1778-1783
+// Code fences: 1621-1663, 1667-1672
 
-// README.md:1732-1774
+// README.md:1621-1663
 import * as Schema from "effect/Schema"
 import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
@@ -46,7 +46,7 @@ Q.insert(docs, {
 })
 
 {
-  // README.md:1778-1783
+  // README.md:1667-1672
   Q.update(docs, {
     // @ts-expect-error deleting a required field makes the json output incompatible
     payload: deletedRequiredField

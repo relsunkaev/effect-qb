@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1585-1614
+// Code fences: 1422-1456
 
-// README.md:1585-1614
+// README.md:1422-1456
 import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
@@ -18,18 +18,23 @@ const posts = Table.make("posts", {
   status: C.text()
 })
 
-const maybePosts = Q.select({
+const promotedJoinedPosts = Q.select({
   userId: users.id,
-  postId: posts.id
+  postId: posts.id,
+  postTitle: posts.title,
+  upperTitle: F.upper(posts.title)
 }).pipe(
   Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.eq(posts.title, "hello"))
 )
 
-type MaybePostsRow = Q.ResultRow<typeof maybePosts>
+type PromotedJoinedPostsRow = Q.ResultRow<typeof promotedJoinedPosts>
 // {
 //   userId: string
-//   postId: string | null
+//   postId: string
+//   postTitle: string
+//   upperTitle: string
 // }
 
 export {};
