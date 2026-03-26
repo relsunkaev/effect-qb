@@ -18,6 +18,27 @@ const docs = Table.make("docs", {
   ),
 });
 
+const notes = Table.make("notes", {
+  id: C.uuid().pipe(C.primaryKey),
+  docId: C.uuid().pipe(C.unique),
+  authorId: C.uuid(),
+  text: C.text(),
+});
+
+const authors = Table.make("authors", {
+  id: C.uuid().pipe(C.primaryKey),
+  name: C.text(),
+});
+
+const result = Q.select({ id: docs.id, note: notes.text, author: authors.name }).pipe(
+  Q.from(docs),
+  Q.leftJoin(notes, Q.eq(docs.id, notes.docId)),
+  Q.leftJoin(authors, Q.eq(notes.authorId, authors.id)),
+  Q.where(Q.isNull(authors.name)),
+);
+
+type Test = Q.ResultRow<typeof result>;
+
 const cityPath = F.json.path(F.json.key("profile"), F.json.key("address"), F.json.key("city"));
 
 const compatibleObject = F.jsonb.buildObject({

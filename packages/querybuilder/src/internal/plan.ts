@@ -1,4 +1,5 @@
 import type { Pipeable } from "effect/Pipeable"
+import type { PredicateFormula } from "./predicate-formula.js"
 
 /** Symbol used to attach logical-plan metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Plan")
@@ -15,11 +16,20 @@ export type TypeId = typeof TypeId
 export type SourceMode = "required" | "optional"
 
 /** Source made available to a plan. */
-export interface Source<Name extends string = string, Mode extends SourceMode = SourceMode> {
+export interface Source<
+  Name extends string = string,
+  Mode extends SourceMode = SourceMode,
+  PresentFormula extends PredicateFormula = PredicateFormula,
+  PresenceWitness extends string = never
+> {
   readonly name: Name
   readonly mode: Mode
   readonly baseName?: string
+  readonly _presentFormula?: PresentFormula
+  readonly _presenceWitnesses?: readonly PresenceWitness[]
 }
+
+export type AnySource = Source<string, SourceMode, PredicateFormula, string>
 
 /**
  * Canonical static metadata stored on a plan.
@@ -31,7 +41,7 @@ export interface Source<Name extends string = string, Mode extends SourceMode = 
 export interface State<
   Selection,
   Required,
-  Available extends Record<string, Source>,
+  Available extends Record<string, AnySource>,
   Dialect extends string
 > {
   readonly selection: Selection
@@ -50,14 +60,14 @@ export interface State<
 export interface Plan<
   Selection,
   Required = never,
-  Available extends Record<string, Source> = {},
+  Available extends Record<string, AnySource> = {},
   Dialect extends string = never
 > extends Pipeable {
   readonly [TypeId]: State<Selection, Required, Available, Dialect>
 }
 
 /** Convenience alias for any plan-like value. */
-export type Any = Plan<any, any, Record<string, Source>, string>
+export type Any = Plan<any, any, Record<string, AnySource>, string>
 /** Extracts a plan's selection shape. */
 export type SelectionOf<Value extends Any> = Value[typeof TypeId]["selection"]
 /** Extracts a plan's effective dialect. */

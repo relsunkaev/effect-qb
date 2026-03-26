@@ -7,6 +7,7 @@ export interface Context<
   NonNullKeys extends string = never,
   NullKeys extends string = never,
   EqLiterals = {},
+  NeqLiterals = {},
   SourceNames extends string = never,
   Contradiction extends boolean = false,
   Unknown extends boolean = false
@@ -14,13 +15,22 @@ export interface Context<
   readonly nonNullKeys: NonNullKeys
   readonly nullKeys: NullKeys
   readonly eqLiterals: EqLiterals
+  readonly neqLiterals: NeqLiterals
   readonly sourceNames: SourceNames
   readonly contradiction: Contradiction
   readonly unknown: Unknown
 }
 
 export type EmptyContext = Context
-type AnyContext = Context<string, string, Record<string, string>, string, boolean, boolean>
+type AnyContext = Context<
+  string,
+  string,
+  Record<string, string>,
+  Record<string, string>,
+  string,
+  boolean,
+  boolean
+>
 
 type Frame<
   Formula extends PredicateFormula = PredicateFormula,
@@ -41,6 +51,15 @@ type EqLiteralValueOf<
     : never
   : never
 
+type NeqLiteralValuesOf<
+  NeqLiterals,
+  Key extends string
+> = NeqLiterals extends Record<string, string>
+  ? Key extends keyof NeqLiterals
+    ? NeqLiterals[Key]
+    : never
+  : never
+
 type MergeEqLiteralMaps<Left, Right> = {
   readonly [K in Extract<keyof Left | keyof Right, string>]:
     K extends keyof Left
@@ -48,6 +67,17 @@ type MergeEqLiteralMaps<Left, Right> = {
         ? Left[K] extends Right[K]
           ? Left[K]
           : never
+        : Left[K]
+      : K extends keyof Right
+        ? Right[K]
+        : never
+}
+
+type MergeNeqLiteralMaps<Left, Right> = {
+  readonly [K in Extract<keyof Left | keyof Right, string>]:
+    K extends keyof Left
+      ? K extends keyof Right
+        ? Left[K] | Right[K]
         : Left[K]
       : K extends keyof Right
         ? Right[K]
@@ -62,6 +92,7 @@ type MarkContradiction<Ctx extends AnyContext> = Context<
   Ctx["nonNullKeys"],
   Ctx["nullKeys"],
   Ctx["eqLiterals"],
+  Ctx["neqLiterals"],
   Ctx["sourceNames"],
   true,
   Ctx["unknown"]
@@ -71,6 +102,7 @@ type MarkUnknown<Ctx extends AnyContext> = Context<
   Ctx["nonNullKeys"],
   Ctx["nullKeys"],
   Ctx["eqLiterals"],
+  Ctx["neqLiterals"],
   Ctx["sourceNames"],
   Ctx["contradiction"],
   true
@@ -83,6 +115,7 @@ type AddNonNull<
   Ctx["nonNullKeys"] | Key,
   Ctx["nullKeys"],
   Ctx["eqLiterals"],
+  Ctx["neqLiterals"],
   Ctx["sourceNames"] | SourceNameOfKey<Key>,
   Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"],
   Ctx["unknown"]
@@ -95,6 +128,7 @@ type AddNull<
   Ctx["nonNullKeys"],
   Ctx["nullKeys"] | Key,
   Ctx["eqLiterals"],
+  Ctx["neqLiterals"],
   Ctx["sourceNames"] | SourceNameOfKey<Key>,
   Key extends Ctx["nonNullKeys"] ? true : Ctx["contradiction"],
   Ctx["unknown"]
@@ -108,11 +142,20 @@ type AddEqLiteral<
   Ctx["nonNullKeys"] | Key,
   Ctx["nullKeys"],
   FilterNeverValues<MergeEqLiteralMaps<Ctx["eqLiterals"], { readonly [K in Key]: Value }>>,
+  Ctx["neqLiterals"],
   Ctx["sourceNames"] | SourceNameOfKey<Key>,
   EqLiteralValueOf<Ctx["eqLiterals"], Key> extends never
-    ? Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"]
+    ? NeqLiteralValuesOf<Ctx["neqLiterals"], Key> extends infer NeqValues
+      ? Value extends NeqValues
+        ? true
+        : Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"]
+      : true
     : EqLiteralValueOf<Ctx["eqLiterals"], Key> extends Value
-      ? Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"]
+      ? NeqLiteralValuesOf<Ctx["neqLiterals"], Key> extends infer NeqValues
+        ? Value extends NeqValues
+          ? true
+          : Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"]
+        : true
       : true,
   Ctx["unknown"]
 >
@@ -120,8 +163,22 @@ type AddEqLiteral<
 type AddNeqLiteral<
   Ctx extends AnyContext,
   Key extends string,
-  _Value extends string
-> = AddNonNull<Ctx, Key>
+  Value extends string
+> = Context<
+  Ctx["nonNullKeys"] | Key,
+  Ctx["nullKeys"],
+  Ctx["eqLiterals"],
+  FilterNeverValues<MergeNeqLiteralMaps<Ctx["neqLiterals"], { readonly [K in Key]: Value }>>,
+  Ctx["sourceNames"] | SourceNameOfKey<Key>,
+  EqLiteralValueOf<Ctx["eqLiterals"], Key> extends infer EqValue
+    ? [EqValue] extends [never]
+      ? Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"]
+      : EqValue extends Value
+        ? true
+        : Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"]
+    : true,
+  Ctx["unknown"]
+>
 
 type ApplyEqColumn<
   Ctx extends AnyContext,
@@ -177,7 +234,7 @@ type ApplyNegativeAtom<
     : Atom extends NonNullAtom<infer Key extends string>
       ? AddNull<Ctx, Key>
       : Atom extends EqLiteralAtom<infer Key extends string, infer Value extends string>
-        ? AddNonNull<Ctx, Key>
+        ? AddNeqLiteral<Ctx, Key, Value>
         : Atom extends NeqLiteralAtom<infer Key extends string, infer Value extends string>
           ? AddEqLiteral<Ctx, Key, Value>
           : Atom extends EqColumnAtom<infer Left extends string, infer Right extends string>
@@ -203,6 +260,14 @@ type IntersectEqLiteralMaps<
   readonly [K in Extract<keyof Left, keyof Right>]: Left[K] extends Right[K] ? Left[K] : never
 }>
 
+type IntersectNeqLiteralMaps<
+  Left,
+  Right
+> = FilterNeverValues<{
+  readonly [K in Extract<keyof Left, keyof Right>]:
+    Extract<Left[K], Right[K]> extends never ? never : Extract<Left[K], Right[K]>
+}>
+
 type IntersectContexts<
   Left extends AnyContext,
   Right extends AnyContext
@@ -210,6 +275,7 @@ type IntersectContexts<
   Extract<Left["nonNullKeys"], Right["nonNullKeys"]>,
   Extract<Left["nullKeys"], Right["nullKeys"]>,
   IntersectEqLiteralMaps<Left["eqLiterals"], Right["eqLiterals"]>,
+  IntersectNeqLiteralMaps<Left["neqLiterals"], Right["neqLiterals"]>,
   Extract<Left["sourceNames"], Right["sourceNames"]>,
   Left["contradiction"] extends true
     ? Right["contradiction"]

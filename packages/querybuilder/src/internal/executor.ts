@@ -4,6 +4,8 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as SqlError from "@effect/sql/SqlError"
 
 import * as Expression from "./expression.js"
+import * as ExpressionAst from "./expression-ast.js"
+import { resolveImplicationScope, type ImplicationScope } from "./implication-runtime.js"
 import { normalizeDbValue } from "./runtime-normalize.js"
 import { expressionRuntimeSchema } from "./runtime-schema.js"
 import { flattenSelection } from "./projections.js"
@@ -15,6 +17,10 @@ import * as Plan from "./plan.js"
 /** Flat database row keyed by rendered projection aliases. */
 export type FlatRow = Readonly<Record<string, unknown>>
 export type DriverMode = "raw" | "normalized"
+
+type AstBackedExpression = Expression.Any & {
+  readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+}
 
 export interface RowDecodeError {
   readonly _tag: "RowDecodeError"
@@ -189,24 +195,39 @@ const makeRowDecodeError = (
 
 const hasOptionalSourceDependency = (
   expression: Expression.Any,
-  available: Readonly<Record<string, Plan.Source>>
+  scope: ImplicationScope
 ): boolean => {
   const state = expression[Expression.TypeId]
   if (state.sourceNullability === "resolved") {
     return false
   }
-  return Object.keys(state.dependencies).some((sourceName) => available[sourceName]?.mode === "optional")
+  return Object.keys(state.dependencies).some((sourceName) =>
+    !scope.absentSourceNames.has(sourceName) && scope.sourceModes.get(sourceName) === "optional")
 }
 
 const effectiveRuntimeNullability = (
   expression: Expression.Any,
-  available: Readonly<Record<string, Plan.Source>>
+  scope: ImplicationScope
 ): Expression.Nullability => {
   const nullability = expression[Expression.TypeId].nullability
+  const ast = (expression as AstBackedExpression)[ExpressionAst.TypeId]
   if (nullability === "always") {
     return "always"
   }
-  return hasOptionalSourceDependency(expression, available)
+  if (ast.kind === "column") {
+    const key = `${ast.tableName}.${ast.columnName}`
+    if (scope.absentSourceNames.has(ast.tableName) || scope.nullKeys.has(key)) {
+      return "always"
+    }
+    if (scope.nonNullKeys.has(key)) {
+      return "never"
+    }
+  }
+  if (expression[Expression.TypeId].sourceNullability !== "resolved" &&
+      Object.keys(expression[Expression.TypeId].dependencies).some((sourceName) => scope.absentSourceNames.has(sourceName))) {
+    return "always"
+  }
+  return hasOptionalSourceDependency(expression, scope)
     ? "maybe"
     : nullability
 }
@@ -216,7 +237,7 @@ const decodeProjectionValue = (
   projection: Renderer.RenderedQuery<any, any>["projections"][number],
   expression: Expression.Any,
   raw: unknown,
-  available: Readonly<Record<string, Plan.Source>>,
+  scope: ImplicationScope,
   driverMode: DriverMode
 ): unknown => {
   let normalized = raw
@@ -228,8 +249,9 @@ const decodeProjectionValue = (
     }
   }
 
+  const nullability = effectiveRuntimeNullability(expression, scope)
   if (normalized === null) {
-    if (effectiveRuntimeNullability(expression, available) === "never") {
+    if (nullability === "never") {
       throw makeRowDecodeError(
         rendered,
         projection,
@@ -243,7 +265,19 @@ const decodeProjectionValue = (
     return null
   }
 
-  const schema = expressionRuntimeSchema(expression)
+  if (nullability === "always") {
+    throw makeRowDecodeError(
+      rendered,
+      projection,
+      expression,
+      raw,
+      "schema",
+      new Error("Received non-null for an always-null projection"),
+      normalized
+    )
+  }
+
+  const schema = expressionRuntimeSchema(expression, { assumptions: scope.assumptions })
   if (schema === undefined) {
     return normalized
   }
@@ -274,7 +308,7 @@ export const decodeRows = (
     projections.map((projection) => [projection.alias, projection.expression] as const)
   )
   const driverMode = options.driverMode ?? "raw"
-  const available = plan[Plan.TypeId].available
+  const scope = resolveImplicationScope(plan[Plan.TypeId].available, Query.getQueryState(plan).assumptions)
   return rows.map((row) => {
     const decoded: Record<string, unknown> = {}
     for (const projection of rendered.projections) {
@@ -288,7 +322,7 @@ export const decodeRows = (
       setPath(
         decoded,
         projection.path,
-        decodeProjectionValue(rendered, projection, expression, row[projection.alias], available, driverMode)
+        decodeProjectionValue(rendered, projection, expression, row[projection.alias], scope, driverMode)
       )
     }
     return decoded

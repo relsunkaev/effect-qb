@@ -190,13 +190,13 @@ const normalizeIndexKeys = (
       }) as unknown as readonly [BaseTable.IndexKeySpec, ...BaseTable.IndexKeySpec[]]
 
 export const primaryKey: {
-  <Columns extends string | readonly string[]>(
+  <const Columns extends string | readonly string[]>(
     columns: Columns
   ): BaseTable.TableOption<{
     readonly kind: "primaryKey"
     readonly columns: BaseTable.NormalizeColumns<Columns>
   }>
-  <Columns extends string | readonly string[]>(
+  <const Columns extends string | readonly string[]>(
     spec: RichPrimaryKeyInput<Columns>
   ): BaseTable.TableOption
 } = ((input: unknown) =>
@@ -211,13 +211,13 @@ export const primaryKey: {
     : BaseTable.primaryKey(input as string | readonly string[])) as never
 
 export const unique: {
-  <Columns extends string | readonly string[]>(
+  <const Columns extends string | readonly string[]>(
     columns: Columns
   ): BaseTable.TableOption<{
     readonly kind: "unique"
     readonly columns: BaseTable.NormalizeColumns<Columns>
   }>
-  <Columns extends string | readonly string[]>(
+  <const Columns extends string | readonly string[]>(
     spec: RichUniqueInput<Columns>
   ): BaseTable.TableOption
 } = ((input: unknown) =>
@@ -233,13 +233,13 @@ export const unique: {
     : BaseTable.unique(input as string | readonly string[])) as never
 
 export const index: {
-  <Columns extends string | readonly string[]>(
+  <const Columns extends string | readonly string[]>(
     columns: Columns
   ): BaseTable.TableOption<{
     readonly kind: "index"
     readonly columns: BaseTable.NormalizeColumns<Columns>
   }>
-  <Columns extends string | readonly string[]>(
+  <const Columns extends string | readonly string[]>(
     spec: RichIndexInput<Columns>
   ): BaseTable.TableOption
 } = ((input: unknown) =>
@@ -260,9 +260,9 @@ export const index: {
       })
     : BaseTable.index(input as string | readonly string[])) as never
 export const foreignKey = <
-  LocalColumns extends string | readonly string[],
+  const LocalColumns extends string | readonly string[],
   TargetTable extends AnyTable,
-  TargetColumns extends string | readonly string[]
+  const TargetColumns extends string | readonly string[]
 >(
   columnsOrSpec: LocalColumns | RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns>,
   target?: () => TargetTable,

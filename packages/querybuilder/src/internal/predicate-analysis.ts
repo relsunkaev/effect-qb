@@ -36,6 +36,16 @@ type ContradictionFromNegation<
   Formula extends PredicateFormula
 > = IsContradiction<And<Assumptions, Not<Formula>>>
 
+export type ContradictsFormula<
+  Assumptions extends PredicateFormula,
+  Formula extends PredicateFormula
+> = ContradictoryAssumption<Assumptions, Formula>
+
+export type ImpliesFormula<
+  Assumptions extends PredicateFormula,
+  Formula extends PredicateFormula
+> = ContradictionFromNegation<Assumptions, Formula>
+
 export type AssumeFormulaTrue<
   Assumptions extends PredicateFormula,
   Formula extends PredicateFormula

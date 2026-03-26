@@ -11,6 +11,8 @@ export {
   array,
   identityAlways,
   identityByDefault,
+  foreignKey,
+  index,
   int,
   char,
   varchar,

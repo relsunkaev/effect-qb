@@ -14,8 +14,8 @@ const memberships = Table.make("memberships", {
   note: C.text().pipe(C.nullable)
 }).pipe(
   Table.foreignKey("orgId", () => orgs, "id"),
-  Table.unique(["orgId", "role"] as const),
-  Table.index(["role", "orgId"] as const)
+  Table.unique(["orgId", "role"]),
+  Table.index(["role", "orgId"])
 )
 
 const createTablePlan = Q.createTable(memberships, {
@@ -24,8 +24,8 @@ const createTablePlan = Q.createTable(memberships, {
 const dropTablePlan = Q.dropTable(memberships, {
   ifExists: true
 })
-const createIndexPlan = Q.createIndex(memberships, ["role", "orgId"] as const)
-const dropIndexPlan = Q.dropIndex(memberships, ["role", "orgId"] as const, {
+const createIndexPlan = Q.createIndex(memberships, ["role", "orgId"])
+const dropIndexPlan = Q.dropIndex(memberships, ["role", "orgId"], {
   ifExists: true
 })
 
@@ -67,10 +67,10 @@ Q.from(memberships)(dropTablePlan)
 Q.returning({ id: memberships.id })(createIndexPlan)
 
 // @ts-expect-error createIndex only accepts known table columns
-Q.createIndex(memberships, ["missing"] as const)
+Q.createIndex(memberships, ["missing"])
 
 // @ts-expect-error dropIndex only accepts known table columns
-Q.dropIndex(memberships, ["missing"] as const)
+Q.dropIndex(memberships, ["missing"])
 
 const renderer = Renderer.make("postgres")
 const executor = Executor.custom(<PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(

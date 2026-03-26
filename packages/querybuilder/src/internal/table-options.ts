@@ -147,7 +147,11 @@ export const collectInlineOptions = <Fields extends TableFieldMap>(
     if (column.metadata.unique && !column.metadata.primaryKey) {
       options.push({
         kind: "unique",
-        columns: [columnName]
+        columns: [columnName],
+        name: column.metadata.uniqueConstraint?.name,
+        nullsNotDistinct: column.metadata.uniqueConstraint?.nullsNotDistinct,
+        deferrable: column.metadata.uniqueConstraint?.deferrable,
+        initiallyDeferred: column.metadata.uniqueConstraint?.initiallyDeferred
       })
     }
     if (column.metadata.references) {
@@ -163,7 +167,27 @@ export const collectInlineOptions = <Fields extends TableFieldMap>(
             schemaName: bound.schemaName,
             columns: [bound.columnName]
           }
-        }
+        },
+        name: column.metadata.references.name,
+        onUpdate: column.metadata.references.onUpdate,
+        onDelete: column.metadata.references.onDelete,
+        deferrable: column.metadata.references.deferrable,
+        initiallyDeferred: column.metadata.references.initiallyDeferred
+      })
+    }
+    if (column.metadata.index) {
+      options.push({
+        kind: "index",
+        keys: [{
+          kind: "column",
+          column: columnName,
+          order: column.metadata.index.order,
+          nulls: column.metadata.index.nulls
+        }],
+        name: column.metadata.index.name,
+        method: column.metadata.index.method,
+        include: column.metadata.index.include,
+        predicate: column.metadata.index.predicate
       })
     }
   }

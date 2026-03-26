@@ -89,7 +89,7 @@ describe("nullability behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
-  test("where predicates refine nullable joined projections in SQL while runtime stays conservative", () => {
+  test("where predicates refine nullable joined projections and reject impossible rows", () => {
     const { users, posts } = makeRootSocialGraph()
 
     const plan = Q.select({
@@ -111,7 +111,7 @@ describe("nullability behavior", () => {
     expect(rendered.sql).toBe('select "users"."id" as "userId", "posts"."id" as "postId", "posts"."title" as "postTitle", upper("posts"."title") as "upperPostTitle" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where (("posts"."title" is not null) and ("posts"."id" = $1))')
     expect(rendered.params).toEqual([postId])
 
-    const rows = Effect.runSync(unsafeAny(Executor.make({
+    const error = Effect.runSync(Effect.flip(unsafeAny(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           userId,
@@ -120,16 +120,16 @@ describe("nullability behavior", () => {
           upperPostTitle: null
         }
       ]))
-    }).execute(plan))) as ReadonlyArray<unknown>
+    }).execute(plan))))
 
-    expect(rows).toEqual([
-      {
-        userId,
-        postId: null,
-        postTitle: null,
-        upperPostTitle: null
-      }
-    ])
+    expect(error).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "postId"
+      },
+      raw: null
+    })
   })
 
   test("searched case applies branch-local refinement to SQL while runtime stays conservative", () => {

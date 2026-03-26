@@ -21,6 +21,9 @@ export * as SchemaExpression from "./postgres/schema-expression.js"
 /** Postgres schema-scoped table and enum builder helpers. */
 export { schema } from "./postgres/schema.js"
 export type { SchemaNamespace } from "./postgres/schema.js"
+/** Postgres enum and sequence definition helpers. */
+export { enumType as enum, sequence } from "./postgres/schema-management.js"
+export type { EnumDefinition, SequenceDefinition } from "./postgres/schema-management.js"
 /** Postgres-specialized table-definition DSL. */
 export * as Table from "./postgres/table.js"
 /** Postgres-specialized built-in renderer entrypoint. */

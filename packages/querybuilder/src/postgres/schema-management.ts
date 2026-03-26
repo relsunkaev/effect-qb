@@ -123,14 +123,14 @@ export type AnyDefinition = AnyEnumDefinition | AnySequenceDefinition
 
 export function enumType<
   Name extends string,
-  Values extends readonly [string, ...string[]]
+  const Values extends readonly [string, ...string[]]
 >(
   name: Name,
   values: Values
 ): EnumDefinition<Name, Values, undefined>
 export function enumType<
   Name extends string,
-  Values extends readonly [string, ...string[]],
+  const Values extends readonly [string, ...string[]],
   SchemaName extends string
 >(
   name: Name,
@@ -183,7 +183,7 @@ export const schema = <SchemaName extends string>(
   schemaName,
   enumType: <
     Name extends string,
-    Values extends readonly [string, ...string[]]
+    const Values extends readonly [string, ...string[]]
   >(
     name: Name,
     values: Values

@@ -5,6 +5,14 @@ import * as Expression from "./expression.js"
 import * as ExpressionAst from "./expression-ast.js"
 import * as Query from "./query.js"
 import * as JsonPath from "./json/path.js"
+import type { PredicateFormula } from "./predicate-formula.js"
+import {
+  assumeFormulaFalse,
+  assumeFormulaTrue,
+  contradictsFormula,
+  formulaOfExpression as formulaOfExpressionRuntime,
+  impliesFormula
+} from "./predicate-runtime.js"
 import { flattenSelection } from "./projections.js"
 import {
   BigIntStringSchema,
@@ -22,6 +30,10 @@ import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
 import type { RuntimeTag } from "./datatypes/shape.js"
 
 export type RuntimeSchema = Schema.Schema<any, any, any>
+
+type SchemaContext = {
+  readonly assumptions: PredicateFormula
+}
 
 const schemaCache = new WeakMap<Expression.Any, RuntimeSchema | undefined>()
 
@@ -284,18 +296,59 @@ const jsonCompatibleSchema = (schema: RuntimeSchema | undefined): RuntimeSchema 
 }
 
 const buildStructSchema = (
-  entries: readonly { readonly key: string; readonly value: Expression.Any }[]
+  entries: readonly { readonly key: string; readonly value: Expression.Any }[],
+  context?: SchemaContext
 ): RuntimeSchema => {
   const fields = Object.fromEntries(
-    entries.map((entry) => [entry.key, expressionRuntimeSchema(entry.value) ?? JsonValueSchema])
+    entries.map((entry) => [entry.key, expressionRuntimeSchema(entry.value, context) ?? JsonValueSchema])
   )
   return Schema.Struct(fields as Record<string, RuntimeSchema>)
 }
 
-const buildTupleSchema = (values: readonly Expression.Any[]): RuntimeSchema =>
-  Schema.Tuple(...values.map((value) => expressionRuntimeSchema(value) ?? JsonValueSchema))
+const buildTupleSchema = (values: readonly Expression.Any[], context?: SchemaContext): RuntimeSchema =>
+  Schema.Tuple(...values.map((value) => expressionRuntimeSchema(value, context) ?? JsonValueSchema))
 
-const deriveRuntimeSchema = (expression: Expression.Any): RuntimeSchema | undefined => {
+const deriveCaseSchema = (
+  ast: ExpressionAst.CaseNode,
+  context?: SchemaContext
+): RuntimeSchema | undefined => {
+  if (context === undefined) {
+    return unionSchemas([
+      ...ast.branches.map((branch) => expressionRuntimeSchema(branch.then)),
+      expressionRuntimeSchema(ast.else)
+    ])
+  }
+
+  const schemas: RuntimeSchema[] = []
+  let elseAssumptions = context.assumptions
+
+  for (const branch of ast.branches) {
+    const whenFormula = formulaOfExpressionRuntime(branch.when)
+    if (contradictsFormula(elseAssumptions, whenFormula)) {
+      continue
+    }
+
+    const branchContext = { assumptions: assumeFormulaTrue(elseAssumptions, whenFormula) }
+    const branchSchema = expressionRuntimeSchema(branch.then, branchContext)
+    if (branchSchema !== undefined) {
+      schemas.push(branchSchema)
+    }
+
+    if (impliesFormula(elseAssumptions, whenFormula)) {
+      return unionSchemas(schemas)
+    }
+
+    elseAssumptions = assumeFormulaFalse(elseAssumptions, whenFormula)
+  }
+
+  const elseSchema = expressionRuntimeSchema(ast.else, { assumptions: elseAssumptions })
+  return unionSchemas(elseSchema === undefined ? schemas : [...schemas, elseSchema])
+}
+
+const deriveRuntimeSchema = (
+  expression: Expression.Any,
+  context?: SchemaContext
+): RuntimeSchema | undefined => {
   const state = expression[Expression.TypeId]
   if (state.runtimeSchema !== undefined) {
     return state.runtimeSchema
@@ -363,28 +416,25 @@ const deriveRuntimeSchema = (expression: Expression.Any): RuntimeSchema | undefi
       return Schema.Number
     case "max":
     case "min":
-      return expressionRuntimeSchema(ast.value)
+      return expressionRuntimeSchema(ast.value, context)
     case "case":
-      return unionSchemas([
-        ...ast.branches.map((branch) => expressionRuntimeSchema(branch.then)),
-        expressionRuntimeSchema(ast.else)
-      ])
+      return deriveCaseSchema(ast, context)
     case "coalesce":
-      return unionSchemas(ast.values.map(expressionRuntimeSchema))
+      return unionSchemas(ast.values.map((value) => expressionRuntimeSchema(value, context)))
     case "scalarSubquery":
       {
         const selection = firstSelectedExpression(ast.plan)
-        return selection === undefined ? undefined : expressionRuntimeSchema(selection)
+        return selection === undefined ? undefined : expressionRuntimeSchema(selection, context)
       }
     case "window":
       return ast.function === "over" && ast.value !== undefined
-        ? expressionRuntimeSchema(ast.value)
+        ? expressionRuntimeSchema(ast.value, context)
         : Schema.Number
     case "jsonGet":
     case "jsonPath":
     case "jsonAccess":
     case "jsonTraverse": {
-      const baseSchema = expressionRuntimeSchema(ast.base!)
+      const baseSchema = expressionRuntimeSchema(ast.base!, context)
       const segments = ast.segments
       if (baseSchema === undefined || segments === undefined || !exactJsonSegments(segments)) {
         return JsonValueSchema
@@ -397,27 +447,31 @@ const deriveRuntimeSchema = (expression: Expression.Any): RuntimeSchema | undefi
     case "jsonRemove":
     case "jsonSet":
     case "jsonInsert":
-      return expressionRuntimeSchema(ast.base!)
+      return expressionRuntimeSchema(ast.base!, context)
     case "jsonStripNulls":
-      return expressionRuntimeSchema(ast.value!)
+      return expressionRuntimeSchema(ast.value!, context)
     case "jsonConcat":
     case "jsonMerge":
       return JsonValueSchema
     case "jsonBuildObject":
-      return buildStructSchema(ast.entries ?? [])
+      return buildStructSchema(ast.entries ?? [], context)
     case "jsonBuildArray":
-      return buildTupleSchema(ast.values ?? [])
+      return buildTupleSchema(ast.values ?? [], context)
     case "jsonToJson":
     case "jsonToJsonb":
-      return jsonCompatibleSchema(expressionRuntimeSchema(ast.value!))
+      return jsonCompatibleSchema(expressionRuntimeSchema(ast.value!, context))
     case "jsonKeys":
       return Schema.Array(Schema.String)
   }
 }
 
 export const expressionRuntimeSchema = (
-  expression: Expression.Any
+  expression: Expression.Any,
+  context?: SchemaContext
 ): RuntimeSchema | undefined => {
+  if (context !== undefined) {
+    return deriveRuntimeSchema(expression, context) ?? runtimeSchemaForDbType(expression[Expression.TypeId].dbType)
+  }
   const cached = schemaCache.get(expression)
   if (cached !== undefined || schemaCache.has(expression)) {
     return cached

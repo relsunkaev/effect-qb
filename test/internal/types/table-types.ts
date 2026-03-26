@@ -16,7 +16,7 @@ const users = Table.make("users", {
   bio: C.text().pipe(C.nullable),
   createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
 }).pipe(
-  Table.index(["email", "createdAt"] as const)
+  Table.index(["email", "createdAt"])
 )
 
 const analytics = Postgres.schema("analytics")
@@ -393,7 +393,7 @@ const badReferenceType = Table.make("bad_reference", {
 })
 
 // @ts-expect-error unknown columns are rejected for indexes
-const badIndex = Table.index(["missing"] as const)(Table.make("bad_index", {
+const badIndex = Table.index(["missing"])(Table.make("bad_index", {
   id: C.uuid()
 }))
 
@@ -401,7 +401,7 @@ const badIndex = Table.index(["missing"] as const)(Table.make("bad_index", {
 const badCheck = Table.check("role_not_empty", "role <> ''")
 
 // @ts-expect-error nullable columns cannot participate in table primary keys
-const badCompositePrimaryKey = Table.primaryKey(["id", "slug"] as const)(Table.make("bad_pk", {
+const badCompositePrimaryKey = Table.primaryKey(["id", "slug"])(Table.make("bad_pk", {
   id: C.uuid(),
   slug: C.text().pipe(C.nullable)
 }))
@@ -428,7 +428,7 @@ const classColumn = UsersClass.id
 void classColumn
 
 // @ts-expect-error class table options do not support table-level primary keys
-const badUsersClassOptions: typeof BadUsersClass[typeof Table.options] = [Table.primaryKey(["id", "slug"] as const)]
+const badUsersClassOptions: typeof BadUsersClass[typeof Table.options] = [Table.primaryKey(["id", "slug"])]
 void badUsersClassOptions
 
 const manager = Table.alias(users, "manager")

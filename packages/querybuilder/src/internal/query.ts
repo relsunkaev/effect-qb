@@ -9,8 +9,10 @@ import type { JsonNode } from "./json/ast.js"
 import type * as JsonPath from "./json/path.js"
 import type { QueryCapability } from "./query-requirements.js"
 import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./case-analysis.js"
-import type { GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate-analysis.js"
+import type { ContradictsFormula, GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate-analysis.js"
+import type { ColumnKeyOfExpression } from "./predicate-key.js"
 import type { PredicateFormula, TrueFormula } from "./predicate-formula.js"
+import { trueFormula } from "./predicate-runtime.js"
 
 export type {
   MergeCapabilities,
@@ -416,7 +418,7 @@ export type ExtractDialect<Selection> = Selection extends Expression.Any
  * The query layer only needs the plan metadata and the static table name. It
  * deliberately avoids depending on the full table-definition surface.
  */
-export type TableLike<Name extends string = string, Dialect extends string = string> = Plan.Plan<any, any, Record<string, Plan.Source>, Dialect> & {
+export type TableLike<Name extends string = string, Dialect extends string = string> = Plan.Plan<any, any, Record<string, Plan.AnySource>, Dialect> & {
   readonly [Table.TypeId]: {
     readonly name: Name
     readonly baseName: string
@@ -994,10 +996,10 @@ export type TableNameOf<T extends TableLike> = T[typeof Table.TypeId]["name"]
 /** Extracts the effective dialect from a table-like value. */
 export type TableDialectOf<T extends TableLike> = T[typeof Plan.TypeId]["dialect"]
 /** Names of sources already available to a plan. */
-type AvailableNames<Available extends Record<string, Plan.Source>> = Extract<keyof Available, string>
+type AvailableNames<Available extends Record<string, Plan.AnySource>> = Extract<keyof Available, string>
 /** Availability mode of a named source within the current plan scope. */
 type SourceModeOf<
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Name extends string
 > = Name extends keyof Available ? Available[Name]["mode"] : never
 type TrueAssumptions = TrueFormula
@@ -1044,23 +1046,46 @@ export type MutationTargetOfPlan<PlanValue extends QueryPlan<any, any, any, any,
 export type InsertSourceStateOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, infer InsertState> ? InsertState : "ready"
 
+type PresenceWitnessKeysOfSelection<Selection> = Selection extends Expression.Any
+  ? AstOf<Selection> extends ExpressionAst.ColumnNode<any, any>
+    ? Expression.NullabilityOf<Selection> extends "never"
+      ? ColumnKeyOfExpression<Selection>
+      : never
+    : never
+  : Selection extends Record<string, any>
+    ? {
+        readonly [K in keyof Selection]: PresenceWitnessKeysOfSelection<Selection[K]>
+      }[keyof Selection]
+    : never
+
+export type PresenceWitnessKeysOfSource<Source extends SourceLike> =
+  Source extends TableLike<any, any>
+    ? PresenceWitnessKeysOfSelection<Source[typeof Plan.TypeId]["selection"]>
+    : Source extends { readonly columns: infer Columns }
+      ? PresenceWitnessKeysOfSelection<Columns>
+      : never
+
 /**
  * Adds a single source entry to the set of available sources.
  *
  * This is used by `from(...)` and the join builders.
  */
 export type AddAvailable<
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Name extends string,
-  Mode extends Plan.SourceMode = "required"
-> = Available & Record<Name, Plan.Source<Name, Mode>>
+  Mode extends Plan.SourceMode = "required",
+  PresentFormula extends PredicateFormula = TrueFormula,
+  PresenceWitness extends string = never
+> = Available & Record<Name, Plan.Source<Name, Mode, PresentFormula, PresenceWitness>>
 
 export type AddAvailableMany<
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Names extends string,
-  Mode extends Plan.SourceMode = "required"
+  Mode extends Plan.SourceMode = "required",
+  PresentFormula extends PredicateFormula = TrueFormula,
+  PresenceWitness extends string = never
 > = Available & {
-  readonly [K in Names]: Plan.Source<K, Mode>
+  readonly [K in Names]: Plan.Source<K, Mode, PresentFormula, PresenceWitness>
 }
 
 /** Join mode projected into the plan's source-scope mode lattice. */
@@ -1069,25 +1094,38 @@ export type JoinSourceMode<Kind extends QueryAst.JoinKind> = Kind extends "left"
   : "required"
 
 type DemoteAllAvailable<
-  Available extends Record<string, Plan.Source>
+  Available extends Record<string, Plan.AnySource>
 > = {
-  readonly [K in keyof Available]: Available[K] extends Plan.Source<infer Name extends string, any>
-    ? Plan.Source<Name, "optional">
+  readonly [K in keyof Available]: Available[K] extends Plan.Source<
+    infer Name extends string,
+    any,
+    infer PresentFormula extends PredicateFormula,
+    infer PresenceWitness extends string
+  >
+    ? Plan.Source<Name, "optional", PresentFormula, PresenceWitness>
     : never
 }
 
 export type ExistingAvailableAfterJoin<
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Kind extends QueryAst.JoinKind
 > = Kind extends "right" | "full"
   ? DemoteAllAvailable<Available>
   : Available
 
 export type AvailableAfterJoin<
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   JoinedName extends string,
-  Kind extends QueryAst.JoinKind
-> = AddAvailable<ExistingAvailableAfterJoin<Available, Kind>, JoinedName, JoinSourceMode<Kind>>
+  Kind extends QueryAst.JoinKind,
+  PresentFormula extends PredicateFormula = TrueFormula,
+  PresenceWitness extends string = never
+> = AddAvailable<
+  ExistingAvailableAfterJoin<Available, Kind>,
+  JoinedName,
+  JoinSourceMode<Kind>,
+  PresentFormula,
+  PresenceWitness
+>
 
 /**
  * Computes the next `required` set after introducing an additional expression.
@@ -1096,7 +1134,7 @@ export type AvailableAfterJoin<
  */
 export type AddExpressionRequired<
   Required,
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Value extends ExpressionInput
 > = Exclude<Required | RequiredFromInput<Value>, AvailableNames<Available>>
 
@@ -1108,7 +1146,7 @@ export type AddExpressionRequired<
  */
 export type AddJoinRequired<
   Required,
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   JoinedName extends string,
   Predicate extends PredicateInput | never,
   Kind extends QueryAst.JoinKind = "inner"
@@ -1243,7 +1281,7 @@ type MergeNullabilityStates<
 
 type FoldEffectiveNullability<
   Values extends readonly Expression.Any[],
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula
 > = Extract<{
   [K in keyof Values]: Values[K] extends Expression.Any ? EffectiveNullability<Values[K], Available, Assumptions> : never
@@ -1257,7 +1295,7 @@ type FoldEffectiveNullability<
 
 type CoalesceEffectiveNullability<
   Values extends readonly Expression.Any[],
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula
 > = Extract<{
   [K in keyof Values]: Values[K] extends Expression.Any ? EffectiveNullability<Values[K], Available, Assumptions> : never
@@ -1274,47 +1312,184 @@ type NullabilityOfOutput<Output> =
     ? Exclude<Output, null> extends never ? "always" : "maybe"
     : "never"
 
-type RequiredTablesFromAssumptions<Assumptions extends PredicateFormula> =
-  GuaranteedSourceNames<Assumptions>
+type PreciseFactSet<Value extends string> = string extends Value ? never : Value
+
+type KnownGuaranteedNullKeys<
+  Assumptions extends PredicateFormula
+> = PreciseFactSet<GuaranteedNullKeys<Assumptions>>
+
+type KnownGuaranteedNonNullKeys<
+  Assumptions extends PredicateFormula
+> = PreciseFactSet<GuaranteedNonNullKeys<Assumptions>>
+
+type KnownGuaranteedSourceNames<
+  Assumptions extends PredicateFormula
+> = PreciseFactSet<GuaranteedSourceNames<Assumptions>>
+
+type ExplicitlyRequiredSourceNames<
+  Available extends Record<string, Plan.AnySource>
+> = Extract<{
+  readonly [K in keyof Available]:
+    Available[K] extends Plan.Source<any, infer Mode extends Plan.SourceMode>
+      ? Mode extends "required" ? K : never
+      : never
+}[keyof Available], string>
+
+type PresentFormulaOfSource<Source extends Plan.AnySource> =
+  Source extends Plan.Source<any, any, infer PresentFormula extends PredicateFormula, any>
+    ? PresentFormula
+    : TrueFormula
+
+type PresenceWitnessesOfSource<Source extends Plan.AnySource> =
+  Source extends Plan.Source<any, any, any, infer PresenceWitness extends string>
+    ? PresenceWitness
+    : never
+
+type ImpliedSourceNamesFromRequired<
+  Available extends Record<string, Plan.AnySource>,
+  Required extends string
+> = Extract<{
+  readonly [K in Extract<keyof Available, string>]:
+    K extends Required
+      ? PreciseFactSet<GuaranteedSourceNames<PresentFormulaOfSource<Available[K]>>>
+      : never
+}[Extract<keyof Available, string>], string>
+
+type ExpandRequiredSourceNames<
+  Available extends Record<string, Plan.AnySource>,
+  Required extends string
+> = ExpandRequiredSourceNamesStep<
+  Available,
+  Required,
+  Required | ImpliedSourceNamesFromRequired<Available, Required>
+>
+
+type ExpandRequiredSourceNamesStep<
+  Available extends Record<string, Plan.AnySource>,
+  Current extends string,
+  Next extends string
+> = [Exclude<Next, Current>] extends [never]
+  ? Current
+  : ExpandRequiredSourceNames<Available, Next>
+
+type DirectlyAbsentSourceNames<
+  Available extends Record<string, Plan.AnySource>,
+  Assumptions extends PredicateFormula
+> = Extract<{
+  readonly [K in Extract<keyof Available, string>]:
+    K extends string
+      ? PresenceWitnessesOfSource<Available[K]> extends infer Witnesses extends string
+        ? Extract<Witnesses, KnownGuaranteedNullKeys<Assumptions>> extends never
+          ? ContradictsFormula<Assumptions, PresentFormulaOfSource<Available[K]>> extends true
+            ? K
+            : never
+          : K
+        : never
+      : never
+}[Extract<keyof Available, string>], string>
+
+type ImpliedAbsentSourceNames<
+  Available extends Record<string, Plan.AnySource>,
+  Absent extends string
+> = Extract<{
+  readonly [K in Extract<keyof Available, string>]:
+    Extract<PreciseFactSet<GuaranteedSourceNames<PresentFormulaOfSource<Available[K]>>>, Absent> extends never
+      ? never
+      : K
+}[Extract<keyof Available, string>], string>
+
+type ExpandAbsentSourceNames<
+  Available extends Record<string, Plan.AnySource>,
+  Current extends string
+> = ExpandAbsentSourceNamesStep<
+  Available,
+  Current,
+  Current | ImpliedAbsentSourceNames<Available, Current>
+>
+
+type ExpandAbsentSourceNamesStep<
+  Available extends Record<string, Plan.AnySource>,
+  Current extends string,
+  Next extends string
+> = [Exclude<Next, Current>] extends [never]
+  ? Current
+  : ExpandAbsentSourceNames<Available, Next>
+
+type AbsentSourceNamesInScope<
+  Available extends Record<string, Plan.AnySource>,
+  Assumptions extends PredicateFormula
+> = ExpandAbsentSourceNames<Available, DirectlyAbsentSourceNames<Available, Assumptions>>
+
+type RequiredSourceNamesInScope<
+  Available extends Record<string, Plan.AnySource>,
+  Assumptions extends PredicateFormula
+> = Exclude<
+  ExpandRequiredSourceNames<
+    Available,
+    ExplicitlyRequiredSourceNames<Available> | KnownGuaranteedSourceNames<Assumptions>
+  >,
+  AbsentSourceNamesInScope<Available, Assumptions>
+>
 
 type EffectiveAvailable<
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula
 > = {
   readonly [K in keyof Available]:
-    Available[K] extends Plan.Source<infer Name extends string, infer Mode extends Plan.SourceMode>
-      ? {
-          readonly name: Name
-          readonly mode: K extends RequiredTablesFromAssumptions<Assumptions> ? "required" : Mode
+    Available[K] extends Plan.Source<
+      infer Name extends string,
+      infer Mode extends Plan.SourceMode,
+      infer PresentFormula extends PredicateFormula,
+      infer PresenceWitness extends string
+    >
+      ? Plan.Source<
+          Name,
+          K extends RequiredSourceNamesInScope<Available, Assumptions> ? "required" : Mode,
+          PresentFormula,
+          PresenceWitness
+        > & {
           readonly baseName?: Available[K]["baseName"]
         }
       : never
 }
 
+type HasAbsentSource<
+  Dependencies extends Expression.SourceDependencies,
+  Available extends Record<string, Plan.AnySource>,
+  Assumptions extends PredicateFormula
+> = Extract<{
+  [K in keyof Dependencies & string]:
+    K extends AbsentSourceNamesInScope<Available, Assumptions> ? true : never
+}[keyof Dependencies & string], true> extends never ? false : true
+
 type BaseEffectiveNullability<
   Value extends Expression.Any,
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula
 > = AstOf<Value> extends ExpressionAst.ColumnNode<infer TableName extends string, infer ColumnName extends string>
-  ? `${TableName}.${ColumnName}` extends GuaranteedNullKeys<Assumptions>
+  ? TableName extends AbsentSourceNamesInScope<Available, Assumptions>
     ? "always"
-    : `${TableName}.${ColumnName}` extends GuaranteedNonNullKeys<Assumptions>
+    : `${TableName}.${ColumnName}` extends KnownGuaranteedNullKeys<Assumptions>
+    ? "always"
+    : `${TableName}.${ColumnName}` extends KnownGuaranteedNonNullKeys<Assumptions>
       ? "never"
       : Expression.NullabilityOf<Value> extends "always" ? "always"
         : Expression.SourceNullabilityOf<Value> extends "resolved"
           ? Expression.NullabilityOf<Value>
+        : HasAbsentSource<DependenciesOf<Value>, Available, Assumptions> extends true ? "always"
         : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
         : Expression.NullabilityOf<Value>
   : Expression.NullabilityOf<Value> extends "always" ? "always"
     : Expression.SourceNullabilityOf<Value> extends "resolved"
       ? Expression.NullabilityOf<Value>
+      : HasAbsentSource<DependenciesOf<Value>, Available, Assumptions> extends true ? "always"
       : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
       : Expression.NullabilityOf<Value>
 
 type CaseOutputOf<
   Branches extends readonly ExpressionAst.CaseBranchNode[],
   Else extends Expression.Any,
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula
 > = Branches extends readonly [
   infer Head extends ExpressionAst.CaseBranchNode,
@@ -1333,7 +1508,7 @@ type CaseOutputOf<
 /** Effective nullability of an expression after source-scope nullability is applied. */
 export type EffectiveNullability<
   Value extends Expression.Any,
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > =
   AstOf<Value> extends infer Ast extends ExpressionAst.Any
@@ -1365,7 +1540,7 @@ export type EffectiveNullability<
 /** Result runtime type of an expression after effective nullability is resolved. */
 export type ExpressionOutput<
   Value extends Expression.Any,
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > = AstOf<Value> extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
   ? CaseOutputOf<Branches, Else, Available, Assumptions>
@@ -1380,7 +1555,7 @@ export type ExpressionOutput<
 /** Result runtime type of a nested selection after source-scope nullability is resolved. */
 export type OutputOfSelection<
   Selection,
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > = Selection extends Expression.Any
   ? ExpressionOutput<Selection, Available, Assumptions>
@@ -1593,7 +1768,7 @@ export type SetCompatibleRightPlan<
 /** True when any of an expression's dependencies are optional in the current scope. */
 type HasOptionalSource<
   Dependencies extends Expression.SourceDependencies,
-  Available extends Record<string, Plan.Source>
+  Available extends Record<string, Plan.AnySource>
 > = Extract<{
   [K in keyof Dependencies & string]: SourceModeOf<Available, K> extends "optional" ? true : never
 }[keyof Dependencies & string], true> extends never ? false : true
@@ -1608,7 +1783,7 @@ type HasOptionalSource<
 export type QueryPlan<
   Selection,
   Required = never,
-  Available extends Record<string, Plan.Source> = {},
+  Available extends Record<string, Plan.AnySource> = {},
   Dialect extends string = never,
   Grouped extends string = never,
   ScopedNames extends string = Extract<keyof Available, string>,
@@ -1751,7 +1926,7 @@ export const makeExpression = <
 export const makePlan = <
   Selection,
   Required,
-  Available extends Record<string, Plan.Source>,
+  Available extends Record<string, Plan.AnySource>,
   Dialect extends string,
   Grouped extends string = never,
   ScopedNames extends string = Extract<keyof Available, string>,
@@ -1777,7 +1952,7 @@ export const makePlan = <
     required: undefined as unknown as Outstanding,
     availableNames: undefined as unknown as ScopedNames,
     grouped: undefined as unknown as Grouped,
-    assumptions: undefined as unknown as Assumptions,
+    assumptions: ((_assumptions ?? trueFormula()) as Assumptions),
     capabilities: undefined as unknown as Capabilities,
     statement: (_statement ?? ("select" as Statement)) as Statement,
     target: (_target ?? (undefined as unknown as Target)) as Target,

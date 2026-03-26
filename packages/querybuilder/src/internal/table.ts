@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 
 import * as Plan from "./plan.js"
 import type { Any as AnyExpression } from "./expression.js"
+import type { TrueFormula } from "./predicate-formula.js"
 import type { BoundColumnFrom } from "./column-state.js"
 import { bindColumn, type AnyColumnDefinition } from "./column-state.js"
 import {
@@ -140,7 +141,7 @@ export type TableDefinition<
   readonly [Plan.TypeId]: Plan.State<
     BoundColumns<Name, Fields>,
     never,
-    Record<Name, Plan.Source<Name>>,
+    Record<Name, Plan.Source<Name, "required", TrueFormula>>,
     TableDialect<Fields>
   >
   readonly [OptionsSymbol]: readonly TableOptionSpec[]
@@ -148,7 +149,7 @@ export type TableDefinition<
 } & BoundColumns<Name, Fields> & Plan.Plan<
     BoundColumns<Name, Fields>,
     never,
-    Record<Name, Plan.Source<Name>>,
+    Record<Name, Plan.Source<Name, "required", TrueFormula>>,
     TableDialect<Fields>
   >
 
@@ -170,7 +171,7 @@ export type TableClassStatic<
   readonly [Plan.TypeId]: Plan.State<
     BoundColumns<Name, Fields>,
     never,
-    Record<Name, Plan.Source<Name>>,
+    Record<Name, Plan.Source<Name, "required", TrueFormula>>,
     TableDialect<Fields>
   >
   readonly [OptionsSymbol]: readonly TableOptionSpec[]
@@ -180,7 +181,7 @@ export type TableClassStatic<
 } & BoundColumns<Name, Fields> & Plan.Plan<
     BoundColumns<Name, Fields>,
     never,
-    Record<Name, Plan.Source<Name>>,
+    Record<Name, Plan.Source<Name, "required", TrueFormula>>,
     TableDialect<Fields>
   >
 
@@ -588,7 +589,7 @@ export function Class<
 
 /** Declares a table-level primary key. */
 export const primaryKey = <
-  Columns extends string | readonly string[]
+  const Columns extends string | readonly string[]
 >(
   columns: Columns
 ): TableOption<{
@@ -601,7 +602,7 @@ export const primaryKey = <
 
 /** Declares a table-level unique constraint. */
 export const unique = <
-  Columns extends string | readonly string[]
+  const Columns extends string | readonly string[]
 >(
   columns: Columns
 ): TableOption<{
@@ -614,7 +615,7 @@ export const unique = <
 
 /** Declares a table-level index. */
 export const index = <
-  Columns extends string | readonly string[]
+  const Columns extends string | readonly string[]
 >(
   columns: Columns
 ): TableOption<{
@@ -627,9 +628,9 @@ export const index = <
 
 /** Declares a table-level foreign key. */
 export const foreignKey = <
-  LocalColumns extends string | readonly string[],
+  const LocalColumns extends string | readonly string[],
   TargetTable extends AnyTable,
-  TargetColumns extends string | readonly string[]
+  const TargetColumns extends string | readonly string[]
 >(
   columns: LocalColumns,
   target: () => TargetTable,

@@ -7,7 +7,9 @@ const users = Table.make("users", {
 
 const posts = Table.make("posts", {
   id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid()
+  userId: C.uuid(),
+  status: C.text(),
+  title: C.text().pipe(C.nullable)
 })
 
 const havingPlan = Q.select({

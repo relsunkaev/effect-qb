@@ -57,7 +57,7 @@ describe("implication behavior", () => {
     ])
   })
 
-  test("runtime decoding stays conservative for implication-pruned branches", () => {
+  test("runtime decoding rejects impossible rows after implication pruning", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey)
     })
@@ -83,7 +83,7 @@ describe("implication behavior", () => {
       ))
     )
 
-    const rows = Effect.runSync(Executor.make({
+    const error = Effect.runSync(Effect.flip(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           userId,
@@ -91,18 +91,19 @@ describe("implication behavior", () => {
           titleState: "missing"
         }
       ]))
-    }).execute(plan)) as ReadonlyArray<unknown>
+    }).execute(plan)))
 
-    expect(rows).toEqual([
-      {
-        userId,
-        postId: null,
-        titleState: "missing"
-      }
-    ])
+    expect(error).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "postId"
+      },
+      raw: null
+    })
   })
 
-  test("runtime decoding stays conservative for always-null proofs", () => {
+  test("runtime decoding rejects non-null payloads for always-null proofs", () => {
     const posts = Table.make("posts", {
       id: C.uuid().pipe(C.primaryKey),
       userId: C.uuid(),
@@ -117,21 +118,23 @@ describe("implication behavior", () => {
       Q.where(Q.isNull(posts.title))
     )
 
-    const rows = Effect.runSync(Executor.make({
+    const error = Effect.runSync(Effect.flip(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           title: "hello",
           upperTitle: "HELLO"
         }
       ]))
-    }).execute(plan)) as ReadonlyArray<unknown>
+    }).execute(plan)))
 
-    expect(rows).toEqual([
-      {
-        title: "hello",
-        upperTitle: "HELLO"
-      }
-    ])
+    expect(error).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "title"
+      },
+      raw: "hello"
+    })
   })
 
   test("renderer stays schema-free for implication-heavy plans while preserving projection metadata", () => {
@@ -173,5 +176,136 @@ describe("implication behavior", () => {
         path: ["label"]
       }
     ])
+  })
+
+  test("runtime decoding prunes equality-proven case branches", () => {
+    const posts = Table.make("posts", {
+      id: C.uuid().pipe(C.primaryKey),
+      status: C.text()
+    })
+
+    const plan = Q.select({
+      label: Q.case()
+        .when(Q.eq(posts.status, "draft"), 1)
+        .else(2)
+    }).pipe(
+      Q.from(posts),
+      Q.where(Q.eq(posts.status, "draft"))
+    )
+
+    const error = Effect.runSync(Effect.flip(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          label: 2
+        }
+      ]))
+    }).execute(plan)))
+
+    expect(error).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "label"
+      },
+      raw: 2
+    })
+  })
+
+  test("isNull collapses dependent left joins to always-null projections", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey)
+    })
+
+    const posts = Table.make("posts", {
+      id: C.uuid().pipe(C.primaryKey),
+      userId: C.uuid(),
+      title: C.text().pipe(C.nullable)
+    })
+
+    const comments = Table.make("comments", {
+      id: C.uuid().pipe(C.primaryKey),
+      postId: C.uuid(),
+      body: C.text()
+    })
+
+    const plan = Q.select({
+      userId: users.id,
+      postId: posts.id,
+      postTitle: posts.title,
+      commentId: comments.id,
+      commentBody: comments.body
+    }).pipe(
+      Q.from(users),
+      Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+      Q.leftJoin(comments, Q.eq(posts.id, comments.postId)),
+      Q.where(Q.isNull(posts.id))
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          userId,
+          postId: null,
+          postTitle: null,
+          commentId: null,
+          commentBody: null
+        }
+      ]))
+    }).execute(plan)) as ReadonlyArray<unknown>
+
+    expect(rows).toEqual([
+      {
+        userId,
+        postId: null,
+        postTitle: null,
+        commentId: null,
+        commentBody: null
+      }
+    ])
+  })
+
+  test("isNull rejects non-null payloads from dependent left joins", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey)
+    })
+
+    const posts = Table.make("posts", {
+      id: C.uuid().pipe(C.primaryKey),
+      userId: C.uuid()
+    })
+
+    const comments = Table.make("comments", {
+      id: C.uuid().pipe(C.primaryKey),
+      postId: C.uuid(),
+      body: C.text()
+    })
+
+    const plan = Q.select({
+      userId: users.id,
+      commentId: comments.id
+    }).pipe(
+      Q.from(users),
+      Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+      Q.leftJoin(comments, Q.eq(posts.id, comments.postId)),
+      Q.where(Q.isNull(posts.id))
+    )
+
+    const error = Effect.runSync(Effect.flip(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          userId,
+          commentId: postId
+        }
+      ]))
+    }).execute(plan)))
+
+    expect(error).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "commentId"
+      },
+      raw: postId
+    })
   })
 })

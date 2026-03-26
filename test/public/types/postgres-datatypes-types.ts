@@ -7,6 +7,17 @@ const users = Table.make("users", {
   email: C.text()
 })
 
+const status = Pg.enum("status", ["pending", "active"])
+const scopedStatus = Pg.schema("public").enum("status", ["pending", "active"])
+type StatusValues = typeof status.values
+type ScopedStatusValues = typeof scopedStatus.values
+const statusValues: StatusValues = ["pending", "active"]
+const scopedStatusValues: ScopedStatusValues = ["pending", "active"]
+void status
+void scopedStatus
+void statusValues
+void scopedStatusValues
+
 const builtinColumns = Table.make("builtin_columns", {
   shortName: C.varchar(32),
   code: C.char(1),

@@ -18,6 +18,29 @@ export type DdlExpression = Expression.Any | SchemaExpression.Any
 /** Lazy reference to another bound column. */
 export interface ColumnReference<Target = unknown> {
   readonly target: () => Target
+  readonly name?: string
+  readonly onUpdate?: "noAction" | "restrict" | "cascade" | "setNull" | "setDefault"
+  readonly onDelete?: "noAction" | "restrict" | "cascade" | "setNull" | "setDefault"
+  readonly deferrable?: boolean
+  readonly initiallyDeferred?: boolean
+}
+
+/** Inline single-column index metadata. */
+export interface ColumnIndexOptions {
+  readonly name?: string
+  readonly method?: string
+  readonly include?: readonly string[]
+  readonly predicate?: DdlExpression
+  readonly order?: "asc" | "desc"
+  readonly nulls?: "first" | "last"
+}
+
+/** Inline single-column unique-constraint metadata. */
+export interface ColumnUniqueOptions {
+  readonly name?: string
+  readonly nullsNotDistinct?: boolean
+  readonly deferrable?: boolean
+  readonly initiallyDeferred?: boolean
 }
 
 /** Complete static state tracked for a column definition. */
@@ -45,11 +68,18 @@ export interface ColumnState<
   readonly primaryKey: PrimaryKey
   readonly unique: Unique
   readonly references: Ref
+  readonly index?: ColumnIndexOptions
+  readonly uniqueConstraint?: ColumnUniqueOptions
   readonly defaultValue?: DdlExpression
   readonly generatedValue?: DdlExpression
   readonly ddlType?: string
   readonly identity?: {
     readonly generation: "always" | "byDefault"
+  }
+  readonly enum?: {
+    readonly name: string
+    readonly schemaName?: string
+    readonly values: readonly [string, ...string[]]
   }
   readonly source: Source
   readonly dependencies: Dependencies
@@ -102,11 +132,18 @@ export interface ColumnDefinition<
     readonly primaryKey: PrimaryKey
     readonly unique: Unique
     readonly references: Ref
+    readonly index?: ColumnIndexOptions
+    readonly uniqueConstraint?: ColumnUniqueOptions
     readonly defaultValue?: DdlExpression
     readonly generatedValue?: DdlExpression
     readonly ddlType?: string
     readonly identity?: {
       readonly generation: "always" | "byDefault"
+    }
+    readonly enum?: {
+      readonly name: string
+      readonly schemaName?: string
+      readonly values: readonly [string, ...string[]]
     }
   }
 }
@@ -268,6 +305,7 @@ export const makeColumnDefinition = <
     generatedValue: metadata.generatedValue,
     ddlType: metadata.ddlType,
     identity: metadata.identity,
+    enum: metadata.enum,
     source: undefined as Source,
     dependencies: {} as Dependencies
   }
@@ -361,7 +399,8 @@ export const remapColumnDefinition = <
     defaultValue: metadata.defaultValue,
     generatedValue: metadata.generatedValue,
     ddlType: metadata.ddlType,
-    identity: metadata.identity
+    identity: metadata.identity,
+    enum: metadata.enum
   }
   if (ExpressionAst.TypeId in column) {
     next[ExpressionAst.TypeId] = (column as unknown as {

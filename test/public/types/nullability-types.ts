@@ -104,6 +104,61 @@ void fallbackComment
 void optionalUserId
 void nullFallbackComment
 
+const promotedAcrossTwoLeftJoins = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  commentId: comments.id,
+  commentBody: comments.body
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.leftJoin(comments, Q.eq(posts.id, comments.postId)),
+  Q.where(Q.isNotNull(comments.id))
+)
+
+type PromotedAcrossTwoLeftJoinsRow = Q.ResultRow<typeof promotedAcrossTwoLeftJoins>
+const promotedAcrossTwoJoinsUserId: PromotedAcrossTwoLeftJoinsRow["userId"] = "user-id"
+const promotedAcrossTwoJoinsPostId: PromotedAcrossTwoLeftJoinsRow["postId"] = "post-id"
+const promotedAcrossTwoJoinsCommentId: PromotedAcrossTwoLeftJoinsRow["commentId"] = "comment-id"
+const promotedAcrossTwoJoinsCommentBody: PromotedAcrossTwoLeftJoinsRow["commentBody"] = "body"
+// @ts-expect-error deepest join presence should also promote intermediate join sources
+const promotedAcrossTwoJoinsNullPostId: PromotedAcrossTwoLeftJoinsRow["postId"] = null
+// @ts-expect-error deepest join presence should promote the deepest joined source itself
+const promotedAcrossTwoJoinsNullCommentId: PromotedAcrossTwoLeftJoinsRow["commentId"] = null
+void promotedAcrossTwoJoinsUserId
+void promotedAcrossTwoJoinsPostId
+void promotedAcrossTwoJoinsCommentId
+void promotedAcrossTwoJoinsCommentBody
+void promotedAcrossTwoJoinsNullPostId
+void promotedAcrossTwoJoinsNullCommentId
+
+const promotedFromRequiredDeepJoin = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  commentId: comments.id,
+  commentBody: comments.body
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.innerJoin(comments, Q.eq(posts.id, comments.postId))
+)
+
+type PromotedFromRequiredDeepJoinRow = Q.ResultRow<typeof promotedFromRequiredDeepJoin>
+const promotedFromRequiredDeepJoinUserId: PromotedFromRequiredDeepJoinRow["userId"] = "user-id"
+const promotedFromRequiredDeepJoinPostId: PromotedFromRequiredDeepJoinRow["postId"] = "post-id"
+const promotedFromRequiredDeepJoinCommentId: PromotedFromRequiredDeepJoinRow["commentId"] = "comment-id"
+const promotedFromRequiredDeepJoinCommentBody: PromotedFromRequiredDeepJoinRow["commentBody"] = "body"
+// @ts-expect-error required downstream joins should also promote optional upstream join sources
+const promotedFromRequiredDeepJoinNullPostId: PromotedFromRequiredDeepJoinRow["postId"] = null
+// @ts-expect-error inner joins should keep the joined source itself non-null
+const promotedFromRequiredDeepJoinNullCommentId: PromotedFromRequiredDeepJoinRow["commentId"] = null
+void promotedFromRequiredDeepJoinUserId
+void promotedFromRequiredDeepJoinPostId
+void promotedFromRequiredDeepJoinCommentId
+void promotedFromRequiredDeepJoinCommentBody
+void promotedFromRequiredDeepJoinNullPostId
+void promotedFromRequiredDeepJoinNullCommentId
+
 const filteredOptionalSource = Q.select({
   userId: users.id,
   postId: posts.id,
@@ -133,6 +188,40 @@ void filteredUpperPostTitle
 void filteredNullPostId
 void filteredNullPostTitle
 void filteredNullUpperPostTitle
+
+const absentAcrossDependentLeftJoins = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  postTitle: posts.title,
+  commentId: comments.id,
+  commentBody: comments.body
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.leftJoin(comments, Q.eq(posts.id, comments.postId)),
+  Q.where(Q.isNull(posts.id))
+)
+
+type AbsentAcrossDependentLeftJoinsRow = Q.ResultRow<typeof absentAcrossDependentLeftJoins>
+const absentAcrossDependentUserId: AbsentAcrossDependentLeftJoinsRow["userId"] = "user-id"
+const absentAcrossDependentPostId: AbsentAcrossDependentLeftJoinsRow["postId"] = null
+const absentAcrossDependentPostTitle: AbsentAcrossDependentLeftJoinsRow["postTitle"] = null
+const absentAcrossDependentCommentId: AbsentAcrossDependentLeftJoinsRow["commentId"] = null
+const absentAcrossDependentCommentBody: AbsentAcrossDependentLeftJoinsRow["commentBody"] = null
+// @ts-expect-error isNull on the parent optional join should collapse that source to null
+const absentAcrossDependentBadPostId: AbsentAcrossDependentLeftJoinsRow["postId"] = "post-id"
+// @ts-expect-error dependent left joins should also collapse to null
+const absentAcrossDependentBadCommentId: AbsentAcrossDependentLeftJoinsRow["commentId"] = "comment-id"
+// @ts-expect-error non-null comment payloads should collapse with the absent source
+const absentAcrossDependentBadCommentBody: AbsentAcrossDependentLeftJoinsRow["commentBody"] = "body"
+void absentAcrossDependentUserId
+void absentAcrossDependentPostId
+void absentAcrossDependentPostTitle
+void absentAcrossDependentCommentId
+void absentAcrossDependentCommentBody
+void absentAcrossDependentBadPostId
+void absentAcrossDependentBadCommentId
+void absentAcrossDependentBadCommentBody
 
 const searchedCasePlan = Q.select({
   userId: users.id,

@@ -79,6 +79,104 @@ type FormulaOfEq<
         : UnknownTag<"eq:unsupported">
       : AtomOf<import("./predicate-atom.js").EqColumnAtom<ColumnKeyOfExpression<Left>, ColumnKeyOfExpression<Right>>>
 
+type FormulaOfNeq<
+  Left extends Expression.Any,
+  Right extends Expression.Any
+> =
+  [ColumnKeyOfExpression<Left>] extends [never]
+    ? [ColumnKeyOfExpression<Right>] extends [never]
+      ? LiteralValueOfExpression<Left> extends infer LeftLiteral
+        ? LiteralValueOfExpression<Right> extends infer RightLiteral
+          ? [LeftLiteral] extends [never]
+            ? UnknownTag<"neq:unsupported">
+            : [RightLiteral] extends [never]
+              ? UnknownTag<"neq:unsupported">
+              : LeftLiteral extends null
+                ? False
+                : RightLiteral extends null
+                  ? False
+                  : [LeftLiteral] extends [RightLiteral]
+                    ? False
+                    : True
+          : UnknownTag<"neq:unsupported">
+        : UnknownTag<"neq:unsupported">
+      : LiteralValueOfExpression<Left> extends infer LeftLiteral
+        ? [LeftLiteral] extends [never]
+          ? UnknownTag<"neq:unsupported">
+          : LeftLiteral extends null
+            ? False
+            : AtomOf<NeqLiteralAtom<ColumnKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
+        : UnknownTag<"neq:unsupported">
+    : [ColumnKeyOfExpression<Right>] extends [never]
+      ? LiteralValueOfExpression<Right> extends infer RightLiteral
+        ? [RightLiteral] extends [never]
+          ? UnknownTag<"neq:unsupported">
+          : RightLiteral extends null
+            ? False
+            : AtomOf<NeqLiteralAtom<ColumnKeyOfExpression<Left>, ValueKey<RightLiteral>>>
+        : UnknownTag<"neq:unsupported">
+      : CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
+
+type FormulaOfIsNotDistinctFrom<
+  Left extends Expression.Any,
+  Right extends Expression.Any
+> =
+  LiteralValueOfExpression<Left> extends infer LeftLiteral
+    ? LiteralValueOfExpression<Right> extends infer RightLiteral
+      ? [LeftLiteral] extends [never]
+        ? [RightLiteral] extends [never]
+          ? UnknownTag<"isNotDistinctFrom:unsupported">
+          : RightLiteral extends null
+            ? [ColumnKeyOfExpression<Left>] extends [never]
+              ? UnknownTag<"isNotDistinctFrom:unsupported">
+              : AtomOf<NullAtom<ColumnKeyOfExpression<Left>>>
+            : UnknownTag<"isNotDistinctFrom:unsupported">
+        : LeftLiteral extends null
+          ? [ColumnKeyOfExpression<Right>] extends [never]
+            ? UnknownTag<"isNotDistinctFrom:unsupported">
+            : AtomOf<NullAtom<ColumnKeyOfExpression<Right>>>
+          : RightLiteral extends null
+            ? [ColumnKeyOfExpression<Left>] extends [never]
+              ? UnknownTag<"isNotDistinctFrom:unsupported">
+              : AtomOf<NullAtom<ColumnKeyOfExpression<Left>>>
+            : [ColumnKeyOfExpression<Left>] extends [never]
+              ? [ColumnKeyOfExpression<Right>] extends [never]
+                ? CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
+                : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
+              : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Left>, ValueKey<RightLiteral>>>
+      : UnknownTag<"isNotDistinctFrom:unsupported">
+    : UnknownTag<"isNotDistinctFrom:unsupported">
+
+type OrFormulas<
+  Items extends readonly PredicateFormula[]
+> = import("./predicate-formula.js").NormalizeBooleanConstants<AnyFormula<Items>>
+
+type AndFormulas<
+  Items extends readonly PredicateFormula[]
+> = import("./predicate-formula.js").NormalizeBooleanConstants<AllFormula<Items>>
+
+type FormulaOfInValues<
+  Left extends Expression.Any,
+  Values extends readonly Expression.Any[],
+  Current extends readonly PredicateFormula[] = []
+> = Values extends readonly [
+  infer Head extends Expression.Any,
+  ...infer Tail extends readonly Expression.Any[]
+]
+  ? FormulaOfInValues<Left, Tail, [...Current, FormulaOfEq<Left, Head>]>
+  : Current
+
+type FormulaOfNotInValues<
+  Left extends Expression.Any,
+  Values extends readonly Expression.Any[],
+  Current extends readonly PredicateFormula[] = []
+> = Values extends readonly [
+  infer Head extends Expression.Any,
+  ...infer Tail extends readonly Expression.Any[]
+]
+  ? FormulaOfNotInValues<Left, Tail, [...Current, FormulaOfNeq<Left, Head>]>
+  : Current
+
 type FormulaOfVariadic<
   Kind extends ExpressionAst.VariadicKind,
   Values extends readonly Expression.Any[]
@@ -90,12 +188,20 @@ type FormulaOfVariadic<
     ? import("./predicate-formula.js").NormalizeBooleanConstants<import("./predicate-formula.js").AnyFormula<{
         readonly [K in keyof Values]: Values[K] extends Expression.Any ? FormulaOfExpression<Values[K]> : never
       } & readonly PredicateFormula[]>>
-    : Kind extends "in" | "notIn" | "between"
-      ? FactsOfExpressions<Values> extends infer Facts extends PredicateFormula
-        ? [Facts] extends [never]
-          ? UnknownTag<`variadic:${Kind}`>
-          : Facts
-        : UnknownTag<`variadic:${Kind}`>
+    : Kind extends "in"
+      ? Values extends readonly [infer Left extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
+        ? OrFormulas<FormulaOfInValues<Left, Tail>>
+        : False
+      : Kind extends "notIn"
+        ? Values extends readonly [infer Left extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
+          ? AndFormulas<FormulaOfNotInValues<Left, Tail>>
+          : True
+        : Kind extends "between"
+          ? FactsOfExpressions<Values> extends infer Facts extends PredicateFormula
+            ? [Facts] extends [never]
+              ? UnknownTag<"variadic:between">
+              : CombineFacts<Facts, UnknownTag<"variadic:between">>
+            : UnknownTag<"variadic:between">
     : UnknownTag<`variadic:${Kind}`>
 
 export type FormulaOfExpression<Value extends Expression.Any> =
@@ -121,62 +227,12 @@ export type FormulaOfExpression<Value extends Expression.Any> =
         : Ast extends ExpressionAst.BinaryNode<"eq", infer Left extends Expression.Any, infer Right extends Expression.Any>
           ? FormulaOfEq<Left, Right>
           : Ast extends ExpressionAst.BinaryNode<"neq", infer Left extends Expression.Any, infer Right extends Expression.Any>
-            ? Left extends Expression.Any
-              ? Right extends Expression.Any
-                ? [ColumnKeyOfExpression<Left>] extends [never]
-                  ? [ColumnKeyOfExpression<Right>] extends [never]
-                    ? LiteralValueOfExpression<Left> extends infer LeftLiteral
-                      ? LiteralValueOfExpression<Right> extends infer RightLiteral
-                        ? [LeftLiteral] extends [never]
-                          ? UnknownTag<"neq:unsupported">
-                          : [RightLiteral] extends [never]
-                            ? UnknownTag<"neq:unsupported">
-                            : LeftLiteral extends null
-                              ? False
-                              : RightLiteral extends null
-                                ? False
-                                : [LeftLiteral] extends [RightLiteral]
-                                  ? False
-                                  : True
-                        : UnknownTag<"neq:unsupported">
-                      : UnknownTag<"neq:unsupported">
-                    : CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
-                  : CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
-                : UnknownTag<"neq:unsupported">
-              : UnknownTag<"neq:unsupported">
+            ? FormulaOfNeq<Left, Right>
             : Ast extends ExpressionAst.BinaryNode<infer Kind extends "lt" | "lte" | "gt" | "gte" | "like" | "ilike" | "isDistinctFrom" | "isNotDistinctFrom" | "contains" | "containedBy" | "overlaps", infer Left extends Expression.Any, infer Right extends Expression.Any>
               ? Kind extends "isNotDistinctFrom"
-                ? Left extends Expression.Any
-                  ? Right extends Expression.Any
-                    ? LiteralValueOfExpression<Left> extends infer LeftLiteral
-                      ? LiteralValueOfExpression<Right> extends infer RightLiteral
-                        ? [LeftLiteral] extends [never]
-                          ? [RightLiteral] extends [never]
-                            ? UnknownTag<"isNotDistinctFrom:unsupported">
-                            : RightLiteral extends null
-                              ? [ColumnKeyOfExpression<Left>] extends [never]
-                                ? UnknownTag<"isNotDistinctFrom:unsupported">
-                                : AtomOf<NullAtom<ColumnKeyOfExpression<Left>>>
-                              : UnknownTag<"isNotDistinctFrom:unsupported">
-                          : LeftLiteral extends null
-                            ? [ColumnKeyOfExpression<Right>] extends [never]
-                              ? UnknownTag<"isNotDistinctFrom:unsupported">
-                              : AtomOf<NullAtom<ColumnKeyOfExpression<Right>>>
-                            : RightLiteral extends null
-                              ? [ColumnKeyOfExpression<Left>] extends [never]
-                                ? UnknownTag<"isNotDistinctFrom:unsupported">
-                                : AtomOf<NullAtom<ColumnKeyOfExpression<Left>>>
-                              : [ColumnKeyOfExpression<Left>] extends [never]
-                                ? [ColumnKeyOfExpression<Right>] extends [never]
-                                  ? CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
-                                  : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
-                                : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Left>, ValueKey<RightLiteral>>>
-                        : UnknownTag<"isNotDistinctFrom:unsupported">
-                      : UnknownTag<"isNotDistinctFrom:unsupported">
-                    : UnknownTag<"isNotDistinctFrom:unsupported">
-                  : UnknownTag<"isNotDistinctFrom:unsupported">
+                ? FormulaOfIsNotDistinctFrom<Left, Right>
                 : Kind extends "isDistinctFrom"
-                  ? UnknownTag<"isDistinctFrom:unsupported">
+                  ? import("./predicate-formula.js").Not<FormulaOfIsNotDistinctFrom<Left, Right>>
                   : CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
               : Ast extends ExpressionAst.VariadicNode<"and", infer Values extends readonly Expression.Any[]>
                 ? import("./predicate-formula.js").NormalizeBooleanConstants<import("./predicate-formula.js").AllFormula<{
@@ -187,7 +243,7 @@ export type FormulaOfExpression<Value extends Expression.Any> =
                       readonly [K in keyof Values]: Values[K] extends Expression.Any ? FormulaOfExpression<Values[K]> : never
                     } & readonly PredicateFormula[]>>
                   : Ast extends ExpressionAst.VariadicNode<infer Kind extends "in" | "notIn" | "between", infer Values extends readonly Expression.Any[]>
-                    ? CombineFacts<NonNullFactsOfExpression<Values[number]>, UnknownTag<`variadic:${Kind}`>>
+                    ? FormulaOfVariadic<Kind, Values>
                     : Ast extends ExpressionAst.BinaryNode<infer Kind extends ExpressionAst.BinaryKind, infer Left extends Expression.Any, infer Right extends Expression.Any>
                       ? Kind extends "eq"
                         ? FormulaOfEq<Left, Right>

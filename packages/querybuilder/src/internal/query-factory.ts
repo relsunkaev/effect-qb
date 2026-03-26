@@ -54,6 +54,7 @@ import {
   type OrderDirection,
   type OutstandingOfPlan,
   type PlanDialectOf,
+  type PresenceWitnessKeysOfSource,
   type PredicateInput,
   type QueryPlan,
   type OutputOfSelection,
@@ -99,6 +100,7 @@ import {
   type ResultRow
 } from "./query.js"
 import * as ExpressionAst from "./expression-ast.js"
+import { presenceWitnessesOfSourceLike } from "./implication-runtime.js"
 import type { JsonNode } from "./json/ast.js"
 import type { JsonPathUsageError } from "./json/errors.js"
 import * as JsonPath from "./json/path.js"
@@ -117,7 +119,9 @@ import type {
   NormalizeJsonLiteral
 } from "./json/types.js"
 import type { AssumeTrue } from "./predicate-analysis.js"
+import type { FormulaOfPredicate } from "./predicate-normalize.js"
 import type { TrueFormula } from "./predicate-formula.js"
+import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "./predicate-runtime.js"
 import { dedupeGroupedExpressions } from "./grouping-key.js"
 import { makeCteSource, makeDerivedSource, makeLateralSource } from "./derived-table.js"
 import * as ProjectionAlias from "./projection-alias.js"
@@ -246,6 +250,19 @@ type DialectDbTypeOfInput<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = Expression.DbTypeOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+
+type JoinPresenceFormula<
+  Kind extends QueryAst.JoinKind,
+  Predicate extends PredicateInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Kind extends "inner" | "left"
+  ? FormulaOfPredicate<DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+  : TrueFormula
 
 type ComparableInput<
   Left extends ExpressionInput,
@@ -758,7 +775,7 @@ type DialectStringExpressionTuple<
 }
 
 /** Names of sources already available to a plan. */
-type AvailableNames<Available extends Record<string, Plan.Source>> = Extract<keyof Available, string>
+type AvailableNames<Available extends Record<string, Plan.AnySource>> = Extract<keyof Available, string>
 
 type PlanAssumptionsAfterWhere<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
@@ -773,6 +790,37 @@ type PlanAssumptionsAfterWhere<
   AssumptionsOfPlan<PlanValue>,
   DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 >
+
+type PlanAssumptionsAfterHaving<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  Predicate extends HavingPredicateInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = AssumeTrue<
+  AssumptionsOfPlan<PlanValue>,
+  DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+>
+
+type PlanAssumptionsAfterJoin<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  Predicate extends PredicateInput,
+  Kind extends QueryAst.JoinKind,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Kind extends "inner"
+  ? AssumeTrue<
+      AssumptionsOfPlan<PlanValue>,
+      DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    >
+  : AssumptionsOfPlan<PlanValue>
 
 type ScalarSubqueryInput<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
@@ -4182,10 +4230,12 @@ type DdlColumnInput = string | readonly string[]
 type NormalizeDdlColumns<Columns extends DdlColumnInput> =
   Columns extends readonly [infer Head extends string, ...infer Tail extends string[]]
     ? readonly [Head, ...Tail]
+    : Columns extends [infer Head extends string, ...infer Tail extends string[]]
+      ? readonly [Head, ...Tail]
     : Columns extends readonly string[]
-      ? Columns extends readonly [string, ...string[]]
-        ? Columns
-        : never
+      ? Columns[number] extends never
+        ? never
+        : readonly [Columns[number], ...Columns[number][]]
       : Columns extends string
         ? readonly [Columns]
         : never
@@ -4564,7 +4614,7 @@ type AstOf<Value extends Expression.Any> =
     ? Ast
     : never
 
-type AvailableNames<Available extends Record<string, Plan.Source>> = Extract<keyof Available, string>
+type AvailableNames<Available extends Record<string, Plan.AnySource>> = Extract<keyof Available, string>
 
 type RequiredFromInput<Value extends ExpressionInput> =
   Value extends Expression.Any
@@ -4622,7 +4672,7 @@ type SelectFromResult<
 > = QueryPlan<
   SelectionOfPlan<PlanValue>,
   Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-  AddAvailable<{}, SourceNameOf<CurrentSource>>,
+  AddAvailable<{}, SourceNameOf<CurrentSource>, "required", TrueFormula, PresenceWitnessKeysOfSource<CurrentSource>>,
   PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
   GroupedOfPlan<PlanValue>,
   SourceNameOf<CurrentSource>,
@@ -4638,7 +4688,13 @@ type UpdateFromResult<
 > = QueryPlan<
   SelectionOfPlan<PlanValue>,
   Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-  AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
+  AddAvailable<
+    AvailableOfPlan<PlanValue>,
+    SourceNameOf<CurrentSource>,
+    "required",
+    TrueFormula,
+    PresenceWitnessKeysOfSource<CurrentSource>
+  >,
   PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
   GroupedOfPlan<PlanValue>,
   ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentSource>,
@@ -4713,7 +4769,7 @@ type FromPlanResult<
 
 type MergeRequiredFromPredicate<
   Predicate extends PredicateInput | undefined,
-  Available extends Record<string, Plan.Source>
+  Available extends Record<string, Plan.AnySource>
 > = Predicate extends PredicateInput ? AddExpressionRequired<never, Available, Predicate> : never
 
 type AsCurriedInput<Dialect extends string> =
@@ -5341,7 +5397,10 @@ type AsCurriedResult<
           predicate: predicateExpression
         }]
       },
-      undefined as unknown as PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      assumeFormulaTrue(
+        currentQuery.assumptions,
+        formulaOfExpressionRuntime(predicateExpression)
+      ) as PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       currentQuery.capabilities,
       currentQuery.statement as StatementOfPlan<PlanValue>)
     }
@@ -5374,6 +5433,7 @@ type AsCurriedResult<
 
       const sourceLike = source as SourceLike
       const { sourceName, sourceBaseName } = sourceDetails(sourceLike)
+      const presenceWitnesses = presenceWitnessesOfSourceLike(sourceLike)
 
       if (currentQuery.statement === "select") {
         const nextAst = {
@@ -5393,9 +5453,11 @@ type AsCurriedResult<
             [sourceName]: {
               name: sourceName,
               mode: "required",
-              baseName: sourceBaseName
+              baseName: sourceBaseName,
+              _presentFormula: trueFormula(),
+              _presenceWitnesses: presenceWitnesses
             }
-          } as AddAvailable<{}, string>,
+          } as AddAvailable<{}, string, "required", TrueFormula, PresenceWitnessKeysOfSource<Extract<CurrentSource, SourceLike>>>,
           dialect: current.dialect
         }, nextAst, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement) as FromPlanResult<PlanValue, CurrentSource, Dialect>
       }
@@ -5406,7 +5468,9 @@ type AsCurriedResult<
           [sourceName]: {
             name: sourceName,
             mode: "required" as const,
-            baseName: sourceBaseName
+            baseName: sourceBaseName,
+            _presentFormula: trueFormula(),
+            _presenceWitnesses: presenceWitnesses
           }
         }
         const nextAst = {
@@ -5446,7 +5510,7 @@ type AsCurriedResult<
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue>,
       AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
-      AssumptionsOfPlan<PlanValue>,
+      PlanAssumptionsAfterHaving<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       CapabilitiesOfPlan<PlanValue>,
       StatementOfPlan<PlanValue>
     > => {
@@ -5467,7 +5531,12 @@ type AsCurriedResult<
           kind: "having",
           predicate: predicateExpression
         }]
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+      }, assumeFormulaTrue(
+        currentQuery.assumptions,
+        formulaOfExpressionRuntime(predicateExpression)
+      ) as PlanAssumptionsAfterHaving<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      currentQuery.capabilities,
+      currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
   const innerJoin = <CurrentTable extends SourceLike, Predicate extends PredicateInput>(
@@ -5506,7 +5575,13 @@ type AsCurriedResult<
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
       AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross">,
-      AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, "required">,
+      AddAvailable<
+        AvailableOfPlan<PlanValue>,
+        SourceNameOf<CurrentTable>,
+        "required",
+        TrueFormula,
+        PresenceWitnessKeysOfSource<CurrentTable>
+      >,
       PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
@@ -5519,6 +5594,7 @@ type AsCurriedResult<
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
       const { sourceName, sourceBaseName } = sourceDetails(table)
+      const presenceWitnesses = presenceWitnessesOfSourceLike(table)
       const nextAvailable = Object.assign(
         {},
         current.available as AvailableOfPlan<PlanValue>,
@@ -5526,10 +5602,18 @@ type AsCurriedResult<
           [sourceName]: {
             name: sourceName,
             mode: "required",
-            baseName: sourceBaseName
+            baseName: sourceBaseName,
+            _presentFormula: trueFormula(),
+            _presenceWitnesses: presenceWitnesses
           }
         }
-      ) as AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, "required">
+      ) as AddAvailable<
+        AvailableOfPlan<PlanValue>,
+        SourceNameOf<CurrentTable>,
+        "required",
+        TrueFormula,
+        PresenceWitnessKeysOfSource<CurrentTable>
+      >
       return makePlan({
         selection: current.selection,
         required: currentRequiredList(current.required).filter((name) =>
@@ -5565,12 +5649,18 @@ type AsCurriedResult<
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
       AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
-      AvailableAfterJoin<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Kind>,
+      AvailableAfterJoin<
+        AvailableOfPlan<PlanValue>,
+        SourceNameOf<CurrentTable>,
+        Kind,
+        JoinPresenceFormula<Kind, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+        PresenceWitnessKeysOfSource<CurrentTable>
+      >,
       PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
       AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
-      AssumptionsOfPlan<PlanValue>,
+      PlanAssumptionsAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
       StatementOfPlan<PlanValue>
     > => {
@@ -5578,13 +5668,17 @@ type AsCurriedResult<
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
       const onExpression = toDialectExpression(on)
+      const onFormula = formulaOfExpressionRuntime(onExpression)
       const { sourceName, sourceBaseName } = sourceDetails(table)
+      const presenceWitnesses = presenceWitnessesOfSourceLike(table)
       const baseAvailable = (kind === "right" || kind === "full"
         ? Object.fromEntries(
-          Object.entries(current.available as Record<string, Plan.Source>).map(([name, source]) => [name, {
+          Object.entries(current.available as Record<string, Plan.AnySource>).map(([name, source]) => [name, {
             name: source.name,
             mode: "optional" as const,
-            baseName: source.baseName
+            baseName: source.baseName,
+            _presentFormula: source._presentFormula,
+            _presenceWitnesses: source._presenceWitnesses
           }])
         )
         : current.available) as AvailableOfPlan<PlanValue>
@@ -5593,9 +5687,17 @@ type AsCurriedResult<
         [sourceName]: {
           name: sourceName,
           mode: (kind === "left" || kind === "full" ? "optional" : "required") as JoinSourceMode<Kind>,
-          baseName: sourceBaseName
+          baseName: sourceBaseName,
+          _presentFormula: (kind === "inner" || kind === "left") ? onFormula : trueFormula(),
+          _presenceWitnesses: presenceWitnesses
         }
-      } as AvailableAfterJoin<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Kind>
+      } as AvailableAfterJoin<
+        AvailableOfPlan<PlanValue>,
+        SourceNameOf<CurrentTable>,
+        Kind,
+        JoinPresenceFormula<Kind, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+        PresenceWitnessKeysOfSource<CurrentTable>
+      >
       return makePlan({
         selection: current.selection,
         required: [...currentRequiredList(current.required), ...extractRequiredFromDialectInputRuntime(on)].filter((name, index, values) =>
@@ -5611,7 +5713,13 @@ type AsCurriedResult<
           source: table,
           on: onExpression
         }]
-      }, currentQuery.assumptions, currentQuery.capabilities as MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>, currentQuery.statement as StatementOfPlan<PlanValue>)
+      }, (
+        kind === "inner"
+          ? assumeFormulaTrue(currentQuery.assumptions, onFormula)
+          : currentQuery.assumptions
+      ) as PlanAssumptionsAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      currentQuery.capabilities as MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
+      currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
   const orderBy = <Value extends ExpressionInput>(
@@ -6087,7 +6195,7 @@ type AsCurriedResult<
 
   const onConflict = <
     Target extends MutationTargetLike,
-    Columns extends DdlColumnInput,
+    const Columns extends DdlColumnInput,
     UpdateValues extends MutationInputOf<Table.UpdateOf<Target>> | undefined = MutationInputOf<Table.UpdateOf<Target>> | undefined,
     Options extends ConflictActionInput<Target, Dialect, UpdateValues> = ConflictActionInput<Target, Dialect, UpdateValues>
   >(
@@ -6213,7 +6321,7 @@ type AsCurriedResult<
   const upsert = <
     Target extends MutationTargetLike,
     Values extends MutationInputOf<Table.InsertOf<Target>>,
-    Columns extends DdlColumnInput,
+    const Columns extends DdlColumnInput,
     UpdateValues extends MutationInputOf<Table.UpdateOf<Target>>
   >(
     target: Target,
@@ -6814,10 +6922,10 @@ type AsCurriedResult<
 
   const createIndex = <
     Target extends SchemaTableLike,
-    Columns extends DdlColumnInput
+    const Columns extends DdlColumnInput
   >(
     target: Target,
-    columns: ValidateDdlColumns<Target, NormalizeDdlColumns<Columns>>,
+    columns: Columns & ValidateDdlColumns<Target, NormalizeDdlColumns<Columns>>,
     options: CreateIndexOptions = {}
   ): QueryPlan<
     {},
@@ -6864,10 +6972,10 @@ type AsCurriedResult<
 
   const dropIndex = <
     Target extends SchemaTableLike,
-    Columns extends DdlColumnInput
+    const Columns extends DdlColumnInput
   >(
     target: Target,
-    columns: ValidateDdlColumns<Target, NormalizeDdlColumns<Columns>>,
+    columns: Columns & ValidateDdlColumns<Target, NormalizeDdlColumns<Columns>>,
     options: DropIndexOptions = {}
   ): QueryPlan<
     {},

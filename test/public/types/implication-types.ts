@@ -8,6 +8,7 @@ const users = Table.make("users", {
 const posts = Table.make("posts", {
   id: C.uuid().pipe(C.primaryKey),
   userId: C.uuid(),
+  status: C.text(),
   title: C.text().pipe(C.nullable)
 })
 
@@ -111,3 +112,43 @@ const promotedByEqualityUpperPostTitle: PromotedByEqualityRow["upperPostTitle"] 
 void promotedByEqualityUserId
 void promotedByEqualityPostTitle
 void promotedByEqualityUpperPostTitle
+
+const promotedByIn = Q.select({
+  title: posts.title,
+  upperTitle: F.upper(posts.title)
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.in(posts.title, "draft", "published"))
+)
+
+type PromotedByInRow = Q.ResultRow<typeof promotedByIn>
+const promotedInTitle: PromotedByInRow["title"] = "draft"
+const promotedInUpperTitle: PromotedByInRow["upperTitle"] = "DRAFT"
+// @ts-expect-error IN over literals should imply the filtered column is non-null
+const promotedInNullTitle: PromotedByInRow["title"] = null
+// @ts-expect-error derived expressions should inherit the non-null proof from IN
+const promotedInNullUpperTitle: PromotedByInRow["upperTitle"] = null
+void promotedInTitle
+void promotedInUpperTitle
+void promotedInNullTitle
+void promotedInNullUpperTitle
+
+const promotedByNotIn = Q.select({
+  title: posts.title,
+  upperTitle: F.upper(posts.title)
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.notIn(posts.title, "archived", "deleted"))
+)
+
+type PromotedByNotInRow = Q.ResultRow<typeof promotedByNotIn>
+const promotedNotInTitle: PromotedByNotInRow["title"] = "draft"
+const promotedNotInUpperTitle: PromotedByNotInRow["upperTitle"] = "DRAFT"
+// @ts-expect-error NOT IN over literals should also imply the filtered column is non-null
+const promotedNotInNullTitle: PromotedByNotInRow["title"] = null
+// @ts-expect-error derived expressions should inherit the non-null proof from NOT IN
+const promotedNotInNullUpperTitle: PromotedByNotInRow["upperTitle"] = null
+void promotedNotInTitle
+void promotedNotInUpperTitle
+void promotedNotInNullTitle
+void promotedNotInNullUpperTitle
