@@ -33,14 +33,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build package
+        run: bun run build
+
       - name: Run tests
         run: bun test
 
       - name: Run type tests
         run: bun run test:types
-
-      - name: Build package
-        run: bun run build
 
       - name: Verify npm package layout
         run: bunx npm pack --dry-run
@@ -61,6 +61,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Build package
+        run: bun run build
 
       - name: Run integration tests
         run: bun run test:integration
