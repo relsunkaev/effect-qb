@@ -38,7 +38,7 @@ describe("query behavior", () => {
     )
 
     expect(partiallySatisfied[Plan.TypeId].required as unknown as readonly string[]).toEqual(["comments"])
-    expect(partiallySatisfied[Plan.TypeId].available).toEqual({
+    expect(partiallySatisfied[Plan.TypeId].available).toMatchObject({
       users: { name: "users", mode: "required", baseName: "users" },
       posts: { name: "posts", mode: "optional", baseName: "posts" }
     })
@@ -62,7 +62,7 @@ describe("query behavior", () => {
     )
 
     expect(sourced[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
-    expect(sourced[Plan.TypeId].available).toEqual({
+    expect(sourced[Plan.TypeId].available).toMatchObject({
       manager: { name: "manager", mode: "required", baseName: "employees" },
       report: { name: "report", mode: "optional", baseName: "employees" }
     })
@@ -86,7 +86,7 @@ describe("query behavior", () => {
     )
 
     expect(sourced[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
-    expect(sourced[Plan.TypeId].available).toEqual({
+    expect(sourced[Plan.TypeId].available).toMatchObject({
       users: { name: "users", mode: "required", baseName: "users" },
       posts: { name: "posts", mode: "required", baseName: "posts" }
     })

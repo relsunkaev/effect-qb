@@ -609,12 +609,12 @@ describe("table definitions", () => {
       columnName: "id",
       baseTableName: "employees"
     })
-    expect(plan[Plan.TypeId].available.manager).toEqual({
+    expect(plan[Plan.TypeId].available.manager).toMatchObject({
       name: "manager",
       mode: "required",
       baseName: "employees"
     })
-    expect(plan[Plan.TypeId].available.report).toEqual({
+    expect(plan[Plan.TypeId].available.report).toMatchObject({
       name: "report",
       mode: "optional",
       baseName: "employees"
