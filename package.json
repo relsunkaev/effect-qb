@@ -13,9 +13,10 @@
   },
   "scripts": {
     "build": "bun scripts/build-package.ts",
+    "generate:readme-types": "bun scripts/generate-readme-type-tests.ts",
     "release": "bun scripts/release.ts",
     "test": "bun test",
-    "test:types": "bunx tsgo -p tsconfig.type-tests.json",
+    "test:types": "bun run generate:readme-types && bunx tsgo -p tsconfig.type-tests.json",
     "test:integration": "bun scripts/test-integration.ts"
   },
   "devDependencies": {
