@@ -72,6 +72,7 @@ bun install
   - [Effect Schema Integration](#effect-schema-integration)
   - [Plans, Not Strings](#plans-not-strings)
   - [ResultRow vs RuntimeResultRow](#resultrow-vs-runtimeresultrow)
+  - [Branded Column Types](#branded-column-types)
   - [Schema-backed JSON Columns](#schema-backed-json-columns)
   - [Dialect-specific Entrypoints](#dialect-specific-entrypoints)
 - [Query Guide](#query-guide)
@@ -166,7 +167,8 @@ Tables are typed sources, not loose name strings. Columns carry DB types, nullab
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Table, schema } from "effect-qb/postgres"
+import * as Pg from "effect-qb/postgres"
+import { Column as C, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -181,7 +183,7 @@ const users = Table.make("users", {
 Schema-qualified tables are also typed:
 
 ```ts
-const analytics = schema("analytics")
+const analytics = Pg.schema("analytics")
 
 const events = analytics.table("events", {
   id: C.uuid().pipe(C.primaryKey),
@@ -244,8 +246,8 @@ const membershipsBase = Table.make("memberships", {
 
 const memberships = membershipsBase.pipe(
   Table.foreignKey("orgId", () => orgs, "id"),
-  Table.unique(["orgId", "role"] as const),
-  Table.index(["role", "orgId"] as const),
+  Table.unique(["orgId", "role"]),
+  Table.index(["role", "orgId"]),
   Table.check("role_not_empty", Q.neq(membershipsBase.role, Q.literal("")))
 )
 ```
@@ -392,6 +394,71 @@ type RuntimeRow = Q.RuntimeResultRow<typeof draftOrPublishedPosts>
 //   upperTitle: string | null
 // }
 ```
+
+### Branded Column Types
+
+Branding makes structurally identical values nominally distinct. Two columns can both decode to `string`, but the compiler can still treat them as different things if they come from different sources.
+
+This is useful when:
+
+- ids from different tables should not be interchangeable
+- foreign keys should not be passed where primary keys are expected
+- helper functions should accept only one provenance
+- query results should preserve where a value came from, even after joins or aliases
+
+```ts
+import type * as Brand from "effect/Brand"
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text()
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  authorId: C.uuid(),
+  title: C.text()
+})
+
+const userPlan = Q.select({
+  id: users.id.pipe(C.brand),
+  email: users.email
+}).pipe(
+  Q.from(users)
+)
+
+const postPlan = Q.select({
+  authorId: posts.authorId.pipe(C.brand),
+  title: posts.title
+}).pipe(
+  Q.from(posts)
+)
+
+type UserRow = Q.ResultRow<typeof userPlan>
+type PostRow = Q.ResultRow<typeof postPlan>
+// UserRow:
+// {
+//   id: string & Brand.Brand<"users.id">
+//   email: string
+// }
+// PostRow:
+// {
+//   authorId: string & Brand.Brand<"posts.authorId">
+//   title: string
+// }
+
+const loadUser = (id: UserRow["id"]) => id
+
+declare const userRow: UserRow
+declare const postRow: PostRow
+
+loadUser(userRow.id)
+// @ts-expect-error different provenance, even though both values are strings
+loadUser(postRow.authorId)
+```
+
+Because the brand is derived from table provenance, aliases get distinct brands too. `users.id` and `u.id` stay separate even though both are still plain strings at runtime.
 
 ### Schema-backed JSON Columns
 
@@ -632,6 +699,7 @@ The expression surface is large, but the important point is that result-shaping 
 #### CASE And Casts
 
 ```ts
+import * as Pg from "effect-qb/postgres"
 import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const posts = Table.make("posts", {
@@ -644,13 +712,13 @@ const shapedPosts = Q.select({
   titleLabel: Q.case()
     .when(Q.isNull(posts.title), "missing")
     .else(F.upper(posts.title)),
-  titleAsText: Q.cast(posts.title, Q.type.text())
+  titleAsText: Pg.Cast.to(posts.title, Pg.Type.text())
 }).pipe(
   Q.from(posts)
 )
 ```
 
-`Q.case()` follows the same implication facts as filters, and `Q.cast(...)` is the explicit escape hatch when you want a conversion to be obvious in the plan.
+`Q.case()` follows the same implication facts as filters, and `Pg.Cast.to(...)` is the explicit escape hatch when you want a conversion to be obvious in the plan.
 
 #### JSON Path Typing
 
@@ -691,7 +759,7 @@ The same JSON path object can be reused across:
 - `Function.json.delete(...)`
 - `Function.json.pathExists(...)`
 
-Comparison and cast safety are dialect-aware. Incompatible operands are rejected unless you make the conversion explicit with `Q.cast(...)`.
+Comparison and cast safety are dialect-aware. Incompatible operands are rejected unless you make the conversion explicit with `Pg.Cast.to(...)`.
 
 ### Aggregating
 
@@ -913,7 +981,7 @@ const insertOrIgnore = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
 }).pipe(
-  Q.onConflict(["id"] as const, {
+  Q.onConflict(["id"], {
     action: "doNothing"
   })
 )
@@ -922,7 +990,7 @@ const upsertUser = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
 }).pipe(
-  Q.onConflict(["id"] as const, {
+  Q.onConflict(["id"], {
     update: {
       email: Q.excluded(users.email)
     }
