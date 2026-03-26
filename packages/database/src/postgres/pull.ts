@@ -29,6 +29,7 @@ type RenderContext = {
   readonly enumKeys: ReadonlySet<string>
   readonly enumExpressionByKey?: ReadonlyMap<string, string>
   readonly sequenceExpressionByKey?: ReadonlyMap<string, string>
+  readonly cyclicTableKeys?: ReadonlySet<string>
 }
 
 type ExpressionRenderContext = {
@@ -170,7 +171,7 @@ const sortTableAdditionsByDependency = (
   }
 
   const remaining = new Map(additionsByKey)
-  const ordered: typeof additions = []
+  const ordered: Array<PulledAddition & { readonly kind: "table"; readonly model: TableModel }> = []
   const rendered = new Set<string>()
   while (remaining.size > 0) {
     const ready = [...remaining.values()]
@@ -196,6 +197,83 @@ const sortTableAdditionsByDependency = (
     }
   }
   return ordered
+}
+
+const collectCyclicTableKeys = (
+  tables: readonly TableModel[]
+): ReadonlySet<string> => {
+  const keys = new Set(tables.map((table) => tableKey(table.schemaName, table.name)))
+  const edgesByKey = new Map<string, Set<string>>()
+  for (const table of tables) {
+    const key = tableKey(table.schemaName, table.name)
+    const dependencies = new Set<string>()
+    for (const option of table.options) {
+      if (option.kind !== "foreignKey" || option.columns.length !== 1) {
+        continue
+      }
+      const reference = option.references()
+      if (reference.columns.length !== 1) {
+        continue
+      }
+      const dependencyKey = tableKey(reference.schemaName, reference.tableName)
+      if (keys.has(dependencyKey)) {
+        dependencies.add(dependencyKey)
+      }
+    }
+    edgesByKey.set(key, dependencies)
+  }
+
+  const indices = new Map<string, number>()
+  const lowLinks = new Map<string, number>()
+  const stack: string[] = []
+  const onStack = new Set<string>()
+  const cyclicKeys = new Set<string>()
+  let index = 0
+
+  const strongConnect = (key: string): void => {
+    indices.set(key, index)
+    lowLinks.set(key, index)
+    index += 1
+    stack.push(key)
+    onStack.add(key)
+
+    for (const dependency of edgesByKey.get(key) ?? []) {
+      if (!indices.has(dependency)) {
+        strongConnect(dependency)
+        lowLinks.set(key, Math.min(lowLinks.get(key)!, lowLinks.get(dependency)!))
+      } else if (onStack.has(dependency)) {
+        lowLinks.set(key, Math.min(lowLinks.get(key)!, indices.get(dependency)!))
+      }
+    }
+
+    if (lowLinks.get(key) !== indices.get(key)) {
+      return
+    }
+
+    const component: string[] = []
+    while (stack.length > 0) {
+      const current = stack.pop()!
+      onStack.delete(current)
+      component.push(current)
+      if (current === key) {
+        break
+      }
+    }
+
+    if (component.length > 1 || (edgesByKey.get(key) ?? new Set<string>()).has(key)) {
+      for (const current of component) {
+        cyclicKeys.add(current)
+      }
+    }
+  }
+
+  for (const key of keys) {
+    if (!indices.has(key)) {
+      strongConnect(key)
+    }
+  }
+
+  return cyclicKeys
 }
 
 const normalizeType = (value: string): string =>
@@ -479,7 +557,9 @@ const renderSqlExpressionCode = (
     case "cast":
       return `${PG_ALIAS}.Query.cast(${renderSqlExpressionCode(expression.operand, context)}, ${renderCastTarget(expression.to, context)})`
     case "member": {
-      const base = renderSqlExpressionCode(expression.operand, context)
+      const base = expression.operand.type === "cast" && isTextCastTarget(expression.operand.to)
+        ? renderSqlExpressionCode(expression.operand.operand, context)
+        : renderSqlExpressionCode(expression.operand, context)
       const member = expression.member as string | number
       const path = typeof member === "number"
         ? `${PG_ALIAS}.Function.json.index(${member})`
@@ -1185,15 +1265,23 @@ const renderColumnAccess = (
     : `${identifier}[${renderStringLiteral(columnName)}]`
 
 const inlineForeignKeyColumn = (
-  option: Extract<TableOptionSpec, { readonly kind: "foreignKey" }>
+  table: TableModel,
+  option: Extract<TableOptionSpec, { readonly kind: "foreignKey" }>,
+  cyclicTableKeys?: ReadonlySet<string>
 ): string | undefined => {
   if (option.columns.length !== 1) {
     return undefined
   }
   const reference = option.references()
-  return reference.columns.length === 1
-    ? option.columns[0]
-    : undefined
+  if (reference.columns.length !== 1) {
+    return undefined
+  }
+  if (cyclicTableKeys?.has(tableKey(table.schemaName, table.name))) {
+    return undefined
+  }
+  return tableKey(reference.schemaName, reference.tableName) === tableKey(table.schemaName, table.name)
+    ? undefined
+    : option.columns[0]
 }
 
 const inlineIndexColumn = (
@@ -1233,15 +1321,25 @@ const renderInlineColumnOption = (
       if (option.columns.length !== 1 || option.columns[0] !== columnName) {
         return undefined
       }
-      return option.name === undefined &&
-        option.nullsNotDistinct === undefined &&
-        option.deferrable === undefined &&
-        option.initiallyDeferred === undefined
+      const parts: string[] = []
+      if (option.name !== undefined) {
+        parts.push(`name: ${renderStringLiteral(option.name)}`)
+      }
+      if (option.nullsNotDistinct !== undefined) {
+        parts.push(`nullsNotDistinct: ${String(option.nullsNotDistinct)}`)
+      }
+      if (option.deferrable !== undefined) {
+        parts.push(`deferrable: ${String(option.deferrable)}`)
+      }
+      if (option.initiallyDeferred !== undefined) {
+        parts.push(`initiallyDeferred: ${String(option.initiallyDeferred)}`)
+      }
+      return parts.length === 0
         ? `${COLUMN_ALIAS}.unique`
-        : undefined
+        : `${COLUMN_ALIAS}.unique.options({ ${parts.join(", ")} })`
     }
     case "foreignKey": {
-      const inlineColumn = inlineForeignKeyColumn(option)
+      const inlineColumn = inlineForeignKeyColumn(table, option, context.cyclicTableKeys)
       if (inlineColumn === undefined || inlineColumn !== columnName) {
         return undefined
       }
@@ -1327,18 +1425,28 @@ const renderInlineColumnOption = (
 const isInlineColumnOption = (option: TableOptionSpec): boolean => {
   switch (option.kind) {
     case "unique":
-      return option.columns.length === 1 &&
-        option.name === undefined &&
-        option.nullsNotDistinct === undefined &&
-        option.deferrable === undefined &&
-        option.initiallyDeferred === undefined
+      return option.columns.length === 1
     case "foreignKey":
-      return option.columns.length === 1 && option.references().columns.length === 1
+      return false
     case "index":
       return option.unique !== true && inlineIndexColumn(option) !== undefined
     default:
       return false
   }
+}
+
+const isInlineForeignKeyOption = (
+  table: TableModel,
+  option: Extract<TableOptionSpec, { readonly kind: "foreignKey" }>,
+  cyclicTableKeys?: ReadonlySet<string>
+): boolean => {
+  if (option.columns.length !== 1) {
+    return false
+  }
+  const reference = option.references()
+  return reference.columns.length === 1 &&
+    !cyclicTableKeys?.has(tableKey(table.schemaName, table.name)) &&
+    tableKey(reference.schemaName, reference.tableName) !== tableKey(table.schemaName, table.name)
 }
 
 const renderTableOption = (
@@ -1428,8 +1536,10 @@ const renderTableDeclaration = (
   context: RenderContext
 ): string => {
   const inlinePrimaryKey = inlinePrimaryKeyColumn(declaration, table)
+  const hasForeignKeys = table.options.some((option) => option.kind === "foreignKey" && !isInlineForeignKeyOption(table, option, context.cyclicTableKeys))
   const tableOptions = table.options.filter((option) =>
     !(declaration.kind === "tableClass" && option.kind === "primaryKey" && inlinePrimaryKey !== undefined) &&
+    option.kind !== "foreignKey" &&
     !(option.kind !== "primaryKey" && isInlineColumnOption(option))
   )
   const renderedOptions = tableOptions.map((option) => renderTableOption(table, option, context))
@@ -1441,15 +1551,27 @@ const renderTableDeclaration = (
 
   switch (declaration.kind) {
     case "tableFactory":
-      return `const ${declaration.identifier} = ${renderPipeChain(
+      {
+        const base = `${hasForeignKeys ? "let" : "const"} ${declaration.identifier} = ${renderPipeChain(
         `${TABLE_ALIAS}.make(${nameLiteral}, ${fields}${schemaLiteral})`,
         renderedOptions
-      )}`
+        )}`
+        const update = hasForeignKeys
+          ? renderTableForeignKeyUpdate(declaration, table, context)
+          : undefined
+        return update === undefined ? base : `${base}\n${update}`
+      }
     case "tableSchema":
-      return `const ${declaration.identifier} = ${renderPipeChain(
+      {
+        const base = `${hasForeignKeys ? "let" : "const"} ${declaration.identifier} = ${renderPipeChain(
         `${declaration.schemaBuilderIdentifier}.table(${nameLiteral}, ${fields})`,
         renderedOptions
-      )}`
+        )}`
+        const update = hasForeignKeys
+          ? renderTableForeignKeyUpdate(declaration, table, context)
+          : undefined
+        return update === undefined ? base : `${base}\n${update}`
+      }
     case "tableClass": {
       const head = `class ${declaration.identifier} extends ${TABLE_ALIAS}.Class<${declaration.identifier}>(${nameLiteral}${schemaLiteral})(${fields})`
       if (renderedOptions.length === 0) {
@@ -1468,7 +1590,7 @@ const renderTableAdditionBase = (
   context: RenderContext
 ): string => {
   const inlinePrimaryKey = inlinePrimaryKeyColumn(declaration, table)
-  const hasForeignKeys = table.options.some((option) => option.kind === "foreignKey" && !isInlineColumnOption(option))
+  const hasForeignKeys = table.options.some((option) => option.kind === "foreignKey" && !isInlineForeignKeyOption(table, option, context.cyclicTableKeys))
   const tableOptions = table.options.filter((option) =>
     option.kind !== "foreignKey" &&
     !(option.kind !== "primaryKey" && isInlineColumnOption(option)) &&
@@ -1507,7 +1629,7 @@ const renderTableForeignKeyUpdate = (
   context: RenderContext
 ): string | undefined => {
   const foreignKeys = table.options.filter((option): option is Extract<TableOptionSpec, { readonly kind: "foreignKey" }> =>
-    option.kind === "foreignKey" && !isInlineColumnOption(option))
+    option.kind === "foreignKey" && !isInlineForeignKeyOption(table, option, context.cyclicTableKeys))
   if (foreignKeys.length === 0) {
     return undefined
   }
@@ -1903,7 +2025,8 @@ const renderCanonicalNewModule = (
   const fileContext: RenderContext = {
     ...baseContext,
     enumExpressionByKey,
-    sequenceExpressionByKey
+    sequenceExpressionByKey,
+    cyclicTableKeys: collectCyclicTableKeys(tables.map((addition) => addition.model))
   }
   const orderedTables = sortTableAdditionsByDependency(tables)
 
@@ -2291,7 +2414,8 @@ export const planPostgresPull = async (
       bindingByKey: combinedBindingByKey,
       enumKeys: combinedEnumKeys,
       enumExpressionByKey,
-      sequenceExpressionByKey
+      sequenceExpressionByKey,
+      cyclicTableKeys: collectCyclicTableKeys(tableModelsToRender)
     }
 
     let next = ensureImports(plan.original)
