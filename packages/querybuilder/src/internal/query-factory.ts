@@ -1993,7 +1993,7 @@ export function makeDialectQuery<
   ): JsonDb<Dialect, Kind> => ({
     dialect: profile.dialect,
     kind,
-    variant: "json"
+    variant: (kind === "jsonb" ? "jsonb" : "json") as Kind extends "jsonb" ? "jsonb" : "json"
   })
 
   const jsonDb = makeJsonDb("json")

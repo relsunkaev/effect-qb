@@ -26,6 +26,7 @@ import {
   ColumnTypeId,
   type DdlExpression,
   type ColumnDefinition,
+  type ColumnUniqueOptions,
   type ColumnReference,
   type ColumnIndexOptions,
   type HasDefault,
@@ -573,7 +574,7 @@ export const postgres: PostgresColumnModule = {
     makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
       dbType: {
         ...postgresType("jsonb"),
-        variant: "json"
+        variant: "jsonb"
       } as Expression.DbType.Json<"postgres", "jsonb">,
       nullable: false,
       hasDefault: false,
@@ -685,14 +686,30 @@ export const primaryKey = <Column extends AnyColumnDefinition>(
     unique: true
   })
 
+type UniqueModifier = {
+  <Column extends AnyColumnDefinition>(column: Column): UniqueColumn<Column>
+  readonly options: <const Options extends ColumnUniqueOptions>(
+    options: Options
+  ) => <Column extends AnyColumnDefinition>(column: Column) => UniqueColumn<Column>
+}
+
 /** Marks a column as unique. */
-export const unique = <Column extends AnyColumnDefinition>(
-  column: Column
-): UniqueColumn<Column> =>
-  mapColumn(column, {
-    ...column.metadata,
-    unique: true
-  })
+export const unique: UniqueModifier = Object.assign(
+  <Column extends AnyColumnDefinition>(column: Column): UniqueColumn<Column> =>
+    mapColumn(column, {
+      ...column.metadata,
+      unique: true
+    }),
+  {
+    options: <const Options extends ColumnUniqueOptions>(options: Options) =>
+      <Column extends AnyColumnDefinition>(column: Column): UniqueColumn<Column> =>
+        mapColumn(column, {
+          ...column.metadata,
+          unique: true,
+          uniqueConstraint: options
+        })
+  }
+)
 
 /** Marks a column as having a database default expression and therefore optional on insert. */
 export const default_ = <Value extends DdlExpression>(value: Value) =>

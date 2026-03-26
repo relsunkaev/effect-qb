@@ -89,7 +89,7 @@ export declare namespace DbType {
     SchemaName extends string = "json"
   > extends Base<Dialect, SchemaName>
   {
-    readonly variant: "json"
+    readonly variant: SchemaName extends "jsonb" ? "jsonb" : "json"
   }
 
   /** Array database type. */
