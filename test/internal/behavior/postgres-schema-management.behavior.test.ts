@@ -1,10 +1,13 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { join, relative } from "node:path"
 
+// @ts-nocheck
 import { describe, expect, test } from "bun:test"
+import * as Schema from "effect/Schema"
 
 import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
+import * as ExpressionAst from "../../../packages/querybuilder/src/internal/expression-ast.js"
 import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/postgres-schema-diff.js"
 import { toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
 import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
@@ -487,6 +490,79 @@ const users = Table.make("users", {
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }
+  })
+
+  test("renders pulled json and cast chains with pipe helpers", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-pull-pipe-"))
+    try {
+      const discovered = {
+        declarations: [],
+        bindings: [],
+        model: {
+          dialect: "postgres",
+          enums: [],
+          tables: []
+        }
+      } as const
+
+      const proposalProducts = Table.make("proposal_products", {
+        stripe: C.jsonb(Schema.Unknown).pipe(C.nullable),
+        quantity: C.int()
+      }).pipe(
+        Table.check("quantity_matches_stripe", (t) => {
+          const stripeQuantity = unsafeAny(t.stripe).pipe(
+            Pg.Function.json.get(Pg.Function.json.key("line_item")),
+            Pg.Function.json.text(Pg.Function.json.key("quantity")),
+            Pg.Cast.to(Pg.Type.text()),
+            Pg.Cast.to(Pg.Type.int4())
+          )
+
+          return unsafeAny(Pg.Query.or(
+            Pg.Query.isNull(t.stripe),
+            Pg.Query.eq(unsafeAny(stripeQuantity), t.quantity)
+          ))
+        })
+      )
+
+      const plan = await planPostgresPull(tempDir, { include: ["src/**/*.ts"] }, discovered, {
+        dialect: "postgres",
+        enums: [],
+        tables: [toTableModel(unsafeAny(proposalProducts))]
+      })
+
+      expect(plan.updates).toHaveLength(1)
+      const after = plan.updates[0]?.after ?? ""
+      expect(after).toContain(`stripe.pipe(`)
+      expect(after).toContain(`Pg.Function.json.get(Pg.Function.json.key("line_item"))`)
+      expect(after).toContain(`Pg.Function.json.text(Pg.Function.json.key("quantity"))`)
+      expect(after).toContain(`Pg.Cast.to(Pg.Type.text())`)
+      expect(after).toContain(`Pg.Cast.to(Pg.Type.int4())`)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  test("extends boolean groups with raw predicates through pipe", () => {
+    const predicate = Pg.Query.and(
+      Pg.Query.isNull(Pg.Query.column("stripe", Pg.Type.jsonb(), true)),
+      Pg.Query.eq(
+        Pg.Query.column("quantity", Pg.Type.int4()),
+        Pg.Query.literal(0)
+      )
+    ).pipe(
+      Pg.Query.gte(Pg.Query.column("quantity", Pg.Type.int4()), 0),
+      Pg.Query.or(
+        Pg.Query.isNull(Pg.Query.column("viewed_at", Pg.Type.timestamp(), true)),
+        Pg.Query.gte(Pg.Query.column("viewed_at", Pg.Type.timestamp(), true), Pg.Query.literal(new Date("2024-01-01T00:00:00.000Z")))
+      )
+    )
+
+    const ast = unsafeAny(predicate)[ExpressionAst.TypeId] as ExpressionAst.VariadicNode<"and">
+
+    expect(ast.kind).toBe("and")
+    expect(ast.values).toHaveLength(4)
+    expect(unsafeAny(ast.values[2])[ExpressionAst.TypeId]).toMatchObject({ kind: "gte" })
+    expect(unsafeAny(ast.values[3])[ExpressionAst.TypeId]).toMatchObject({ kind: "or" })
   })
 
   test("orders pulled additions so foreign-key targets appear first", async () => {

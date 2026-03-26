@@ -10,7 +10,6 @@ import {
   collectInlineOptions,
   normalizeColumnList,
   resolvePrimaryKeyColumns,
-  type DeclaredTableOptions as InternalDeclaredTableOptions,
   type DdlExpressionLike,
   type IndexKeySpec,
   type NormalizeColumns,
@@ -46,7 +45,16 @@ type TableDialect<Fields extends TableFieldMap> = Fields[keyof Fields][typeof im
 type TableKind = "schema" | "alias"
 type DefaultSchemaName = "public"
 type ClassOptionSpec = Exclude<TableOptionSpec, { readonly kind: "primaryKey" }>
-type ClassTableOption = TableOption<ClassOptionSpec>
+interface TableOptionBuilderLike<
+  Spec extends TableOptionSpec = TableOptionSpec
+> {
+  (
+    table: TableDefinition<any, any, any, "schema", any>
+  ): TableDefinition<any, any, any, "schema", any>
+  readonly option: Spec
+}
+
+type ClassTableOption = TableOptionBuilderLike<ClassOptionSpec>
 type ClassDeclaredTableOptions = readonly ClassTableOption[]
 
 type BuildPrimaryKey<
@@ -87,12 +95,13 @@ export type BoundColumns<
 
 /** Derived runtime schemas exposed by a table definition. */
 export interface TableSchemas<
+  Name extends string,
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string
 > {
-  readonly select: Schema.Schema<SelectRow<Fields>>
-  readonly insert: Schema.Schema<InsertRow<Fields>>
-  readonly update: Schema.Schema<UpdateRow<Fields, PrimaryKeyColumns>>
+  readonly select: Schema.Schema<SelectRow<Name, Fields>>
+  readonly insert: Schema.Schema<InsertRow<Name, Fields>>
+  readonly update: Schema.Schema<UpdateRow<Name, Fields, PrimaryKeyColumns>>
 }
 
 interface TableState<
@@ -120,11 +129,11 @@ export interface TableSchemaNamespace<SchemaName extends string> {
   >(
     name: Name,
     fields: Fields,
-    ...options: InternalDeclaredTableOptions
+    ...options: DeclaredTableOptions
   ) => TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
 }
 
-export type DeclaredTableOptions = InternalDeclaredTableOptions
+export type DeclaredTableOptions = readonly TableOptionBuilderLike[]
 export type { DdlExpressionLike, IndexKeySpec, NormalizeColumns, ReferentialAction } from "./table-options.js"
 
 export type TableDefinition<
@@ -136,7 +145,7 @@ export type TableDefinition<
 > = Pipeable & {
   readonly name: Name
   readonly columns: BoundColumns<Name, Fields>
-  readonly schemas: TableSchemas<Fields, PrimaryKeyColumns>
+  readonly schemas: TableSchemas<Name, Fields, PrimaryKeyColumns>
   readonly [TypeId]: TableState<Name, Fields, PrimaryKeyColumns, Kind, SchemaName>
   readonly [Plan.TypeId]: Plan.State<
     BoundColumns<Name, Fields>,
@@ -166,7 +175,7 @@ export type TableClassStatic<
   SchemaName extends string | undefined = DefaultSchemaName
 > = (abstract new (...args: any[]) => any) & Pipeable & {
   readonly columns: BoundColumns<Name, Fields>
-  readonly schemas: TableSchemas<Fields, PrimaryKeyColumns>
+  readonly schemas: TableSchemas<Name, Fields, PrimaryKeyColumns>
   readonly [TypeId]: TableState<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
   readonly [Plan.TypeId]: Plan.State<
     BoundColumns<Name, Fields>,
@@ -214,7 +223,7 @@ type BuildArtifacts<
   PrimaryKeyColumns extends keyof Fields & string
 > = {
   readonly columns: BoundColumns<Name, Fields>
-  readonly schemas: TableSchemas<Fields, PrimaryKeyColumns>
+  readonly schemas: TableSchemas<Name, Fields, PrimaryKeyColumns>
   readonly normalizedOptions: readonly TableOptionSpec[]
   readonly primaryKey: readonly PrimaryKeyColumns[]
 }
@@ -236,7 +245,7 @@ const buildArtifacts = <
   const columns = Object.fromEntries(
     Object.entries(fields).map(([key, column]) => [key, bindColumn(name, key, column, name, schemaName)])
   ) as BoundColumns<Name, Fields>
-  const schemas = deriveSchemas(fields, primaryKey)
+  const schemas = deriveSchemas(name, fields, primaryKey)
   return {
     columns,
     schemas,
@@ -304,6 +313,21 @@ const extractDeclaredOptions = (
   declaredOptions: DeclaredTableOptions | undefined
 ): readonly TableOptionSpec[] => declaredOptions?.map((option) => option.option) ?? []
 
+const applyDeclaredOptions = <
+  Table extends TableDefinition<any, any, any, "schema", any>
+>(
+  table: Table,
+  declaredOptions: DeclaredTableOptions | undefined
+): Table => {
+  if (declaredOptions === undefined || declaredOptions.length === 0) {
+    return table
+  }
+  return declaredOptions.reduce<TableDefinition<any, any, any, "schema", any>>(
+    (current, option) => option(current),
+    table
+  ) as unknown as Table
+}
+
 const validateClassOptions = (declaredOptions: readonly TableOptionSpec[]): void => {
   for (const option of declaredOptions) {
     if (option.kind === "primaryKey") {
@@ -345,14 +369,26 @@ const ensureClassArtifacts = <
     return cached
   }
   const state = self[TypeId]
-  const declaredOptions = extractDeclaredOptions(self[options])
-  validateClassOptions(declaredOptions)
-  const artifacts = buildArtifacts(
-    state.name,
-    state.fields,
-    declaredOptions,
-    state.schemaName
-  ) as BuildArtifacts<Name, Fields, PrimaryKeyColumns>
+  const classOptions = self[options]
+  validateClassOptions(extractDeclaredOptions(classOptions))
+  const table = applyDeclaredOptions(
+    makeTable(
+      state.name,
+      state.fields,
+      [],
+      state.name,
+      "schema",
+      state.schemaName,
+      state.schemaName === undefined || state.schemaName === "public" ? "default" : "explicit"
+    ) as TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", typeof state.schemaName>,
+    classOptions
+  )
+  const artifacts = {
+    columns: table.columns,
+    schemas: table.schemas,
+    normalizedOptions: table[OptionsSymbol],
+    primaryKey: table[TypeId].primaryKey as readonly PrimaryKeyColumns[]
+  } satisfies BuildArtifacts<Name, Fields, PrimaryKeyColumns>
   Object.defineProperty(self, CacheSymbol, {
     configurable: true,
     value: artifacts
@@ -389,8 +425,24 @@ const makeOption = <Spec extends TableOptionSpec>(option: Spec): TableOption<Spe
   return builder
 }
 
+const makeResolvedOption = <Spec extends TableOptionSpec>(
+  option: Spec,
+  resolve: (table: TableDefinition<any, any, any, "schema", any>) => Spec
+): TableOption<Spec> => {
+  const builder = ((table: TableDefinition<any, any, any, "schema", any>) =>
+    appendOption(table, resolve(table))) as unknown as TableOption<Spec>
+  ;(builder as { option: Spec }).option = option
+  return builder
+}
+
 export const option = <Spec extends TableOptionSpec>(spec: Spec): TableOption<Spec> =>
   makeOption(spec)
+
+export const optionFromTable = <Spec extends TableOptionSpec>(
+  spec: Spec,
+  resolve: (table: TableDefinition<any, any, any, "schema", any>) => Spec
+): TableOption<Spec> =>
+  makeResolvedOption(spec, resolve)
 
 /** Creates a table definition from a name and field map. */
 export function make<
@@ -430,17 +482,20 @@ export const schema = <SchemaName extends string>(
   >(
     name: Name,
     fields: Fields,
-    ...options: InternalDeclaredTableOptions
+    ...options: DeclaredTableOptions
   ): TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName> =>
-    makeTable(
-      name,
-      fields,
-      extractDeclaredOptions(options),
-      name,
-      "schema",
-      schemaName,
-      "explicit"
-    ) as TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>
+    applyDeclaredOptions(
+      makeTable(
+        name,
+        fields,
+        [],
+        name,
+        "schema",
+        schemaName,
+        "explicit"
+      ) as TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>,
+      options
+    )
 })
 
 /**
@@ -473,7 +528,7 @@ export const alias = <
   const aliased = Object.create(TableProto)
   aliased.name = aliasName
   aliased.columns = columns
-  aliased.schemas = table.schemas
+  aliased.schemas = deriveSchemas(aliasName, state.fields, state.primaryKey)
   aliased[TypeId] = {
     name: aliasName,
     baseName: state.baseName,

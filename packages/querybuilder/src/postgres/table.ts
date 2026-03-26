@@ -58,6 +58,22 @@ export type DdlExpressionLike = BaseTable.DdlExpressionLike
 export type IndexKey = BaseTable.IndexKeySpec
 export type ReferentialAction = BaseTable.ReferentialAction
 
+type SchemaTable = {
+  readonly columns: Record<string, unknown>
+}
+
+type TableExpressionFactory<Table extends SchemaTable> = (
+  columns: Table["columns"]
+) => DdlExpressionLike
+
+type TableScopedOptionBuilder<
+  Table extends SchemaTable,
+  Spec extends import("../internal/table-options.js").TableOptionSpec = import("../internal/table-options.js").TableOptionSpec
+> = {
+  (table: Table): Table
+  readonly option: Spec
+}
+
 export const TypeId = BaseTable.TypeId
 export const OptionsSymbol = BaseTable.OptionsSymbol
 export const options = BaseTable.options
@@ -169,6 +185,22 @@ type RichCheckInput<Name extends string = string> = {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+const isTableExpressionFactory = (value: unknown): value is TableExpressionFactory<SchemaTable> =>
+  typeof value === "function"
+
+const makeTableScopedOption = <
+  Table extends SchemaTable,
+  Spec extends import("../internal/table-options.js").TableOptionSpec
+>(
+  placeholder: Spec,
+  resolve: (table: Table) => Spec
+): TableScopedOptionBuilder<Table, Spec> => {
+  const builder = ((table: Table) =>
+    BaseTable.option(resolve(table))(table as never)) as unknown as TableScopedOptionBuilder<Table, Spec>
+  ;(builder as { option: Spec }).option = placeholder
+  return builder
+}
+
 const normalizeColumns = (columns: string | readonly string[]): readonly [string, ...string[]] =>
   (Array.isArray(columns) ? [...columns] : [columns]) as unknown as readonly [string, ...string[]]
 
@@ -239,25 +271,54 @@ export const index: {
     readonly kind: "index"
     readonly columns: BaseTable.NormalizeColumns<Columns>
   }>
+  <Table extends SchemaTable, const Columns extends string | readonly string[]>(
+    spec: Omit<RichIndexInput<Columns>, "predicate"> & {
+      readonly predicate: TableExpressionFactory<Table>
+    }
+  ): TableScopedOptionBuilder<Table, {
+    readonly kind: "index"
+    readonly columns?: BaseTable.NormalizeColumns<Columns>
+    readonly keys?: readonly [BaseTable.IndexKeySpec, ...BaseTable.IndexKeySpec[]]
+    readonly name?: string
+    readonly unique?: boolean
+    readonly method?: string
+    readonly include?: readonly string[]
+    readonly predicate?: DdlExpressionLike
+  }>
   <const Columns extends string | readonly string[]>(
     spec: RichIndexInput<Columns>
   ): BaseTable.TableOption
 } = ((input: unknown) =>
   isObject(input) && ("keys" in input || "name" in input || "unique" in input || "method" in input || "include" in input || "predicate" in input)
-    ? BaseTable.option({
-        kind: "index",
-        columns: (input as RichIndexInput<string | readonly string[]>).columns === undefined
-          ? undefined
-          : normalizeColumns((input as RichIndexInput<string | readonly string[]>).columns!),
-        keys: (input as RichIndexInput<string | readonly string[]>).keys === undefined
-          ? undefined
-          : normalizeIndexKeys((input as RichIndexInput<string | readonly string[]>).keys!),
-        name: (input as RichIndexInput<string | readonly string[]>).name,
-        unique: (input as RichIndexInput<string | readonly string[]>).unique,
-        method: (input as RichIndexInput<string | readonly string[]>).method,
-        include: (input as RichIndexInput<string | readonly string[]>).include,
-        predicate: (input as RichIndexInput<string | readonly string[]>).predicate
-      })
+    ? (() => {
+        const spec = input as RichIndexInput<string | readonly string[]> & {
+          readonly predicate?: DdlExpressionLike | TableExpressionFactory<SchemaTable>
+        }
+        const predicate = spec.predicate
+        const placeholder = {
+          kind: "index" as const,
+          columns: spec.columns === undefined
+            ? undefined
+            : normalizeColumns(spec.columns),
+          keys: spec.keys === undefined
+            ? undefined
+            : normalizeIndexKeys(spec.keys),
+          name: spec.name,
+          unique: spec.unique,
+          method: spec.method,
+          include: spec.include,
+          predicate: predicate as unknown as DdlExpressionLike
+        }
+        return isTableExpressionFactory(predicate)
+          ? makeTableScopedOption(placeholder, (table) => ({
+              ...placeholder,
+              predicate: predicate(table.columns)
+            }))
+          : BaseTable.option({
+              ...placeholder,
+              predicate
+            })
+      })()
     : BaseTable.index(input as string | readonly string[])) as never
 export const foreignKey = <
   const LocalColumns extends string | readonly string[],
@@ -297,16 +358,65 @@ export const foreignKey = <
 
 export const check: {
   <Name extends string>(name: Name, predicate: DdlExpressionLike): BaseTable.TableOption
+  <Name extends string, Table extends SchemaTable>(
+    name: Name,
+    predicate: TableExpressionFactory<Table>
+  ): TableScopedOptionBuilder<Table, {
+    readonly kind: "check"
+    readonly name: Name
+    readonly predicate: DdlExpressionLike
+  }>
+  <Name extends string, Table extends SchemaTable>(
+    spec: Omit<RichCheckInput<Name>, "predicate"> & {
+      readonly predicate: TableExpressionFactory<Table>
+    }
+  ): TableScopedOptionBuilder<Table, {
+    readonly kind: "check"
+    readonly name: Name
+    readonly predicate: DdlExpressionLike
+    readonly noInherit?: boolean
+  }>
   <Name extends string>(spec: RichCheckInput<Name>): BaseTable.TableOption
 } = ((nameOrSpec: string | RichCheckInput, predicate?: DdlExpressionLike) =>
   isObject(nameOrSpec)
-    ? BaseTable.option({
-        kind: "check",
-        name: nameOrSpec.name,
-        predicate: nameOrSpec.predicate,
-        noInherit: nameOrSpec.noInherit
-      })
-    : BaseTable.check(nameOrSpec, predicate!)) as never
+    ? (() => {
+        const spec = nameOrSpec as RichCheckInput & {
+          readonly predicate: DdlExpressionLike | TableExpressionFactory<SchemaTable>
+        }
+        const specPredicate = spec.predicate
+        const placeholder = {
+          kind: "check" as const,
+          name: spec.name,
+          predicate: specPredicate as unknown as DdlExpressionLike,
+          noInherit: spec.noInherit
+        }
+        return isTableExpressionFactory(specPredicate)
+          ? makeTableScopedOption(placeholder, (table) => ({
+              ...placeholder,
+              predicate: specPredicate(table.columns)
+            }))
+          : BaseTable.option({
+              ...placeholder,
+              predicate: specPredicate
+            })
+      })()
+    : (() => {
+        const predicateOrFactory = predicate as DdlExpressionLike | TableExpressionFactory<SchemaTable>
+        const placeholder = {
+          kind: "check" as const,
+          name: nameOrSpec,
+          predicate: predicateOrFactory as unknown as DdlExpressionLike
+        }
+        return isTableExpressionFactory(predicateOrFactory)
+          ? makeTableScopedOption(placeholder, (table) => ({
+              ...placeholder,
+              predicate: predicateOrFactory(table.columns)
+            }))
+          : BaseTable.option({
+              ...placeholder,
+              predicate: predicateOrFactory
+            })
+      })()) as never
 
 export type SelectOf<Table extends { readonly schemas: { readonly select: Schema.Schema<any> } }> = BaseTable.SelectOf<Table>
 export type InsertOf<Table extends { readonly schemas: { readonly insert: Schema.Schema<any> } }> = BaseTable.InsertOf<Table>
