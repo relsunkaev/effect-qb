@@ -7,13 +7,14 @@ Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that
 `effect-qb` builds immutable query plans and pushes the interesting parts of SQL into the type system:
 
 - exact projection shapes
-- nullability and predicate-driven narrowing
+- implication-aware nullability and joined-source presence/absence
+- predicate-driven narrowing
 - join optionality
 - aggregate and grouping validation
 - dialect compatibility
 - statement and execution result types
 
-The main contract is compile-time. `Query.ResultRow<typeof plan>` is the logical row type after query analysis, while `Query.RuntimeResultRow<typeof plan>` describes the conservative runtime remap shape. At runtime, the library renders SQL, executes it, normalizes raw driver values, applies schema-backed transforms where they exist, and remaps aliased columns back into nested objects.
+The main contract is compile-time. `Query.ResultRow<typeof plan>` is the logical row type after implication analysis, while `Query.RuntimeResultRow<typeof plan>` describes the runtime remap shape. At runtime, the library renders SQL, executes it, normalizes raw driver values, applies schema-backed transforms where they exist, and uses the same proof facts to narrow selected expressions and joined tables.
 
 ## Why effect-qb
 
@@ -430,35 +431,34 @@ That distinction is important:
 
 ### ResultRow vs RuntimeResultRow
 
-`Q.ResultRow<typeof plan>` is the logical result type after static analysis. It includes things like:
+`Q.ResultRow<typeof plan>` is the logical result type after static implication analysis. It includes facts proven by:
 
-- `where(isNotNull(...))` nullability refinement
-- left-join promotion when predicates prove presence
-- grouped-query validation
-- branch pruning for expressions like `case()`
+- `where(...)` and `having(...)`
+- join predicates
+- `case()` branch pruning
+- operators such as `eq(...)`, `gte(...)`, `in(...)`, `notIn(...)`, `isNull(...)`, and `isNotNull(...)`
 
-`Q.RuntimeResultRow<typeof plan>` is intentionally more conservative. It describes the schema-free runtime remap path only.
+`Q.RuntimeResultRow<typeof plan>` is the runtime remap shape. It is separate from the logical row type, but runtime execution still uses the same implication facts to validate impossible rows and collapse always-null projections where the proof is strong enough.
 
 ```ts
-const guaranteedPost = Q.select({
-  userId: users.id,
-  postId: posts.id
+const draftOrPublishedPosts = Q.select({
+  title: posts.title,
+  upperTitle: F.upper(posts.title)
 }).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.where(Q.isNotNull(posts.id))
+  Q.from(posts),
+  Q.where(Q.in(posts.title, "draft", "published"))
 )
 
-type LogicalRow = Q.ResultRow<typeof guaranteedPost>
+type LogicalRow = Q.ResultRow<typeof draftOrPublishedPosts>
 // {
-//   userId: string
-//   postId: string
+//   title: string
+//   upperTitle: string
 // }
 
-type RuntimeRow = Q.RuntimeResultRow<typeof guaranteedPost>
+type RuntimeRow = Q.RuntimeResultRow<typeof draftOrPublishedPosts>
 // {
-//   userId: string
-//   postId: string | null
+//   title: string | null
+//   upperTitle: string | null
 // }
 ```
 
@@ -586,28 +586,15 @@ The same source story applies to:
 
 ### Filtering Rows
 
-Predicates do more than render SQL. They can narrow result types.
+Predicates do more than render SQL. They can narrow result types and joined tables.
 
 ```ts
-const allPosts = Q.select({
-  title: posts.title,
-  upperTitle: F.upper(posts.title)
-}).pipe(
-  Q.from(posts)
-)
-
-type AllPostsRow = Q.ResultRow<typeof allPosts>
-// {
-//   title: string | null
-//   upperTitle: string | null
-// }
-
 const titledPosts = Q.select({
   title: posts.title,
   upperTitle: F.upper(posts.title)
 }).pipe(
   Q.from(posts),
-  Q.where(Q.isNotNull(posts.title))
+  Q.where(Q.eq(posts.title, "hello"))
 )
 
 type TitledPostsRow = Q.ResultRow<typeof titledPosts>
@@ -616,6 +603,8 @@ type TitledPostsRow = Q.ResultRow<typeof titledPosts>
 //   upperTitle: string
 // }
 ```
+
+The same nullability proof also comes from operators like `gt(...)`, `gte(...)`, `lt(...)`, `lte(...)`, `in(...)`, and `notIn(...)` when they exclude `null`.
 
 That same narrowing feeds:
 
@@ -1216,11 +1205,34 @@ type HelloPostsRow = Q.ResultRow<typeof helloPosts>
 // }
 ```
 
-Equality against a non-null literal narrows too. You do not need `isNotNull(...)` to get non-null output.
+Equality against a non-null literal narrows too. You do not need `isNotNull(...)` to get non-null output, and the same applies to range and set operators that prove the value is present.
+
+When the predicate references a joined source, that proof can promote the whole source, not just the filtered column.
+
+```ts
+const promotedJoinedPosts = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  postTitle: posts.title,
+  upperTitle: F.upper(posts.title)
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.eq(posts.title, "hello"))
+)
+
+type PromotedJoinedPostsRow = Q.ResultRow<typeof promotedJoinedPosts>
+// {
+//   userId: string
+//   postId: string
+//   postTitle: string
+//   upperTitle: string
+// }
+```
 
 ### Join Optionality
 
-Left joins start conservative. Predicates can promote them.
+Left joins start conservative. Predicates can promote them, and `isNull(...)` can prove the opposite.
 
 ```ts
 const maybePosts = Q.select({
@@ -1236,24 +1248,33 @@ type MaybePostsRow = Q.ResultRow<typeof maybePosts>
 //   userId: string
 //   postId: string | null
 // }
-
-const titledPosts = Q.select({
-  userId: users.id,
-  postId: posts.id
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.where(Q.isNotNull(posts.title))
-)
-
-type TitledPostsRow = Q.ResultRow<typeof titledPosts>
-// {
-//   userId: string
-//   postId: string
-// }
 ```
 
 Any non-null proof on the joined table can promote the whole joined source, not just the join key.
+
+```ts
+const absentAcrossDependentLeftJoins = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  commentId: comments.id,
+  commentBody: comments.body
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.leftJoin(comments, Q.eq(posts.id, comments.postId)),
+  Q.where(Q.isNull(posts.id))
+)
+
+type AbsentAcrossDependentLeftJoinsRow = Q.ResultRow<typeof absentAcrossDependentLeftJoins>
+// {
+//   userId: string
+//   postId: null
+//   commentId: null
+//   commentBody: null
+// }
+```
+
+`isNull(...)` on an optional source does not just make one column nullable. It can collapse the source itself to `null`, and dependent joins that hang off it collapse with it.
 
 ### Grouped Query Validation
 
