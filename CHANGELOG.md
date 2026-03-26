@@ -4,6 +4,110 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.14.0 - 2026-03-26
+
+### Breaking Changes
+
+- feat(postgres)!: replace schema-management namespace with Pg.schema
+- fix(database)!: remove legacy effect-db alias
+- fix(database)!: remove legacy cli export and canonicalize builtin postgres types
+- feat(querybuilder)!: add pipeable unique options and jsonb variants
+- feat(postgres)!: move casts and db types into dedicated namespaces
+
+### Features
+
+- feat: add postgres schema introspection and migration CLI
+- feat(database): add rename-aware schema sync and migration lifecycle
+- feat(database): rename cli to effectdb
+- feat(querybuilder): add ddl query builders
+- feat(querybuilder): add first-class postgres scalar constructors
+- feat(querybuilder): add sized postgres char and varchar constructors
+- feat(querybuilder): add array column constructors
+- feat(querybuilder): support nullable array elements
+- feat(querybuilder): add implication-aware predicate reasoning
+- feat(database): inline single-column constraints in pulled schemas
+- feat(querybuilder): add bound column branding
+- feat(querybuilder): specialize dialect query implementations
+- feat(querybuilder): preserve inline column brands in table schemas
+- feat(postgres): support table-scoped check and index predicates
+- feat(postgres): expose json.delete on plain json values
+
+### Fixes
+
+- fix(postgres-cli): preserve exported tables during discovery
+- fix(cli): ignore managed migration tables during postgres sync
+- fix(postgres-cli): recognize class table declarations during discovery
+- fix(postgres-cli): reject unsupported postgres index operator classes
+- fix(postgres-cli): reject unsupported postgres index collations
+- fix(postgres-cli): introspect postgres nulls-not-distinct uniques
+- fix(postgres-cli): allow class pulls to inline default primary keys
+- fix(postgres-cli): reject non-canonical source discovery shapes
+- fix(postgres-cli): apply source filters during schema sync
+- fix(types): accept full query plans in renderers and executors
+- fix(release): fallback missing changelog section labels
+- fix(database): round-trip jsonb columns and fk-heavy pulls
+- fix(database): use canonical import names in pulled schemas
+- fix(database): normalize ddl expression comparisons
+- fix(database): normalize postgres builtin scalar types
+- fix(database): round-trip sized postgres char and varchar columns
+- fix(workspace): repoint package aliases after monorepo split
+- fix(database): emit configured numeric columns during pull
+- fix(database): preserve pulled postgres default and jsonb predicate types
+- fix(query): correct join nullability narrowing
+- fix(querybuilder): preserve schema-scoped sequences in nextVal
+- fix(database): canonicalize quoted array builtin types
+- fix(database): order pulled tables by dependency
+
+### Refactors
+
+- refactor: move sql qb sources into packages layout
+- refactor(database): split postgres schema commands into public modules
+- refactor(querybuilder): simplify boolean normalization helpers
+- refactor(querybuilder): streamline predicate context analysis
+
+### Docs
+
+- docs(workspace): refresh root README for monorepo layout
+- docs(readme): expand implication-aware examples
+- docs(readme): add shared example schema for docs
+- docs(readme): inline example setup in snippets
+- docs(readme): refresh README examples and references
+- docs(readme): tighten quick-start example
+- docs(readme): improve flow and implication examples
+- docs(readme): document postgres namespaces and column branding
+
+### Tests
+
+- test(integration): add live postgres cli workflow coverage
+- test(postgres-cli): cover destructive pushes and source mismatch failures
+- test(postgres-cli): cover discovery shapes and migration edge cases
+- test(postgres-cli): cover rich postgres schema round-trips
+- test(postgres-cli): cover unsupported postgres index collations
+- test(postgres-cli): cover composite foreign keys and nulls-not-distinct uniques
+- test(postgres-cli): cover enum and check-expression pull failures
+- test(postgres-cli): cover pull rewrites and expression failures
+- test(postgres-cli): cover safe mode drift and pull idempotence
+- test(postgres-cli): cover destructive migration generation
+- test(postgres-cli): cover config errors, scoping, and enum drift
+- test(types): align runtime suites with repo-wide tsgo
+- test(database): cover rename-aware sync and migration lifecycle
+- test(database): update canonical ddl builder coverage
+- test(database): cover builtin postgres scalar round-trips
+- test(database): stabilize postgres cli integration fixtures
+- test(public): realign json mutation expectation
+- test(querybuilder): simplify standalone expression type assertions
+- test(querybuilder): relax source availability assertions
+- test(querybuilder): refresh branding and cross-cutting fixtures
+- test(querybuilder): update json delete docs example
+- test(postgres-cli): relax brittle pull round-trip assertions
+- test(types): fix json mutation expect-error placement
+
+### CI
+
+- ci: build before running tests in github actions
+- ci: publish workspace packages from package dirs
+- ci: publish only on tag pushes
+
 ## 0.13.0 - 2026-03-23
 
 ### Breaking Changes
