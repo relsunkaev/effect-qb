@@ -64,7 +64,6 @@ bun install
 - [Choose An Entrypoint](#choose-an-entrypoint)
 - [Postgres Function](#postgres-function)
 - [Quick Start](#quick-start)
-- [Example Schema](#example-schema)
 - [Execution Model](#execution-model)
 - [Feature Map](#feature-map)
 - [Effect Schema Integration](#effect-schema-integration)
@@ -196,31 +195,6 @@ rendered.params
 ```
 
 This is the core model: define typed tables, build a plan, let the plan define the row type, then render or execute it.
-
-## Example Schema
-
-The examples below reuse these tables unless they define their own schema inline.
-
-```ts
-import { Column as C, Table } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable)
-})
-
-const comments = Table.make("comments", {
-  id: C.uuid().pipe(C.primaryKey),
-  postId: C.uuid(),
-  body: C.text()
-})
-```
 
 ## Execution Model
 
@@ -467,6 +441,15 @@ That distinction is important:
 `Q.RuntimeResultRow<typeof plan>` is the runtime remap shape. It is separate from the logical row type, but runtime execution still uses the same implication facts to validate impossible rows and collapse always-null projections where the proof is strong enough.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const draftOrPublishedPosts = Q.select({
   title: posts.title,
   upperTitle: F.upper(posts.title)
@@ -546,13 +529,32 @@ This matters for:
 
 ## Query Guide
 
-The examples below reuse the tables from [Example Schema](#example-schema) unless they define their own tables inline.
-
 ### Selecting Data
 
 Selections define the result type directly. Nested objects stay nested in the row type.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
+const comments = Table.make("comments", {
+  id: C.uuid().pipe(C.primaryKey),
+  postId: C.uuid(),
+  body: C.text()
+})
+
 const listUsers = Q.select({
   id: users.id,
   profile: {
@@ -580,6 +582,21 @@ Projection typing is local. You usually do not need to define row interfaces you
 `from(...)` and joins make referenced sources available to the plan. Derived tables, CTEs, and correlated sources stay typed.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const activePosts = Q.select({
     userId: posts.userId,
     title: posts.title
@@ -617,6 +634,21 @@ The same source story applies to:
 Predicates do more than render SQL. They can narrow result types and joined tables.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const titledPosts = Q.select({
   title: posts.title,
   upperTitle: F.upper(posts.title)
@@ -648,6 +680,19 @@ The expression surface is large, but the important point is that result-shaping 
 ```ts
 import * as Schema from "effect/Schema"
 import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -694,6 +739,21 @@ Comparison and cast safety are dialect-aware. Incompatible operands are rejected
 Grouped queries are checked structurally, not just by source provenance.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const invalidPostsPerUser = Q.select({
   userId: users.id,
   title: posts.title,
@@ -734,6 +794,21 @@ This catches invalid grouped queries before rendering, then the fixed plan keeps
 Subqueries and set operators stay part of the same typed plan model.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const postsByUser = Q.select({
   id: posts.id
 }).pipe(
@@ -769,6 +844,14 @@ Set operators require compatible row shapes:
 Ordering and result-set controls are regular plan transforms:
 
 ```ts
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
 const recentUsers = Q.select({
   id: users.id,
   email: users.email
@@ -784,7 +867,13 @@ const recentUsers = Q.select({
 Postgres-only `distinct on` is available from the Postgres entrypoint:
 
 ```ts
-import { Query as Q } from "effect-qb/postgres"
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
 
 const recentEmails = Q.select({
   id: users.id,
@@ -1192,13 +1281,19 @@ In practice, the error flow is:
 
 This is the main reason to use `effect-qb`.
 
-The examples in this section reuse the tables from [Example Schema](#example-schema) unless they define their own tables inline.
-
 ### Complete-plan Enforcement
 
 Partial plans are allowed while composing, but incomplete plans fail at the enforcement boundary.
 
 ```ts
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
 const missingFrom = Q.select({
   userId: users.id
 })
@@ -1217,11 +1312,24 @@ The same branded error shape applies when `where(...)`, joins, or projections re
 
 ### Predicate-driven Narrowing
 
-The examples below reuse the tables from [Example Schema](#example-schema).
-
 Predicates refine result types, not just SQL.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const helloPosts = Q.select({
   title: posts.title,
   upperTitle: F.upper(posts.title)
@@ -1242,6 +1350,21 @@ Equality against a non-null literal narrows too. You do not need `isNotNull(...)
 When the predicate references a joined source, that proof can promote the whole source, not just the filtered column.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const promotedJoinedPosts = Q.select({
   userId: users.id,
   postId: posts.id,
@@ -1267,6 +1390,21 @@ type PromotedJoinedPostsRow = Q.ResultRow<typeof promotedJoinedPosts>
 Left joins start conservative. Predicates can promote them, and `isNull(...)` can prove the opposite.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const maybePosts = Q.select({
   userId: users.id,
   postId: posts.id
@@ -1285,6 +1423,27 @@ type MaybePostsRow = Q.ResultRow<typeof maybePosts>
 Any non-null proof on the joined table can promote the whole joined source, not just the join key.
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
+const comments = Table.make("comments", {
+  id: C.uuid().pipe(C.primaryKey),
+  postId: C.uuid(),
+  body: C.text()
+})
+
 const absentAcrossDependentLeftJoins = Q.select({
   userId: users.id,
   postId: posts.id,
@@ -1313,6 +1472,21 @@ type AbsentAcrossDependentLeftJoinsRow = Q.ResultRow<typeof absentAcrossDependen
 Grouped queries are checked structurally:
 
 ```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text(),
+  bio: C.text().pipe(C.nullable)
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable),
+  status: C.text()
+})
+
 const invalidGroupedPlan = Q.select({
   userId: users.id,
   title: posts.title,
