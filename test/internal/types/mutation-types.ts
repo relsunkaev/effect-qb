@@ -5,7 +5,7 @@ import * as SqlError from "@effect/sql/SqlError"
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import type { AvailableOfPlan } from "#internal/query.ts"
-import { Column as C, Executor, Query as Q, Renderer, Table } from "#postgres"
+import { Cast, Column as C, Executor, Query as Q, Renderer, Table, Type } from "#postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -29,12 +29,12 @@ const insertPlan = Q.insert(users, {
 })
 const seedRows = [
   {
-    id: Q.cast(Q.literal("user-id"), Q.type.uuid()),
+    id: Cast.to(Q.literal("user-id"), Type.uuid()),
     email: "alice@example.com",
     bio: null
   },
   {
-    id: Q.cast(Q.literal("user-id-2"), Q.type.uuid()),
+    id: Cast.to(Q.literal("user-id-2"), Type.uuid()),
     email: "bob@example.com",
     bio: "writer"
   }
@@ -73,11 +73,11 @@ const updatePlan = Q.update(users, {
 })
 const updateSeedRows = [
   {
-    id: Q.cast(Q.literal("user-id"), Q.type.uuid()),
+    id: Cast.to(Q.literal("user-id"), Type.uuid()),
     email: Q.literal("updated@example.com")
   },
   {
-    id: Q.cast(Q.literal("user-id-2"), Q.type.uuid()),
+    id: Cast.to(Q.literal("user-id-2"), Type.uuid()),
     email: Q.literal("bob@example.com")
   }
 ] as any

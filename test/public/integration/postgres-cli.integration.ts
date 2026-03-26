@@ -366,13 +366,13 @@ export const users = db.table("users", {
   id: C.int().pipe(C.identityByDefault),
   email: C.text(),
   nickname: C.text().pipe(C.nullable),
-  displayName: C.text().pipe(C.default(Q.cast(Q.literal("guest"), Q.type.text()))),
-  emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Q.type.text()))))
+  displayName: C.text().pipe(C.default(Pg.Cast.to(Q.literal("guest"), Pg.Type.text()))),
+  emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Pg.Type.text()))))
 }).pipe(
   Table.primaryKey({ columns: ["id"], name: "users_pkey" }),
   Table.unique({ columns: ["email"], name: "users_email_key" }),
   Table.index({ name: "users_email_idx", columns: ["email"] }),
-  Table.check("users_email_check", Q.neq(Q.column("email", Q.type.text()), Q.literal("blocked")))
+  Table.check("users_email_check", Q.neq(Q.column("email", Pg.Type.text()), Q.literal("blocked")))
 )
 `)
   try {
@@ -393,8 +393,8 @@ export const users = db.table("users", {
   id: C.int().pipe(C.identityByDefault),
   email: C.text().pipe(C.ddlType("character varying(255)")),
   nickname: C.text(),
-  displayName: C.text().pipe(C.default(Q.cast(Q.literal("member"), Q.type.text()))),
-  emailLower: C.text().pipe(C.generated(F.upper(Q.column("email", Q.type.text())))),
+  displayName: C.text().pipe(C.default(Pg.Cast.to(Q.literal("member"), Pg.Type.text()))),
+  emailLower: C.text().pipe(C.generated(F.upper(Q.column("email", Pg.Type.text())))),
   notes: C.text().pipe(C.nullable)
 }).pipe(
   Table.primaryKey({ columns: ["id"], name: "users_pkey" })
@@ -668,7 +668,7 @@ const status = types.enum("status", ["pending", "active"])
 
 export const users = db.table("users", {
   id: C.text(),
-  status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\""))
+  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\""))
 }).pipe(
   Table.primaryKey("id")
 )
@@ -695,7 +695,7 @@ const status = types.enum("status", ["pending"])
 
 export const users = db.table("users", {
   id: C.text(),
-  status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
+  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
 }).pipe(
   Table.primaryKey("id")
 )
@@ -726,7 +726,7 @@ const status = types.enum("status", ["active", "pending"])
 
 export const users = db.table("users", {
   id: C.text(),
-  status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
+  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
 }).pipe(
   Table.primaryKey("id")
 )
@@ -1015,11 +1015,11 @@ const orgs = tables.table("orgs", {
 const users = tables.table("users", {
   id: C.int().pipe(C.identityByDefault),
   orgId: C.uuid(),
-  status: C.custom(Schema.String, Q.type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
+  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
   email: C.text(),
   alias: C.text().pipe(C.nullable),
-  displayName: C.text().pipe(C.default(Q.cast(Q.literal("guest"), Q.type.text()))),
-  emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Q.type.text())))),
+  displayName: C.text().pipe(C.default(Pg.Cast.to(Q.literal("guest"), Pg.Type.text()))),
+  emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Pg.Type.text())))),
   note: C.text().pipe(C.nullable)
 }).pipe(
   Table.primaryKey({ columns: ["id"], name: "users_pkey" }),
@@ -1039,13 +1039,13 @@ const users = tables.table("users", {
       method: "btree",
       keys: [
         {
-          expression: F.lower(Q.column("email", Q.type.text())),
+          expression: F.lower(Q.column("email", Pg.Type.text())),
           order: "desc",
           nulls: "last"
         }
       ],
       include: ["displayName"],
-      predicate: Q.isNotNull(Q.column("email", Q.type.text()))
+      predicate: Q.isNotNull(Q.column("email", Pg.Type.text()))
     }),
     Table.index({
       name: "users_note_idx",
@@ -1056,7 +1056,7 @@ const users = tables.table("users", {
           nulls: "first"
         }
       ],
-      predicate: Q.isNotNull(Q.column("note", Q.type.text()))
+      predicate: Q.isNotNull(Q.column("note", Pg.Type.text()))
     })
   )
 
@@ -1211,7 +1211,7 @@ test("postgres cli canonicalizes pulled enums, schemas, and sequences in new fil
     expect(pulled).toContain(`const ${schemaName} = Pg.schema("${schemaName}")`)
     expect(pulled).toContain(`const status = ${schemaName}.enum("status", ["pending", "active"])`)
     expect(pulled).toContain(`status: status.column().pipe(`)
-    expect(pulled).toContain(`Column.default(Pg.Query.cast(Pg.Query.literal("active"), status.type()))`)
+    expect(pulled).toContain(`Column.default(Pg.Cast.to(Pg.Query.literal("active"), status.type()))`)
     expect(pulled).toContain(`Column.default(Pg.Function.nextVal(${schemaName}.sequence("users_id_seq")))`)
     expect(pulled).not.toContain(`Column.ddlType("${schemaName}.status")`)
   } finally {

@@ -66,22 +66,17 @@ void tags
 void nullableTags
 void builtinColumns
 
-const plan = Q.select({
-  varcharEmail: Q.cast(users.email, Q.type.varchar()),
-  citextEmail: Q.cast(users.email, Q.type.citext()),
-  dateValue: Q.cast("2026-03-18", Q.type.date()),
-  binaryValue: Q.cast("deadbeef", Q.type.bytea()),
-  jsonbValue: Q.cast("{}", Q.type.jsonb())
-}).pipe(
-  Q.from(users)
-)
+const varcharEmailExpr = Pg.Cast.to(users.email, Pg.Type.varchar())
+const citextEmailExpr = Pg.Cast.to(users.email, Pg.Type.citext())
+const dateValueExpr = Pg.Cast.to("2026-03-18", Pg.Type.date())
+const binaryValueExpr = Pg.Cast.to("deadbeef", Pg.Type.bytea())
+const jsonbValueExpr = Pg.Cast.to("{}", Pg.Type.jsonb())
 
-type Row = Q.ResultRow<typeof plan>
-const varcharEmail: Row["varcharEmail"] = "alice@example.com"
-const citextEmail: Row["citextEmail"] = "alice@example.com"
-const dateValue: Row["dateValue"] = "2026-03-18" as E.LocalDateString
-const binaryValue: Row["binaryValue"] = new Uint8Array()
-const jsonbValue: Row["jsonbValue"] = {
+const varcharEmail: E.RuntimeOf<typeof varcharEmailExpr> = "alice@example.com"
+const citextEmail: E.RuntimeOf<typeof citextEmailExpr> = "alice@example.com"
+const dateValue: E.RuntimeOf<typeof dateValueExpr> = "2026-03-18" as E.LocalDateString
+const binaryValue: E.RuntimeOf<typeof binaryValueExpr> = new Uint8Array()
+const jsonbValue: E.RuntimeOf<typeof jsonbValueExpr> = {
   ok: true
 } as E.JsonValue
 void varcharEmail
@@ -114,48 +109,34 @@ type TemporalRow = Q.ResultRow<typeof temporalPlan>
 const sameTemporal: TemporalRow["sameTemporal"] = true
 void sameTemporal
 
-const customPlan = Q.select({
-  sizedEmail: Q.cast(users.email, Q.type.custom("varchar(255)")),
-  sizedMatch: Q.eq(users.email, "alice@example.com")
-}).pipe(
-  Q.from(users)
-)
+const sizedEmailExpr = Pg.Cast.to(users.email, Pg.Type.custom("varchar(255)"))
+const sizedMatchExpr = Q.eq(users.email, "alice@example.com")
 
-type CustomRow = Q.ResultRow<typeof customPlan>
-const sizedEmail: CustomRow["sizedEmail"] = "alice@example.com"
-const sizedMatch: CustomRow["sizedMatch"] = true
+const sizedEmail: E.RuntimeOf<typeof sizedEmailExpr> = "alice@example.com"
+const sizedMatch: E.RuntimeOf<typeof sizedMatchExpr> = true
 void sizedEmail
 void sizedMatch
 
-const customArrayPlan = Q.select({
-  textArray: Q.cast("{}", Q.type.array(Q.type.text()))
-})
-
-type CustomArrayRow = Q.ResultRow<typeof customArrayPlan>
-const textArray: CustomArrayRow["textArray"] = [] as readonly string[]
+const textArrayExpr = Pg.Cast.to("{}", Pg.Type.array(Pg.Type.text()))
+const textArray: E.RuntimeOf<typeof textArrayExpr> = [] as readonly string[]
 void textArray
 
-const structuredPlan = Q.select({
-  nestedTextArray: Q.cast("{}", Q.type.array(Q.type.array(Q.type.text()))),
-  intRange: Q.cast("empty", Q.type.range("int4range", Q.type.int4())),
-  intMultiRange: Q.cast("empty", Q.type.multirange("int4multirange", Q.type.range("int4range", Q.type.int4()))),
-  profile: Q.cast("{}", Q.type.record("user_profile", {
-    displayName: Q.type.text(),
-    age: Q.type.int4()
-  })),
-  domainEmail: Q.cast(users.email, Q.type.domain("email_domain", Q.type.text())),
-  enumStatus: Q.cast("status_enum", Q.type.enum("status_enum"))
-}).pipe(
-  Q.from(users)
-)
+const nestedTextArrayExpr = Pg.Cast.to("{}", Pg.Type.array(Pg.Type.array(Pg.Type.text())))
+const intRangeExpr = Pg.Cast.to("empty", Pg.Type.range("int4range", Pg.Type.int4()))
+const intMultiRangeExpr = Pg.Cast.to("empty", Pg.Type.multirange("int4multirange", Pg.Type.range("int4range", Pg.Type.int4())))
+const profileExpr = Pg.Cast.to("{}", Pg.Type.record("user_profile", {
+  displayName: Pg.Type.text(),
+  age: Pg.Type.int4()
+}))
+const domainEmailExpr = Pg.Cast.to(users.email, Pg.Type.domain("email_domain", Pg.Type.text()))
+const enumStatusExpr = Pg.Cast.to("status_enum", Pg.Type.enum("status_enum"))
 
-type StructuredRow = Q.ResultRow<typeof structuredPlan>
-const nestedTextArray: StructuredRow["nestedTextArray"] = [[]]
-const intRange: StructuredRow["intRange"] = {} as unknown
-const intMultiRange: StructuredRow["intMultiRange"] = {} as unknown
-const profile: StructuredRow["profile"] = { displayName: "Alice", age: 42 }
-const domainEmail: StructuredRow["domainEmail"] = "alice@example.com"
-const enumStatus: StructuredRow["enumStatus"] = "status_enum"
+const nestedTextArray: E.RuntimeOf<typeof nestedTextArrayExpr> = [[]]
+const intRange: E.RuntimeOf<typeof intRangeExpr> = {} as unknown
+const intMultiRange: E.RuntimeOf<typeof intMultiRangeExpr> = {} as unknown
+const profile: E.RuntimeOf<typeof profileExpr> = { displayName: "Alice", age: 42 }
+const domainEmail: E.RuntimeOf<typeof domainEmailExpr> = "alice@example.com"
+const enumStatus: E.RuntimeOf<typeof enumStatusExpr> = "status_enum"
 void nestedTextArray
 void intRange
 void intMultiRange
@@ -163,20 +144,16 @@ void profile
 void domainEmail
 void enumStatus
 
-const textArrayExpr = Q.cast("{}", Q.type.array(Q.type.text()))
-const intRangeExpr = Q.cast("int4range(1,10)", Q.type.range("int4range", Q.type.int4()))
-const otherIntRangeExpr = Q.cast("int4range(5,15)", Q.type.range("int4range", Q.type.int4()))
+const comparableTextArrayExpr = Pg.Cast.to("{}", Pg.Type.array(Pg.Type.text()))
+const comparableIntRangeExpr = Pg.Cast.to("int4range(1,10)", Pg.Type.range("int4range", Pg.Type.int4()))
+const otherComparableIntRangeExpr = Pg.Cast.to("int4range(5,15)", Pg.Type.range("int4range", Pg.Type.int4()))
+const arrayContainsExpr = Q.contains(comparableTextArrayExpr, comparableTextArrayExpr)
+const rangeOverlapExpr = Q.overlaps(comparableIntRangeExpr, otherComparableIntRangeExpr)
 
-const containerPlan = Q.select({
-  arrayContains: Q.contains(textArrayExpr, textArrayExpr),
-  rangeOverlap: Q.overlaps(intRangeExpr, otherIntRangeExpr)
-})
-
-type ContainerRow = Q.ResultRow<typeof containerPlan>
-const arrayContains: ContainerRow["arrayContains"] = true
-const rangeOverlap: ContainerRow["rangeOverlap"] = true
+const arrayContains: E.RuntimeOf<typeof arrayContainsExpr> = true
+const rangeOverlap: E.RuntimeOf<typeof rangeOverlapExpr> = true
 void arrayContains
 void rangeOverlap
 
 // @ts-expect-error incompatible container kinds should be rejected
-Q.contains(textArrayExpr, Q.cast("{}", Q.type.array(Q.type.uuid())))
+Q.contains(comparableTextArrayExpr, Pg.Cast.to("{}", Pg.Type.array(Pg.Type.uuid())))

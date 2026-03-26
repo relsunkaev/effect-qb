@@ -13,6 +13,7 @@ const TABLE_ALIAS = "Table"
 const COLUMN_ALIAS = "Column"
 const PG_ALIAS = "Pg"
 const SCHEMA_ALIAS = "Schema"
+const TABLE_COLUMNS_ALIAS = "t"
 
 export interface PullFileUpdate {
   readonly filePath: string
@@ -38,6 +39,7 @@ type ExpressionRenderContext = {
   readonly enumExpressionByKey?: ReadonlyMap<string, string>
   readonly sequenceExpressionByKey?: ReadonlyMap<string, string>
   readonly currentSchemaName?: string
+  readonly tableColumnsAlias?: string
 }
 
 const isIdentifier = (value: string): boolean =>
@@ -297,70 +299,70 @@ const renderQueryTypeName = (
     const qualified = schemaName === undefined || schemaName === "public"
       ? kind
       : `${schemaName}.${kind}`
-    return `${PG_ALIAS}.Query.type.enum(${renderStringLiteral(qualified)})`
+    return `${PG_ALIAS}.Type.enum(${renderStringLiteral(qualified)})`
   }
   if (normalized.endsWith("[]")) {
     const elementType = typeName.trim().slice(0, -2)
-    return `${PG_ALIAS}.Query.type.array(${renderQueryTypeName(elementType, context)})`
+    return `${PG_ALIAS}.Type.array(${renderQueryTypeName(elementType, context)})`
   }
   switch (kind) {
     case "bool":
-      return `${PG_ALIAS}.Query.type.bool()`
+      return `${PG_ALIAS}.Type.bool()`
     case "date":
-      return `${PG_ALIAS}.Query.type.date()`
+      return `${PG_ALIAS}.Type.date()`
     case "int2":
-      return `${PG_ALIAS}.Query.type.int2()`
+      return `${PG_ALIAS}.Type.int2()`
     case "int4":
-      return `${PG_ALIAS}.Query.type.int4()`
+      return `${PG_ALIAS}.Type.int4()`
     case "int8":
-      return `${PG_ALIAS}.Query.type.int8()`
+      return `${PG_ALIAS}.Type.int8()`
     case "numeric":
-      return `${PG_ALIAS}.Query.type.numeric()`
+      return `${PG_ALIAS}.Type.numeric()`
     case "float4":
-      return `${PG_ALIAS}.Query.type.float4()`
+      return `${PG_ALIAS}.Type.float4()`
     case "float8":
-      return `${PG_ALIAS}.Query.type.float8()`
+      return `${PG_ALIAS}.Type.float8()`
     case "time":
-      return `${PG_ALIAS}.Query.type.time()`
+      return `${PG_ALIAS}.Type.time()`
     case "timetz":
-      return `${PG_ALIAS}.Query.type.timetz()`
+      return `${PG_ALIAS}.Type.timetz()`
     case "timestamp":
-      return `${PG_ALIAS}.Query.type.timestamp()`
+      return `${PG_ALIAS}.Type.timestamp()`
     case "timestamptz":
-      return `${PG_ALIAS}.Query.type.timestamptz()`
+      return `${PG_ALIAS}.Type.timestamptz()`
     case "uuid":
-      return `${PG_ALIAS}.Query.type.uuid()`
+      return `${PG_ALIAS}.Type.uuid()`
     case "text":
-      return `${PG_ALIAS}.Query.type.text()`
+      return `${PG_ALIAS}.Type.text()`
     case "varchar":
-      return `${PG_ALIAS}.Query.type.varchar()`
+      return `${PG_ALIAS}.Type.varchar()`
     case "char":
     case "bpchar":
-      return `${PG_ALIAS}.Query.type.char()`
+      return `${PG_ALIAS}.Type.char()`
     case "name":
-      return `${PG_ALIAS}.Query.type.name()`
+      return `${PG_ALIAS}.Type.name()`
     case "interval":
-      return `${PG_ALIAS}.Query.type.interval()`
+      return `${PG_ALIAS}.Type.interval()`
     case "bytea":
-      return `${PG_ALIAS}.Query.type.bytea()`
+      return `${PG_ALIAS}.Type.bytea()`
     case "json":
-      return `${PG_ALIAS}.Query.type.json()`
+      return `${PG_ALIAS}.Type.json()`
     case "jsonb":
-      return `${PG_ALIAS}.Query.type.jsonb()`
+      return `${PG_ALIAS}.Type.jsonb()`
     case "regclass":
-      return `${PG_ALIAS}.Query.type.regclass()`
+      return `${PG_ALIAS}.Type.regclass()`
     case "oid":
-      return `${PG_ALIAS}.Query.type.oid()`
+      return `${PG_ALIAS}.Type.oid()`
     case "bit":
-      return `${PG_ALIAS}.Query.type.bit()`
+      return `${PG_ALIAS}.Type.bit()`
     case "varbit":
-      return `${PG_ALIAS}.Query.type.varbit()`
+      return `${PG_ALIAS}.Type.varbit()`
     case "xml":
-      return `${PG_ALIAS}.Query.type.xml()`
+      return `${PG_ALIAS}.Type.xml()`
     case "pg_lsn":
-      return `${PG_ALIAS}.Query.type.pg_lsn()`
+      return `${PG_ALIAS}.Type.pg_lsn()`
     default:
-      return `${PG_ALIAS}.Query.type.custom(${renderStringLiteral(typeName)})`
+      return `${PG_ALIAS}.Type.custom(${renderStringLiteral(typeName)})`
   }
 }
 
@@ -381,18 +383,18 @@ const renderCastTarget = (
       readonly arrayOf?: unknown
     }
     if (record.kind === "array" && record.arrayOf !== undefined) {
-      return `${PG_ALIAS}.Query.type.array(${renderCastTarget(record.arrayOf, context)})`
+      return `${PG_ALIAS}.Type.array(${renderCastTarget(record.arrayOf, context)})`
     }
     if (typeof record.schema === "string" && typeof record.name === "string") {
       const qualified = `${record.schema}.${record.name}`
       if (Array.isArray(record.config) && record.config.length > 0) {
-        return `${PG_ALIAS}.Query.type.custom(${renderStringLiteral(`${qualified}(${record.config.join(", ")})`)})`
+        return `${PG_ALIAS}.Type.custom(${renderStringLiteral(`${qualified}(${record.config.join(", ")})`)})`
       }
       return renderQueryTypeName(qualified, context)
     }
     if (typeof record.name === "string") {
       if (Array.isArray(record.config) && record.config.length > 0) {
-        return `${PG_ALIAS}.Query.type.custom(${renderStringLiteral(`${record.name}(${record.config.join(", ")})`)})`
+        return `${PG_ALIAS}.Type.custom(${renderStringLiteral(`${record.name}(${record.config.join(", ")})`)})`
       }
       return renderQueryTypeName(record.name, context)
     }
@@ -417,13 +419,13 @@ const renderQueryTypeExpression = (
       typeKind: undefined,
       typeSchema: undefined
     }
-    return `${PG_ALIAS}.Query.type.array(${renderQueryTypeExpression(elementColumn, context)})`
+    return `${PG_ALIAS}.Type.array(${renderQueryTypeExpression(elementColumn, context)})`
   }
   if (column.typeKind === "e" || ("enumKeys" in context && context.enumKeys.has(enumKey(column.typeSchema, column.dbTypeKind)))) {
     const typeName = column.typeSchema === undefined || column.typeSchema === "public"
       ? column.dbTypeKind
       : `${column.typeSchema}.${column.dbTypeKind}`
-    return `${PG_ALIAS}.Query.type.enum(${renderStringLiteral(typeName)})`
+    return `${PG_ALIAS}.Type.enum(${renderStringLiteral(typeName)})`
   }
   return renderQueryTypeName(normalized)
 }
@@ -436,7 +438,15 @@ const renderQueryColumnReference = (
   if (column === undefined) {
     throw new Error(`Unsupported PostgreSQL expression: unknown column reference '${name}'`)
   }
+  if (context.tableColumnsAlias !== undefined) {
+    return renderColumnAccess(context.tableColumnsAlias, name)
+  }
   return `${PG_ALIAS}.Query.column(${renderStringLiteral(name)}, ${renderQueryTypeExpression(column, context)}${column.nullable ? ", true" : ""})`
+}
+
+type PipeRender = {
+  readonly baseExpression: PgSqlExpr
+  readonly operations: readonly string[]
 }
 
 const parseQualifiedNameLiteral = (
@@ -480,10 +490,92 @@ const extractSequenceReference = (
   }
 }
 
-const renderSqlExpressionCode = (
+const renderPipeRender = (
   expression: PgSqlExpr,
   context: ExpressionRenderContext
+): PipeRender | undefined => {
+  const isTextCastTarget = (value: unknown): boolean => {
+    if (typeof value !== "object" || value === null || !("name" in value)) {
+      return false
+    }
+    const name = String((value as { readonly name: unknown }).name).toLowerCase()
+    return name === "text" || name === "varchar" || name === "char" || name === "character varying" || name === "character" || name === "bpchar"
+  }
+
+  switch (expression.type) {
+    case "cast": {
+      const inner = renderPipeRender(expression.operand, context)
+      const operation = `${PG_ALIAS}.Cast.to(${renderCastTarget(expression.to, context)})`
+      return inner === undefined
+        ? {
+            baseExpression: expression.operand,
+            operations: [operation]
+          }
+        : {
+            baseExpression: inner.baseExpression,
+            operations: [...inner.operations, operation]
+          }
+    }
+    case "member": {
+      const operand = expression.operand.type === "cast" && isTextCastTarget(expression.operand.to)
+        ? expression.operand.operand
+        : expression.operand
+      const member = expression.member as string | number
+      const path = typeof member === "number"
+        ? `${PG_ALIAS}.Function.json.index(${member})`
+        : `${PG_ALIAS}.Function.json.key(${renderStringLiteral(member)})`
+      const operation = expression.op === "->>"
+        ? `${PG_ALIAS}.Function.json.text(${path})`
+        : `${PG_ALIAS}.Function.json.get(${path})`
+      const inner = renderPipeRender(operand, context)
+      return inner === undefined
+        ? {
+            baseExpression: operand,
+            operations: [operation]
+          }
+        : {
+            baseExpression: inner.baseExpression,
+            operations: [...inner.operations, operation]
+          }
+    }
+    default:
+      return undefined
+  }
+}
+
+const renderSqlExpressionCode = (
+  expression: PgSqlExpr,
+  context: ExpressionRenderContext,
+  allowPipe = true
 ): string => {
+  const collectBooleanOperands = (
+    value: PgSqlExpr,
+    operator: "AND" | "OR"
+  ): Array<PgSqlExpr> => {
+    if (value.type === "binary") {
+      const op = String(value.op).toUpperCase()
+      if (op === operator) {
+        return [
+          ...collectBooleanOperands(value.left, operator),
+          ...collectBooleanOperands(value.right, operator)
+        ]
+      }
+    }
+    return [value]
+  }
+
+  const renderBooleanChain = (
+    operator: "and" | "or",
+    value: PgSqlExpr
+  ): string => {
+    const operands = collectBooleanOperands(value, operator.toUpperCase() as "AND" | "OR")
+      .map((item) => renderSqlExpressionCode(item, context))
+    const base = `${PG_ALIAS}.Query.${operator}(${operands.slice(0, 2).join(", ")})`
+    return operands.length > 2
+      ? `${base}.pipe(${operands.slice(2).join(", ")})`
+      : base
+  }
+
   const isTextCastTarget = (value: unknown): boolean => {
     if (typeof value !== "object" || value === null || !("name" in value)) {
       return false
@@ -513,6 +605,16 @@ const renderSqlExpressionCode = (
         return extractStringArrayLiterals(value.operand)
       default:
         return undefined
+    }
+  }
+
+  if (allowPipe) {
+    const pipeRender = renderPipeRender(expression, context)
+    if (pipeRender !== undefined) {
+      return renderPipeChain(
+        renderSqlExpressionCode(pipeRender.baseExpression, context, false),
+        pipeRender.operations
+      )
     }
   }
 
@@ -555,11 +657,11 @@ const renderSqlExpressionCode = (
       return `${PG_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
     }
     case "cast":
-      return `${PG_ALIAS}.Query.cast(${renderSqlExpressionCode(expression.operand, context)}, ${renderCastTarget(expression.to, context)})`
+      return `${PG_ALIAS}.Cast.to(${renderSqlExpressionCode(expression.operand, context, false)}, ${renderCastTarget(expression.to, context)})`
     case "member": {
       const base = expression.operand.type === "cast" && isTextCastTarget(expression.operand.to)
-        ? renderSqlExpressionCode(expression.operand.operand, context)
-        : renderSqlExpressionCode(expression.operand, context)
+        ? renderSqlExpressionCode(expression.operand.operand, context, false)
+        : renderSqlExpressionCode(expression.operand, context, false)
       const member = expression.member as string | number
       const path = typeof member === "number"
         ? `${PG_ALIAS}.Function.json.index(${member})`
@@ -660,10 +762,10 @@ const renderSqlExpressionCode = (
           return `${PG_ALIAS}.Query.gte(${left}, ${right})`
         case "AND":
         case "and":
-          return `${PG_ALIAS}.Query.and(${left}, ${right})`
+          return renderBooleanChain("and", expression)
         case "OR":
         case "or":
-          return `${PG_ALIAS}.Query.or(${left}, ${right})`
+          return renderBooleanChain("or", expression)
         case "LIKE":
         case "like":
           return `${PG_ALIAS}.Query.like(${left}, ${right})`
@@ -777,6 +879,13 @@ const renderDdlExpressionCode = (
   context: ExpressionRenderContext
 ): string =>
   renderSqlExpressionCode(parse(sql, "expr") as PgSqlExpr, context)
+
+const renderTableScopedDdlExpressionCode = (
+  table: TableModel,
+  sql: string,
+  context: RenderContext
+): string =>
+  `(${TABLE_COLUMNS_ALIAS}) => ${renderDdlExpressionCode(sql, renderExpressionContext(table, context, TABLE_COLUMNS_ALIAS))}`
 
 const columnShapeSignature = (column: ColumnModel): string =>
   JSON.stringify({
@@ -1160,13 +1269,15 @@ const renderColumnBase = (
 
 const renderExpressionContext = (
   table: TableModel,
-  context: RenderContext
+  context: RenderContext,
+  tableColumnsAlias?: string
 ): ExpressionRenderContext => ({
   columnByName: new Map(table.columns.map((column) => [column.name, column])),
   enumKeys: context.enumKeys,
   enumExpressionByKey: context.enumExpressionByKey,
   sequenceExpressionByKey: context.sequenceExpressionByKey,
-  currentSchemaName: table.schemaName
+  currentSchemaName: table.schemaName,
+  tableColumnsAlias
 })
 
 const renderColumnDefinition = (
@@ -1251,7 +1362,7 @@ const renderIndexOption = (
     parts.push(`include: [${option.include.map(renderStringLiteral).join(", ")}]`)
   }
   if (option.predicate) {
-    parts.push(`predicate: ${renderDdlExpressionCode(renderDdlExpressionSql(option.predicate), renderExpressionContext(table, context))}`)
+    parts.push(`predicate: ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)}`)
   }
   return `${TABLE_ALIAS}.index({ ${parts.join(", ")} })`
 }
@@ -1382,6 +1493,9 @@ const renderInlineColumnOption = (
       if (option.unique === true) {
         return undefined
       }
+      if (option.predicate !== undefined) {
+        return undefined
+      }
       const inlineColumn = inlineIndexColumn(option)
       if (inlineColumn === undefined || inlineColumn.column !== columnName) {
         return undefined
@@ -1406,9 +1520,6 @@ const renderInlineColumnOption = (
       if (option.include !== undefined && option.include.length > 0) {
         parts.push(`include: [${option.include.map(renderStringLiteral).join(", ")}]`)
       }
-      if (option.predicate !== undefined) {
-        parts.push(`predicate: ${renderDdlExpressionCode(renderDdlExpressionSql(option.predicate), renderExpressionContext(table, context))}`)
-      }
       if (inlineColumn.order !== undefined) {
         parts.push(`order: ${renderStringLiteral(inlineColumn.order)}`)
       }
@@ -1429,7 +1540,7 @@ const isInlineColumnOption = (option: TableOptionSpec): boolean => {
     case "foreignKey":
       return false
     case "index":
-      return option.unique !== true && inlineIndexColumn(option) !== undefined
+      return option.unique !== true && option.predicate === undefined && inlineIndexColumn(option) !== undefined
     default:
       return false
   }
@@ -1487,8 +1598,8 @@ const renderTableOption = (
     }
     case "check":
       return option.noInherit
-        ? `${TABLE_ALIAS}.check({ name: ${renderStringLiteral(option.name)}, predicate: ${renderDdlExpressionCode(renderDdlExpressionSql(option.predicate), renderExpressionContext(table, context))}, noInherit: true })`
-        : `${TABLE_ALIAS}.check(${renderStringLiteral(option.name)}, ${renderDdlExpressionCode(renderDdlExpressionSql(option.predicate), renderExpressionContext(table, context))})`
+        ? `${TABLE_ALIAS}.check({ name: ${renderStringLiteral(option.name)}, predicate: ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)}, noInherit: true })`
+        : `${TABLE_ALIAS}.check(${renderStringLiteral(option.name)}, ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)})`
   }
 }
 

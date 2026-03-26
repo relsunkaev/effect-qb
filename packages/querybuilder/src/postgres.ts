@@ -6,6 +6,8 @@ export * as Datatypes from "./postgres/datatypes/index.js"
 export * as Errors from "./postgres/errors/index.js"
 /** Shared scalar SQL expression interfaces and DB-type descriptors. */
 export * as Expression from "./internal/expression.js"
+/** Postgres cast helpers. */
+export { cast as Cast } from "./postgres/cast.js"
 /** Postgres-specialized SQL function expressions. */
 export * as Function from "./postgres/function/index.js"
 /** Postgres-specialized typed query execution contracts. */
@@ -14,6 +16,8 @@ export * as Executor from "./postgres/executor.js"
 export * as Plan from "./internal/plan.js"
 /** Postgres-specialized query-construction DSL. */
 export * as Query from "./postgres/query.js"
+/** Postgres database-type constructors for casts and typed references. */
+export { type as Type } from "./postgres/type.js"
 /** Postgres normalized table/enum metadata helpers. */
 export * as Metadata from "./postgres/metadata.js"
 /** Postgres schema-expression helpers for DDL-only metadata. */

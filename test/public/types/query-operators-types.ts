@@ -68,7 +68,7 @@ void predicateHelpersLabel
 Q.eq(users.id, users.email)
 
 // @ts-expect-error incompatible membership family should be rejected
-Q.in(users.id, users.email, Q.cast("00000000-0000-0000-0000-000000000010", Q.type.uuid()))
+Q.in(users.id, users.email, Postgres.Cast.to("00000000-0000-0000-0000-000000000010", Postgres.Type.uuid()))
 
 // @ts-expect-error incompatible text operator family should be rejected
 Q.like(users.id, "%@example.com")
@@ -76,14 +76,9 @@ Q.like(users.id, "%@example.com")
 // @ts-expect-error incompatible simple-case comparison should be rejected
 Q.match(users.id).when(users.email, "bad").else("ok")
 
-const castPlan = Q.select({
-  idAsText: Q.cast(users.id, Q.type.text())
-}).pipe(
-  Q.from(users)
-)
-
-type CastPlanRow = Q.ResultRow<typeof castPlan>
-const castRowId: CastPlanRow["idAsText"] = "user-1"
+const idAsText = Postgres.Cast.to(users.id, Postgres.Type.text())
+type IdAsText = Postgres.Expression.RuntimeOf<typeof idAsText>
+const castRowId: IdAsText = "user-1"
 void castRowId
 
 // @ts-expect-error distinct is select-only

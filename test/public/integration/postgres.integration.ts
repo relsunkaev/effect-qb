@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Executor, Query as Q, Table } from "#postgres"
+import { Column as C, Executor, Query as Q, Table, Type } from "#postgres"
 import { execPostgres, runPostgres } from "./helpers.ts"
 
 const tableName = "integration_pg_events"
@@ -9,11 +9,11 @@ const tableName = "integration_pg_events"
 const events = Table.make(tableName, {
   id: C.text().pipe(C.primaryKey),
   happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
-  happenedAt: C.custom(Schema.String, Q.type.timestamptz()),
+  happenedAt: C.custom(Schema.String, Type.timestamptz()),
   amount: C.number({ precision: 10, scale: 4 }),
   payload: C.custom(Schema.Struct({
     visits: Schema.NumberFromString
-  }), Q.type.jsonb())
+  }), Type.jsonb())
 })
 
 beforeAll(async () => {

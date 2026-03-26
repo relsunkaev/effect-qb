@@ -123,7 +123,7 @@ describe("postgres dialect behavior", () => {
     const { users } = makePostgresSocialGraph()
 
     const plan = Postgres.Query.select({
-      idAsText: Postgres.Query.cast(users.id, Postgres.Query.type.text())
+      idAsText: Postgres.Cast.to(users.id, Postgres.Type.text())
     }).pipe(Postgres.Query.from(users))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -134,9 +134,9 @@ describe("postgres dialect behavior", () => {
 
   test("renders parameterized custom datatypes through explicit casts", () => {
     const plan = Postgres.Query.select({
-      sizedText: Postgres.Query.cast(
+      sizedText: Postgres.Cast.to(
         Postgres.Query.literal("alice@example.com"),
-        Postgres.Query.type.custom("varchar(255)")
+        Postgres.Type.custom("varchar(255)")
       )
     })
 
@@ -148,9 +148,9 @@ describe("postgres dialect behavior", () => {
 
   test("renders array-style custom datatypes through explicit casts", () => {
     const plan = Postgres.Query.select({
-      textArray: Postgres.Query.cast(
+      textArray: Postgres.Cast.to(
         Postgres.Query.literal(null),
-        Postgres.Query.type.custom("text[]")
+        Postgres.Type.custom("text[]")
       )
     })
 
@@ -162,28 +162,28 @@ describe("postgres dialect behavior", () => {
 
   test("renders structured datatype casts with postgres syntax", () => {
     const plan = Postgres.Query.select({
-      arrayValue: Postgres.Query.cast(
+      arrayValue: Postgres.Cast.to(
         Postgres.Query.literal("{}"),
-        Postgres.Query.type.array(Postgres.Query.type.text())
+        Postgres.Type.array(Postgres.Type.text())
       ),
-      rangeValue: Postgres.Query.cast(
+      rangeValue: Postgres.Cast.to(
         Postgres.Query.literal("int4range(1,10)"),
-        Postgres.Query.type.range("int4range", Postgres.Query.type.int4())
+        Postgres.Type.range("int4range", Postgres.Type.int4())
       ),
-      recordValue: Postgres.Query.cast(
+      recordValue: Postgres.Cast.to(
         Postgres.Query.literal("{}"),
-        Postgres.Query.type.record("user_profile", {
-          displayName: Postgres.Query.type.text(),
-          age: Postgres.Query.type.int4()
+        Postgres.Type.record("user_profile", {
+          displayName: Postgres.Type.text(),
+          age: Postgres.Type.int4()
         })
       ),
-      domainValue: Postgres.Query.cast(
+      domainValue: Postgres.Cast.to(
         Postgres.Query.literal("alice@example.com"),
-        Postgres.Query.type.domain("email_domain", Postgres.Query.type.text())
+        Postgres.Type.domain("email_domain", Postgres.Type.text())
       ),
-      enumValue: Postgres.Query.cast(
+      enumValue: Postgres.Cast.to(
         Postgres.Query.literal("status_enum"),
-        Postgres.Query.type.enum("status_enum")
+        Postgres.Type.enum("status_enum")
       )
     })
 
@@ -198,16 +198,16 @@ describe("postgres dialect behavior", () => {
   test("renders array and range container operators with postgres syntax", () => {
     const plan = Postgres.Query.select({
       arrayContains: Postgres.Query.contains(
-        Postgres.Query.cast(Postgres.Query.literal("{}"), Postgres.Query.type.array(Postgres.Query.type.text())),
-        Postgres.Query.cast(Postgres.Query.literal("{}"), Postgres.Query.type.array(Postgres.Query.type.text()))
+        Postgres.Cast.to(Postgres.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text())),
+        Postgres.Cast.to(Postgres.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text()))
       ),
       arrayContainedBy: Postgres.Query.containedBy(
-        Postgres.Query.cast(Postgres.Query.literal("{}"), Postgres.Query.type.array(Postgres.Query.type.text())),
-        Postgres.Query.cast(Postgres.Query.literal("{}"), Postgres.Query.type.array(Postgres.Query.type.text()))
+        Postgres.Cast.to(Postgres.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text())),
+        Postgres.Cast.to(Postgres.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text()))
       ),
       rangeOverlap: Postgres.Query.overlaps(
-        Postgres.Query.cast(Postgres.Query.literal("int4range(1,10)"), Postgres.Query.type.range("int4range", Postgres.Query.type.int4())),
-        Postgres.Query.cast(Postgres.Query.literal("int4range(5,15)"), Postgres.Query.type.range("int4range", Postgres.Query.type.int4()))
+        Postgres.Cast.to(Postgres.Query.literal("int4range(1,10)"), Postgres.Type.range("int4range", Postgres.Type.int4())),
+        Postgres.Cast.to(Postgres.Query.literal("int4range(5,15)"), Postgres.Type.range("int4range", Postgres.Type.int4()))
       )
     })
 

@@ -133,7 +133,7 @@ type JsonbOnlyUsageError<
   readonly __effect_qb_error__: "effect-qb: postgres jsonb helpers require a jsonb expression"
   readonly __effect_qb_json_operation__: Operation
   readonly __effect_qb_received_kind__: Expression.DbTypeOf<Value>["kind"]
-  readonly __effect_qb_hint__: "Use Column.jsonb(...), Query.cast(..., Query.type.jsonb()), or Postgres.Function.jsonb.toJsonb(...)"
+  readonly __effect_qb_hint__: "Use Column.jsonb(...), Cast.to(..., Type.jsonb()), or Postgres.Function.jsonb.toJsonb(...)"
 }
 
 type JsonbBaseGuard<
@@ -162,21 +162,76 @@ type JsonResultExpression<
   Expression.SourceNullabilityMode
 >
 
+type JsonDbOf<Base extends PostgresJsonExpression<any>> =
+  Expression.DbTypeOf<Base> extends Expression.DbType.Json<"postgres", infer Variant>
+    ? Expression.DbType.Json<"postgres", Variant>
+    : Expression.DbType.Json<"postgres", "json">
+
+type JsonGetResultExpression<
+  Base extends PostgresJsonExpression<any>,
+  Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment,
+  Operation extends string
+> = JsonResultExpression<
+  JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, Operation>,
+  JsonDbOf<Base>
+>
+
+type JsonTextRuntime<
+  Base extends PostgresJsonExpression<any>,
+  Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment
+> =
+  Extract<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, string> |
+  (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never)
+
+type JsonTextResultExpression<
+  Base extends PostgresJsonExpression<any>,
+  Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment
+> = Expression.Expression<
+  JsonTextRuntime<Base, Target>,
+  Expression.DbType.PgText,
+  JsonNullabilityOf<JsonTextRuntime<Base, Target>>,
+  string,
+  Expression.AggregationKind,
+  any,
+  Expression.SourceDependencies,
+  Expression.SourceNullabilityMode
+>
+
 const exactPath = <Segments extends readonly JsonPath.CanonicalSegment[]>(
   ...segments: Segments & ExactJsonPathSegmentsGuard<Segments>
 ): JsonPath.Path<Segments> => JsonPath.path(...segments) as unknown as JsonPath.Path<Segments>
+
+const jsonGetDirect = <
+  Base extends PostgresJsonExpression<any>,
+  Target extends ExactJsonPathInput
+>(
+  base: Base,
+  target: Target & ExactJsonPathGuard<Target>
+): JsonGetResultExpression<Base, Target, "json.get"> =>
+  postgresQuery.json.get(base as never, target as never) as unknown as JsonGetResultExpression<Base, Target, "json.get">
+
+const jsonTextDirect = <
+  Base extends PostgresJsonExpression<any>,
+  Target extends ExactJsonPathInput
+>(
+  base: Base,
+  target: Target & ExactJsonPathGuard<Target>
+): JsonTextResultExpression<Base, Target> =>
+  postgresQuery.json.text(base as never, target as never) as unknown as JsonTextResultExpression<Base, Target>
 
 const json = {
   key: postgresQuery.json.key,
   index: postgresQuery.json.index,
   path: exactPath,
-  get: <
-    Base extends PostgresJsonExpression<any>,
-    Target extends ExactJsonPathInput
-  >(
-    base: Base,
-    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.get">
-  ) => postgresQuery.json.get(base, target),
+  get: ((...args: [PostgresJsonExpression<any>, ExactJsonPathInput] | [ExactJsonPathInput]) =>
+    args.length === 1
+      ? ((base: PostgresJsonExpression<any>) => jsonGetDirect(base as never, args[0] as never))
+      : jsonGetDirect(args[0] as never, args[1] as never)) as unknown as
+    typeof jsonGetDirect & {
+      <Target extends ExactJsonPathInput>(
+        target: Target & ExactJsonPathGuard<Target>
+      ): <Base extends PostgresJsonExpression<any>>(base: Base) => ReturnType<typeof jsonGetDirect>
+    },
   access: <
     Base extends PostgresJsonExpression<any>,
     Target extends ExactJsonPathInput
@@ -191,13 +246,15 @@ const json = {
     base: Base,
     target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.traverse">
   ) => postgresQuery.json.traverse(base, target),
-  text: <
-    Base extends PostgresJsonExpression<any>,
-    Target extends ExactJsonPathInput
-  >(
-    base: Base,
-    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.text">
-  ) => postgresQuery.json.text(base, target),
+  text: ((...args: [PostgresJsonExpression<any>, ExactJsonPathInput] | [ExactJsonPathInput]) =>
+    args.length === 1
+      ? ((base: PostgresJsonExpression<any>) => jsonTextDirect(base as never, args[0] as never))
+      : jsonTextDirect(args[0] as never, args[1] as never)) as unknown as
+    typeof jsonTextDirect & {
+      <Target extends ExactJsonPathInput>(
+        target: Target & ExactJsonPathGuard<Target>
+      ): <Base extends PostgresJsonExpression<any>>(base: Base) => ReturnType<typeof jsonTextDirect>
+    },
   accessText: <
     Base extends PostgresJsonExpression<any>,
     Target extends ExactJsonPathInput
