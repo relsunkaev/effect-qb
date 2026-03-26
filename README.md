@@ -64,6 +64,7 @@ bun install
 - [Choose An Entrypoint](#choose-an-entrypoint)
 - [Postgres Function](#postgres-function)
 - [Quick Start](#quick-start)
+- [Example Schema](#example-schema)
 - [Execution Model](#execution-model)
 - [Feature Map](#feature-map)
 - [Effect Schema Integration](#effect-schema-integration)
@@ -195,6 +196,31 @@ rendered.params
 ```
 
 This is the core model: define typed tables, build a plan, let the plan define the row type, then render or execute it.
+
+## Example Schema
+
+The examples below reuse these tables unless they define their own schema inline.
+
+```ts
+import { Column as C, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey),
+  email: C.text()
+})
+
+const posts = Table.make("posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  userId: C.uuid(),
+  title: C.text().pipe(C.nullable)
+})
+
+const comments = Table.make("comments", {
+  id: C.uuid().pipe(C.primaryKey),
+  postId: C.uuid(),
+  body: C.text()
+})
+```
 
 ## Execution Model
 
@@ -519,6 +545,8 @@ This matters for:
 - dialect-specific error unions
 
 ## Query Guide
+
+The examples below reuse the tables from [Example Schema](#example-schema) unless they define their own tables inline.
 
 ### Selecting Data
 
@@ -1164,6 +1192,8 @@ In practice, the error flow is:
 
 This is the main reason to use `effect-qb`.
 
+The examples in this section reuse the tables from [Example Schema](#example-schema) unless they define their own tables inline.
+
 ### Complete-plan Enforcement
 
 Partial plans are allowed while composing, but incomplete plans fail at the enforcement boundary.
@@ -1186,6 +1216,8 @@ type MissingFrom = Q.CompletePlan<typeof missingFrom>
 The same branded error shape applies when `where(...)`, joins, or projections reference sources that never enter scope.
 
 ### Predicate-driven Narrowing
+
+The examples below reuse the tables from [Example Schema](#example-schema).
 
 Predicates refine result types, not just SQL.
 
