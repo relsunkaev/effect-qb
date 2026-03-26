@@ -370,17 +370,35 @@ type ComparableGuard<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any,
   Operator extends string
-> = CanCompareDbTypes<
-  DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-  DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-  Dialect
-> extends true ? true : OperandCompatibilityError<
-  Operator,
-  DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-  DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+> = DialectDbTypeOfInput<
+  Left,
   Dialect,
-  "the same db type family"
->
+  TextDb,
+  NumericDb,
+  BoolDb,
+  TimestampDb,
+  NullDb
+> extends infer LeftDb extends Expression.DbType.Any
+  ? DialectDbTypeOfInput<
+    Right,
+    Dialect,
+    TextDb,
+    NumericDb,
+    BoolDb,
+    TimestampDb,
+    NullDb
+  > extends infer RightDb extends Expression.DbType.Any
+    ? CanCompareDbTypes<LeftDb, RightDb, Dialect> extends true
+      ? true
+      : OperandCompatibilityError<
+        Operator,
+        LeftDb,
+        RightDb,
+        Dialect,
+        "the same db type family"
+      >
+    : never
+  : never
 
 type TextGuard<
   Value extends ExpressionInput,
@@ -465,9 +483,21 @@ type ComparableArgs<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any,
   Operator extends string
-> = ComparableGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
-  ? readonly [left: Left, right: Right]
-  : readonly [ComparableGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
+> = ComparableGuard<
+  Left,
+  Right,
+  Dialect,
+  TextDb,
+  NumericDb,
+  BoolDb,
+  TimestampDb,
+  NullDb,
+  Operator
+> extends infer Guard
+  ? Guard extends true
+    ? readonly [left: Left, right: Right]
+    : readonly [Guard]
+  : never
 
 type ContainmentGuard<
   Left extends ExpressionInput,
@@ -1746,7 +1776,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "eq">
   ): BinaryPredicateExpression<Left, Right, "eq"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "eq")
   }
 
@@ -1756,7 +1786,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "neq">
   ): BinaryPredicateExpression<Left, Right, "neq"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "neq")
   }
 
@@ -1766,7 +1796,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "lt">
   ): BinaryPredicateExpression<Left, Right, "lt"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "lt")
   }
 
@@ -1776,7 +1806,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "lte">
   ): BinaryPredicateExpression<Left, Right, "lte"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "lte")
   }
 
@@ -1786,7 +1816,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "gt">
   ): BinaryPredicateExpression<Left, Right, "gt"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "gt")
   }
 
@@ -1796,7 +1826,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "gte">
   ): BinaryPredicateExpression<Left, Right, "gte"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "gte")
   }
 
@@ -1806,7 +1836,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "like">
   ): BinaryPredicateExpression<Left, Right, "like"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "like")
   }
 
@@ -1816,7 +1846,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "ilike">
   ): BinaryPredicateExpression<Left, Right, "ilike"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "ilike")
   }
 
@@ -1826,7 +1856,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexMatch">
   ): BinaryPredicateExpression<Left, Right, "regexMatch"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexMatch")
   }
 
@@ -1836,7 +1866,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexIMatch">
   ): BinaryPredicateExpression<Left, Right, "regexIMatch"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexIMatch")
   }
 
@@ -1846,7 +1876,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexNotMatch">
   ): BinaryPredicateExpression<Left, Right, "regexNotMatch"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexNotMatch")
   }
 
@@ -1856,7 +1886,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexNotIMatch">
   ): BinaryPredicateExpression<Left, Right, "regexNotIMatch"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexNotIMatch")
   }
 
@@ -1866,7 +1896,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "isDistinctFrom">
   ): BinaryPredicateExpression<Left, Right, "isDistinctFrom", "never", "resolved"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "isDistinctFrom", "never", "resolved")
   }
 
@@ -1876,7 +1906,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "isNotDistinctFrom">
   ): BinaryPredicateExpression<Left, Right, "isNotDistinctFrom", "never", "resolved"> => {
-    const [left, right] = args as [Left, Right]
+    const [left, right] = args as unknown as [Left, Right]
     return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "isNotDistinctFrom", "never", "resolved")
   }
 

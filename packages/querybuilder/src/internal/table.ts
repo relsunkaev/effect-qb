@@ -76,12 +76,19 @@ type OptionInputTable<
 type ApplyOption<
   Table extends TableDefinition<any, any, any, "schema", any>,
   Spec extends TableOptionSpec
-> = TableDefinition<
-  Table[typeof TypeId]["name"],
-  Table[typeof TypeId]["fields"],
-  BuildPrimaryKey<Table, Spec>,
-  "schema"
->
+> = Spec extends { readonly kind: "primaryKey" }
+  ? TableDefinition<
+    Table[typeof TypeId]["name"],
+    Table[typeof TypeId]["fields"],
+    BuildPrimaryKey<Table, Spec>,
+    "schema"
+  >
+  : TableDefinition<
+    Table[typeof TypeId]["name"],
+    Table[typeof TypeId]["fields"],
+    Table[typeof TypeId]["primaryKey"][number],
+    "schema"
+  >
 
 export type MissingSelfGeneric = "Missing `Self` generic - use `class Self extends Table.Class<Self>(...) {}`"
 

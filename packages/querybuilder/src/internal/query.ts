@@ -1506,35 +1506,42 @@ type CaseOutputOf<
   : ExpressionOutput<Else, EffectiveAvailable<Available, Assumptions>, Assumptions>
 
 /** Effective nullability of an expression after source-scope nullability is applied. */
+type EffectiveNullabilityOfAst<
+  Value extends Expression.Any,
+  Ast extends ExpressionAst.Any,
+  Available extends Record<string, Plan.AnySource>,
+  Assumptions extends PredicateFormula = TrueAssumptions
+> = Ast extends ExpressionAst.ColumnNode<any, any>
+  ? BaseEffectiveNullability<Value, Available, Assumptions>
+  : Ast extends ExpressionAst.LiteralNode<any>
+    ? Expression.NullabilityOf<Value>
+    : Ast extends ExpressionAst.UnaryNode<infer Kind, infer UnaryValue extends Expression.Any>
+      ? Kind extends "upper" | "lower" | "not"
+        ? EffectiveNullability<UnaryValue, Available, Assumptions>
+        : Kind extends "isNull" | "isNotNull" | "count"
+          ? "never"
+          : Expression.NullabilityOf<Value>
+      : Ast extends ExpressionAst.BinaryNode<"eq", infer Left extends Expression.Any, infer Right extends Expression.Any>
+        ? EffectiveNullability<Left, Available, Assumptions> extends "never"
+          ? EffectiveNullability<Right, Available, Assumptions> extends "never" ? "never" : "maybe"
+          : "maybe"
+        : Ast extends ExpressionAst.VariadicNode<infer Kind, infer Values extends readonly Expression.Any[]>
+          ? Kind extends "coalesce"
+            ? CoalesceEffectiveNullability<Values, Available, Assumptions>
+            : Kind extends "and" | "or" | "concat"
+              ? FoldEffectiveNullability<Values, Available, Assumptions>
+              : BaseEffectiveNullability<Value, Available, Assumptions>
+          : Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
+            ? NullabilityOfOutput<CaseOutputOf<Branches, Else, Available, Assumptions>>
+          : BaseEffectiveNullability<Value, Available, Assumptions>
+
 export type EffectiveNullability<
   Value extends Expression.Any,
   Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > =
   AstOf<Value> extends infer Ast extends ExpressionAst.Any
-    ? Ast extends ExpressionAst.ColumnNode<any, any>
-      ? BaseEffectiveNullability<Value, Available, Assumptions>
-      : Ast extends ExpressionAst.LiteralNode<any>
-        ? Expression.NullabilityOf<Value>
-        : Ast extends ExpressionAst.UnaryNode<infer Kind, infer UnaryValue extends Expression.Any>
-          ? Kind extends "upper" | "lower" | "not"
-            ? EffectiveNullability<UnaryValue, Available, Assumptions>
-            : Kind extends "isNull" | "isNotNull" | "count"
-              ? "never"
-              : Expression.NullabilityOf<Value>
-          : Ast extends ExpressionAst.BinaryNode<"eq", infer Left extends Expression.Any, infer Right extends Expression.Any>
-            ? EffectiveNullability<Left, Available, Assumptions> extends "never"
-              ? EffectiveNullability<Right, Available, Assumptions> extends "never" ? "never" : "maybe"
-              : "maybe"
-            : Ast extends ExpressionAst.VariadicNode<infer Kind, infer Values extends readonly Expression.Any[]>
-              ? Kind extends "coalesce"
-                ? CoalesceEffectiveNullability<Values, Available, Assumptions>
-                : Kind extends "and" | "or" | "concat"
-                  ? FoldEffectiveNullability<Values, Available, Assumptions>
-                  : BaseEffectiveNullability<Value, Available, Assumptions>
-              : Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
-                ? NullabilityOfOutput<CaseOutputOf<Branches, Else, Available, Assumptions>>
-              : BaseEffectiveNullability<Value, Available, Assumptions>
+    ? EffectiveNullabilityOfAst<Value, Ast, Available, Assumptions>
     : BaseEffectiveNullability<Value, Available, Assumptions>
 
 /** Result runtime type of an expression after effective nullability is resolved. */
@@ -1542,15 +1549,23 @@ export type ExpressionOutput<
   Value extends Expression.Any,
   Available extends Record<string, Plan.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
-> = AstOf<Value> extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
-  ? CaseOutputOf<Branches, Else, Available, Assumptions>
-  : EffectiveNullability<Value, Available, Assumptions> extends "never"
-    ? Expression.NullabilityOf<Value> extends "never"
-      ? Expression.RuntimeOf<Value>
-      : NonNullable<Expression.RuntimeOf<Value>>
-    : EffectiveNullability<Value, Available, Assumptions> extends "always"
-      ? null
-      : Expression.RuntimeOf<Value> | null
+> = AstOf<Value> extends infer Ast extends ExpressionAst.Any
+  ? Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
+    ? CaseOutputOf<Branches, Else, Available, Assumptions>
+    : EffectiveNullabilityOfAst<Value, Ast, Available, Assumptions> extends infer Nullability
+      ? Expression.NullabilityOf<Value> extends infer BaseNullability
+        ? Expression.RuntimeOf<Value> extends infer Runtime
+          ? Nullability extends "never"
+            ? BaseNullability extends "never"
+              ? Runtime
+              : NonNullable<Runtime>
+            : Nullability extends "always"
+              ? null
+              : Runtime | null
+          : never
+        : never
+      : never
+    : never
 
 /** Result runtime type of a nested selection after source-scope nullability is resolved. */
 export type OutputOfSelection<
@@ -1565,22 +1580,36 @@ export type OutputOfSelection<
       }
     : never
 
-/** Resolved row type produced by a concrete query plan. */
-export type ResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> = OutputOfSelection<
-  PlanValue[typeof Plan.TypeId]["selection"],
-  EffectiveAvailable<PlanValue[typeof Plan.TypeId]["available"], AssumptionsOfPlan<PlanValue>>,
-  AssumptionsOfPlan<PlanValue>
+type ResolvedSelectionOutput<
+  Selection,
+  Available extends Record<string, Plan.AnySource>,
+  Assumptions extends PredicateFormula
+> = OutputOfSelection<
+  Selection,
+  EffectiveAvailable<Available, Assumptions>,
+  Assumptions
 >
+
+/** Resolved row type produced by a concrete query plan. */
+export type ResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+  SelectionOfPlan<PlanValue> extends infer Selection
+    ? AvailableOfPlan<PlanValue> extends infer Available extends Record<string, Plan.AnySource>
+      ? AssumptionsOfPlan<PlanValue> extends infer Assumptions extends PredicateFormula
+        ? ResolvedSelectionOutput<Selection, Available, Assumptions>
+        : never
+      : never
+    : never
 
 /** Resolved row collection type produced by a concrete query plan. */
 export type ResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> = ReadonlyArray<ResultRow<PlanValue>>
 
 /** Conservative runtime row shape produced by remapping projection aliases. */
-export type RuntimeResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> = OutputOfSelection<
-  PlanValue[typeof Plan.TypeId]["selection"],
-  PlanValue[typeof Plan.TypeId]["available"],
-  TrueAssumptions
->
+export type RuntimeResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+  SelectionOfPlan<PlanValue> extends infer Selection
+    ? AvailableOfPlan<PlanValue> extends infer Available extends Record<string, Plan.AnySource>
+      ? OutputOfSelection<Selection, Available, TrueAssumptions>
+      : never
+    : never
 
 /** Conservative runtime row collection type. */
 export type RuntimeResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> = ReadonlyArray<RuntimeResultRow<PlanValue>>
