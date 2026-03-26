@@ -67,7 +67,7 @@ type NullableColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   IsPrimaryKey<Column>,
   Column[typeof ColumnTypeId]["unique"],
   ReferencesOf<Column>
->
+> & PreserveBrand<Column>
 
 type PrimaryKeyColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   SelectType<Column>,
@@ -80,7 +80,7 @@ type PrimaryKeyColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   true,
   true,
   ReferencesOf<Column>
->
+> & PreserveBrand<Column>
 
 type UniqueColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   SelectType<Column>,
@@ -93,7 +93,7 @@ type UniqueColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   IsPrimaryKey<Column>,
   true,
   ReferencesOf<Column>
->
+> & PreserveBrand<Column>
 
 type IndexedColumn<Column extends AnyColumnDefinition> = Column
 
@@ -108,7 +108,7 @@ type HasDefaultColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   IsPrimaryKey<Column>,
   Column[typeof ColumnTypeId]["unique"],
   ReferencesOf<Column>
->
+> & PreserveBrand<Column>
 
 type DdlTypedColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   SelectType<Column>,
@@ -121,7 +121,7 @@ type DdlTypedColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   IsPrimaryKey<Column>,
   Column[typeof ColumnTypeId]["unique"],
   ReferencesOf<Column>
->
+> & PreserveBrand<Column>
 
 type GeneratedColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   SelectType<Column>,
@@ -134,7 +134,7 @@ type GeneratedColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   IsPrimaryKey<Column>,
   Column[typeof ColumnTypeId]["unique"],
   ReferencesOf<Column>
->
+> & PreserveBrand<Column>
 
 type ByDefaultIdentityColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   SelectType<Column>,
@@ -147,7 +147,7 @@ type ByDefaultIdentityColumn<Column extends AnyColumnDefinition> = ColumnDefinit
   IsPrimaryKey<Column>,
   Column[typeof ColumnTypeId]["unique"],
   ReferencesOf<Column>
->
+> & PreserveBrand<Column>
 
 type AlwaysIdentityColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   SelectType<Column>,
@@ -160,7 +160,7 @@ type AlwaysIdentityColumn<Column extends AnyColumnDefinition> = ColumnDefinition
   IsPrimaryKey<Column>,
   Column[typeof ColumnTypeId]["unique"],
   ReferencesOf<Column>
->
+> & PreserveBrand<Column>
 
 type CompatibleColumnExpression<
   Column extends AnyColumnDefinition,
@@ -198,7 +198,7 @@ type ReferencingColumn<
   IsPrimaryKey<Column>,
   Column[typeof ColumnTypeId]["unique"],
   ColumnReference<Target>
->
+> & PreserveBrand<Column>
 
 type ForeignKeyOptions<Target extends AnyBoundColumn> = {
   readonly target: () => Target
@@ -239,7 +239,7 @@ type ColumnWithSchema<
   ReferencesOf<Column>,
   Column[typeof ColumnTypeId]["source"],
   Column[typeof ColumnTypeId]["dependencies"]
->
+> & PreserveBrand<Column>
 
 type BrandNameOf<Column extends AnyBoundColumn> =
   `${Column[typeof BoundColumnTypeId]["tableName"]}.${Column[typeof BoundColumnTypeId]["columnName"]}`
@@ -250,6 +250,14 @@ type BrandedValue<
 > = [Extract<Value, null | undefined>] extends [never]
   ? Value & Brand.Brand<BrandName>
   : Exclude<Value, null | undefined> & Brand.Brand<BrandName> | Extract<Value, null | undefined>
+
+type BrandMetadata<Column extends AnyColumnDefinition> = {
+  readonly metadata: Column["metadata"] & { readonly brand: true }
+}
+
+type PreserveBrand<Column extends AnyColumnDefinition> = Column["metadata"]["brand"] extends true
+  ? BrandMetadata<Column>
+  : {}
 
 type BrandedColumn<
   Column extends AnyBoundColumn
@@ -266,7 +274,24 @@ type BrandedColumn<
   ReferencesOf<Column>,
   Column[typeof ColumnTypeId]["source"],
   Column[typeof ColumnTypeId]["dependencies"]
->
+> & BrandMetadata<Column>
+
+type BrandMarkedColumn<
+  Column extends AnyColumnDefinition
+> = ColumnDefinition<
+  SelectType<Column>,
+  InsertType<Column>,
+  UpdateType<Column>,
+  Column[typeof ColumnTypeId]["dbType"],
+  IsNullable<Column>,
+  HasDefault<Column>,
+  IsGenerated<Column>,
+  IsPrimaryKey<Column>,
+  Column[typeof ColumnTypeId]["unique"],
+  ReferencesOf<Column>,
+  Column[typeof ColumnTypeId]["source"],
+  Column[typeof ColumnTypeId]["dependencies"]
+> & BrandMetadata<Column>
 
 export interface ArrayOptions {
   readonly nullableElements?: boolean
@@ -323,14 +348,14 @@ type ArrayColumn<
   ReferencesOf<Column>,
   Column[typeof ColumnTypeId]["source"],
   Column[typeof ColumnTypeId]["dependencies"]
->
+> & PreserveBrand<Column>
 
 const mapColumn = <
   Column extends AnyColumnDefinition,
   Next extends AnyColumnDefinition
 >(
   column: Column,
-  metadata: Next["metadata"]
+  metadata: AnyColumnDefinition["metadata"]
 ): Next => remapColumnDefinition(column as any, {
   metadata
 }) as Next
@@ -695,14 +720,31 @@ export const schema = <SchemaType extends Schema.Schema.Any>(nextSchema: SchemaT
       schema: nextSchema
     }) as ColumnWithSchema<Column, SchemaType>
 
-/** Brands a bound column with its `table.column` provenance. */
-export const brand = <Column extends AnyBoundColumn>(
+type BrandResult<Column extends AnyColumnDefinition> = Column extends AnyBoundColumn
+  ? BrandedColumn<Column>
+  : BrandMarkedColumn<Column>
+
+/** Brands a column with its `table.column` provenance. */
+export const brand = <Column extends AnyColumnDefinition>(
   column: Column
-): BrandedColumn<Column> => {
-  const brandName = `${column[BoundColumnTypeId].tableName}.${column[BoundColumnTypeId].columnName}` as BrandNameOf<Column>
-  return remapColumnDefinition(column as AnyColumnDefinition, {
-    schema: Schema.brand(brandName)(column.schema)
-  }) as BrandedColumn<Column>
+): BrandResult<Column> => {
+  if (BoundColumnTypeId in column) {
+    const boundColumn = column as unknown as AnyBoundColumn
+    const brandName = `${boundColumn[BoundColumnTypeId].tableName}.${boundColumn[BoundColumnTypeId].columnName}`
+    return remapColumnDefinition(boundColumn, {
+      schema: Schema.brand(brandName)(boundColumn.schema),
+      metadata: {
+        ...boundColumn.metadata,
+        brand: true
+      }
+    }) as BrandResult<Column>
+  }
+  return remapColumnDefinition(column, {
+    metadata: {
+      ...column.metadata,
+      brand: true
+    }
+  }) as BrandResult<Column>
 }
 
 /** Marks a column as nullable. Nullable columns decode as `T | null`. */

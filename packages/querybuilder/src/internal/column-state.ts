@@ -1,3 +1,4 @@
+import type * as Brand from "effect/Brand"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
@@ -68,6 +69,7 @@ export interface ColumnState<
   readonly primaryKey: PrimaryKey
   readonly unique: Unique
   readonly references: Ref
+  readonly brand?: true
   readonly index?: ColumnIndexOptions
   readonly uniqueConstraint?: ColumnUniqueOptions
   readonly defaultValue?: DdlExpression
@@ -132,6 +134,7 @@ export interface ColumnDefinition<
     readonly primaryKey: PrimaryKey
     readonly unique: Unique
     readonly references: Ref
+    readonly brand?: true
     readonly index?: ColumnIndexOptions
     readonly uniqueConstraint?: ColumnUniqueOptions
     readonly defaultValue?: DdlExpression
@@ -434,13 +437,17 @@ export const bindColumn = <
   baseTableName: BaseTableName,
   schemaName?: SchemaName
 ): BoundColumnFrom<Column, TableName, ColumnName, BaseTableName> => {
+  const brandName = `${tableName}.${columnName}`
+  const schema = column.metadata.brand === true
+    ? Schema.brand(brandName)(column.schema)
+    : column.schema
   const bound = Object.create(ColumnProto)
-  bound.schema = column.schema
+  bound.schema = schema
   bound.metadata = column.metadata
   bound[Expression.TypeId] = {
     runtime: undefined as SelectType<Column>,
     dbType: column.metadata.dbType,
-    runtimeSchema: column.schema,
+    runtimeSchema: schema,
     nullability: (column.metadata.nullable ? "maybe" : "never") as IsNullable<Column> extends true ? "maybe" : "never",
     dialect: column.metadata.dbType.dialect,
     aggregation: "scalar",
@@ -492,6 +499,13 @@ export type ReferencesOf<Column extends AnyColumnDefinition> = ColumnStateOf<Col
 /** Extracts the non-null select type of a column. */
 export type BaseSelectType<Column extends AnyColumnDefinition> = NonNullable<SelectType<Column>>
 
+type BrandedValue<
+  Value,
+  BrandName extends string
+> = [Extract<Value, null | undefined>] extends [never]
+  ? Value & Brand.Brand<BrandName>
+  : Exclude<Value, null | undefined> & Brand.Brand<BrandName> | Extract<Value, null | undefined>
+
 /** Rebinds a generic column definition to a specific table and key. */
 export type BoundColumnFrom<
   Column extends AnyColumnDefinition,
@@ -499,9 +513,15 @@ export type BoundColumnFrom<
   ColumnName extends string,
   BaseTableName extends string = TableName
 > = BoundColumn<
-  SelectType<Column>,
-  InsertType<Column>,
-  UpdateType<Column>,
+  Column["metadata"]["brand"] extends true
+    ? BrandedValue<SelectType<Column>, `${TableName}.${ColumnName}`>
+    : SelectType<Column>,
+  Column["metadata"]["brand"] extends true
+    ? BrandedValue<InsertType<Column>, `${TableName}.${ColumnName}`>
+    : InsertType<Column>,
+  Column["metadata"]["brand"] extends true
+    ? BrandedValue<UpdateType<Column>, `${TableName}.${ColumnName}`>
+    : UpdateType<Column>,
   ColumnStateOf<Column>["dbType"],
   IsNullable<Column>,
   HasDefault<Column>,

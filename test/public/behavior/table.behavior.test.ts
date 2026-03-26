@@ -133,6 +133,21 @@ describe("table behavior", () => {
     expect(decoded.happenedOn.toISOString()).toBe("2026-03-20T00:00:00.000Z")
   })
 
+  test("column brand can be applied inline before table binding", () => {
+    const accounts = Table.make("inline_accounts", {
+      id: C.uuid().pipe(C.primaryKey, C.brand),
+      nickname: C.text().pipe(C.nullable, C.brand)
+    })
+
+    expect(Schema.decodeUnknownSync(accounts.schemas.select)({
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      nickname: null
+    })).toEqual({
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      nickname: null
+    })
+  })
+
   test("array columns can opt into nullable elements", () => {
     const strict = Table.make("strict_events", {
       tags: C.text().pipe(C.array())
