@@ -143,6 +143,61 @@ const sortPulledAdditions = (
   return [...additions].sort((left, right) => left.sourceIndex - right.sourceIndex)
 }
 
+const sortTableAdditionsByDependency = (
+  additions: readonly (PulledAddition & { readonly kind: "table"; readonly model: TableModel })[]
+): readonly (PulledAddition & { readonly kind: "table"; readonly model: TableModel })[] => {
+  if (additions.length <= 1) {
+    return additions
+  }
+  const keyOf = (addition: PulledAddition & { readonly kind: "table"; readonly model: TableModel }): string =>
+    tableKey(addition.model.schemaName, addition.model.name)
+  const additionsByKey = new Map(additions.map((addition) => [keyOf(addition), addition] as const))
+  const dependenciesByKey = new Map<string, Set<string>>()
+  for (const addition of additions) {
+    const key = keyOf(addition)
+    const dependencies = new Set<string>()
+    for (const option of addition.model.options) {
+      if (option.kind !== "foreignKey") {
+        continue
+      }
+      const reference = option.references()
+      const dependencyKey = tableKey(reference.schemaName, reference.tableName)
+      if (dependencyKey !== key && additionsByKey.has(dependencyKey)) {
+        dependencies.add(dependencyKey)
+      }
+    }
+    dependenciesByKey.set(key, dependencies)
+  }
+
+  const remaining = new Map(additionsByKey)
+  const ordered: typeof additions = []
+  const rendered = new Set<string>()
+  while (remaining.size > 0) {
+    const ready = [...remaining.values()]
+      .filter((addition) => {
+        const dependencies = dependenciesByKey.get(keyOf(addition)) ?? new Set<string>()
+        for (const dependency of dependencies) {
+          if (!rendered.has(dependency)) {
+            return false
+          }
+        }
+        return true
+      })
+      .sort((left, right) => left.sourceIndex - right.sourceIndex)
+    if (ready.length === 0) {
+      ordered.push(...[...remaining.values()].sort((left, right) => left.sourceIndex - right.sourceIndex))
+      break
+    }
+    for (const addition of ready) {
+      const key = keyOf(addition)
+      rendered.add(key)
+      remaining.delete(key)
+      ordered.push(addition)
+    }
+  }
+  return ordered
+}
+
 const normalizeType = (value: string): string =>
   value.trim().replace(/\s+/g, " ").toLowerCase()
 
@@ -1850,6 +1905,7 @@ const renderCanonicalNewModule = (
     enumExpressionByKey,
     sequenceExpressionByKey
   }
+  const orderedTables = sortTableAdditionsByDependency(tables)
 
   const lines: string[] = [
     `import * as ${PG_ALIAS} from "effect-qb/postgres"`,
@@ -1862,13 +1918,13 @@ const renderCanonicalNewModule = (
   }
   body.push(...hoistedSequences.map((sequence) => renderSequenceDeclaration(sequence, schemaBuilderIdentifier)))
   body.push(...hoistedEnumDeclarations)
-  body.push(...tables.map((addition) => renderTableAdditionBase(normalizeDeclaration(addition.declaration), addition.model, fileContext)))
-  body.push(...tables.flatMap((addition) => {
+  body.push(...orderedTables.map((addition) => renderTableAdditionBase(normalizeDeclaration(addition.declaration), addition.model, fileContext)))
+  body.push(...orderedTables.flatMap((addition) => {
     const update = renderTableForeignKeyUpdate(normalizeDeclaration(addition.declaration), addition.model, fileContext)
     return update === undefined ? [] : [update]
   }))
   const exportNames = [
-    ...tables.map((addition) => addition.declaration.identifier),
+    ...orderedTables.map((addition) => addition.declaration.identifier),
     ...hoistedEnumExports
   ]
   const exportBlock = exportNames.length === 0
@@ -2268,41 +2324,39 @@ export const planPostgresPull = async (
       if (plan.original.trim().length === 0 && plan.replacements.length === 0) {
         next = renderCanonicalNewModule(orderedAdditions, fileContext)
       } else {
+        const orderedTables = sortTableAdditionsByDependency(
+          orderedAdditions.filter((binding): binding is PulledAddition & { readonly kind: "table"; readonly model: TableModel } =>
+            binding.kind === "table")
+        )
         const renderedEnumAdditions = orderedAdditions.filter((binding): binding is PulledAddition & { readonly kind: "enum"; readonly model: EnumModel } =>
           binding.kind === "enum" && (fileUsage.enumUsageByKey.get(binding.key) ?? 0) === 0
         )
         const renderedAdditions = [
-          ...orderedAdditions.flatMap((binding) =>
-            binding.kind === "table"
-              ? [renderTableAdditionBase(
-                  binding.declaration,
-                  binding.model as TableModel,
-                  fileContext
-                )]
-              : []
-          ),
+          ...orderedTables.map((binding) => renderTableAdditionBase(
+            binding.declaration,
+            binding.model as TableModel,
+            fileContext
+          )),
           ...renderedEnumAdditions.map((binding) =>
             renderEnumDeclaration(
               binding.declaration,
               binding.model
             )
           ),
-          ...orderedAdditions.flatMap((binding) =>
-            binding.kind === "table"
-              ? [renderTableForeignKeyUpdate(
-                  binding.declaration,
-                  binding.model as TableModel,
-                  fileContext
-                )]
-              : []
-          ).filter((value): value is string => value !== undefined)
+          ...orderedTables.flatMap((binding) => {
+            const update = renderTableForeignKeyUpdate(
+              binding.declaration,
+              binding.model as TableModel,
+              fileContext
+            )
+            return update === undefined ? [] : [update]
+          })
         ]
         next = renderDeclaredModule(
           next,
           renderedAdditions,
           [
-            ...orderedAdditions
-              .filter((binding) => binding.kind === "table")
+            ...orderedTables
               .map((binding) => binding.declaration.identifier),
             ...renderedEnumAdditions.map((binding) => binding.declaration.identifier)
           ]
