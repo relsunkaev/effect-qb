@@ -69,7 +69,7 @@ export const canonicalizePostgresTypeName = (value: string): string => {
 export const inferPostgresTypeKind = (ddlType: string): string => {
   const normalized = normalize(ddlType)
   if (normalized.endsWith("[]")) {
-    return normalized
+    return `${inferPostgresTypeKind(normalized.slice(0, -2))}[]`
   }
   const arrayPrefix = /^_+/.exec(normalized)
   if (arrayPrefix !== null) {
