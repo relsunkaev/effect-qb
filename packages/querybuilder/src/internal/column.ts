@@ -1,3 +1,4 @@
+import type * as Brand from "effect/Brand"
 import * as Schema from "effect/Schema"
 
 import * as Expression from "./expression.js"
@@ -23,6 +24,7 @@ import {
   type AnyColumnDefinition,
   type BaseSelectType,
   type BoundColumn,
+  BoundColumnTypeId,
   ColumnTypeId,
   type DdlExpression,
   type ColumnDefinition,
@@ -228,6 +230,33 @@ type ColumnWithSchema<
   ColumnSchemaOutput<Column, SchemaType>,
   ColumnSchemaOutput<Column, SchemaType>,
   ColumnSchemaOutput<Column, SchemaType>,
+  Column[typeof ColumnTypeId]["dbType"],
+  IsNullable<Column>,
+  HasDefault<Column>,
+  IsGenerated<Column>,
+  IsPrimaryKey<Column>,
+  Column[typeof ColumnTypeId]["unique"],
+  ReferencesOf<Column>,
+  Column[typeof ColumnTypeId]["source"],
+  Column[typeof ColumnTypeId]["dependencies"]
+>
+
+type BrandNameOf<Column extends AnyBoundColumn> =
+  `${Column[typeof BoundColumnTypeId]["tableName"]}.${Column[typeof BoundColumnTypeId]["columnName"]}`
+
+type BrandedValue<
+  Value,
+  BrandName extends string
+> = [Extract<Value, null | undefined>] extends [never]
+  ? Value & Brand.Brand<BrandName>
+  : Exclude<Value, null | undefined> & Brand.Brand<BrandName> | Extract<Value, null | undefined>
+
+type BrandedColumn<
+  Column extends AnyBoundColumn
+> = ColumnDefinition<
+  BrandedValue<SelectType<Column>, BrandNameOf<Column>>,
+  BrandedValue<InsertType<Column>, BrandNameOf<Column>>,
+  BrandedValue<UpdateType<Column>, BrandNameOf<Column>>,
   Column[typeof ColumnTypeId]["dbType"],
   IsNullable<Column>,
   HasDefault<Column>,
@@ -665,6 +694,16 @@ export const schema = <SchemaType extends Schema.Schema.Any>(nextSchema: SchemaT
     remapColumnDefinition(column as AnyColumnDefinition, {
       schema: nextSchema
     }) as ColumnWithSchema<Column, SchemaType>
+
+/** Brands a bound column with its `table.column` provenance. */
+export const brand = <Column extends AnyBoundColumn>(
+  column: Column
+): BrandedColumn<Column> => {
+  const brandName = `${column[BoundColumnTypeId].tableName}.${column[BoundColumnTypeId].columnName}` as BrandNameOf<Column>
+  return remapColumnDefinition(column as AnyColumnDefinition, {
+    schema: Schema.brand(brandName)(column.schema)
+  }) as BrandedColumn<Column>
+}
 
 /** Marks a column as nullable. Nullable columns decode as `T | null`. */
 export const nullable = <Column extends AnyColumnDefinition>(

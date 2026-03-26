@@ -19,6 +19,7 @@ export const json = BaseColumn.mysql.json
 export const custom = BaseColumn.mysql.custom
 
 export const nullable = BaseColumn.nullable
+export const brand = BaseColumn.brand
 export const primaryKey = BaseColumn.primaryKey
 export const unique = BaseColumn.unique
 const default_ = BaseColumn.default_
