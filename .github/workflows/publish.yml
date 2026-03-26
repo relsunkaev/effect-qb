@@ -1,17 +1,12 @@
 name: Publish
 
 on:
-  workflow_run:
-    workflows:
-      - Release
-    types:
-      - completed
   push:
     tags:
       - "v*"
 
 concurrency:
-  group: publish-${{ github.event.workflow_run.head_sha || github.ref }}
+  group: publish-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -21,7 +16,6 @@ jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,14 +32,8 @@ jobs:
         id: tag
         run: |
           git fetch --tags --force
-          if [ "$EVENT_NAME" = "workflow_run" ]; then
-            TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
-          else
-            TAG="$GITHUB_REF_NAME"
-          fi
+          TAG="$GITHUB_REF_NAME"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-        env:
-          EVENT_NAME: ${{ github.event_name }}
 
       - name: Checkout release tag
         run: git checkout --detach "${{ steps.tag.outputs.tag }}"
