@@ -244,11 +244,14 @@ const membershipsBase = Table.make("memberships", {
   note: C.text().pipe(C.nullable)
 })
 
-const memberships = membershipsBase.pipe(
+const membershipsWithKeys = membershipsBase.pipe(
   Table.foreignKey("orgId", () => orgs, "id"),
   Table.unique(["orgId", "role"]),
-  Table.index(["role", "orgId"]),
-  Table.check("role_not_empty", Q.neq(membershipsBase.role, Q.literal("")))
+  Table.index(["role", "orgId"])
+)
+
+const memberships = membershipsWithKeys.pipe(
+  Table.check("role_not_empty", Q.neq(membershipsBase.role, ""))
 )
 ```
 
@@ -408,10 +411,10 @@ This is useful when:
 
 ```ts
 import type * as Brand from "effect/Brand"
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Expression as E, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
+  id: C.uuid().pipe(C.primaryKey, C.brand),
   email: C.text()
 })
 
@@ -422,7 +425,7 @@ const posts = Table.make("posts", {
 })
 
 const userPlan = Q.select({
-  id: users.id.pipe(C.brand),
+  id: users.id,
   email: users.email
 }).pipe(
   Q.from(users)
@@ -436,12 +439,13 @@ const postPlan = Q.select({
 )
 
 type UserRow = Q.ResultRow<typeof userPlan>
-type PostRow = Q.ResultRow<typeof postPlan>
 // UserRow:
 // {
 //   id: string & Brand.Brand<"users.id">
 //   email: string
 // }
+
+type PostRow = Q.ResultRow<typeof postPlan>
 // PostRow:
 // {
 //   authorId: string & Brand.Brand<"posts.authorId">
@@ -470,6 +474,7 @@ JSON columns can carry a schema. That schema feeds:
 
 ```ts
 import * as Schema from "effect/Schema"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -616,14 +621,15 @@ const posts = Table.make("posts", {
   status: C.text()
 })
 
-const activePosts = Q.select({
-    userId: posts.userId,
-    title: posts.title
-  }).pipe(
-    Q.from(posts),
-    Q.where(Q.isNotNull(posts.title)),
-    Q.as("active_posts")
-  )
+const activePostsSubquery = Q.select({
+  userId: posts.userId,
+  title: posts.title
+}).pipe(
+  Q.from(posts),
+  Q.where(Q.isNotNull(posts.title))
+)
+
+const activePosts = Q.as(activePostsSubquery, "active_posts")
 
 const usersWithPosts = Q.select({
   userId: users.id,
@@ -919,6 +925,19 @@ const recentEmails = Q.select({
 Single-row inserts are direct:
 
 ```ts
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.text().pipe(C.primaryKey),
+  email: C.text()
+})
+
+const posts = Table.make("posts", {
+  id: C.text().pipe(C.primaryKey),
+  userId: C.text(),
+  title: C.text()
+})
+
 const insertUser = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
@@ -981,9 +1000,7 @@ const insertOrIgnore = Q.insert(users, {
   id: "user-1",
   email: "alice@example.com"
 }).pipe(
-  Q.onConflict(["id"], {
-    action: "doNothing"
-  })
+  Q.onConflict(["id"])
 )
 
 const upsertUser = Q.insert(users, {
@@ -1240,20 +1257,22 @@ const postgresError = PostgresErrors.normalizePostgresDriverError({
 })
 
 postgresError._tag
-postgresError.code
-postgresError.constraintName
+if (PostgresErrors.hasSqlState(postgresError, "23505")) {
+  postgresError.code
+  postgresError.constraintName
+}
 ```
 
 MySQL errors normalize around official symbols and documented numbers:
 
 ```ts
-const descriptor = MysqlErrors.getMysqlErrorDescriptor("ER_DUP_ENTRY")
-descriptor.tag
+const mysqlDescriptor = MysqlErrors.getMysqlErrorDescriptor("ER_DUP_ENTRY")
+mysqlDescriptor.tag
 // "@mysql/server/dup-entry"
-descriptor.category
-descriptor.number
-descriptor.sqlState
-descriptor.messageTemplate
+mysqlDescriptor.category
+mysqlDescriptor.number
+mysqlDescriptor.sqlState
+mysqlDescriptor.messageTemplate
 
 const mysqlError = MysqlErrors.normalizeMysqlDriverError({
   code: "ER_DUP_ENTRY",
@@ -1263,8 +1282,10 @@ const mysqlError = MysqlErrors.normalizeMysqlDriverError({
 })
 
 mysqlError._tag
-mysqlError.symbol
-mysqlError.number
+if (MysqlErrors.hasSymbol(mysqlError, "ER_DUP_ENTRY")) {
+  mysqlError.symbol
+  mysqlError.number
+}
 ```
 
 The two dialects are intentionally modeled differently:
@@ -1297,7 +1318,7 @@ One MySQL-specific detail: number lookups can be ambiguous because one documente
 
 ```ts
 const descriptors =
-  Mysql.Errors.findMysqlErrorDescriptorsByNumber("MY-015144")
+  MysqlErrors.findMysqlErrorDescriptorsByNumber("MY-015144")
 ```
 
 ### Query-capability Narrowing
@@ -1743,12 +1764,12 @@ const compatibleObject = F.json.buildObject({
   note: null
 })
 
-const incompatibleObject = F.json.delete(compatibleObject, cityPath)
+const deletedRequiredField = F.json.delete(compatibleObject, cityPath)
 
 Q.insert(docs, {
   id: "doc-1",
   // @ts-expect-error nested json output must still satisfy the column schema
-  payload: incompatibleObject
+  payload: deletedRequiredField
 })
 ```
 
