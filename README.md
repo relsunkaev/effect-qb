@@ -1735,6 +1735,7 @@ const cityPath = F.json.path(
 const compatibleObject = F.json.buildObject({
   profile: {
     address: {
+      city: "Macon",
       postcode: "1000"
     },
     tags: ["travel"]

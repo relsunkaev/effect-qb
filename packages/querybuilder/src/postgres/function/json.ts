@@ -275,7 +275,33 @@ const json = {
   typeOf: postgresQuery.json.typeOf,
   length: postgresQuery.json.length,
   keys: postgresQuery.json.keys,
-  stripNulls: postgresQuery.json.stripNulls
+  stripNulls: postgresQuery.json.stripNulls,
+  delete: <
+    Base extends PostgresJsonExpression<any>,
+    Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
+  >(
+    base: Base,
+    target: Target & JsonDeletePathGuard<Expression.RuntimeOf<Base>, Target, "json.delete">
+  ): JsonResultExpression<
+    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+    Expression.DbTypeOf<Base>
+  > => postgresQuery.json.delete(base as any, target as any) as unknown as JsonResultExpression<
+    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+    Expression.DbTypeOf<Base>
+  >,
+  remove: <
+    Base extends PostgresJsonExpression<any>,
+    Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
+  >(
+    base: Base,
+    target: Target & JsonDeletePathGuard<Expression.RuntimeOf<Base>, Target, "json.remove">
+  ): JsonResultExpression<
+    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+    Expression.DbTypeOf<Base>
+  > => postgresQuery.json.remove(base as any, target as any) as unknown as JsonResultExpression<
+    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+    Expression.DbTypeOf<Base>
+  >
 }
 
 const jsonb = {
