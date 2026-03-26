@@ -52,6 +52,62 @@ declare const queryError: QueryError
 void readCapability
 void queryError
 
+class EmailAlreadyTaken extends Error {
+  constructor(readonly details: {
+    readonly constraint?: string
+    readonly table?: string
+  }) {
+    super("Email already taken")
+  }
+}
+
+const writeUsers = Postgres.Table.make("write_users", {
+  id: Postgres.Column.text().pipe(Postgres.Column.primaryKey),
+  email: Postgres.Column.text()
+})
+
+const writePlan = Postgres.Query.insert(writeUsers, {
+  id: "user-1",
+  email: "alice@example.com"
+}).pipe(
+  Postgres.Query.returning({
+    id: writeUsers.id,
+    email: writeUsers.email
+  })
+)
+
+const writeDriver = Postgres.Executor.driver(() =>
+  Effect.fail({
+    code: "23505",
+    message: "duplicate key value violates unique constraint",
+    constraint: "write_users_email_key",
+    table: "write_users"
+  }))
+
+const writeExecutor = Postgres.Executor.make({ driver: writeDriver })
+const writeExecution = writeExecutor.execute(writePlan)
+
+const recoveredWrite = writeExecution.pipe(
+  Effect.catchTag("@postgres/integrity-constraint-violation/unique-violation", (error) => {
+    const tag: "@postgres/integrity-constraint-violation/unique-violation" = error._tag
+    const constraint: string | undefined = error.constraintName
+    const table: string | undefined = error.tableName
+    return Effect.fail(new EmailAlreadyTaken({ constraint, table }))
+  })
+)
+
+const loggedWrite = writeExecution.pipe(
+  Effect.tapErrorTag("@postgres/integrity-constraint-violation/unique-violation", (error) => {
+    const sql: string | undefined = error.query?.sql
+    const params: ReadonlyArray<unknown> | undefined = error.query?.params
+    const raw = error.raw
+    return Effect.succeed({ sql, params, raw })
+  })
+)
+
+void recoveredWrite
+void loggedWrite
+
 const recovered = execution.pipe(
   Effect.catchTag("@postgres/unknown/query-requirements", (error) => {
     const tag: "@postgres/unknown/query-requirements" = error._tag
