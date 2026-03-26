@@ -94,8 +94,8 @@ Q.insert(docsJson, {
   payload: incompatibleNestedObject
 })
 
-// @ts-expect-error nested json output must match the column schema
 Q.update(docsJson, {
+  // @ts-expect-error nested json output must match the column schema
   payload: incompatibleNestedObject
 })
 
