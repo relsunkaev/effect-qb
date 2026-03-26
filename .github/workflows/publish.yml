@@ -4,9 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish
+        required: true
+        type: string
 
 concurrency:
-  group: publish-${{ github.ref }}
+  group: publish-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -30,9 +36,11 @@ jobs:
 
       - name: Determine release tag
         id: tag
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           git fetch --tags --force
-          TAG="$GITHUB_REF_NAME"
+          TAG="$RELEASE_TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Checkout release tag

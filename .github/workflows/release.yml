@@ -9,6 +9,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   release:
@@ -46,3 +47,10 @@ jobs:
 
       - name: Create release commit and tag
         run: bun scripts/release.ts --push
+
+      - name: Dispatch publish workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
+          gh workflow run Publish --ref main -f tag="$TAG"
