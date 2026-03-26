@@ -74,7 +74,12 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to npm
+      - name: Publish querybuilder to npm
+        working-directory: packages/querybuilder
+        run: bun publish --access public
+
+      - name: Publish database to npm
+        working-directory: packages/database
         run: bun publish --access public
 
       - name: Create GitHub release
