@@ -1,6 +1,11 @@
 const normalize = (value: string): string =>
   value.trim().replace(/\s+/g, " ").toLowerCase()
 
+const stripOuterQuotes = (value: string): string =>
+  value.startsWith("\"") && value.endsWith("\"")
+    ? value.slice(1, -1).replaceAll("\"\"", "\"")
+    : value
+
 const canonicalBaseType = (value: string): string => {
   switch (value) {
     case "boolean":
@@ -47,14 +52,18 @@ export const canonicalizePostgresTypeName = (value: string): string => {
   const arrayPrefix = /^_+/.exec(normalized)
   if (arrayPrefix !== null) {
     const depth = arrayPrefix[0].length
-    const base = normalized.slice(depth)
+    const base = stripOuterQuotes(normalized.slice(depth))
     return `${canonicalBaseType(base)}${"[]".repeat(depth)}`
   }
   const base = normalized.replace(/\(.+\)$/, "")
-  if (base === "character" || base === "bpchar") {
-    return `${canonicalBaseType(base)}${normalized === base ? "(1)" : normalized.slice(base.length)}`
+  const unquotedBase = stripOuterQuotes(base)
+  if (unquotedBase === "character" || unquotedBase === "bpchar") {
+    const suffix = normalized === base && base === unquotedBase
+      ? "(1)"
+      : normalized.slice(base.length)
+    return `${canonicalBaseType(unquotedBase)}${suffix}`
   }
-  return `${canonicalBaseType(base)}${normalized.slice(base.length)}`
+  return `${canonicalBaseType(unquotedBase)}${normalized.slice(base.length)}`
 }
 
 export const inferPostgresTypeKind = (ddlType: string): string => {
@@ -65,9 +74,9 @@ export const inferPostgresTypeKind = (ddlType: string): string => {
   const arrayPrefix = /^_+/.exec(normalized)
   if (arrayPrefix !== null) {
     const depth = arrayPrefix[0].length
-    const base = normalized.slice(depth)
+    const base = stripOuterQuotes(normalized.slice(depth))
     return `${canonicalBaseType(base)}${"[]".repeat(depth)}`
   }
-  const base = normalized.replace(/\(.+\)$/, "")
+  const base = stripOuterQuotes(normalized.replace(/\(.+\)$/, ""))
   return canonicalBaseType(base)
 }

@@ -20,9 +20,17 @@
       "types": "./src/index.ts",
       "import": "./dist/index.js"
     },
-    "./cli": {
-      "types": "./src/cli.ts",
-      "import": "./dist/cli.js"
+    "./postgres/pull": {
+      "types": "./src/postgres/pull.ts",
+      "import": "./dist/postgres/pull.js"
+    },
+    "./postgres/push": {
+      "types": "./src/postgres/push.ts",
+      "import": "./dist/postgres/push.js"
+    },
+    "./postgres/migrate": {
+      "types": "./src/postgres/migrate.ts",
+      "import": "./dist/postgres/migrate.js"
     },
     "./package.json": "./package.json"
   },
