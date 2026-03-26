@@ -16,7 +16,7 @@ Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that
 
 The main contract is compile-time. `Query.ResultRow<typeof plan>` is the logical row type after implication analysis, while `Query.RuntimeResultRow<typeof plan>` describes the runtime remap shape. At runtime, the library renders SQL, executes it, normalizes raw driver values, applies schema-backed transforms where they exist, and uses the same proof facts to narrow selected expressions and joined tables.
 
-If you're new, read `Quick Start`, then `Core Concepts`, then `Query Guide`.
+If you're reading this end-to-end, start with `Quick Start`, then `Core Concepts`, then `Query Guide`. Read `Type Safety` for the compile-time rules and `Rendering And Execution` for the runtime path.
 
 ## Why effect-qb
 
@@ -160,33 +160,6 @@ This is the core model: define typed tables, build a plan, let the plan define t
 
 ## Core Concepts
 
-### Derived Table Schemas
-
-Every table exposes derived Effect Schemas:
-
-```ts
-import * as Schema from "effect/Schema"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
-  email: C.text().pipe(C.unique),
-  bio: C.text().pipe(C.nullable),
-  createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
-})
-
-Schema.isSchema(users.schemas.select)
-Schema.isSchema(users.schemas.insert)
-Schema.isSchema(users.schemas.update)
-```
-
-Those schemas are derived from column metadata, not maintained separately.
-
-- `select` includes every column, with nullable columns wrapped in `Schema.NullOr(...)`
-- `insert` omits generated columns and makes nullable/defaulted columns optional
-- `update` omits generated columns and primary-key columns and makes the remaining columns optional
-
-This is the main runtime bridge between the SQL DSL and Effect Schema. You can validate table payloads with the derived schemas without duplicating the model elsewhere.
-
 ### Tables And Columns
 
 Tables are typed sources, not loose name strings. Columns carry DB types, nullability, defaults, keys, and schema-backed JSON information.
@@ -215,6 +188,34 @@ const events = analytics.table("events", {
   userId: C.uuid()
 })
 ```
+
+### Derived Table Schemas
+
+Every table exposes derived Effect Schemas:
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
+  email: C.text().pipe(C.unique),
+  bio: C.text().pipe(C.nullable),
+  createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
+})
+
+Schema.isSchema(users.schemas.select)
+Schema.isSchema(users.schemas.insert)
+Schema.isSchema(users.schemas.update)
+```
+
+Those schemas are derived from column metadata, not maintained separately.
+
+- `select` includes every column, with nullable columns wrapped in `Schema.NullOr(...)`
+- `insert` omits generated columns and makes nullable/defaulted columns optional
+- `update` omits generated columns and primary-key columns and makes the remaining columns optional
+
+This is the main runtime bridge between the SQL DSL and Effect Schema. You can validate table payloads with the derived schemas without duplicating the model elsewhere.
 
 ### Table Options
 
@@ -615,7 +616,7 @@ type TitledPostsRow = Q.ResultRow<typeof titledPosts>
 // }
 ```
 
-The same nullability proof also comes from operators like `gt(...)`, `gte(...)`, `lt(...)`, `lte(...)`, `in(...)`, and `notIn(...)` when they exclude `null`.
+The same nullability proof also comes from operators like `eq(...)`, `gt(...)`, `gte(...)`, `lt(...)`, `lte(...)`, `in(...)`, and `notIn(...)` when they exclude `null`.
 
 That same narrowing feeds:
 
@@ -628,22 +629,34 @@ That same narrowing feeds:
 
 The expression surface is large, but the important point is that result-shaping expressions stay typed.
 
-```ts
-import * as Schema from "effect/Schema"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+#### CASE And Casts
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
+```ts
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const posts = Table.make("posts", {
   id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
   title: C.text().pipe(C.nullable),
   status: C.text()
 })
+
+const shapedPosts = Q.select({
+  titleLabel: Q.case()
+    .when(Q.isNull(posts.title), "missing")
+    .else(F.upper(posts.title)),
+  titleAsText: Q.cast(posts.title, Q.type.text())
+}).pipe(
+  Q.from(posts)
+)
+```
+
+`Q.case()` follows the same implication facts as filters, and `Q.cast(...)` is the explicit escape hatch when you want a conversion to be obvious in the plan.
+
+#### JSON Path Typing
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -662,15 +675,10 @@ const cityPath = F.json.path(
   F.json.key("city")
 )
 
-const shapedDocs = Q.select({
-  title: Q.case()
-    .when(Q.isNull(posts.title), "missing")
-    .else(F.upper(posts.title)),
-  profileCity: F.json.text(docs.payload, cityPath),
-  titleAsText: Q.cast(posts.title, Q.type.text())
+const docCity = Q.select({
+  city: F.json.text(docs.payload, cityPath)
 }).pipe(
-  Q.from(posts),
-  Q.leftJoin(docs, Q.eq(posts.id, docs.id))
+  Q.from(docs)
 )
 ```
 
@@ -1468,6 +1476,18 @@ type PromotedJoinedPostsRow = Q.ResultRow<typeof promotedJoinedPosts>
 //   upperTitle: string
 // }
 ```
+
+### Implication Cheatsheet
+
+Comparison and set predicates can narrow both selected expressions and optional joined sources.
+
+| Predicate | What it proves | Effect on joined sources |
+| --- | --- | --- |
+| `eq(...)` against a non-null value | the compared expression is non-null | can promote the source that owns the expression |
+| `gt(...)`, `gte(...)`, `lt(...)`, `lte(...)` against a non-null value | the compared expression is non-null | can promote the source that owns the expression |
+| `in(...)` / `notIn(...)` | the tested expression is present | can promote the source that owns the expression |
+| `isNotNull(...)` | the expression is non-null | can promote the source that owns the expression |
+| `isNull(...)` | the expression is null | can collapse an optional source to `null` and take dependent joins with it |
 
 ### Join Optionality
 
