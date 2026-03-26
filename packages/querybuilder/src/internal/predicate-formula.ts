@@ -62,27 +62,39 @@ type NormalizeAnyItems<
         : NormalizeAnyItems<Tail, [...Current, Head]>
   : Current
 
-export type NormalizeBooleanConstants<Formula extends PredicateFormula> =
-  Formula extends AllFormula<infer Items extends readonly PredicateFormula[]>
-    ? NormalizeAllItems<Items> extends [FalseFormula]
+type CollapseNormalizedAll<
+  Items extends readonly PredicateFormula[]
+> = NormalizeAllItems<Items> extends infer Normalized extends readonly PredicateFormula[]
+  ? [Normalized] extends [readonly [FalseFormula]]
+    ? FalseFormula
+    : [Normalized] extends [readonly []]
+      ? TrueFormula
+      : [Normalized] extends [readonly [infer Only extends PredicateFormula]]
+        ? Only
+        : AllFormula<Normalized>
+  : never
+
+type CollapseNormalizedAny<
+  Items extends readonly PredicateFormula[]
+> = NormalizeAnyItems<Items> extends infer Normalized extends readonly PredicateFormula[]
+  ? [Normalized] extends [readonly [TrueFormula]]
+    ? TrueFormula
+    : [Normalized] extends [readonly []]
       ? FalseFormula
-      : NormalizeAllItems<Items> extends readonly []
-        ? TrueFormula
-        : NormalizeAllItems<Items> extends readonly [infer Only extends PredicateFormula]
-          ? Only
-          : AllFormula<NormalizeAllItems<Items>>
-    : Formula extends AnyFormula<infer Items extends readonly PredicateFormula[]>
-      ? NormalizeAnyItems<Items> extends [TrueFormula]
-        ? TrueFormula
-        : NormalizeAnyItems<Items> extends readonly []
+      : [Normalized] extends [readonly [infer Only extends PredicateFormula]]
+        ? Only
+        : AnyFormula<Normalized>
+  : never
+
+export type NormalizeBooleanConstants<Formula extends PredicateFormula> =
+  [Formula] extends [AllFormula<infer Items extends readonly PredicateFormula[]>]
+    ? CollapseNormalizedAll<Items>
+    : [Formula] extends [AnyFormula<infer Items extends readonly PredicateFormula[]>]
+      ? CollapseNormalizedAny<Items>
+      : [Formula] extends [NotFormula<infer Item extends PredicateFormula>]
+        ? [Item] extends [TrueFormula]
           ? FalseFormula
-          : NormalizeAnyItems<Items> extends readonly [infer Only extends PredicateFormula]
-            ? Only
-            : AnyFormula<NormalizeAnyItems<Items>>
-      : Formula extends NotFormula<infer Item extends PredicateFormula>
-        ? Item extends TrueFormula
-          ? FalseFormula
-          : Item extends FalseFormula
+          : [Item] extends [FalseFormula]
             ? TrueFormula
             : Formula
         : Formula
