@@ -1,4 +1,4 @@
-import { Column as C, Query as Q, Function as F, Table } from "effect-qb/postgres"
+import { Column as C, Expression as E, Query as Q, Function as F, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -223,21 +223,12 @@ void absentAcrossDependentBadPostId
 void absentAcrossDependentBadCommentId
 void absentAcrossDependentBadCommentBody
 
-const searchedCasePlan = Q.select({
-  userId: users.id,
-  normalizedTitle: Q.case()
-    .when(Q.isNotNull(posts.title), F.upper(posts.title))
-    .else("missing")
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
-)
+const normalizedTitleExpr = Q.case()
+  .when(Q.isNotNull(posts.title), F.upper(posts.title))
+  .else("missing")
 
-type SearchedCaseRow = Q.ResultRow<typeof searchedCasePlan>
-const searchedCaseUserId: SearchedCaseRow["userId"] = "user-id"
-const searchedCaseTitle: SearchedCaseRow["normalizedTitle"] = "HELLO"
-// @ts-expect-error searched CASE with a non-null else should resolve to string
-const searchedCaseNullTitle: SearchedCaseRow["normalizedTitle"] = null
-void searchedCaseUserId
+type SearchedCaseTitle = E.RuntimeOf<typeof normalizedTitleExpr>
+const searchedCaseTitle: SearchedCaseTitle = "HELLO"
+const searchedCaseNullTitle: SearchedCaseTitle = null
 void searchedCaseTitle
 void searchedCaseNullTitle

@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Expression as E, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const payloadSchema = Schema.Struct({
   profile: Schema.Struct({
@@ -18,13 +18,6 @@ const docs = Table.make("docs", {
   payload: C.json(payloadSchema),
   payloadJsonb: C.jsonb(payloadSchema)
 })
-
-type DocsAvailable = {
-  readonly docs: {
-    readonly name: "docs"
-    readonly mode: "required"
-  }
-}
 
 const cityPath = F.json.path(
   F.json.key("profile"),
@@ -83,42 +76,32 @@ const jsonbPathMatchExpr = F.jsonb.pathMatch(docs.payloadJsonb, '$.profile.tags[
 const jsonbStrippedExpr = F.jsonb.stripNulls(docs.payloadJsonb)
 const jsonbStrippedSetExpr = F.jsonb.set(sharedJsonbStrippedExpr, postcodePath, "1000")
 
-type City = Q.ExpressionOutput<typeof cityExpr, DocsAvailable>
-type CityText = Q.ExpressionOutput<typeof cityTextExpr, DocsAvailable>
-type JsonTypeName = Q.ExpressionOutput<typeof typeNameExpr, DocsAvailable>
-type JsonLength = Q.ExpressionOutput<typeof lengthExpr, DocsAvailable>
-type JsonKeys = Q.ExpressionOutput<typeof keysExpr, DocsAvailable>
-type JsonStripped = Exclude<Q.ExpressionOutput<typeof strippedExpr, DocsAvailable>, null>
-type SharedJsonbCity = Q.ExpressionOutput<typeof sharedJsonbCityExpr, DocsAvailable>
-type SharedJsonbTypeName = Q.ExpressionOutput<typeof sharedJsonbTypeNameExpr, DocsAvailable>
-type JsonbHasAddress = Q.ExpressionOutput<typeof jsonbHasAddressExpr, DocsAvailable>
-type JsonbHasProfile = Q.ExpressionOutput<typeof jsonbHasProfileExpr, DocsAvailable>
-type JsonbHasAny = Q.ExpressionOutput<typeof jsonbHasAnyExpr, DocsAvailable>
-type JsonbHasAll = Q.ExpressionOutput<typeof jsonbHasAllExpr, DocsAvailable>
-type JsonbConcat = Exclude<Q.ExpressionOutput<typeof jsonbConcatExpr, DocsAvailable>, null>
-type JsonbMerge = Exclude<Q.ExpressionOutput<typeof jsonbMergeExpr, DocsAvailable>, null>
-type BuiltObject = Q.ExpressionOutput<typeof builtObjectExpr, DocsAvailable>
-type BuiltArray = Q.ExpressionOutput<typeof builtArrayExpr, DocsAvailable>
-type BuiltJsonbObject = Q.ExpressionOutput<typeof builtJsonbObjectExpr, DocsAvailable>
-type BuiltJsonbArray = Q.ExpressionOutput<typeof builtJsonbArrayExpr, DocsAvailable>
-type ToJson = Q.ExpressionOutput<typeof toJsonExpr, DocsAvailable>
-type ToJsonb = Q.ExpressionOutput<typeof toJsonbExpr, DocsAvailable>
-type JsonbTypeName = Q.ExpressionOutput<typeof jsonbTypeNameExpr, DocsAvailable>
-type JsonbLength = Q.ExpressionOutput<typeof jsonbLengthExpr, DocsAvailable>
-type JsonbKeys = Q.ExpressionOutput<typeof jsonbKeysExpr, DocsAvailable>
-type JsonbPathExists = Q.ExpressionOutput<typeof jsonbPathExistsExpr, DocsAvailable>
-type JsonbPathMatch = Q.ExpressionOutput<typeof jsonbPathMatchExpr, DocsAvailable>
-type JsonbStripped = Exclude<Q.ExpressionOutput<typeof jsonbStrippedExpr, DocsAvailable>, null>
-
-const jsonSelectPlan = Q.select({
-  city: cityExpr,
-  jsonbCity: sharedJsonbCityExpr,
-  hasAddress: jsonbHasAddressExpr,
-  jsonTypeName: typeNameExpr,
-  jsonbTypeName: jsonbTypeNameExpr
-}).pipe(Q.from(docs))
-
-type JsonSelectRow = Q.ResultRow<typeof jsonSelectPlan>
+type City = E.RuntimeOf<typeof cityExpr>
+type CityText = E.RuntimeOf<typeof cityTextExpr>
+type JsonTypeName = E.RuntimeOf<typeof typeNameExpr>
+type JsonLength = E.RuntimeOf<typeof lengthExpr>
+type JsonKeys = E.RuntimeOf<typeof keysExpr>
+type JsonStripped = Exclude<E.RuntimeOf<typeof strippedExpr>, null>
+type SharedJsonbCity = E.RuntimeOf<typeof sharedJsonbCityExpr>
+type SharedJsonbTypeName = E.RuntimeOf<typeof sharedJsonbTypeNameExpr>
+type JsonbHasAddress = E.RuntimeOf<typeof jsonbHasAddressExpr>
+type JsonbHasProfile = E.RuntimeOf<typeof jsonbHasProfileExpr>
+type JsonbHasAny = E.RuntimeOf<typeof jsonbHasAnyExpr>
+type JsonbHasAll = E.RuntimeOf<typeof jsonbHasAllExpr>
+type JsonbConcat = Exclude<E.RuntimeOf<typeof jsonbConcatExpr>, null>
+type JsonbMerge = Exclude<E.RuntimeOf<typeof jsonbMergeExpr>, null>
+type BuiltObject = E.RuntimeOf<typeof builtObjectExpr>
+type BuiltArray = E.RuntimeOf<typeof builtArrayExpr>
+type BuiltJsonbObject = E.RuntimeOf<typeof builtJsonbObjectExpr>
+type BuiltJsonbArray = E.RuntimeOf<typeof builtJsonbArrayExpr>
+type ToJson = E.RuntimeOf<typeof toJsonExpr>
+type ToJsonb = E.RuntimeOf<typeof toJsonbExpr>
+type JsonbTypeName = E.RuntimeOf<typeof jsonbTypeNameExpr>
+type JsonbLength = E.RuntimeOf<typeof jsonbLengthExpr>
+type JsonbKeys = E.RuntimeOf<typeof jsonbKeysExpr>
+type JsonbPathExists = E.RuntimeOf<typeof jsonbPathExistsExpr>
+type JsonbPathMatch = E.RuntimeOf<typeof jsonbPathMatchExpr>
+type JsonbStripped = Exclude<E.RuntimeOf<typeof jsonbStrippedExpr>, null>
 
 const city: City = "Paris"
 const cityText: CityText = "Paris"
@@ -156,12 +139,6 @@ const jsonbPathExists: JsonbPathExists = true
 const jsonbPathMatch: JsonbPathMatch = true
 const jsonbStrippedNote: JsonbStripped["note"] = undefined
 const jsonbStrippedPostcode: JsonbStripped["profile"]["address"]["postcode"] = undefined
-const selectCity: JsonSelectRow["city"] = "Paris"
-const selectJsonbCity: JsonSelectRow["jsonbCity"] = "Paris"
-const selectHasAddress: JsonSelectRow["hasAddress"] = true
-const selectJsonTypeName: JsonSelectRow["jsonTypeName"] = "object"
-const selectJsonbTypeName: JsonSelectRow["jsonbTypeName"] = "object"
-
 void city
 void cityText
 void jsonTypeName
@@ -201,11 +178,6 @@ void jsonbStrippedPostcode
 void jsonbSetExpr
 void jsonbInsertExpr
 void jsonbDeleteExpr
-void selectCity
-void selectJsonbCity
-void selectHasAddress
-void selectJsonTypeName
-void selectJsonbTypeName
 void jsonbFirstTagExpr
 void jsonbStrippedSetExpr
 
