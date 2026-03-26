@@ -1,3 +1,4 @@
+import * as Pg from "effect-qb/postgres"
 import { Query as Q, Table, Column as C, Expression as E } from "effect-qb/postgres"
 import * as Schema from "effect/Schema"
 
@@ -18,6 +19,19 @@ const builtinColumns = Table.make("builtin_columns", {
   quantity: C.int8(),
   createdAt: C.timestamptz()
 })
+
+const auditSeq = Pg.sequence("awsdms_ddl_audit_c_key_seq")
+const scopedAuditSeq = Pg.schema("audit").sequence("awsdms_ddl_audit_c_key_seq")
+const sequenceDefaultColumn = C.int8().pipe(
+  C.default(Pg.Function.nextVal(auditSeq))
+)
+const scopedSequenceDefaultColumn = C.int8().pipe(
+  C.default(Pg.Function.nextVal(scopedAuditSeq))
+)
+void auditSeq
+void scopedAuditSeq
+void sequenceDefaultColumn
+void scopedSequenceDefaultColumn
 
 const builtinArrayPlan = Q.select({
   tags: builtinColumns.tags
