@@ -138,31 +138,20 @@ const users = Table.make("users", {
   email: C.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable)
-})
-
-const postsPerUser = Q.select({
-  userId: users.id,
-  email: users.email,
-  postCount: F.count(posts.id)
+const userSummary = Q.select({
+  id: users.id,
+  email: F.lower(users.email)
 }).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id, users.email),
-  Q.orderBy(users.email)
+  Q.from(users)
 )
 
-type PostsPerUserRow = Q.ResultRow<typeof postsPerUser>
+type UserSummaryRow = Q.ResultRow<typeof userSummary>
 // {
-//   userId: string
+//   id: string
 //   email: string
-//   postCount: number
 // }
 
-const rendered = Renderer.make().render(postsPerUser)
+const rendered = Renderer.make().render(userSummary)
 rendered.sql
 rendered.params
 ```
