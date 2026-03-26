@@ -22,6 +22,8 @@ jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
