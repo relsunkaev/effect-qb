@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 
 import { SchemaExpression } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, ReferentialAction, TableOptionSpec } from "effect-qb/postgres/metadata"
@@ -188,7 +188,7 @@ const makeColumnModel = (row: ColumnRow): ColumnModel => ({
 export const introspectPostgresSchema = (
   filter?: FilterConfig
 ): Effect.Effect<SchemaModel, unknown, SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
     Effect.gen(function*() {
       const normalizedFilter = normalizeFilter(filter)
       const tables = yield* sql.unsafe<TableRow>(`

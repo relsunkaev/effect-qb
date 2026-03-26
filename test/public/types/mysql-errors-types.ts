@@ -46,7 +46,7 @@ const driver = Mysql.Executor.driver(() =>
     code: "ER_DUP_ENTRY",
     errno: 1062,
     sqlState: "23000",
-    sqlMessage: "Duplicate entry '11111111-1111-1111-1111-111111111111' for key 'PRIMARY'"
+    sqlMessage: "Duplicate entry '11111111-1111-4111-8111-111111111111' for key 'PRIMARY'"
   }))
 
 const executor = Mysql.Executor.make({ driver })
@@ -54,7 +54,7 @@ const execution = executor.execute(plan)
 type Capabilities = Mysql.Query.CapabilitiesOfPlan<typeof plan>
 const readCapability: Capabilities = "read"
 type QueryError = Mysql.Executor.MysqlQueryError<typeof plan>
-type ExecutionError = Effect.Effect.Error<typeof execution>
+type ExecutionError = Effect.Error<typeof execution>
 declare const executionError: ExecutionError
 declare const queryError: QueryError
 void readCapability

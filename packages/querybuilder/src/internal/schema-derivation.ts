@@ -1,4 +1,4 @@
-import * as VariantSchema from "@effect/experimental/VariantSchema"
+import * as VariantSchema from "effect/unstable/schema/VariantSchema"
 import * as Schema from "effect/Schema"
 
 import {
@@ -61,7 +61,7 @@ export type UpdateRow<Fields extends TableFieldMap, PrimaryKey extends keyof Fie
   }>
 >
 
-const selectSchema = (column: AnyColumnDefinition): Schema.Schema.Any =>
+const selectSchema = (column: AnyColumnDefinition): Schema.Top =>
   column.metadata.nullable ? Schema.NullOr(column.schema) : column.schema
 
 const insertSchema = (column: AnyColumnDefinition): any | undefined => {

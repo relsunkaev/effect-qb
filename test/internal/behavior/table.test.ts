@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, expect, test } from "bun:test"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -10,7 +10,7 @@ import { renderMysqlPlan } from "#internal/mysql-renderer.ts"
 import { Column as C, Executor, Expression, Plan, Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 
-const userId = "11111111-1111-1111-1111-111111111111"
+const userId = "11111111-1111-4111-8111-111111111111"
 
 describe("table definitions", () => {
   test("factory tables expose direct columns and schemas", () => {

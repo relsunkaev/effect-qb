@@ -1,12 +1,13 @@
 // @ts-nocheck
 import { describe, expect, test } from "bun:test"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import { Column as C, Executor, Query as Q, Function as F, Renderer, Table } from "#postgres"
+import { DateFromStringSchema } from "../../helpers/date-from-string.ts"
 
-const userId = "11111111-1111-1111-1111-111111111111"
+const userId = "11111111-1111-4111-8111-111111111111"
 
 describe("executor behavior", () => {
   test("fromDriver decodes nested rows with null leaves", () => {
@@ -287,7 +288,7 @@ describe("executor behavior", () => {
 
   test("fromDriver applies schema pipes after canonical date normalization", () => {
     const events = Table.make("events", {
-      happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
+      happenedOn: C.date().pipe(C.schema(DateFromStringSchema))
     })
 
     const plan = Q.select({

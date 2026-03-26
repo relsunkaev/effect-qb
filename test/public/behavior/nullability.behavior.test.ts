@@ -6,8 +6,8 @@ import { Executor, Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { makeRootSocialGraph } from "../../fixtures/schema.ts"
 import { unsafeAny } from "../../helpers/unsafe.ts"
 
-const userId = "11111111-1111-1111-1111-111111111111"
-const postId = "22222222-2222-2222-2222-222222222222"
+const userId = "11111111-1111-4111-8111-111111111111"
+const postId = "22222222-2222-4222-8222-222222222222"
 
 describe("nullability behavior", () => {
   test("coalesce over an optional joined source decodes through a non-null fallback", () => {

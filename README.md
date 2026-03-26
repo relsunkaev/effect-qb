@@ -1,3 +1,5 @@
+> Beta note: the current v4 line targets Effect `4.0.0-beta.x` and is not compatible with Effect 3.
+
 # effect-qb
 
 Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that carry result shapes, nullability, dialect compatibility, and statement constraints in the type system.
@@ -39,18 +41,18 @@ npm install effect-qb
 If you want to execute plans with the built-in Postgres executor:
 
 ```bash
-bun add effect-qb effect @effect/sql @effect/sql-pg
-npm install effect-qb effect @effect/sql @effect/sql-pg
+bun add effect-qb effect @effect/sql-pg
+npm install effect-qb effect @effect/sql-pg
 ```
 
 If you want to execute plans with the built-in MySQL executor:
 
 ```bash
-bun add effect-qb effect @effect/sql @effect/sql-mysql2
-npm install effect-qb effect @effect/sql @effect/sql-mysql2
+bun add effect-qb effect @effect/sql-mysql2
+npm install effect-qb effect @effect/sql-mysql2
 ```
 
-The built-in executors require an ambient `@effect/sql` `SqlClient`. If your app already uses Effect and `@effect/sql`, you likely already have the extra runtime packages installed.
+The built-in executors require an ambient `effect/unstable/sql` `SqlClient`. If your app already uses Effect v4 with `@effect/sql-pg` or `@effect/sql-mysql2`, you likely already have the extra runtime packages installed.
 
 For local development in this repository:
 
@@ -208,7 +210,7 @@ The runtime model is intentionally small:
 For the logical/static row split, see `ResultRow vs RuntimeResultRow` below.
 
 ```ts
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Effect from "effect/Effect"
 import { Executor as PostgresExecutor } from "effect-qb/postgres"
 
@@ -263,18 +265,26 @@ The schema-aware column APIs are:
 
 The important rule for `C.schema(...)` is that the schema must accept the column's current runtime output, not the raw driver value.
 
-- `C.date()` produces a canonical `LocalDateString`, so `C.date().pipe(C.schema(Schema.DateFromString))` is valid
-- `C.int().pipe(C.schema(Schema.DateFromString))` is rejected because the column runtime type is `number`, not `string`
+- `C.date()` produces a canonical `LocalDateString`, so a `DateFromStringSchema` built from `Schema.String` is valid
+- `C.int().pipe(C.schema(DateFromStringSchema))` is rejected because the column runtime type is `number`, not `string`
 
 Example:
 
 ```ts
 import * as Schema from "effect/Schema"
+import * as SchemaGetter from "effect/SchemaGetter"
 import { Column as C, Executor, Function as F, Query as Q, Table } from "effect-qb/postgres"
+
+const DateFromStringSchema = Schema.String.pipe(
+  Schema.decodeTo(Schema.DateValid, {
+    decode: SchemaGetter.Date<string>(),
+    encode: SchemaGetter.transform((date) => date.toISOString().slice(0, 10))
+  })
+)
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
-  happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
+  happenedOn: C.date().pipe(C.schema(DateFromStringSchema)),
   profile: C.json(Schema.Struct({
     visits: Schema.NumberFromString
   })),
@@ -286,7 +296,7 @@ type UserInsert = Table.InsertOf<typeof users>
 type UserUpdate = Table.UpdateOf<typeof users>
 
 const decoded = Schema.decodeUnknownSync(users.schemas.select)({
-  id: "11111111-1111-1111-1111-111111111111",
+  id: "11111111-1111-4111-8111-111111111111",
   happenedOn: "2026-03-20",
   profile: {
     visits: "42"

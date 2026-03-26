@@ -4,8 +4,8 @@ import { describe, expect, test } from "bun:test"
 import * as Postgres from "#postgres"
 import { unsafeAny } from "../../helpers/unsafe.ts"
 
-const userId = "11111111-1111-1111-1111-111111111111"
-const secondUserId = "22222222-2222-2222-2222-222222222222"
+const userId = "11111111-1111-4111-8111-111111111111"
+const secondUserId = "22222222-2222-4222-8222-222222222222"
 const render = (plan: unknown) => Postgres.Renderer.make().render(unsafeAny(plan))
 
 describe("postgres insert behavior", () => {

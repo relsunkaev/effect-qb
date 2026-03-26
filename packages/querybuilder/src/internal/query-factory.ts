@@ -1311,11 +1311,11 @@ export function makeDialectQuery<
 
   const literalSchemaOf = <Value extends LiteralValue>(
     value: Value
-  ): Schema.Schema.Any | undefined => {
+  ): Schema.Top | undefined => {
     if (value === null || value instanceof Date) {
       return undefined
     }
-    return Schema.Literal(value) as unknown as Schema.Schema.Any
+    return Schema.Literal(value) as unknown as Schema.Top
   }
 
   const literal = <const Value extends LiteralValue>(

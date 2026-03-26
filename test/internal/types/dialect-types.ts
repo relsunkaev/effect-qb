@@ -1,4 +1,4 @@
-import type * as Effect from "effect/Effect"
+import * as Effect from "effect/Effect"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"

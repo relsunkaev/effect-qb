@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect"
-import * as SqlClient from "@effect/sql/SqlClient"
-import * as SqlError from "@effect/sql/SqlError"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlError from "effect/unstable/sql/SqlError"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"

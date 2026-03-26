@@ -11,7 +11,7 @@ import {
   makePostgresSocialGraph,
 } from "../../fixtures/schema.ts";
 
-const userId = "11111111-1111-1111-1111-111111111111";
+const userId = "11111111-1111-4111-8111-111111111111";
 
 describe("dialect behavior", () => {
   test("postgres and mysql produce the same decoded row shape for the same logical query", () => {

@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Breaking Changes
+
+- feat(effect)!: migrate the workspace to the Effect v4 beta line
+- feat(effect)!: move SQL imports to `effect/unstable/sql/*`
+- feat(effect)!: move variant schema imports to `effect/unstable/schema/VariantSchema`
+
+### Notes
+
+- The v4 line is prerelease-only and is not compatible with Effect 3.
+
 ## 0.13.0 - 2026-03-23
 
 ### Breaking Changes
@@ -131,4 +141,3 @@ All notable changes to this project are documented here.
 - Bootstrap effect-db with typed SQL core and dialect renderers
 - Rename package to effect-qb and tighten query type semantics
 - Implement predicate analysis and Postgres error normalization
-

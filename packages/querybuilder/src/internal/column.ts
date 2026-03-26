@@ -194,21 +194,21 @@ type ReferencingColumn<
 
 type SchemaCompatibleColumn<
   Column extends AnyColumnDefinition,
-  SchemaType extends Schema.Schema.Any
-> = [BaseSelectType<Column>] extends [Schema.Schema.Encoded<SchemaType>]
+  SchemaType extends Schema.Top
+> = [BaseSelectType<Column>] extends [Schema.Codec.Encoded<SchemaType>]
   ? Column
   : never
 
 type ColumnSchemaOutput<
   Column extends AnyColumnDefinition,
-  SchemaType extends Schema.Schema.Any
+  SchemaType extends Schema.Top
 > = IsNullable<Column> extends true
   ? Schema.Schema.Type<SchemaType> | null
   : Schema.Schema.Type<SchemaType>
 
 type ColumnWithSchema<
   Column extends AnyColumnDefinition,
-  SchemaType extends Schema.Schema.Any
+  SchemaType extends Schema.Top
 > = ColumnDefinition<
   ColumnSchemaOutput<Column, SchemaType>,
   ColumnSchemaOutput<Column, SchemaType>,
@@ -259,6 +259,8 @@ type ArrayElementUpdate<
   ? NullableSelect<BaseUpdateType<Column>>
   : BaseUpdateType<Column>
 
+const UuidSchema = Schema.String.check(Schema.isUUID())
+
 type ArrayColumn<
   Column extends AnyColumnDefinition,
   Options extends ArrayOptions | undefined = undefined
@@ -292,7 +294,7 @@ const mapColumn = <
 }) as Next
 
 const primitive = <Type, Db extends Expression.DbType.Any>(
-  schema: Schema.Schema<Type, any, any>,
+  schema: Schema.Schema<Type>,
   dbType: Db
 ): ColumnDefinition<Type, Type, Type, Db, false, false, false, false, false, undefined> =>
   makeColumnDefinition(schema as Schema.Schema<NonNullable<Type>>, {
@@ -317,7 +319,7 @@ type ColumnModule<
   JsonKind extends string
 > = {
   readonly custom: <
-    SchemaType extends Schema.Schema.Any,
+    SchemaType extends Schema.Top,
     Db extends Expression.DbType.Any
   >(
     schema: SchemaType,
@@ -341,7 +343,7 @@ type ColumnModule<
   readonly boolean: () => ColumnDefinition<boolean, boolean, boolean, Expression.DbType.Base<Dialect, BooleanKind>, false, false, false, false, false, undefined>
   readonly date: () => ColumnDefinition<LocalDateString, LocalDateString, LocalDateString, Expression.DbType.Base<Dialect, DateKind>, false, false, false, false, false, undefined>
   readonly timestamp: () => ColumnDefinition<LocalDateTimeString, LocalDateTimeString, LocalDateTimeString, Expression.DbType.Base<Dialect, TimestampKind>, false, false, false, false, false, undefined>
-  readonly json: <SchemaType extends Schema.Schema.Any>(
+  readonly json: <SchemaType extends Schema.Top>(
     schema: SchemaType
   ) => ColumnDefinition<
     Schema.Schema.Type<SchemaType>,
@@ -386,7 +388,7 @@ type PostgresColumnModule = ColumnModule<
   readonly varbit: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "varbit">, false, false, false, false, false, undefined>
   readonly xml: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "xml">, false, false, false, false, false, undefined>
   readonly pg_lsn: () => ColumnDefinition<string, string, string, Expression.DbType.Base<"postgres", "pg_lsn">, false, false, false, false, false, undefined>
-  readonly jsonb: <SchemaType extends Schema.Schema.Any>(
+  readonly jsonb: <SchemaType extends Schema.Top>(
     schema: SchemaType
   ) => ColumnDefinition<
     Schema.Schema.Type<SchemaType>,
@@ -447,11 +449,11 @@ const makeColumnModule = <
 ): ColumnModule<Dialect, UuidKind, TextKind, IntKind, NumberKind, BooleanKind, DateKind, TimestampKind, JsonKind> => {
   const dialectType = typeFactory(dialect)
   return {
-    custom: <SchemaType extends Schema.Schema.Any, Db extends Expression.DbType.Any>(
+    custom: <SchemaType extends Schema.Top, Db extends Expression.DbType.Any>(
       schema: SchemaType,
       dbType: Db
     ) =>
-      makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+      makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
         dbType,
         nullable: false,
         hasDefault: false,
@@ -462,7 +464,7 @@ const makeColumnModule = <
         ddlType: undefined,
         identity: undefined
       }),
-    uuid: () => primitive(Schema.UUID, dialectType(kinds.uuid)),
+    uuid: () => primitive(UuidSchema, dialectType(kinds.uuid)),
     text: () => primitive(Schema.String, dialectType(kinds.text)),
     int: () => primitive(Schema.Int, dialectType(kinds.int)),
     number: (options?: NumericOptions) =>
@@ -480,8 +482,8 @@ const makeColumnModule = <
     boolean: () => primitive(Schema.Boolean, dialectType(kinds.boolean)),
     date: () => primitive(LocalDateStringSchema, dialectType(kinds.date)),
     timestamp: () => primitive(LocalDateTimeStringSchema, dialectType(kinds.timestamp)),
-    json: <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
-      makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+    json: <SchemaType extends Schema.Top>(schema: SchemaType) =>
+      makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
         dbType: {
           ...dialectType(kinds.json),
           variant: "json"
@@ -544,7 +546,7 @@ export const postgres: PostgresColumnModule = {
   timetz: () => primitive(OffsetTimeStringSchema, postgresType("timetz")),
   timestamptz: () => primitive(InstantStringSchema, postgresType("timestamptz")),
   interval: () => primitive(Schema.String, postgresType("interval")),
-  bytea: () => primitive(Schema.Uint8ArrayFromSelf, postgresType("bytea")),
+  bytea: () => primitive(Schema.Uint8Array, postgresType("bytea")),
   name: () => primitive(Schema.String, postgresType("name")),
   oid: () => primitive(Schema.Int, postgresType("oid")),
   regclass: () => primitive(Schema.String, postgresType("regclass")),
@@ -552,8 +554,8 @@ export const postgres: PostgresColumnModule = {
   varbit: () => primitive(Schema.String, postgresType("varbit")),
   xml: () => primitive(Schema.String, postgresType("xml")),
   pg_lsn: () => primitive(Schema.String, postgresType("pg_lsn")),
-  jsonb: <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
-    makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+  jsonb: <SchemaType extends Schema.Top>(schema: SchemaType) =>
+    makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
       dbType: {
         ...postgresType("jsonb"),
         variant: "json"
@@ -640,7 +642,7 @@ export const jsonb = postgres.jsonb
 export const custom = postgres.custom
 
 /** Replaces a column's runtime schema while preserving its SQL type metadata. */
-export const schema = <SchemaType extends Schema.Schema.Any>(nextSchema: SchemaType) =>
+export const schema = <SchemaType extends Schema.Top>(nextSchema: SchemaType) =>
   <Column extends AnyColumnDefinition>(
     column: SchemaCompatibleColumn<Column, SchemaType>
   ): ColumnWithSchema<Column, SchemaType> =>

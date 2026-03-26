@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Effect from "effect/Effect"
 
 import type { SchemaChange } from "./postgres-schema-diff.js"
@@ -142,7 +142,7 @@ const ensureDirectory = async (dir: string): Promise<void> => {
 export const applyStatements = (
   statements: readonly string[]
 ): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
     sql.withTransaction(
       Effect.forEach(
         statements,
@@ -206,13 +206,13 @@ export const readMigrationFiles = async (
 export const ensureMigrationTable = (
   tableName: string
 ): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
     Effect.asVoid(sql.unsafe(migrationTableSql(tableName))))
 
 export const readAppliedMigrationNames = (
   tableName: string
 ): Effect.Effect<ReadonlySet<string>, unknown, SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
     Effect.map(
       sql.unsafe<{ readonly name: string }>(`select name from ${qualifyIdentifier(tableName)} order by name`),
       (rows) => new Set(rows.map((row) => row.name))
@@ -221,7 +221,7 @@ export const readAppliedMigrationNames = (
 export const readAppliedMigrationRows = (
   tableName: string
 ): Effect.Effect<ReadonlyArray<AppliedMigrationRow>, unknown, SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
     Effect.map(
       sql.unsafe<AppliedMigrationRow>(`select id, name from ${qualifyIdentifier(tableName)} order by id`),
       (rows) => rows
@@ -234,10 +234,10 @@ export const applyMigrationFiles = (
     readonly sql: string
   }>
   ): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
     sql.withTransaction(
       Effect.forEach(files, (file) =>
-        Effect.zipRight(
+        Effect.andThen(
           sql.unsafe(file.sql),
           sql.unsafe(
             `insert into ${qualifyIdentifier(tableName)} (name) values ($1)`,
@@ -252,13 +252,13 @@ export const rollbackMigrationFiles = (
   tableName: string,
   files: ReadonlyArray<MigrationFile>
 ): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
     sql.withTransaction(
       Effect.forEach(files, (file) => {
         if (file.downSql === undefined) {
           return Effect.fail(new Error(`Migration '${file.name}' does not have a rollback section`))
         }
-        return Effect.zipRight(
+        return Effect.andThen(
           sql.unsafe(file.downSql),
           sql.unsafe(
             `delete from ${qualifyIdentifier(tableName)} where name = $1`,
@@ -274,7 +274,7 @@ export const deleteAppliedMigrationNames = (
   tableName: string,
   names: readonly string[]
 ): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) =>
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
     sql.withTransaction(
       Effect.forEach(names, (name) =>
         sql.unsafe(

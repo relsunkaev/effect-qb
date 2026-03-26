@@ -11,8 +11,8 @@ import { makeMysqlSocialGraph } from "../../fixtures/schema.ts"
 import { buildGroupedConcatPlan } from "../../helpers/dialect-matrix.ts"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 
-const userId = "11111111-1111-1111-1111-111111111111"
-const secondUserId = "22222222-2222-2222-2222-222222222222"
+const userId = "11111111-1111-4111-8111-111111111111"
+const secondUserId = "22222222-2222-4222-8222-222222222222"
 const render = (plan: unknown) => Mysql.Renderer.make().render(unsafeAny(plan))
 
 describe("mysql dialect behavior", () => {

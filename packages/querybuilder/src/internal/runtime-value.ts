@@ -18,10 +18,9 @@ const brandString = <BrandName extends string>(
   pattern: RegExp,
   brand: BrandName
 ): Schema.Schema<string & Brand.Brand<BrandName>> =>
-  Schema.String.pipe(
-    Schema.pattern(pattern),
-    Schema.brand(brand)
-  ) as unknown as Schema.Schema<string & Brand.Brand<BrandName>>
+  Schema.String
+    .check(Schema.isPattern(pattern))
+    .pipe(Schema.brand(brand)) as unknown as Schema.Schema<string & Brand.Brand<BrandName>>
 
 export const LocalDateStringSchema = brandString(
   /^\d{4}-\d{2}-\d{2}$/,
@@ -64,22 +63,19 @@ export const DecimalStringSchema = brandString(
 )
 
 export const JsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
-  Schema.Union(
+  Schema.Union([
     Schema.String,
     Schema.Number,
     Schema.Boolean,
     Schema.Null,
     Schema.Array(JsonValueSchema),
-    Schema.Record({
-      key: Schema.String,
-      value: JsonValueSchema
-    })
-  )
+    Schema.Record(Schema.String, JsonValueSchema)
+  ])
 )
 
-export const JsonPrimitiveSchema: Schema.Schema<JsonPrimitive> = Schema.Union(
+export const JsonPrimitiveSchema: Schema.Schema<JsonPrimitive> = Schema.Union([
   Schema.String,
   Schema.Number,
   Schema.Boolean,
   Schema.Null
-)
+])

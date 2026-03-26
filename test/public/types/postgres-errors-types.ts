@@ -45,7 +45,7 @@ const execution = executor.execute(plan)
 type Capabilities = Postgres.Query.CapabilitiesOfPlan<typeof plan>
 const readCapability: Capabilities = "read"
 type QueryError = Postgres.Executor.PostgresQueryError<typeof plan>
-type ExecutionError = Effect.Effect.Error<typeof execution>
+type ExecutionError = Effect.Error<typeof execution>
 
 declare const executionError: ExecutionError
 declare const queryError: QueryError
@@ -64,7 +64,7 @@ const recovered = execution.pipe(
 // @ts-expect-error unknown Postgres error tags should not be accepted by catchTag on this error channel
 execution.pipe(Effect.catchTag("@postgres/not-real/tag", () => Effect.succeed(null)))
 
-type RecoveredError = Effect.Effect.Error<typeof recovered>
+type RecoveredError = Effect.Error<typeof recovered>
 declare const recoveredError: RecoveredError
 // @ts-expect-error handled query-requirements should be removed from the error channel
 const impossibleQueryRequirements: Extract<RecoveredError, { readonly _tag: "@postgres/unknown/query-requirements" }> = recoveredError

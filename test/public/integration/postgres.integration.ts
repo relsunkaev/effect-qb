@@ -2,13 +2,14 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
 import { Column as C, Executor, Query as Q, Table } from "#postgres"
+import { DateFromStringSchema } from "../../helpers/date-from-string.ts"
 import { execPostgres, runPostgres } from "./helpers.ts"
 
 const tableName = "integration_pg_events"
 
 const events = Table.make(tableName, {
   id: C.text().pipe(C.primaryKey),
-  happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
+  happenedOn: C.date().pipe(C.schema(DateFromStringSchema)),
   happenedAt: C.custom(Schema.String, Q.type.timestamptz()),
   amount: C.number({ precision: 10, scale: 4 }),
   payload: C.custom(Schema.Struct({

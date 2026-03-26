@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
 import { Column as C, Expression, Function as F, Query as Q, Table } from "#postgres"
+import { DateFromStringSchema } from "../../helpers/date-from-string.ts"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 
 describe("table behavior", () => {
@@ -122,7 +123,7 @@ describe("table behavior", () => {
 
   test("column schema pipes feed derived table schemas", () => {
     const events = Table.make("events", {
-      happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
+      happenedOn: C.date().pipe(C.schema(DateFromStringSchema))
     })
 
     const decoded = Schema.decodeUnknownSync(events.schemas.select)({

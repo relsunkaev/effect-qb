@@ -39,9 +39,7 @@
     "@typescript/native-preview": "latest"
   },
   "dependencies": {
-    "@effect/experimental": "^0.57.0",
-    "@effect/sql": "^0.48.0",
-    "effect": "^3.19.3",
+    "effect": "4.0.0-beta.40",
     "pgsql-ast-parser": "^12.0.2"
   }
 }

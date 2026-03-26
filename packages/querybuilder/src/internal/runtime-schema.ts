@@ -21,7 +21,7 @@ import { mysqlDatatypeKinds } from "../mysql/datatypes/spec.js"
 import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
 import type { RuntimeTag } from "./datatypes/shape.js"
 
-export type RuntimeSchema = Schema.Schema<any, any, any>
+export type RuntimeSchema = Schema.Top
 
 const schemaCache = new WeakMap<Expression.Any, RuntimeSchema | undefined>()
 
@@ -70,14 +70,11 @@ const runtimeSchemaForTag = (tag: RuntimeTag): RuntimeSchema | undefined => {
     case "decimalString":
       return DecimalStringSchema
     case "bytes":
-      return Schema.Uint8ArrayFromSelf
+      return Schema.Uint8Array
     case "array":
       return Schema.Array(Schema.Unknown)
     case "record":
-      return Schema.Record({
-        key: Schema.String,
-        value: Schema.Unknown
-      })
+      return Schema.Record(Schema.String, Schema.Unknown)
     case "null":
       return Schema.Null
     case "unknown":
@@ -134,30 +131,27 @@ const unionAst = (asts: ReadonlyArray<SchemaAST.AST>): SchemaAST.AST | undefined
   if (asts.length === 1) {
     return asts[0]
   }
-  return SchemaAST.Union.make(asts)
+  return new SchemaAST.Union(asts, "anyOf")
 }
 
 const propertyAstOf = (
   ast: SchemaAST.AST,
   key: string
 ): SchemaAST.AST | undefined => {
-  switch (ast._tag) {
-    case "Transformation":
-      return propertyAstOf(SchemaAST.typeAST(ast), key)
-    case "Refinement":
-      return propertyAstOf(ast.from, key)
+  const current = SchemaAST.toType(ast)
+  switch (current._tag) {
     case "Suspend":
-      return propertyAstOf(ast.f(), key)
-    case "TypeLiteral": {
-      const property = ast.propertySignatures.find((entry) => entry.name === key)
+      return propertyAstOf(current.thunk(), key)
+    case "Objects": {
+      const property = current.propertySignatures.find((entry) => entry.name === key)
       if (property !== undefined) {
         return property.type
       }
-      const index = ast.indexSignatures.find((entry) => entry.parameter._tag === "StringKeyword")
+      const index = current.indexSignatures.find((entry) => SchemaAST.toType(entry.parameter)._tag === "String")
       return index?.type
     }
     case "Union": {
-      const values = ast.types.flatMap((member) => {
+      const values = current.types.flatMap((member) => {
         const next = propertyAstOf(member, key)
         return next === undefined ? [] : [next]
       })
@@ -172,25 +166,22 @@ const numberAstOf = (
   ast: SchemaAST.AST,
   index: number
 ): SchemaAST.AST | undefined => {
-  switch (ast._tag) {
-    case "Transformation":
-      return numberAstOf(SchemaAST.typeAST(ast), index)
-    case "Refinement":
-      return numberAstOf(ast.from, index)
+  const current = SchemaAST.toType(ast)
+  switch (current._tag) {
     case "Suspend":
-      return numberAstOf(ast.f(), index)
-    case "TupleType": {
-      const element = ast.elements[index]
+      return numberAstOf(current.thunk(), index)
+    case "Arrays": {
+      const element = current.elements[index]
       if (element !== undefined) {
-        return element.type
+        return element
       }
-      if (ast.rest.length === 0) {
+      if (current.rest.length === 0) {
         return undefined
       }
-      return unionAst(ast.rest.map((entry) => entry.type))
+      return unionAst(current.rest)
     }
     case "Union": {
-      const values = ast.types.flatMap((member) => {
+      const values = current.types.flatMap((member) => {
         const next = numberAstOf(member, index)
         return next === undefined ? [] : [next]
       })
@@ -210,7 +201,7 @@ const schemaAstAtExactJsonPath = (
   schema: RuntimeSchema,
   segments: readonly JsonPath.CanonicalSegment[]
 ): SchemaAST.AST | undefined => {
-  let current: SchemaAST.AST = SchemaAST.typeAST(schema.ast)
+  let current: SchemaAST.AST = SchemaAST.toType(schema.ast)
   for (const segment of segments) {
     if (segment.kind === "key") {
       const property = propertyAstOf(current, segment.key)
@@ -241,7 +232,7 @@ const unionSchemas = (schemas: ReadonlyArray<RuntimeSchema | undefined>): Runtim
   if (resolved.length === 1) {
     return resolved[0]
   }
-  return Schema.Union(...resolved)
+  return Schema.Union(resolved)
 }
 
 const firstSelectedExpression = (
@@ -252,24 +243,24 @@ const firstSelectedExpression = (
 }
 
 const isJsonCompatibleAst = (ast: SchemaAST.AST): boolean => {
-  switch (ast._tag) {
-    case "StringKeyword":
-    case "NumberKeyword":
-    case "BooleanKeyword":
-    case "TupleType":
-    case "TypeLiteral":
+  const current = SchemaAST.toType(ast)
+  switch (current._tag) {
+    case "String":
+    case "Number":
+    case "Boolean":
+    case "Null":
+    case "Arrays":
+    case "Objects":
       return true
     case "Literal":
-      return ast.literal === null ||
-        typeof ast.literal === "string" ||
-        typeof ast.literal === "number" ||
-        typeof ast.literal === "boolean"
+      return current.literal === null ||
+        typeof current.literal === "string" ||
+        typeof current.literal === "number" ||
+        typeof current.literal === "boolean"
     case "Union":
-      return ast.types.every(isJsonCompatibleAst)
-    case "Transformation":
-      return isJsonCompatibleAst(SchemaAST.typeAST(ast))
+      return current.types.every(isJsonCompatibleAst)
     case "Suspend":
-      return isJsonCompatibleAst(ast.f())
+      return isJsonCompatibleAst(current.thunk())
     default:
       return false
   }
@@ -279,7 +270,7 @@ const jsonCompatibleSchema = (schema: RuntimeSchema | undefined): RuntimeSchema 
   if (schema === undefined) {
     return undefined
   }
-  const ast = SchemaAST.typeAST(schema.ast)
+  const ast = SchemaAST.toType(schema.ast)
   return isJsonCompatibleAst(ast) ? schema : JsonValueSchema
 }
 
@@ -293,7 +284,7 @@ const buildStructSchema = (
 }
 
 const buildTupleSchema = (values: readonly Expression.Any[]): RuntimeSchema =>
-  Schema.Tuple(...values.map((value) => expressionRuntimeSchema(value) ?? JsonValueSchema))
+  Schema.Tuple(values.map((value) => expressionRuntimeSchema(value) ?? JsonValueSchema))
 
 const deriveRuntimeSchema = (expression: Expression.Any): RuntimeSchema | undefined => {
   const state = expression[Expression.TypeId]

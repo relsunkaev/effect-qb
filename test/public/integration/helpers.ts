@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Duration from "effect/Duration"
 import * as Redacted from "effect/Redacted"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { MysqlClient } from "@effect/sql-mysql2"
 import { PgClient } from "@effect/sql-pg"
 import { mkdir, rm } from "node:fs/promises"
@@ -63,7 +63,7 @@ export const execPostgres = <Row extends Record<string, unknown> = Record<string
 ) =>
   withPostgresLock(() =>
     runPostgres(Effect.gen(function*() {
-      const sql = yield* SqlClient.SqlClient
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       return yield* sql.unsafe<Row>(statement, params)
     }))
   )
@@ -73,6 +73,6 @@ export const execMysql = <Row extends Record<string, unknown> = Record<string, u
   params?: ReadonlyArray<unknown>
 ) =>
   runMysql(Effect.gen(function*() {
-    const sql = yield* SqlClient.SqlClient
+    const sql = yield* Effect.service(SqlClient.SqlClient)
     return yield* sql.unsafe<Row>(statement, params)
   }))

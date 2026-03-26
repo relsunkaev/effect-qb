@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as SqlClient from "@effect/sql/SqlClient"
-import * as SqlError from "@effect/sql/SqlError"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlError from "effect/unstable/sql/SqlError"
 
 import * as Expression from "./expression.js"
 import { normalizeDbValue } from "./runtime-normalize.js"
@@ -248,7 +248,7 @@ const decodeProjectionValue = (
     return normalized
   }
 
-  if ((Schema.is(schema as Schema.Schema.Any) as (value: unknown) => boolean)(normalized)) {
+  if ((Schema.is(schema as Schema.Top) as (value: unknown) => boolean)(normalized)) {
     return normalized
   }
 
@@ -363,28 +363,28 @@ export const fromDriver = <
 }
 
 /**
- * Creates an executor backed by `@effect/sql`'s `SqlClient`.
+ * Creates an executor backed by `effect/unstable/sql`'s `SqlClient`.
  */
 export const fromSqlClient = <Dialect extends string>(
   renderer: Renderer.Renderer<Dialect>
 ): Executor<Dialect, unknown, SqlClient.SqlClient> =>
   fromDriver(renderer, driver(renderer.dialect, (query) =>
-    Effect.flatMap(SqlClient.SqlClient, (sql) =>
+    Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) =>
       sql.unsafe<FlatRow>(query.sql, [...query.params]))))
 
-/** Runs an effect within the ambient `@effect/sql` transaction service. */
+/** Runs an effect within the ambient `effect/unstable/sql` transaction service. */
 export const withTransaction = <A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect))
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) => sql.withTransaction(effect))
 
 /**
  * Runs an effect in a nested transaction scope.
  *
- * When the ambient `@effect/sql` client is already inside a transaction, the
+ * When the ambient `effect/unstable/sql` client is already inside a transaction, the
  * underlying client implementation uses a savepoint.
  */
 export const withSavepoint = <A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect))
+  Effect.flatMap(Effect.service(SqlClient.SqlClient), (sql) => sql.withTransaction(effect))
