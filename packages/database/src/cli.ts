@@ -6,26 +6,31 @@ import * as Option from "effect/Option"
 
 import { loadPostgresConfig, resolveDatabaseUrl } from "./internal/postgres-config.js"
 import {
+  loadPostgresSchemaPlan,
+  selectedPostgresSchemaChanges,
+  skippedPostgresSchemaChanges,
+  summarizeSelectedPostgresPlan,
+  withoutManagedMigrationTable
+} from "./postgres/push.js"
+import {
   deleteAppliedMigrationNames,
   applyMigrationFiles,
   applyStatements,
   ensureMigrationTable,
+  loadPostgresMigrationState,
   migrationDirFromConfig,
   migrationFileLabel,
   readAppliedMigrationNames,
-  readAppliedMigrationRows,
   readMigrationFiles,
   readPendingMigrationFiles,
   rollbackMigrationFiles,
   writeMigrationFile
-} from "./internal/postgres-migrations.js"
-import { planPostgresPull, applyPullPlan, summarizePullPlan } from "./internal/postgres-pull.js"
+} from "./postgres/migrate.js"
+import { planPostgresPull, applyPullPlan, summarizePullPlan } from "./postgres/pull.js"
 import { runPostgresUrl } from "./internal/postgres-runtime.js"
-import { planPostgresSchemaDiff, type SchemaChange, type SchemaPlan } from "./internal/postgres-schema-diff.js"
 import { introspectPostgresSchema } from "./internal/postgres-introspector.js"
 import { filterDiscoveredSourceSchema } from "./internal/postgres-source-filter.js"
 import { discoverSourceSchema } from "./internal/postgres-source-discovery.js"
-import { tableKey, type SchemaModel } from "effect-qb/postgres/metadata"
 
 const toError = (cause: unknown): Error =>
   cause instanceof Error
@@ -49,33 +54,6 @@ const logLines = (lines: readonly string[]): Effect.Effect<void> =>
       console.log(lines.join("\n"))
     }
   })
-
-const summarizeSelectedPlan = (
-  label: string,
-  changes: readonly SchemaChange[]
-): readonly string[] =>
-  changes.length === 0
-    ? [`${label}: none`]
-    : [
-        `${label}:`,
-        ...changes.map((change) => `  - ${change.summary}`)
-      ]
-
-const selectedChanges = (
-  plan: SchemaPlan,
-  allowDestructive: boolean
-): readonly SchemaChange[] =>
-  allowDestructive
-    ? plan.executableChanges
-    : plan.executableChanges.filter((change) => change.safe)
-
-const skippedChanges = (
-  plan: SchemaPlan,
-  allowDestructive: boolean
-): readonly SchemaChange[] =>
-  allowDestructive
-    ? plan.manualChanges
-    : plan.unsafeChanges
 
 const configOption = Options.text("config").pipe(
   Options.optional,
@@ -126,63 +104,6 @@ const withLoadedConfig = <A>(
     })
   })
 
-const managedMigrationTableKey = (tableName: string): string => {
-  const parts = tableName.split(".")
-  return parts.length === 1
-    ? tableKey(undefined, parts[0]!)
-    : tableKey(parts[0], parts.slice(1).join("."))
-}
-
-const withoutManagedMigrationTable = (
-  model: SchemaModel,
-  migrationTableName: string
-): SchemaModel => {
-  const ignoredKey = managedMigrationTableKey(migrationTableName)
-  return {
-    ...model,
-    tables: model.tables.filter((table) => tableKey(table.schemaName, table.name) !== ignoredKey)
-  }
-}
-
-const loadSchemaPlan = (
-  cwd: string,
-  config: Awaited<ReturnType<typeof loadPostgresConfig>>["config"],
-  databaseUrl: string
-): Promise<{
-  readonly plan: SchemaPlan
-  readonly discovered: Awaited<ReturnType<typeof discoverSourceSchema>>
-}> =>
-  (async () => {
-    const discovered = filterDiscoveredSourceSchema(
-      await discoverSourceSchema(cwd, config.source),
-      config.filter
-    )
-    const database = withoutManagedMigrationTable(
-      await runPostgresUrl(databaseUrl, introspectPostgresSchema(config.filter)),
-      config.migrations.table
-    )
-    return {
-      plan: planPostgresSchemaDiff(discovered.model, database),
-      discovered
-    }
-  })()
-
-const loadMigrationState = async (loaded: Awaited<ReturnType<typeof loadPostgresConfig>>, databaseUrl: string) => {
-  const files = await readMigrationFiles(migrationDirFromConfig(loaded.cwd, loaded.config.migrations.dir))
-  const appliedRows = await runPostgresUrl(databaseUrl, Effect.gen(function*() {
-    yield* ensureMigrationTable(loaded.config.migrations.table)
-    return yield* readAppliedMigrationRows(loaded.config.migrations.table)
-  }))
-  const appliedNames = new Set(appliedRows.map((row) => row.name))
-  const pending = files.filter((file) => !appliedNames.has(file.name))
-  return {
-    files,
-    appliedRows,
-    appliedNames,
-    pending
-  }
-}
-
 const push = Command.make(
   "push",
   {
@@ -194,18 +115,18 @@ const push = Command.make(
   ({ config, url, dryRun, allowDestructive }) =>
     Effect.gen(function*() {
       const { plan, discovered } = yield* withLoadedConfig(config, url, async ({ cwd, config, databaseUrl }) =>
-        loadSchemaPlan(cwd, config, databaseUrl)
+        loadPostgresSchemaPlan(cwd, config, databaseUrl)
       )
-      const selected = selectedChanges(plan, allowDestructive)
-      const skipped = skippedChanges(plan, allowDestructive)
+      const selected = selectedPostgresSchemaChanges(plan, allowDestructive)
+      const skipped = skippedPostgresSchemaChanges(plan, allowDestructive)
       yield* logLines([
         `discovered ${discovered.model.tables.length} table(s) and ${discovered.model.enums.length} enum(s)`,
-        ...summarizeSelectedPlan("planned changes", plan.changes)
+        ...summarizeSelectedPostgresPlan("planned changes", plan.changes)
       ])
       if (dryRun) {
         return yield* logLines(skipped.length === 0
           ? []
-          : summarizeSelectedPlan("skipped changes", skipped))
+          : summarizeSelectedPostgresPlan("skipped changes", skipped))
       }
       if (selected.length > 0) {
         yield* withLoadedConfig(config, url, ({ databaseUrl }) =>
@@ -219,7 +140,7 @@ const push = Command.make(
         yield* log("no executable statements selected")
       }
       if (skipped.length > 0) {
-        yield* logLines(summarizeSelectedPlan("skipped changes", skipped))
+        yield* logLines(summarizeSelectedPostgresPlan("skipped changes", skipped))
       }
     })
 )
@@ -273,11 +194,11 @@ const migrateGenerate = Command.make(
       const { loaded, plan } = yield* effectFromPromise(async () => {
         const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
-        const { plan } = await loadSchemaPlan(loaded.cwd, loaded.config, databaseUrl)
+        const { plan } = await loadPostgresSchemaPlan(loaded.cwd, loaded.config, databaseUrl)
         return { loaded, plan }
       })
-      const selected = selectedChanges(plan, allowDestructive)
-      const skipped = skippedChanges(plan, allowDestructive)
+      const selected = selectedPostgresSchemaChanges(plan, allowDestructive)
+      const skipped = skippedPostgresSchemaChanges(plan, allowDestructive)
       if (selected.length === 0) {
         yield* log("no executable migration changes selected")
       } else {
@@ -291,7 +212,7 @@ const migrateGenerate = Command.make(
         yield* log(`wrote ${migrationFileLabel(filePath)}`)
       }
       if (skipped.length > 0) {
-        yield* logLines(summarizeSelectedPlan("skipped changes", skipped))
+        yield* logLines(summarizeSelectedPostgresPlan("skipped changes", skipped))
       }
     })
 )
@@ -357,7 +278,7 @@ const migrateStatus = Command.make(
       const { loaded, databaseUrl, appliedRows, pending } = yield* effectFromPromise(async () => {
         const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
-        const state = await loadMigrationState(loaded, databaseUrl)
+        const state = await loadPostgresMigrationState(loaded, databaseUrl)
         return {
           loaded,
           databaseUrl,
@@ -389,7 +310,7 @@ const migrateDown = Command.make(
       const { loaded, databaseUrl, selected } = yield* effectFromPromise(async () => {
         const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
-        const state = await loadMigrationState(loaded, databaseUrl)
+        const state = await loadPostgresMigrationState(loaded, databaseUrl)
         const stepCount = Math.max(1, Option.getOrElse(steps, () => 1))
         const applied = [...state.appliedRows].slice(Math.max(0, state.appliedRows.length - stepCount)).reverse()
         const fileByName = new Map(state.files.map((file) => [file.name, file]))
@@ -440,7 +361,7 @@ const migrateRepair = Command.make(
       const { loaded, databaseUrl, orphanNames } = yield* effectFromPromise(async () => {
         const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
-        const state = await loadMigrationState(loaded, databaseUrl)
+        const state = await loadPostgresMigrationState(loaded, databaseUrl)
         const fileNames = new Set(state.files.map((file) => file.name))
         const orphanNames = state.appliedRows
           .map((row) => row.name)

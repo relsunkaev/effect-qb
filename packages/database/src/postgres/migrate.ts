@@ -4,7 +4,9 @@ import { join, resolve } from "node:path"
 import * as SqlClient from "@effect/sql/SqlClient"
 import * as Effect from "effect/Effect"
 
-import type { SchemaChange } from "./postgres-schema-diff.js"
+import { runPostgresUrl } from "../internal/postgres-runtime.js"
+import type { SchemaChange } from "../internal/postgres-schema-diff.js"
+import type { loadPostgresConfig } from "../internal/postgres-config.js"
 
 const MIGRATION_UP_MARKER = "-- effect-db:up"
 const MIGRATION_DOWN_MARKER = "-- effect-db:down"
@@ -42,6 +44,8 @@ export interface AppliedMigrationRow {
   readonly id: number
   readonly name: string
 }
+
+type LoadedConfig = Awaited<ReturnType<typeof loadPostgresConfig>>
 
 const renderStatements = (statements: readonly string[]): string =>
   statements
@@ -290,3 +294,22 @@ export const migrationFileLabel = (path: string): string =>
 
 export const migrationDirFromConfig = (cwd: string, dir: string): string =>
   resolve(cwd, dir)
+
+export const loadPostgresMigrationState = async (
+  loaded: LoadedConfig,
+  databaseUrl: string
+) => {
+  const files = await readMigrationFiles(migrationDirFromConfig(loaded.cwd, loaded.config.migrations.dir))
+  const appliedRows = await runPostgresUrl(databaseUrl, Effect.gen(function*() {
+    yield* ensureMigrationTable(loaded.config.migrations.table)
+    return yield* readAppliedMigrationRows(loaded.config.migrations.table)
+  }))
+  const appliedNames = new Set(appliedRows.map((row) => row.name))
+  const pending = files.filter((file) => !appliedNames.has(file.name))
+  return {
+    files,
+    appliedRows,
+    appliedNames,
+    pending
+  }
+}

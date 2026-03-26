@@ -8,7 +8,7 @@ import { Column as C, Table } from "#postgres"
 import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/postgres-schema-diff.js"
 import { toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
 import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
-import { planPostgresPull } from "../../../packages/database/src/internal/postgres-pull.js"
+import { planPostgresPull } from "../../../packages/database/src/postgres/pull.js"
 import { unsafeAny } from "../../helpers/unsafe.ts"
 
 const repoRoot = process.cwd()
@@ -483,7 +483,7 @@ const users = Table.make("users", {
       expect(plan.updates[0]?.after).toContain(`import * as Schema from "effect/Schema"`)
       expect(plan.updates[0]?.after).toContain(`const users = Table.make("users"`)
       expect(plan.updates[0]?.after).toContain(`id: Column.uuid()`)
-      expect(plan.updates[0]?.after).toContain(`Table.primaryKey(["id"] as const)`)
+      expect(plan.updates[0]?.after).toContain(`Table.primaryKey(["id"])`)
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }
@@ -533,8 +533,9 @@ const users = Table.make("users", {
 
       expect(plan.updates).toHaveLength(1)
       const after = plan.updates[0]?.after ?? ""
-      expect(after.indexOf("target: () => connections")).toBeGreaterThan(after.indexOf("connections ="))
-      expect(after).toContain(`Table.foreignKey({ columns: ["connection_id"] as const, target: () => connections`)
+      expect(after.indexOf("connections =")).toBeGreaterThan(-1)
+      expect(after.indexOf("account_mappings =")).toBeGreaterThan(after.indexOf("connections ="))
+      expect(after).toContain(`Column.foreignKey(() => connections.id)`)
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }

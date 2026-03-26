@@ -22,6 +22,9 @@ const main = async () => {
     "--root",
     "src",
     "src/index.ts",
+    "src/postgres/pull.ts",
+    "src/postgres/push.ts",
+    "src/postgres/migrate.ts",
     "src/cli.ts"
   ], {
     cwd,

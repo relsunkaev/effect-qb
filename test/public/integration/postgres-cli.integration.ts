@@ -120,6 +120,22 @@ const makeWorkspaceWithFiles = async (
   }
 }
 
+const makeEmptyWorkspace = async (
+  configOptions: ConfigOptions = {}
+) => {
+  const workspace = await mkdtemp(join(repoRoot, "test/.tmp-postgres-cli-"))
+  const schemaName = `cli_it_${randomId()}`
+  await mkdir(join(workspace, "src"), { recursive: true })
+  await writeFile(join(workspace, "effectdb.config.ts"), renderSchemaSource(schemaName, {
+    include: ["src/**/*.ts"],
+    ...configOptions
+  }))
+  return {
+    workspace,
+    schemaName
+  }
+}
+
 const runCli = async (...args: readonly string[]): Promise<{
   readonly exitCode: number
   readonly stdout: string
@@ -250,8 +266,8 @@ test("postgres cli supports push pull and migrations against a live database", a
     await writeFile(
       schemaFile(workspace),
       pulledSchema.replace(
-        `    email: Column.text(),\n`,
-        `    email: Column.text(),\n    nickname: Column.text().pipe(Column.nullable),\n`
+        `  email: Column.text(),\n`,
+        `  email: Column.text(),\n  nickname: Column.text().pipe(Column.nullable),\n`
       )
     )
 
@@ -353,9 +369,9 @@ export const users = db.table("users", {
   displayName: C.text().pipe(C.default(Q.cast(Q.literal("guest"), Q.type.text()))),
   emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Q.type.text()))))
 }).pipe(
-  Table.primaryKey({ columns: ["id"] as const, name: "users_pkey" }),
-  Table.unique({ columns: ["email"] as const, name: "users_email_key" }),
-  Table.index({ name: "users_email_idx", columns: ["email"] as const }),
+  Table.primaryKey({ columns: ["id"], name: "users_pkey" }),
+  Table.unique({ columns: ["email"], name: "users_email_key" }),
+  Table.index({ name: "users_email_idx", columns: ["email"] }),
   Table.check("users_email_check", Q.neq(Q.column("email", Q.type.text()), Q.literal("blocked")))
 )
 `)
@@ -381,7 +397,7 @@ export const users = db.table("users", {
   emailLower: C.text().pipe(C.generated(F.upper(Q.column("email", Q.type.text())))),
   notes: C.text().pipe(C.nullable)
 }).pipe(
-  Table.primaryKey({ columns: ["id"] as const, name: "users_pkey" })
+  Table.primaryKey({ columns: ["id"], name: "users_pkey" })
 )
 `)
 
@@ -648,7 +664,7 @@ import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 const db = Pg.schema("__SCHEMA__")
 const types = Pg.schema("__SCHEMA__")
 
-const status = types.enum("status", ["pending", "active"] as const)
+const status = types.enum("status", ["pending", "active"])
 
 export const users = db.table("users", {
   id: C.text(),
@@ -675,7 +691,7 @@ import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 const db = Pg.schema(${JSON.stringify(schemaName)})
 const types = Pg.schema(${JSON.stringify(schemaName)})
 
-const status = types.enum("status", ["pending"] as const)
+const status = types.enum("status", ["pending"])
 
 export const users = db.table("users", {
   id: C.text(),
@@ -706,7 +722,7 @@ import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 const db = Pg.schema(${JSON.stringify(schemaName)})
 const types = Pg.schema(${JSON.stringify(schemaName)})
 
-const status = types.enum("status", ["active", "pending"] as const)
+const status = types.enum("status", ["active", "pending"])
 
 export const users = db.table("users", {
   id: C.text(),
@@ -755,7 +771,7 @@ test("postgres cli pull creates source definitions for unmanaged tables", async 
     expect(pull.stdout).toContain("update schema.ts")
     const nextSchema = await readSchema(workspace)
     expect(nextSchema).not.toBe(initialSchema)
-    expect(nextSchema).toContain(`const profiles = Table.make("profiles"`)
+    expect(nextSchema).toContain(`const profiles = db.table("profiles"`)
     expect(nextSchema).toContain(`export { users, profiles }`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
@@ -850,8 +866,8 @@ test("postgres cli accepts --url overrides over the configured database url", as
     await writeFile(
       schemaFile(workspace),
       pulledSchema.replace(
-        `    name: Column.text().pipe(Column.nullable)\n`,
-        `    name: Column.text().pipe(Column.nullable),\n    nickname: Column.text().pipe(Column.nullable)\n`
+        `  name: Column.text().pipe(Column.nullable)\n`,
+        `  name: Column.text().pipe(Column.nullable),\n  nickname: Column.text().pipe(Column.nullable)\n`
       )
     )
 
@@ -986,7 +1002,7 @@ import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgre
 const tables = Pg.schema("__SCHEMA__")
 const types = Pg.schema("__SCHEMA__")
 
-const status = types.enum("status", ["pending", "active"] as const)
+const status = types.enum("status", ["pending", "active"])
 
 const orgs = tables.table("orgs", {
   id: C.uuid(),
@@ -1028,7 +1044,7 @@ const users = tables.table("users", {
           nulls: "last"
         }
       ],
-      include: ["displayName"] as const,
+      include: ["displayName"],
       predicate: Q.isNotNull(Q.column("email", Q.type.text()))
     }),
     Table.index({
@@ -1085,9 +1101,9 @@ export { status, orgs, users }
     expect(pull.stdout).toContain("updated 1 file(s)")
 
     const pulledSchema = await readSchema(workspace)
-    expect(pulledSchema).toContain(`const status = types.enum("status", ["pending", "active"] as const)`)
+    expect(pulledSchema).toContain(`const status = types.enum("status", ["pending", "active"])`)
     expect(pulledSchema).toContain(`Column.identityByDefault`)
-    expect(pulledSchema).toContain(`variant: "enum"`)
+    expect(pulledSchema).toContain(`status: status.column()`)
     expect(pulledSchema).toContain(`users_org_id_fkey`)
     expect(pulledSchema).toContain(`users_alias_key`)
     expect(pulledSchema).toContain(`nullsNotDistinct: true`)
@@ -1095,7 +1111,7 @@ export { status, orgs, users }
     expect(pulledSchema).toContain(`deferrable: true`)
     expect(pulledSchema).toContain(`initiallyDeferred: true`)
     expect(pulledSchema).toContain(`users_email_lookup_idx`)
-    expect(pulledSchema).toContain(`include: ["displayName"] as const`)
+    expect(pulledSchema).toContain(`include: ["displayName"]`)
     expect(pulledSchema).toContain(`order: "desc"`)
     expect(pulledSchema).toContain(`nulls: "last"`)
     expect(pulledSchema).toContain(`users_note_idx`)
@@ -1165,6 +1181,44 @@ export const users = db.table("users", {
     await rm(workspace, { recursive: true, force: true })
   }
 }, 30000)
+
+test("postgres cli canonicalizes pulled enums, schemas, and sequences in new files", async () => {
+  const { workspace, schemaName } = await makeEmptyWorkspace({
+    filter: {
+      schemas: undefined,
+      tables: ["users"]
+    }
+  })
+  try {
+    await dropSchema(schemaName)
+    const sequenceRegclass = `'${schemaName}.users_id_seq'::regclass`
+    await execPostgres(`
+      create schema "${schemaName}";
+      create type "${schemaName}"."status" as enum ('pending', 'active');
+      create sequence "${schemaName}"."users_id_seq";
+      create table "${schemaName}"."users" (
+        "id" bigint not null default nextval(${sequenceRegclass}),
+        "status" "${schemaName}"."status" not null default 'active'::"${schemaName}"."status",
+        constraint "users_pkey" primary key ("id")
+      );
+    `)
+
+    const pull = await runCli("pull", "--config", configFile(workspace))
+    expect(pull.exitCode).toBe(0)
+    expect(pull.stdout).toContain(`create src/${schemaName}.schema.ts`)
+
+    const pulled = await readFile(join(workspace, "src", `${schemaName}.schema.ts`), "utf8")
+    expect(pulled).toContain(`const ${schemaName} = Pg.schema("${schemaName}")`)
+    expect(pulled).toContain(`const status = ${schemaName}.enum("status", ["pending", "active"])`)
+    expect(pulled).toContain(`status: status.column().pipe(`)
+    expect(pulled).toContain(`Column.default(Pg.Query.cast(Pg.Query.literal("active"), status.type()))`)
+    expect(pulled).toContain(`Column.default(Pg.Function.nextVal(${schemaName}.sequence("users_id_seq")))`)
+    expect(pulled).not.toContain(`Column.ddlType("${schemaName}.status")`)
+  } finally {
+    await rm(workspace, { recursive: true, force: true })
+    await dropSchema(schemaName)
+  }
+})
 
 test("postgres cli pull fails for unsupported index key definitions", async () => {
   const { workspace, schemaName } = await makeWorkspace()
@@ -1267,9 +1321,9 @@ export { orgs, memberships }
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`memberships_org_fkey`)
-    expect(pulledSchema).toContain(`columns: ["tenantId", "orgSlug"] as const`)
+    expect(pulledSchema).toContain(`columns: ["tenantId", "orgSlug"]`)
     expect(pulledSchema).toContain(`target: () => orgs`)
-    expect(pulledSchema).toContain(`referencedColumns: ["tenantId", "slug"] as const`)
+    expect(pulledSchema).toContain(`referencedColumns: ["tenantId", "slug"]`)
     expect(pulledSchema).toContain(`onDelete: "cascade"`)
     expect(pulledSchema).toContain(`onUpdate: "noAction"`)
     expect(pulledSchema).toContain(`deferrable: true`)
@@ -1450,8 +1504,8 @@ test("postgres cli pull creates source definitions for missing enums", async () 
     expect(pull.exitCode).toBe(0)
     expect(pull.stdout).toContain("update schema.ts")
     const nextSchema = await readSchema(workspace)
-    expect(nextSchema).toContain(`const status = Pg.schema(${JSON.stringify(schemaName)}).enum("status", ["pending", "active"] as const)`)
-    expect(nextSchema).toContain(`export { users, status }`)
+    expect(nextSchema).toContain(`status: db.enum("status", ["pending", "active"]).column().pipe(Column.nullable)`)
+    expect(nextSchema).toContain(`export { users }`)
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
     await rm(workspace, { recursive: true, force: true })

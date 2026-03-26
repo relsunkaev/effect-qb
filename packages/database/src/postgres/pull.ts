@@ -3,10 +3,10 @@ import { dirname, extname, relative, resolve } from "node:path"
 
 import { Datatypes } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, DdlExpressionLike, IndexKeySpec, TableOptionSpec } from "effect-qb/postgres/metadata"
-import { defaultConstraintName } from "./postgres-schema-sql.js"
+import { defaultConstraintName } from "../internal/postgres-schema-sql.js"
 import { enumKey, tableKey, renderDdlExpressionSql, normalizeDdlExpressionSql, toEnumModel, toTableModel } from "effect-qb/postgres/metadata"
-import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "./postgres-source-discovery.js"
-import { canonicalizePostgresTypeName, inferPostgresTypeKind } from "./postgres-type-utils.js"
+import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "../internal/postgres-source-discovery.js"
+import { canonicalizePostgresTypeName, inferPostgresTypeKind } from "../internal/postgres-type-utils.js"
 import { parse, type Expr as PgSqlExpr } from "pgsql-ast-parser"
 
 const TABLE_ALIAS = "Table"
@@ -27,11 +27,16 @@ export interface PullPlan {
 type RenderContext = {
   readonly bindingByKey: ReadonlyMap<string, SourceBinding>
   readonly enumKeys: ReadonlySet<string>
+  readonly enumExpressionByKey?: ReadonlyMap<string, string>
+  readonly sequenceExpressionByKey?: ReadonlyMap<string, string>
 }
 
 type ExpressionRenderContext = {
   readonly columnByName: ReadonlyMap<string, ColumnModel>
   readonly enumKeys: ReadonlySet<string>
+  readonly enumExpressionByKey?: ReadonlyMap<string, string>
+  readonly sequenceExpressionByKey?: ReadonlyMap<string, string>
+  readonly currentSchemaName?: string
 }
 
 const isIdentifier = (value: string): boolean =>
@@ -49,7 +54,43 @@ const renderPropertyKey = (value: string): string =>
     : renderStringLiteral(value)
 
 const renderStringTuple = (values: readonly string[]): string =>
-  `[${values.map(renderStringLiteral).join(", ")}] as const`
+  `[${values.map(renderStringLiteral).join(", ")}]`
+
+const chunk = <Value>(
+  values: readonly Value[],
+  size: number
+): readonly (readonly Value[])[] => {
+  if (values.length === 0) {
+    return []
+  }
+  const chunks: Value[][] = []
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size))
+  }
+  return chunks
+}
+
+const renderPipeChain = (
+  base: string,
+  operations: readonly string[]
+): string => {
+  if (operations.length === 0) {
+    return base
+  }
+  if (operations.length <= 3 && operations.every((operation) => !operation.includes("\n"))) {
+    return `${base}.pipe(${operations.join(", ")})`
+  }
+  return chunk(operations, 20).reduce(
+    (current, group) => `${current}.pipe(\n${indent(group.join(",\n"))}\n)`,
+    base
+  )
+}
+
+const schemaObjectKey = (
+  schemaName: string | undefined,
+  name: string
+): string =>
+  `${schemaName ?? "public"}.${name}`
 
 const pairUniqueBySignature = <Source, Db>(
   sourceItems: readonly Source[],
@@ -114,9 +155,12 @@ const renderQueryTypeName = (
   context?: ExpressionRenderContext
 ): string => {
   const normalized = normalizeType(typeName)
-  const schemaName = inferSchemaNameFromDdl(typeName)
-  const kind = inferKindFromDdl(typeName)
+  const { schemaName, kind } = inferTypeNameFromDdl(typeName)
   if (context !== undefined && context.enumKeys.has(enumKey(schemaName, kind))) {
+    const expression = context.enumExpressionByKey?.get(enumKey(schemaName, kind))
+    if (expression !== undefined) {
+      return `${expression}.type()`
+    }
     const qualified = schemaName === undefined || schemaName === "public"
       ? kind
       : `${schemaName}.${kind}`
@@ -262,6 +306,47 @@ const renderQueryColumnReference = (
   return `${PG_ALIAS}.Query.column(${renderStringLiteral(name)}, ${renderQueryTypeExpression(column, context)}${column.nullable ? ", true" : ""})`
 }
 
+const parseQualifiedNameLiteral = (
+  value: string
+): {
+  readonly schemaName?: string
+  readonly name: string
+} | undefined => {
+  const trimmed = value.trim()
+  const match = /^(?:(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*))\.)?(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*))$/.exec(trimmed)
+  if (match === null) {
+    return undefined
+  }
+  return {
+    schemaName: match[1] ?? match[2],
+    name: match[3] ?? match[4]!
+  }
+}
+
+const extractSequenceReference = (
+  expression: PgSqlExpr,
+  fallbackSchemaName?: string
+): {
+  readonly schemaName?: string
+  readonly name: string
+} | undefined => {
+  switch (expression.type) {
+    case "string": {
+      const parsed = parseQualifiedNameLiteral(expression.value)
+      return parsed === undefined
+        ? undefined
+        : {
+            ...parsed,
+            schemaName: parsed.schemaName ?? fallbackSchemaName
+          }
+    }
+    case "cast":
+      return extractSequenceReference(expression.operand, fallbackSchemaName)
+    default:
+      return undefined
+  }
+}
+
 const renderSqlExpressionCode = (
   expression: PgSqlExpr,
   context: ExpressionRenderContext
@@ -373,8 +458,18 @@ const renderSqlExpressionCode = (
         case "uuid_generate_v4":
         case "gen_random_uuid":
           return `${PG_ALIAS}.Function.uuidGenerateV4()`
-        case "nextval":
+        case "nextval": {
+          const sequenceReference = args.length === 1
+            ? extractSequenceReference(args[0]!, context.currentSchemaName)
+            : undefined
+          if (sequenceReference !== undefined) {
+            const expression = context.sequenceExpressionByKey?.get(schemaObjectKey(sequenceReference.schemaName, sequenceReference.name))
+            if (expression !== undefined) {
+              return `${PG_ALIAS}.Function.nextVal(${expression})`
+            }
+          }
           return `${PG_ALIAS}.Function.nextVal(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+        }
         case "jsonb_build_object": {
           if (args.length % 2 !== 0) {
             throw new Error("Unsupported PostgreSQL expression: jsonb_build_object requires key/value pairs")
@@ -670,6 +765,26 @@ const inferSchemaNameFromDdl = (ddlType: string): string | undefined => {
   return match[1] ?? match[2]
 }
 
+const inferTypeNameFromDdl = (ddlType: string): {
+  readonly schemaName?: string
+  readonly kind: string
+} => {
+  const normalized = ddlType.trim().replace(/\s+/g, " ").toLowerCase()
+  const withoutArray = normalized.replace(/\[\]$/, "")
+  const withoutParams = withoutArray.replace(/\(.+\)$/, "")
+  const match = /^(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*))\.(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*))$/.exec(withoutParams)
+  if (match === null) {
+    return {
+      schemaName: undefined,
+      kind: inferKindFromDdl(ddlType)
+    }
+  }
+  return {
+    schemaName: match[1] ?? match[2],
+    kind: match[3] ?? match[4]!
+  }
+}
+
 const runtimeTagOfColumn = (column: ColumnModel): string | undefined => {
   if (normalizeType(column.ddlType).endsWith("[]")) {
     return "array"
@@ -766,12 +881,13 @@ const renderColumnBase = (
   const effectiveDdlType = column.ddlType ?? column.dbTypeKind
   const { baseType, arrayDepth } = normalizeArrayType(effectiveDdlType)
   if (arrayDepth > 0) {
+    const typeName = inferTypeNameFromDdl(baseType)
     const baseColumn = {
       ...column,
       ddlType: baseType,
-      dbTypeKind: inferKindFromDdl(baseType),
-      typeSchema: inferSchemaNameFromDdl(baseType) ?? column.typeSchema,
-      typeKind: inferSchemaNameFromDdl(baseType) !== undefined && context.enumKeys.has(enumKey(inferSchemaNameFromDdl(baseType), inferKindFromDdl(baseType)))
+      dbTypeKind: typeName.kind,
+      typeSchema: typeName.schemaName ?? column.typeSchema,
+      typeKind: context.enumKeys.has(enumKey(typeName.schemaName ?? column.typeSchema, typeName.kind))
         ? "e"
         : column.typeKind
     }
@@ -816,8 +932,15 @@ const renderColumnBase = (
     }
   }
   if (column.typeKind === "e") {
+    const expression = context.enumExpressionByKey?.get(enumKey(column.typeSchema, column.dbTypeKind))
+    const qualified = column.typeSchema === undefined || column.typeSchema === "public"
+      ? column.dbTypeKind
+      : `${column.typeSchema}.${column.dbTypeKind}`
     return {
-      code: `${COLUMN_ALIAS}.custom(${SCHEMA_ALIAS}.String, ${renderDbTypeDescriptor(column, context)})`
+      code: expression === undefined
+        ? `${COLUMN_ALIAS}.custom(${SCHEMA_ALIAS}.String, ${renderDbTypeDescriptor(column, context)})`
+        : `${expression}.column()`,
+      defaultDdlType: qualified
     }
   }
   switch (column.dbTypeKind) {
@@ -905,7 +1028,10 @@ const renderExpressionContext = (
   context: RenderContext
 ): ExpressionRenderContext => ({
   columnByName: new Map(table.columns.map((column) => [column.name, column])),
-  enumKeys: context.enumKeys
+  enumKeys: context.enumKeys,
+  enumExpressionByKey: context.enumExpressionByKey,
+  sequenceExpressionByKey: context.sequenceExpressionByKey,
+  currentSchemaName: table.schemaName
 })
 
 const renderColumnDefinition = (
@@ -925,6 +1051,11 @@ const renderColumnDefinition = (
   if (column.nullable) {
     pipes.push(`${COLUMN_ALIAS}.nullable`)
   }
+  pipes.push(
+    ...table.options
+      .map((option) => renderInlineColumnOption(table, column.name, option, context))
+      .filter((value): value is string => value !== undefined)
+  )
   if (inlinePrimaryKey) {
     pipes.push(`${COLUMN_ALIAS}.primaryKey`)
   }
@@ -937,9 +1068,7 @@ const renderColumnDefinition = (
   } else if (column.defaultSql) {
     pipes.push(`${COLUMN_ALIAS}.default(${renderDdlExpressionCode(column.defaultSql, expressionContext)})`)
   }
-  return pipes.length === 0
-    ? base.code
-    : `${base.code}.pipe(${pipes.join(", ")})`
+  return renderPipeChain(base.code, pipes)
 }
 
 const renderIndexKey = (
@@ -972,7 +1101,7 @@ const renderIndexOption = (
     parts.push(`columns: ${renderStringTuple(option.columns)}`)
   }
   if (option.keys) {
-    parts.push(`keys: [${option.keys.map((key) => renderIndexKey(key, table, context)).join(", ")}] as const`)
+    parts.push(`keys: [${option.keys.map((key) => renderIndexKey(key, table, context)).join(", ")}]`)
   }
   if (option.name) {
     parts.push(`name: ${renderStringLiteral(option.name)}`)
@@ -984,12 +1113,177 @@ const renderIndexOption = (
     parts.push(`method: ${renderStringLiteral(option.method)}`)
   }
   if (option.include && option.include.length > 0) {
-    parts.push(`include: [${option.include.map(renderStringLiteral).join(", ")}] as const`)
+    parts.push(`include: [${option.include.map(renderStringLiteral).join(", ")}]`)
   }
   if (option.predicate) {
     parts.push(`predicate: ${renderDdlExpressionCode(renderDdlExpressionSql(option.predicate), renderExpressionContext(table, context))}`)
   }
   return `${TABLE_ALIAS}.index({ ${parts.join(", ")} })`
+}
+
+const renderColumnAccess = (
+  identifier: string,
+  columnName: string
+): string =>
+  isIdentifier(columnName)
+    ? `${identifier}.${columnName}`
+    : `${identifier}[${renderStringLiteral(columnName)}]`
+
+const inlineForeignKeyColumn = (
+  option: Extract<TableOptionSpec, { readonly kind: "foreignKey" }>
+): string | undefined => {
+  if (option.columns.length !== 1) {
+    return undefined
+  }
+  const reference = option.references()
+  return reference.columns.length === 1
+    ? option.columns[0]
+    : undefined
+}
+
+const inlineIndexColumn = (
+  option: Extract<TableOptionSpec, { readonly kind: "index" }>
+): {
+  readonly column: string
+  readonly order?: "asc" | "desc"
+  readonly nulls?: "first" | "last"
+} | undefined => {
+  const keys = option.keys ?? (option.columns ?? []).map((column) => ({
+    kind: "column" as const,
+    column,
+    order: undefined as "asc" | "desc" | undefined,
+    nulls: undefined as "first" | "last" | undefined
+  }))
+  if (keys.length !== 1) {
+    return undefined
+  }
+  const key = keys[0]!
+  return key.kind === "column"
+    ? {
+        column: key.column,
+        order: key.order,
+        nulls: key.nulls
+      }
+    : undefined
+}
+
+const renderInlineColumnOption = (
+  table: TableModel,
+  columnName: string,
+  option: TableOptionSpec,
+  context: RenderContext
+): string | undefined => {
+  switch (option.kind) {
+    case "unique": {
+      if (option.columns.length !== 1 || option.columns[0] !== columnName) {
+        return undefined
+      }
+      return option.name === undefined &&
+        option.nullsNotDistinct === undefined &&
+        option.deferrable === undefined &&
+        option.initiallyDeferred === undefined
+        ? `${COLUMN_ALIAS}.unique`
+        : undefined
+    }
+    case "foreignKey": {
+      const inlineColumn = inlineForeignKeyColumn(option)
+      if (inlineColumn === undefined || inlineColumn !== columnName) {
+        return undefined
+      }
+      const reference = option.references()
+      const targetKey = tableKey(reference.schemaName, reference.tableName)
+      const target = context.bindingByKey.get(targetKey)
+      if (target === undefined || target.kind !== "table") {
+        throw new Error(`Cannot render foreign key from ${tableKey(table.schemaName, table.name)} to missing source table '${targetKey}'`)
+      }
+      const targetColumn = reference.columns[0]!
+      const targetExpression = `() => ${renderColumnAccess(target.declaration.identifier, targetColumn)}`
+      const simple =
+        option.name === undefined &&
+        option.onUpdate === undefined &&
+        option.onDelete === undefined &&
+        option.deferrable === undefined &&
+        option.initiallyDeferred === undefined
+      if (simple) {
+        return `${COLUMN_ALIAS}.foreignKey(${targetExpression})`
+      }
+      const parts: string[] = [`target: ${targetExpression}`]
+      if (option.name !== undefined) {
+        parts.push(`name: ${renderStringLiteral(option.name)}`)
+      }
+      if (option.onUpdate !== undefined) {
+        parts.push(`onUpdate: ${renderStringLiteral(option.onUpdate)}`)
+      }
+      if (option.onDelete !== undefined) {
+        parts.push(`onDelete: ${renderStringLiteral(option.onDelete)}`)
+      }
+      if (option.deferrable !== undefined) {
+        parts.push(`deferrable: ${String(option.deferrable)}`)
+      }
+      if (option.initiallyDeferred !== undefined) {
+        parts.push(`initiallyDeferred: ${String(option.initiallyDeferred)}`)
+      }
+      return `${COLUMN_ALIAS}.foreignKey({ ${parts.join(", ")} })`
+    }
+    case "index": {
+      if (option.unique === true) {
+        return undefined
+      }
+      const inlineColumn = inlineIndexColumn(option)
+      if (inlineColumn === undefined || inlineColumn.column !== columnName) {
+        return undefined
+      }
+      const simple =
+        option.name === undefined &&
+        option.method === undefined &&
+        (option.include === undefined || option.include.length === 0) &&
+        option.predicate === undefined &&
+        inlineColumn.order === undefined &&
+        inlineColumn.nulls === undefined
+      if (simple) {
+        return `${COLUMN_ALIAS}.index`
+      }
+      const parts: string[] = []
+      if (option.name !== undefined) {
+        parts.push(`name: ${renderStringLiteral(option.name)}`)
+      }
+      if (option.method !== undefined) {
+        parts.push(`method: ${renderStringLiteral(option.method)}`)
+      }
+      if (option.include !== undefined && option.include.length > 0) {
+        parts.push(`include: [${option.include.map(renderStringLiteral).join(", ")}]`)
+      }
+      if (option.predicate !== undefined) {
+        parts.push(`predicate: ${renderDdlExpressionCode(renderDdlExpressionSql(option.predicate), renderExpressionContext(table, context))}`)
+      }
+      if (inlineColumn.order !== undefined) {
+        parts.push(`order: ${renderStringLiteral(inlineColumn.order)}`)
+      }
+      if (inlineColumn.nulls !== undefined) {
+        parts.push(`nulls: ${renderStringLiteral(inlineColumn.nulls)}`)
+      }
+      return `${COLUMN_ALIAS}.index({ ${parts.join(", ")} })`
+    }
+    default:
+      return undefined
+  }
+}
+
+const isInlineColumnOption = (option: TableOptionSpec): boolean => {
+  switch (option.kind) {
+    case "unique":
+      return option.columns.length === 1 &&
+        option.name === undefined &&
+        option.nullsNotDistinct === undefined &&
+        option.deferrable === undefined &&
+        option.initiallyDeferred === undefined
+    case "foreignKey":
+      return option.columns.length === 1 && option.references().columns.length === 1
+    case "index":
+      return option.unique !== true && inlineIndexColumn(option) !== undefined
+    default:
+      return false
+  }
 }
 
 const renderTableOption = (
@@ -1080,7 +1374,8 @@ const renderTableDeclaration = (
 ): string => {
   const inlinePrimaryKey = inlinePrimaryKeyColumn(declaration, table)
   const tableOptions = table.options.filter((option) =>
-    !(declaration.kind === "tableClass" && option.kind === "primaryKey" && inlinePrimaryKey !== undefined)
+    !(declaration.kind === "tableClass" && option.kind === "primaryKey" && inlinePrimaryKey !== undefined) &&
+    !(option.kind !== "primaryKey" && isInlineColumnOption(option))
   )
   const renderedOptions = tableOptions.map((option) => renderTableOption(table, option, context))
   const fields = renderFieldBlock(declaration, table, context)
@@ -1091,13 +1386,15 @@ const renderTableDeclaration = (
 
   switch (declaration.kind) {
     case "tableFactory":
-      return renderedOptions.length === 0
-        ? `const ${declaration.identifier} = ${TABLE_ALIAS}.make(${nameLiteral}, ${fields}${schemaLiteral})`
-        : `const ${declaration.identifier} = ${TABLE_ALIAS}.make(${nameLiteral}, ${fields}${schemaLiteral}).pipe(\n${indent(renderedOptions.join(",\n"))}\n)`
+      return `const ${declaration.identifier} = ${renderPipeChain(
+        `${TABLE_ALIAS}.make(${nameLiteral}, ${fields}${schemaLiteral})`,
+        renderedOptions
+      )}`
     case "tableSchema":
-      return renderedOptions.length === 0
-        ? `const ${declaration.identifier} = ${declaration.schemaBuilderIdentifier}.table(${nameLiteral}, ${fields})`
-        : `const ${declaration.identifier} = ${declaration.schemaBuilderIdentifier}.table(\n${indent([nameLiteral, fields, ...renderedOptions].join(",\n"))}\n)`
+      return `const ${declaration.identifier} = ${renderPipeChain(
+        `${declaration.schemaBuilderIdentifier}.table(${nameLiteral}, ${fields})`,
+        renderedOptions
+      )}`
     case "tableClass": {
       const head = `class ${declaration.identifier} extends ${TABLE_ALIAS}.Class<${declaration.identifier}>(${nameLiteral}${schemaLiteral})(${fields})`
       if (renderedOptions.length === 0) {
@@ -1116,9 +1413,10 @@ const renderTableAdditionBase = (
   context: RenderContext
 ): string => {
   const inlinePrimaryKey = inlinePrimaryKeyColumn(declaration, table)
-  const hasForeignKeys = table.options.some((option) => option.kind === "foreignKey")
+  const hasForeignKeys = table.options.some((option) => option.kind === "foreignKey" && !isInlineColumnOption(option))
   const tableOptions = table.options.filter((option) =>
     option.kind !== "foreignKey" &&
+    !(option.kind !== "primaryKey" && isInlineColumnOption(option)) &&
     !(declaration.kind === "tableClass" && option.kind === "primaryKey" && inlinePrimaryKey !== undefined)
   )
   const renderedOptions = tableOptions.map((option) => renderTableOption(table, option, context))
@@ -1130,18 +1428,18 @@ const renderTableAdditionBase = (
 
   switch (declaration.kind) {
     case "tableFactory": {
-      const head = `${hasForeignKeys ? "let" : "const"} ${declaration.identifier} = ${TABLE_ALIAS}.make(${nameLiteral}, ${fields}${schemaLiteral})`
-      return renderedOptions.length === 0
-        ? head
-        : `${head}.pipe(\n${indent(renderedOptions.join(",\n"))}\n)`
+      return `${hasForeignKeys ? "let" : "const"} ${declaration.identifier} = ${renderPipeChain(
+        `${TABLE_ALIAS}.make(${nameLiteral}, ${fields}${schemaLiteral})`,
+        renderedOptions
+      )}`
     }
     case "tableClass":
       return renderTableDeclaration(declaration, table, context)
     case "tableSchema": {
-      const head = `${hasForeignKeys ? "let" : "const"} ${declaration.identifier} = ${declaration.schemaBuilderIdentifier}.table(${nameLiteral}, ${fields})`
-      return renderedOptions.length === 0
-        ? head
-        : `${head}.pipe(\n${indent(renderedOptions.join(",\n"))}\n)`
+      return `${hasForeignKeys ? "let" : "const"} ${declaration.identifier} = ${renderPipeChain(
+        `${declaration.schemaBuilderIdentifier}.table(${nameLiteral}, ${fields})`,
+        renderedOptions
+      )}`
     }
     default:
       throw new Error(`Cannot render table declaration for kind '${declaration.kind}'`)
@@ -1153,11 +1451,15 @@ const renderTableForeignKeyUpdate = (
   table: TableModel,
   context: RenderContext
 ): string | undefined => {
-  const foreignKeys = table.options.filter((option): option is Extract<TableOptionSpec, { readonly kind: "foreignKey" }> => option.kind === "foreignKey")
+  const foreignKeys = table.options.filter((option): option is Extract<TableOptionSpec, { readonly kind: "foreignKey" }> =>
+    option.kind === "foreignKey" && !isInlineColumnOption(option))
   if (foreignKeys.length === 0) {
     return undefined
   }
-  return `${declaration.identifier} = ${declaration.identifier}.pipe(\n${indent(foreignKeys.map((option) => renderTableOption(table, option, context)).join(",\n"))}\n)`
+  return `${declaration.identifier} = ${renderPipeChain(
+    declaration.identifier,
+    foreignKeys.map((option) => renderTableOption(table, option, context))
+  )}`
 }
 
 const renderEnumDeclaration = (
@@ -1167,13 +1469,39 @@ const renderEnumDeclaration = (
   const values = renderStringTuple(enumType.values)
   switch (declaration.kind) {
     case "enumFactory":
-      return `const ${declaration.identifier} = ${PG_ALIAS}.schema(${renderStringLiteral(enumType.schemaName ?? "public")}).enum(${renderStringLiteral(enumType.name)}, ${values})`
+      return enumType.schemaName === undefined || enumType.schemaName === "public"
+        ? `const ${declaration.identifier} = ${PG_ALIAS}.enum(${renderStringLiteral(enumType.name)}, ${values})`
+        : `const ${declaration.identifier} = ${PG_ALIAS}.schema(${renderStringLiteral(enumType.schemaName)}).enum(${renderStringLiteral(enumType.name)}, ${values})`
     case "enumSchema":
       return `const ${declaration.identifier} = ${declaration.schemaBuilderIdentifier}.enum(${renderStringLiteral(enumType.name)}, ${values})`
     default:
       throw new Error(`Cannot render enum declaration for kind '${declaration.kind}'`)
   }
 }
+
+type SequenceReference = {
+  readonly schemaName?: string
+  readonly name: string
+}
+
+type CanonicalSequence = SequenceReference & {
+  readonly identifier: string
+  readonly usageCount: number
+}
+
+const renderSequenceExpression = (
+  sequence: SequenceReference,
+  schemaBuilderIdentifier?: string
+): string =>
+  sequence.schemaName === undefined || sequence.schemaName === "public"
+    ? `${PG_ALIAS}.sequence(${renderStringLiteral(sequence.name)})`
+    : `${schemaBuilderIdentifier ?? `${PG_ALIAS}.schema(${renderStringLiteral(sequence.schemaName)})`}.sequence(${renderStringLiteral(sequence.name)})`
+
+const renderSequenceDeclaration = (
+  sequence: CanonicalSequence,
+  schemaBuilderIdentifier?: string
+): string =>
+  `const ${sequence.identifier} = ${renderSequenceExpression(sequence, schemaBuilderIdentifier)}`
 
 const ensureImports = (contents: string): string => {
   const cleaned = contents
@@ -1219,6 +1547,334 @@ const uniqueIdentifier = (
   const identifier = `${base}_${index}`
   used.add(identifier)
   return identifier
+}
+
+const visitExpression = (
+  expression: PgSqlExpr,
+  visit: (expression: PgSqlExpr) => void
+): void => {
+  visit(expression)
+  switch (expression.type) {
+    case "cast":
+      visitExpression(expression.operand, visit)
+      return
+    case "member":
+      visitExpression(expression.operand, visit)
+      return
+    case "call":
+      for (const arg of Array.isArray(expression.args) ? expression.args : []) {
+        visitExpression(arg, visit)
+      }
+      return
+    case "binary":
+      visitExpression(expression.left, visit)
+      visitExpression(expression.right, visit)
+      return
+    case "unary":
+      visitExpression(expression.operand, visit)
+      return
+    case "array":
+      for (const item of expression.expressions) {
+        visitExpression(item, visit)
+      }
+      return
+    case "case":
+      if (expression.value !== undefined && expression.value !== null) {
+        visitExpression(expression.value, visit)
+      }
+      for (const branch of expression.whens ?? []) {
+        visitExpression(branch.when, visit)
+        visitExpression(branch.value, visit)
+      }
+      if (expression.else !== undefined && expression.else !== null) {
+        visitExpression(expression.else, visit)
+      }
+      return
+    case "extract":
+      visitExpression(expression.from, visit)
+      return
+    default:
+      return
+  }
+}
+
+const collectExpressionReferences = (
+  sql: string,
+  options: {
+    readonly fallbackSchemaName?: string
+    readonly enumUsageByKey: Map<string, number>
+    readonly sequenceUsageByKey: Map<string, number>
+    readonly enumKeys: ReadonlySet<string>
+  }
+): void => {
+  const expression = parse(sql, "expr") as PgSqlExpr
+  visitExpression(expression, (current) => {
+    if (current.type === "call") {
+      const name = ((current.function as { readonly name?: string }).name ?? "").toLowerCase()
+      if (name === "nextval" && Array.isArray(current.args) && current.args.length === 1) {
+        const sequence = extractSequenceReference(current.args[0]!, options.fallbackSchemaName)
+        if (sequence !== undefined) {
+          const key = schemaObjectKey(sequence.schemaName, sequence.name)
+          options.sequenceUsageByKey.set(key, (options.sequenceUsageByKey.get(key) ?? 0) + 1)
+        }
+      }
+      return
+    }
+    if (current.type === "cast") {
+      const target = current.to
+      if (typeof target === "string") {
+        const { schemaName, kind } = inferTypeNameFromDdl(target)
+        const key = enumKey(schemaName, kind)
+        if (options.enumKeys.has(key)) {
+          options.enumUsageByKey.set(key, (options.enumUsageByKey.get(key) ?? 0) + 1)
+        }
+        return
+      }
+      if (target !== null && typeof target === "object") {
+        const record = target as { readonly schema?: unknown; readonly name?: unknown; readonly type?: unknown }
+        if (typeof record.schema === "string" && typeof record.name === "string") {
+          const key = enumKey(record.schema, record.name)
+          if (options.enumKeys.has(key)) {
+            options.enumUsageByKey.set(key, (options.enumUsageByKey.get(key) ?? 0) + 1)
+          }
+          return
+        }
+        if (typeof record.name === "string") {
+          const key = enumKey(options.fallbackSchemaName, record.name)
+          if (options.enumKeys.has(key)) {
+            options.enumUsageByKey.set(key, (options.enumUsageByKey.get(key) ?? 0) + 1)
+          }
+        } else if (typeof record.type === "string") {
+          const { schemaName, kind } = inferTypeNameFromDdl(record.type)
+          const key = enumKey(schemaName, kind)
+          if (options.enumKeys.has(key)) {
+            options.enumUsageByKey.set(key, (options.enumUsageByKey.get(key) ?? 0) + 1)
+          }
+        }
+      }
+    }
+  })
+}
+
+const countTableReferences = (
+  table: TableModel,
+  enumKeys: ReadonlySet<string>
+): {
+  readonly enumUsageByKey: ReadonlyMap<string, number>
+  readonly columnEnumUsageByKey: ReadonlyMap<string, number>
+  readonly sequenceUsageByKey: ReadonlyMap<string, number>
+} => {
+  const enumUsageByKey = new Map<string, number>()
+  const columnEnumUsageByKey = new Map<string, number>()
+  const sequenceUsageByKey = new Map<string, number>()
+  for (const column of table.columns) {
+    if (column.typeKind === "e") {
+      const key = enumKey(column.typeSchema, column.dbTypeKind)
+      enumUsageByKey.set(key, (enumUsageByKey.get(key) ?? 0) + 1)
+      columnEnumUsageByKey.set(key, (columnEnumUsageByKey.get(key) ?? 0) + 1)
+    }
+    if (column.defaultSql !== undefined) {
+      collectExpressionReferences(column.defaultSql, {
+        fallbackSchemaName: table.schemaName,
+        enumUsageByKey,
+        sequenceUsageByKey,
+        enumKeys
+      })
+    }
+    if (column.generatedSql !== undefined) {
+      collectExpressionReferences(column.generatedSql, {
+        fallbackSchemaName: table.schemaName,
+        enumUsageByKey,
+        sequenceUsageByKey,
+        enumKeys
+      })
+    }
+  }
+  for (const option of table.options) {
+    if (option.kind === "check") {
+      collectExpressionReferences(renderDdlExpressionSql(option.predicate), {
+        fallbackSchemaName: table.schemaName,
+        enumUsageByKey,
+        sequenceUsageByKey,
+        enumKeys
+      })
+    } else if (option.kind === "index") {
+      if (option.predicate !== undefined) {
+        collectExpressionReferences(renderDdlExpressionSql(option.predicate), {
+          fallbackSchemaName: table.schemaName,
+          enumUsageByKey,
+          sequenceUsageByKey,
+          enumKeys
+        })
+      }
+      for (const key of option.keys ?? []) {
+        if (key.kind === "expression") {
+          collectExpressionReferences(renderDdlExpressionSql(key.expression), {
+            fallbackSchemaName: table.schemaName,
+            enumUsageByKey,
+            sequenceUsageByKey,
+            enumKeys
+          })
+        }
+      }
+    }
+  }
+  return {
+    enumUsageByKey,
+    columnEnumUsageByKey,
+    sequenceUsageByKey
+  }
+}
+
+const renderInlineEnumExpression = (
+  enumType: EnumModel,
+  schemaBuilderIdentifier?: string
+): string => {
+  const values = renderStringTuple(enumType.values)
+  return enumType.schemaName === undefined || enumType.schemaName === "public"
+    ? `${PG_ALIAS}.enum(${renderStringLiteral(enumType.name)}, ${values})`
+    : `${schemaBuilderIdentifier ?? `${PG_ALIAS}.schema(${renderStringLiteral(enumType.schemaName)})`}.enum(${renderStringLiteral(enumType.name)}, ${values})`
+}
+
+const sequenceReferenceOfKey = (key: string): SequenceReference => {
+  const [resolvedSchemaName, ...nameParts] = key.split(".")
+  return {
+    schemaName: resolvedSchemaName === "public" ? undefined : resolvedSchemaName,
+    name: nameParts.join(".")
+  }
+}
+
+const countRenderedTableUsages = (
+  tables: readonly TableModel[],
+  enumKeys: ReadonlySet<string>
+): {
+  readonly enumUsageByKey: ReadonlyMap<string, number>
+  readonly columnEnumUsageByKey: ReadonlyMap<string, number>
+  readonly sequenceUsageByKey: ReadonlyMap<string, number>
+} => {
+  const enumUsageByKey = new Map<string, number>()
+  const columnEnumUsageByKey = new Map<string, number>()
+  const sequenceUsageByKey = new Map<string, number>()
+  for (const table of tables) {
+    const usage = countTableReferences(table, enumKeys)
+    for (const [key, count] of usage.enumUsageByKey) {
+      enumUsageByKey.set(key, (enumUsageByKey.get(key) ?? 0) + count)
+    }
+    for (const [key, count] of usage.columnEnumUsageByKey) {
+      columnEnumUsageByKey.set(key, (columnEnumUsageByKey.get(key) ?? 0) + count)
+    }
+    for (const [key, count] of usage.sequenceUsageByKey) {
+      sequenceUsageByKey.set(key, (sequenceUsageByKey.get(key) ?? 0) + count)
+    }
+  }
+  return {
+    enumUsageByKey,
+    columnEnumUsageByKey,
+    sequenceUsageByKey
+  }
+}
+
+const renderCanonicalNewModule = (
+  additions: readonly PulledAddition[],
+  baseContext: RenderContext
+): string => {
+  const tables = additions.filter((addition): addition is PulledAddition & { readonly kind: "table"; readonly model: TableModel } => addition.kind === "table")
+  const enums = additions.filter((addition): addition is PulledAddition & { readonly kind: "enum"; readonly model: EnumModel } => addition.kind === "enum")
+  const firstModel = additions[0]?.model
+  const schemaName = firstModel === undefined
+    ? undefined
+    : "columns" in firstModel
+      ? firstModel.schemaName
+      : firstModel.schemaName
+  const usedIdentifiers = new Set(additions.map((addition) => addition.declaration.identifier))
+  const schemaBuilderIdentifier = schemaName !== undefined && schemaName !== "public"
+    ? uniqueIdentifier(schemaName, usedIdentifiers)
+    : undefined
+  const normalizeDeclaration = <Declaration extends SourceDeclaration>(declaration: Declaration): Declaration =>
+    (schemaBuilderIdentifier === undefined || !("schemaBuilderIdentifier" in declaration)
+      ? declaration
+      : {
+          ...declaration,
+          schemaBuilderIdentifier
+        }) as Declaration
+
+  const {
+    enumUsageByKey,
+    columnEnumUsageByKey: _columnEnumUsageByKey,
+    sequenceUsageByKey
+  } = countRenderedTableUsages(
+    tables.map((addition) => addition.model),
+    baseContext.enumKeys
+  )
+
+  const enumExpressionByKey = new Map<string, string>()
+  const hoistedEnumDeclarations: string[] = []
+  const hoistedEnumExports: string[] = []
+  for (const addition of enums) {
+    const key = enumKey(addition.model.schemaName, addition.model.name)
+    const usageCount = enumUsageByKey.get(key) ?? 0
+    const hoist = usageCount > 1
+    enumExpressionByKey.set(
+      key,
+      hoist
+        ? addition.declaration.identifier
+        : renderInlineEnumExpression(addition.model, schemaBuilderIdentifier)
+    )
+    if (hoist) {
+      hoistedEnumDeclarations.push(renderEnumDeclaration(normalizeDeclaration(addition.declaration), addition.model))
+      hoistedEnumExports.push(addition.declaration.identifier)
+    }
+  }
+
+  const hoistedSequences: CanonicalSequence[] = []
+  const sequenceExpressionByKey = new Map<string, string>()
+  for (const [key, usageCount] of sequenceUsageByKey) {
+    const sequenceReference = sequenceReferenceOfKey(key)
+    if (usageCount === 1) {
+      sequenceExpressionByKey.set(key, renderSequenceExpression(sequenceReference, schemaBuilderIdentifier))
+      continue
+    }
+    const identifier = uniqueIdentifier(sequenceReference.name, usedIdentifiers)
+    const sequence = {
+      schemaName: sequenceReference.schemaName,
+      name: sequenceReference.name,
+      identifier,
+      usageCount
+    } satisfies CanonicalSequence
+    hoistedSequences.push(sequence)
+    sequenceExpressionByKey.set(key, identifier)
+  }
+
+  const fileContext: RenderContext = {
+    ...baseContext,
+    enumExpressionByKey,
+    sequenceExpressionByKey
+  }
+
+  const lines: string[] = [
+    `import * as ${PG_ALIAS} from "effect-qb/postgres"`,
+    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS} } from "effect-qb/postgres"`,
+    `import * as ${SCHEMA_ALIAS} from "effect/Schema"`
+  ]
+  const body: string[] = []
+  if (schemaBuilderIdentifier !== undefined) {
+    body.push(`const ${schemaBuilderIdentifier} = ${PG_ALIAS}.schema(${renderStringLiteral(schemaName!)})`)
+  }
+  body.push(...hoistedSequences.map((sequence) => renderSequenceDeclaration(sequence, schemaBuilderIdentifier)))
+  body.push(...hoistedEnumDeclarations)
+  body.push(...tables.map((addition) => renderTableAdditionBase(normalizeDeclaration(addition.declaration), addition.model, fileContext)))
+  body.push(...tables.flatMap((addition) => {
+    const update = renderTableForeignKeyUpdate(normalizeDeclaration(addition.declaration), addition.model, fileContext)
+    return update === undefined ? [] : [update]
+  }))
+  const exportNames = [
+    ...tables.map((addition) => addition.declaration.identifier),
+    ...hoistedEnumExports
+  ]
+  const exportBlock = exportNames.length === 0
+    ? ""
+    : `export { ${exportNames.join(", ")} }`
+  return `${lines.join("\n")}\n\n${[...body, exportBlock].filter((value) => value.length > 0).join("\n\n")}\n`
 }
 
 const inferSourceRoot = (
@@ -1418,13 +2074,22 @@ export const planPostgresPull = async (
     const schemaName = schemaNameOfTable(table)
     const filePath = schemaFilePathByName.get(schemaName) ?? resolve(sourceRoot, `${schemaName}.schema.ts`)
     const list = newBindingsByFile.get(filePath) ?? []
-    const declaration: SourceDeclaration = {
-      kind: "tableFactory",
-      filePath,
-      identifier: "",
-      start: 0,
-      end: 0
-    }
+    const declaration: SourceDeclaration = schemaName === "public"
+      ? {
+          kind: "tableFactory",
+          filePath,
+          identifier: "",
+          start: 0,
+          end: 0
+        }
+      : {
+          kind: "tableSchema",
+          filePath,
+          identifier: "",
+          start: 0,
+          end: 0,
+          schemaBuilderIdentifier: sanitizeIdentifier(schemaName)
+        }
     list.push({
       binding: {
         declaration,
@@ -1456,13 +2121,22 @@ export const planPostgresPull = async (
     const schemaName = schemaNameOfEnum(enumType)
     const filePath = schemaFilePathByName.get(schemaName) ?? resolve(sourceRoot, `${schemaName}.schema.ts`)
     const list = newBindingsByFile.get(filePath) ?? []
-    const declaration: SourceDeclaration = {
-      kind: "enumFactory",
-      filePath,
-      identifier: "",
-      start: 0,
-      end: 0
-    }
+    const declaration: SourceDeclaration = schemaName === "public"
+      ? {
+          kind: "enumFactory",
+          filePath,
+          identifier: "",
+          start: 0,
+          end: 0
+        }
+      : {
+          kind: "enumSchema",
+          filePath,
+          identifier: "",
+          start: 0,
+          end: 0,
+          schemaBuilderIdentifier: sanitizeIdentifier(schemaName)
+        }
     list.push({
       binding: {
         declaration,
@@ -1482,6 +2156,88 @@ export const planPostgresPull = async (
 
   const updates: PullFileUpdate[] = []
   for (const [filePath, plan] of filePlans) {
+    const existingSchemaBuilderIdentifier = discovered.declarations.find((declaration) =>
+      declaration.filePath === filePath &&
+      "schemaBuilderIdentifier" in declaration
+    )
+    const schemaBuilderIdentifier = existingSchemaBuilderIdentifier !== undefined && "schemaBuilderIdentifier" in existingSchemaBuilderIdentifier
+      ? existingSchemaBuilderIdentifier.schemaBuilderIdentifier
+      : undefined
+    const usedIdentifiers = new Set(
+      discovered.bindings
+        .filter((binding) => binding.declaration.filePath === filePath)
+        .map((binding) => binding.declaration.identifier)
+    )
+    const syntheticAdditions = plan.additions.map(({ binding, model }, sourceIndex) => {
+      const identifier = uniqueIdentifier(model.name, usedIdentifiers)
+      return {
+        ...binding,
+        model,
+        sourceIndex,
+        declaration: {
+          ...binding.declaration,
+          identifier,
+          ...(
+            schemaBuilderIdentifier !== undefined && "schemaBuilderIdentifier" in binding.declaration
+              ? { schemaBuilderIdentifier }
+              : {}
+          )
+        }
+      }
+    })
+    const syntheticBindings = syntheticAdditions.map(({ model: _model, sourceIndex: _sourceIndex, ...binding }) => binding)
+    const combinedBindingByKey = new Map(bindingByKey)
+    for (const binding of syntheticBindings) {
+      combinedBindingByKey.set(binding.key, binding)
+    }
+    const combinedEnumKeys = new Set(context.enumKeys)
+    for (const binding of syntheticBindings) {
+      if (binding.kind === "enum") {
+        combinedEnumKeys.add(binding.key)
+      }
+    }
+    const tableModelsToRender = [
+      ...plan.replacements
+        .filter((binding): binding is SourceBinding & { readonly kind: "table" } => binding.kind === "table")
+        .map((binding) => databaseTablesByKey.get(binding.key) ?? (() => {
+          throw new Error(`Missing database table '${binding.key}'`)
+        })()),
+      ...syntheticAdditions
+        .filter((binding): binding is PulledAddition & { readonly kind: "table"; readonly model: TableModel } => binding.kind === "table")
+        .map((binding) => binding.model)
+    ]
+    const fileUsage = countRenderedTableUsages(tableModelsToRender, combinedEnumKeys)
+    const enumExpressionByKey = new Map<string, string>()
+    for (const binding of discovered.bindings) {
+      if (binding.declaration.filePath === filePath && binding.kind === "enum") {
+        enumExpressionByKey.set(binding.key, binding.declaration.identifier)
+      }
+    }
+    const sequenceExpressionByKey = new Map<string, string>()
+    for (const key of fileUsage.sequenceUsageByKey.keys()) {
+      sequenceExpressionByKey.set(
+        key,
+        renderSequenceExpression(sequenceReferenceOfKey(key), schemaBuilderIdentifier)
+      )
+    }
+    for (const addition of syntheticAdditions) {
+      if (addition.kind === "enum") {
+        const usageCount = fileUsage.enumUsageByKey.get(addition.key) ?? 0
+        if (usageCount > 0) {
+          enumExpressionByKey.set(
+            addition.key,
+            renderInlineEnumExpression(addition.model as EnumModel, schemaBuilderIdentifier)
+          )
+        }
+      }
+    }
+    const fileContext: RenderContext = {
+      bindingByKey: combinedBindingByKey,
+      enumKeys: combinedEnumKeys,
+      enumExpressionByKey,
+      sequenceExpressionByKey
+    }
+
     let next = ensureImports(plan.original)
     const importOffset = next.length - plan.original.length
     for (const binding of [...plan.replacements].sort((left, right) => right.declaration.start - left.declaration.start)) {
@@ -1496,7 +2252,7 @@ export const planPostgresPull = async (
         ? renderTableDeclaration(
             binding.declaration,
             model as TableModel,
-            context
+            fileContext
           )
         : renderEnumDeclaration(
             binding.declaration,
@@ -1508,68 +2264,50 @@ export const planPostgresPull = async (
     }
 
     if (plan.additions.length > 0) {
-      const usedIdentifiers = new Set(
-        discovered.bindings
-          .filter((binding) => binding.declaration.filePath === filePath)
-          .map((binding) => binding.declaration.identifier)
-      )
-      const syntheticAdditions = plan.additions.map(({ binding, model }, sourceIndex) => {
-        const identifier = uniqueIdentifier(
-          binding.kind === "table"
-            ? model.name
-            : model.name,
-          usedIdentifiers
-        )
-        return {
-          ...binding,
-          model,
-          sourceIndex,
-          declaration: {
-            ...binding.declaration,
-            identifier
-          }
-        }
-      })
-      const syntheticBindings = syntheticAdditions.map(({ model: _model, sourceIndex: _sourceIndex, ...binding }) => binding)
-      const combinedBindingByKey = new Map(bindingByKey)
-      for (const binding of syntheticBindings) {
-        combinedBindingByKey.set(binding.key, binding)
-      }
-      const combinedEnumKeys = new Set(context.enumKeys)
-      for (const binding of syntheticBindings) {
-        if (binding.kind === "enum") {
-          combinedEnumKeys.add(binding.key)
-        }
-      }
-      const fileContext: RenderContext = {
-        bindingByKey: combinedBindingByKey,
-        enumKeys: combinedEnumKeys
-      }
       const orderedAdditions = sortPulledAdditions(syntheticAdditions)
-      const renderedAdditions = [
-        ...orderedAdditions.map((binding) =>
-          binding.kind === "table"
-            ? renderTableAdditionBase(
-                binding.declaration,
-                binding.model as TableModel,
-                fileContext
-              )
-            : renderEnumDeclaration(
-                binding.declaration,
-                binding.model as EnumModel
-              )
-        ),
-        ...orderedAdditions.flatMap((binding) =>
-          binding.kind === "table"
-            ? [renderTableForeignKeyUpdate(
-                binding.declaration,
-                binding.model as TableModel,
-                fileContext
-              )]
-            : []
-        ).filter((value): value is string => value !== undefined)
-      ]
-      next = renderDeclaredModule(next, renderedAdditions, orderedAdditions.map((binding) => binding.declaration.identifier))
+      if (plan.original.trim().length === 0 && plan.replacements.length === 0) {
+        next = renderCanonicalNewModule(orderedAdditions, fileContext)
+      } else {
+        const renderedEnumAdditions = orderedAdditions.filter((binding): binding is PulledAddition & { readonly kind: "enum"; readonly model: EnumModel } =>
+          binding.kind === "enum" && (fileUsage.enumUsageByKey.get(binding.key) ?? 0) === 0
+        )
+        const renderedAdditions = [
+          ...orderedAdditions.flatMap((binding) =>
+            binding.kind === "table"
+              ? [renderTableAdditionBase(
+                  binding.declaration,
+                  binding.model as TableModel,
+                  fileContext
+                )]
+              : []
+          ),
+          ...renderedEnumAdditions.map((binding) =>
+            renderEnumDeclaration(
+              binding.declaration,
+              binding.model
+            )
+          ),
+          ...orderedAdditions.flatMap((binding) =>
+            binding.kind === "table"
+              ? [renderTableForeignKeyUpdate(
+                  binding.declaration,
+                  binding.model as TableModel,
+                  fileContext
+                )]
+              : []
+          ).filter((value): value is string => value !== undefined)
+        ]
+        next = renderDeclaredModule(
+          next,
+          renderedAdditions,
+          [
+            ...orderedAdditions
+              .filter((binding) => binding.kind === "table")
+              .map((binding) => binding.declaration.identifier),
+            ...renderedEnumAdditions.map((binding) => binding.declaration.identifier)
+          ]
+        )
+      }
     }
 
     if (next !== plan.original) {

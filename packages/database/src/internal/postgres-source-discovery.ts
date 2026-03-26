@@ -111,10 +111,11 @@ const isSchemaCall = (
 }
 
 const unwrapPipeRoot = (expression: ts.Expression): ts.Expression => {
-  if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === "pipe") {
-    return expression.expression.expression
+  let current = expression
+  while (ts.isCallExpression(current) && ts.isPropertyAccessExpression(current.expression) && current.expression.name.text === "pipe") {
+    current = current.expression.expression
   }
-  return expression
+  return current
 }
 
 const isTableMakeRoot = (
@@ -166,7 +167,11 @@ const isEnumFactoryRoot = (
   if (target.name.text !== "enum") {
     return false
   }
-  return isSchemaCall(target.expression, importInfo)
+  if (isSchemaCall(target.expression, importInfo)) {
+    return true
+  }
+  return ts.isIdentifier(target.expression)
+    && importInfo.postgresNamespaceAliases.has(target.expression.text)
 }
 
 const isSchemaEnumRoot = (
