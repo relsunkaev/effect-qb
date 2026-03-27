@@ -328,6 +328,77 @@ const invalidGroupedWindowPlan = Q.select({
 type InvalidGroupedWindowPlan = Q.CompletePlan<typeof invalidGroupedWindowPlan>
 const invalidGroupedWindowError: BrandedErrorOf<InvalidGroupedWindowPlan> =
   "effect-qb: invalid grouped selection"
+
+const positionalSetLeft = Q.select({
+  id: users.id,
+  email: users.email
+}).pipe(
+  Q.from(users)
+)
+
+const positionalSetRight = Q.select({
+  userId: users.id,
+  userEmail: users.email
+}).pipe(
+  Q.from(users)
+)
+
+// @ts-expect-error set operators currently require exact selection shape instead of positional compatibility
+const positionalUnion = Q.union(positionalSetLeft, positionalSetRight)
+
+const nestedScalarSubquery = Q.select({
+  value: {
+    userId: users.id
+  }
+}).pipe(
+  Q.from(users)
+)
+
+// @ts-expect-error scalar subqueries currently require one top-level scalar leaf
+const nestedScalar = Q.scalar(nestedScalarSubquery)
+
+// @ts-expect-error quantified subqueries currently require one top-level scalar leaf
+const nestedScalarMembership = Q.inSubquery(users.id, nestedScalarSubquery)
+
+const nestedSetLeft = Q.select({
+  user: {
+    id: users.id,
+    email: users.email
+  }
+}).pipe(
+  Q.from(users)
+)
+
+const nestedSetRight = Q.select({
+  account: {
+    id: users.id,
+    email: users.email
+  }
+}).pipe(
+  Q.from(users)
+)
+
+// @ts-expect-error nested object selections must currently match exactly across set operands
+const nestedIntersect = Q.intersect(nestedSetLeft, nestedSetRight)
+
+const nullableSetLeft = Q.select({
+  title: posts.title
+}).pipe(
+  Q.from(posts)
+)
+
+const nonNullSetRight = Q.select({
+  title: Q.literal("writer")
+})
+
+// @ts-expect-error compatible nullability widening is currently rejected by exact set-shape equality
+const nullableCompatibleUnionAll = Q.unionAll(nullableSetLeft, nonNullSetRight)
+
+void positionalUnion
+void nestedScalar
+void nestedScalarMembership
+void nestedIntersect
+void nullableCompatibleUnionAll
 void invalidGroupedWindowError
 
 // @ts-expect-error over requires an aggregate input
@@ -361,7 +432,7 @@ Q.select({
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.where(Q.eq(F.count(posts.id), 1))
+  Q.having(Q.eq(F.count(posts.id), 1))
 )
 
 const incomplete = Q.select({

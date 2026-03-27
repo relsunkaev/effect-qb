@@ -75,6 +75,18 @@ const invalidDefaultInsertPlan = Q.insert(users)
 const invalidDefaultInsert: Q.CompletePlan<typeof invalidDefaultInsertPlan> = invalidDefaultInsertPlan
 
 void invalidDefaultInsertPlan
+const positionalInsertSource = Q.select({
+  userId: users.id,
+  userEmail: users.email,
+  userBio: users.bio
+}).pipe(
+  Q.from(users)
+)
+
+// @ts-expect-error INSERT ... SELECT currently requires target column names to match the selection keys
+const positionalInsertPlan = Q.insert(users).pipe(Q.from(positionalInsertSource))
+
+void positionalInsertPlan
 
 // @ts-expect-error mysql conflict targets do not support named constraints
 Mysql.Query.onConflict({

@@ -38,8 +38,8 @@ const rows = executor.execute(plan).pipe(
   )
 )
 
-// @ts-expect-error read plans do not expose write-only errors
 executor.execute(plan).pipe(
+  // @ts-expect-error read plans do not expose write-only errors
   Effect.catchTag("@postgres/integrity-constraint-violation/unique-violation", (error) =>
     Effect.fail(error)
   )
