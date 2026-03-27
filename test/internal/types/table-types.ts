@@ -6,8 +6,8 @@ import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import { Column as C, Query as Q, Function as F, Table } from "#postgres"
 import * as Executor from "#internal/executor.ts"
-import * as Expression from "#internal/expression.ts"
-import * as Plan from "#internal/plan.ts"
+import * as Expression from "#internal/scalar.ts"
+import * as Plan from "#internal/row-set.ts"
 import * as Renderer from "#internal/renderer.ts"
 
 const users = Table.make("users", {
@@ -314,8 +314,8 @@ void aggregateRow
 void completeAggregatePlan
 
 const aggregatePredicate = F.count(posts.id)
-const aggregatePredicateAggregation: typeof aggregatePredicate[typeof Expression.TypeId]["aggregation"] = "aggregate"
-void aggregatePredicateAggregation
+const aggregatePredicateKind: typeof aggregatePredicate[typeof Expression.TypeId]["kind"] = "aggregate"
+void aggregatePredicateKind
 
 // @ts-expect-error aggregate predicates are not valid in where
 const badAggregateWhere = Q.where(aggregatePredicate)

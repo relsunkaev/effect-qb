@@ -1,4 +1,4 @@
-import * as Expression from "./expression.js"
+import * as Expression from "./scalar.js"
 import * as ExpressionAst from "./expression-ast.js"
 import type { PredicateAtom } from "./predicate-atom.js"
 import type {

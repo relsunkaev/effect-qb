@@ -4,16 +4,16 @@ export * as Column from "./postgres/column.js"
 export * as Datatypes from "./postgres/datatypes/index.js"
 /** Postgres SQLSTATE catalog and error normalization helpers. */
 export * as Errors from "./postgres/errors/index.js"
-/** Shared scalar SQL expression interfaces and DB-type descriptors. */
-export * as Expression from "./internal/expression.js"
+/** Shared scalar SQL interfaces and DB-type descriptors. */
+export * as Scalar from "./internal/scalar.js"
 /** Postgres cast helpers. */
 export { cast as Cast } from "./postgres/cast.js"
 /** Postgres-specialized SQL function expressions. */
 export * as Function from "./postgres/function/index.js"
 /** Postgres-specialized typed query execution contracts. */
 export * as Executor from "./postgres/executor.js"
-/** Shared logical query-plan interfaces. */
-export * as Plan from "./internal/plan.js"
+/** Shared logical row-set interfaces. */
+export * as RowSet from "./internal/row-set.js"
 /** Postgres-specialized query-construction DSL. */
 export * as Query from "./postgres/query.js"
 /** Postgres database-type constructors for casts and typed references. */

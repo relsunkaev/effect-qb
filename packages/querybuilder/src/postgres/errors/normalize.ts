@@ -8,10 +8,18 @@ import {
   type PostgresErrorTag,
   type PostgresSqlStateCode
 } from "./catalog.js"
+import {
+  postgresKnownErrorClassesByCode,
+  type KnownPostgresErrorByCode as ExactKnownPostgresErrorByCode
+} from "./generated.js"
 import type {
   PostgresErrorFields,
   PostgresQueryContext
 } from "./fields.js"
+import type {
+  PostgresErrorLike,
+  PostgresKnownErrorBase
+} from "./types.js"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
@@ -51,49 +59,14 @@ const normalizeFields = (error: Record<string, unknown>): PostgresErrorFields =>
 
 const sqlStatePattern = /^[0-9A-Z]{5}$/
 
-/** Raw Postgres-like error object as commonly exposed by client libraries. */
-export interface PostgresErrorLike {
-  readonly code?: string
-  readonly message?: string
-  readonly messagePrimary?: string
-  readonly schema?: string
-  readonly table?: string
-  readonly column?: string
-  readonly dataType?: string
-  readonly constraint?: string
-  readonly severity?: string
-  readonly severityNonLocalized?: string
-  readonly detail?: string
-  readonly hint?: string
-  readonly position?: string | number
-  readonly internalPosition?: string | number
-  readonly internalQuery?: string
-  readonly where?: string
-  readonly file?: string
-  readonly line?: string | number
-  readonly routine?: string
-}
+export type { PostgresErrorLike } from "./types.js"
 
 /** Structured known Postgres SQLSTATE error derived from the catalog. */
-export type KnownPostgresError<Code extends PostgresSqlStateCode = PostgresSqlStateCode> = {
-  readonly [Current in Code]: Readonly<{
-    readonly _tag: PostgresErrorTag<Current>
-    readonly code: Current
-    readonly condition: PostgresErrorDescriptor<Current>["condition"]
-    readonly classCode: PostgresErrorDescriptor<Current>["classCode"]
-    readonly className: PostgresErrorDescriptor<Current>["className"]
-    readonly message: string
-    readonly primaryFields: PostgresErrorDescriptor<Current>["primaryFields"]
-    readonly query?: PostgresQueryContext
-    readonly raw: PostgresErrorLike
-  } & PostgresErrorFields>
-}[Code]
+export type KnownPostgresError<Code extends PostgresSqlStateCode = PostgresSqlStateCode> =
+  ExactKnownPostgresErrorByCode<Code>
 
 /** Extracts the known Postgres error variant for a specific SQLSTATE code. */
-export type KnownPostgresErrorByCode<Code extends PostgresSqlStateCode> = Extract<
-  KnownPostgresError,
-  { readonly code: Code }
->
+export type KnownPostgresErrorByCode<Code extends PostgresSqlStateCode> = ExactKnownPostgresErrorByCode<Code>
 
 /** Postgres-like error whose SQLSTATE is well-formed but not in the current catalog. */
 export type UnknownPostgresSqlStateError = Readonly<{
@@ -133,24 +106,19 @@ export const isPostgresErrorLike = (value: unknown): value is PostgresErrorLike 
 const errorMessageOf = (error: PostgresErrorLike): string =>
   error.message ?? error.messagePrimary ?? "Postgres driver error"
 
-const makeKnownPostgresError = <Code extends PostgresSqlStateCode>(
-  code: Code,
+const makeKnownPostgresError = (
+  code: PostgresSqlStateCode,
   raw: PostgresErrorLike,
   query?: PostgresQueryContext
-): KnownPostgresError<Code> => {
+): KnownPostgresError => {
   const descriptor = getPostgresErrorDescriptor(code)
-  return {
-    _tag: descriptor.tag,
-    code,
-    condition: descriptor.condition,
-    classCode: descriptor.classCode,
-    className: descriptor.className,
+  const ErrorClass = postgresKnownErrorClassesByCode[code]
+  return new ErrorClass({
     message: errorMessageOf(raw),
-    primaryFields: descriptor.primaryFields,
     query,
     raw,
     ...normalizeFields(raw as Record<string, unknown>)
-  } as KnownPostgresError<Code>
+  }) as KnownPostgresError
 }
 
 /** Normalizes an unknown failure into a structured Postgres driver error. */
@@ -206,4 +174,7 @@ export const hasSqlState = <Code extends PostgresSqlStateCode>(
   error: PostgresDriverError | { readonly code?: string },
   code: Code
 ): error is KnownPostgresErrorByCode<Code> =>
-  "code" in error && error.code === code
+  (typeof error === "object" &&
+    error !== null &&
+    error instanceof postgresKnownErrorClassesByCode[code]) ||
+  ("code" in error && error.code === code)

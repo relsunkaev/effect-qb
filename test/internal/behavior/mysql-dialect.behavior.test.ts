@@ -1107,7 +1107,7 @@ describe("mysql dialect behavior", () => {
       [ExpressionAst.TypeId]: {
         kind: "unsupported"
       }
-    } as unknown as Mysql.Expression.Any
+    } as unknown as Mysql.Scalar.Any
 
     expect(() => renderExpression(unsupportedExpression, {
       params: [],

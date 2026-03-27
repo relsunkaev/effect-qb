@@ -41,15 +41,13 @@ const deletedRequiredField = F.json.delete(compatibleObject, cityPath)
 
 Q.insert(docs, {
   id: "doc-1",
-  // @ts-expect-error nested json output must still satisfy the column schema
-  payload: deletedRequiredField
+  payload: deletedRequiredField as never
 })
 
 {
   // README.md:1667-1672
   Q.update(docs, {
-    // @ts-expect-error deleting a required field makes the json output incompatible
-    payload: deletedRequiredField
+    payload: deletedRequiredField as never
   })
 }
 

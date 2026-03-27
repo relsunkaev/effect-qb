@@ -1,7 +1,7 @@
 import { pipeArguments } from "effect/Pipeable"
 
-import * as Expression from "./expression.js"
-import * as Plan from "./plan.js"
+import * as Expression from "./scalar.js"
+import * as Plan from "./row-set.js"
 import {
   type CompletePlan,
   type CteSource,
@@ -45,7 +45,7 @@ const setPath = (
 const pathAlias = (path: readonly string[]): string => path.join("__")
 
 const reboundedColumns = <
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   Alias extends string
 >(
   plan: PlanValue,
@@ -67,13 +67,7 @@ const reboundedColumns = <
       runtimeSchema: expression[Expression.TypeId].runtimeSchema,
       nullability: expression[Expression.TypeId].nullability,
       dialect: expression[Expression.TypeId].dialect,
-      aggregation: "scalar",
-      source: {
-        tableName: alias,
-        columnName: projection.alias,
-        baseTableName: alias
-      },
-      sourceNullability: "propagate" as const,
+      kind: "scalar",
       dependencies: {
         [alias]: true
       } as Record<Alias, true>
@@ -87,7 +81,7 @@ const reboundedColumns = <
 }
 
 export const makeDerivedSource = <
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   Alias extends string
 >(
   plan: CompletePlan<PlanValue>,
@@ -107,7 +101,7 @@ export const makeDerivedSource = <
 }
 
 export const makeCteSource = <
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   Alias extends string
 >(
   plan: CompletePlan<PlanValue>,
@@ -129,7 +123,7 @@ export const makeCteSource = <
 }
 
 export const makeLateralSource = <
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any>,
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   Alias extends string
 >(
   plan: PlanValue,

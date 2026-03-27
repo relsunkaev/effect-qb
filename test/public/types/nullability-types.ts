@@ -1,4 +1,4 @@
-import { Column as C, Expression as E, Query as Q, Function as F, Table } from "effect-qb/postgres"
+import { Column as C, Scalar as E, Query as Q, Function as F, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),

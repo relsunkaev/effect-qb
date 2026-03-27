@@ -1,4 +1,4 @@
-import type * as Expression from "./expression.js"
+import type * as Expression from "./scalar.js"
 import type { FamilyOfDbType } from "./datatypes/lookup.js"
 
 export type CoercionKind =

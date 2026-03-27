@@ -1,6 +1,6 @@
 import type * as Schema from "effect/Schema"
 
-import type * as Expression from "../../internal/expression.js"
+import type * as Expression from "../../internal/scalar.js"
 import type * as ExpressionAst from "../../internal/expression-ast.js"
 import { makeExpression } from "../../internal/query.js"
 import {
@@ -20,15 +20,13 @@ type TemporalExpression<
   Runtime,
   Db extends Expression.DbType.Any,
   Name extends string
-> = Expression.Expression<
+> = Expression.Scalar<
   Runtime,
   Db,
   "never",
   "postgres",
   "scalar",
-  never,
-  {},
-  "resolved"
+  never
 > & {
   readonly [ExpressionAst.TypeId]: ExpressionAst.FunctionCallNode<Name, readonly []>
 }
@@ -48,10 +46,8 @@ const makeTemporal = <
     runtimeSchema,
     nullability: "never",
     dialect: "postgres",
-    aggregation: "scalar",
-    source: undefined as never,
+    kind: "scalar",
     dependencies: {},
-    sourceNullability: "resolved"
   }, {
     kind: "function",
     name,

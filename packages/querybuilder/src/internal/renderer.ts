@@ -41,12 +41,12 @@ export type RowOf<Value extends RenderedQuery<any, any>> = Value[typeof TypeId][
  */
 export interface Renderer<Dialect extends string = string> {
   readonly dialect: Dialect
-  render<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  render<PlanValue extends Query.Plan.Any>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): RenderedQuery<any, Dialect>
 }
 
-type CustomRender<Dialect extends string> = <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+type CustomRender<Dialect extends string> = <PlanValue extends Query.Plan.Any>(
   plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
 ) => {
   readonly sql: string

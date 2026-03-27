@@ -1,4 +1,4 @@
-import type * as Expression from "./expression.js"
+import type * as Expression from "./scalar.js"
 import type { CanCastDbType as LookupCanCastDbType, CanCompareDbTypes as LookupCanCompareDbTypes, CanContainDbTypes as LookupCanContainDbTypes, CanTextuallyCoerceDbType as LookupCanTextuallyCoerceDbType } from "./datatypes/lookup.js"
 
 export type CanCompareDbTypes<

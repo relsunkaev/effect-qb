@@ -1,4 +1,4 @@
-import type * as Expression from "./expression.js"
+import type * as Expression from "./scalar.js"
 import type { RenderState, SqlDialect } from "./dialect.js"
 import { postgresDialect } from "./postgres-dialect.js"
 import * as SchemaExpression from "./schema-expression.js"

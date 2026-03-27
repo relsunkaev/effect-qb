@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema"
 import * as SchemaAST from "effect/SchemaAST"
 
-import * as Expression from "./expression.js"
+import * as Expression from "./scalar.js"
 import * as ExpressionAst from "./expression-ast.js"
 import * as Query from "./query.js"
 import * as JsonPath from "./json/path.js"
@@ -257,7 +257,7 @@ const unionSchemas = (schemas: ReadonlyArray<RuntimeSchema | undefined>): Runtim
 }
 
 const firstSelectedExpression = (
-  plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  plan: Query.Plan.Any
 ): Expression.Any | undefined => {
   const selection = Query.getAst(plan).select
   return flattenSelection(selection as Record<string, unknown>)[0]?.expression

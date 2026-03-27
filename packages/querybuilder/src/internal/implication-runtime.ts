@@ -1,6 +1,6 @@
-import * as Expression from "./expression.js"
+import * as Expression from "./scalar.js"
 import * as ExpressionAst from "./expression-ast.js"
-import * as Plan from "./plan.js"
+import * as Plan from "./row-set.js"
 import * as Table from "./table.js"
 import type { PredicateFormula } from "./predicate-formula.js"
 import {

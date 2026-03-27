@@ -1,4 +1,4 @@
-import type * as Expression from "./expression.js"
+import type * as Expression from "./scalar.js"
 import { mysqlDatatypeKinds } from "../mysql/datatypes/spec.js"
 import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
 import type { RuntimeTag } from "./datatypes/shape.js"

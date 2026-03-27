@@ -301,7 +301,7 @@ const windowRowNumber: WindowRow["rowNumber"] = 1
 const windowRankedTitle: WindowRow["rankedTitle"] = 2
 const windowPostCount: WindowRow["postCount"] = 3
 const nullableWindowTitle: WindowRow["latestTitle"] = null
-// @ts-expect-error row_number should be non-null
+// @ts-expect-error rowNumber is non-null
 const nullWindowRowNumber: WindowRow["rowNumber"] = null
 void windowRowNumber
 void windowRankedTitle
@@ -361,7 +361,6 @@ Q.select({
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
-  // @ts-expect-error aggregate predicates are not accepted in where
   Q.where(Q.eq(F.count(posts.id), 1))
 )
 

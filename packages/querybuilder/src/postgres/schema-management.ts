@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 
-import type * as Expression from "../internal/expression.js"
+import type * as Expression from "../internal/scalar.js"
 import { makeColumnDefinition, type ColumnDefinition } from "../internal/column-state.js"
 
 export const EnumTypeId: unique symbol = Symbol.for("effect-qb/SchemaManagement/Enum")

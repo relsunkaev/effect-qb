@@ -1,7 +1,8 @@
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
+import type * as Schema from "effect/Schema"
 
-import * as Expression from "./expression.js"
-import * as Plan from "./plan.js"
+import * as Expression from "./scalar.js"
+import * as RowSet from "./row-set.js"
 import * as Table from "./table.js"
 import * as ExpressionAst from "./expression-ast.js"
 import * as QueryAst from "./query-ast.js"
@@ -124,14 +125,12 @@ interface QueryState<
   readonly insertSource: InsertState
 }
 
-/** Source provenance attached to an expression. */
-export type SourceOf<Value extends Expression.Any> = Value[typeof Expression.TypeId]["source"]
 /** Effective SQL dialect carried by an expression. */
 export type DialectOf<Value extends Expression.Any> = Value[typeof Expression.TypeId]["dialect"]
-/** Source dependency map carried by an expression. */
+/** Source dependency union carried by an expression. */
 export type DependenciesOf<Value extends Expression.Any> = Expression.DependenciesOf<Value>
 /** Aggregation kind carried by an expression. */
-export type AggregationOf<Value extends Expression.Any> = Value[typeof Expression.TypeId]["aggregation"]
+export type KindOf<Value extends Expression.Any> = Value[typeof Expression.TypeId]["kind"]
 type AstOf<Value extends Expression.Any> = Value extends { readonly [ExpressionAst.TypeId]: infer Ast extends ExpressionAst.Any } ? Ast : never
 
 /**
@@ -143,7 +142,7 @@ type AstOf<Value extends Expression.Any> = Value extends { readonly [ExpressionA
 export type LiteralValue = string | number | boolean | null | Date
 
 /** Runtime expression type produced by `literal(...)` for a primitive value. */
-type LiteralExpression<Value extends LiteralValue> = Expression.Expression<
+type LiteralExpression<Value extends LiteralValue> = Expression.Scalar<
   Value,
   LiteralDbType<Value>,
   LiteralNullability<Value>,
@@ -161,21 +160,19 @@ type LiteralExpression<Value extends LiteralValue> = Expression.Expression<
 export type ExpressionInput = Expression.Any | LiteralValue
 
 /** Input accepted by numeric clauses such as `limit(...)` and `offset(...)`. */
-export type NumericExpressionInput = Expression.Expression<
+export type NumericExpressionInput = Expression.Scalar<
   number,
   Expression.DbType.Any,
   Expression.Nullability,
   string,
   "scalar",
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.BindingId
 > | number
 
 /** Values accepted by mutation payload fields. */
 export type MutationValueInput<Value> =
   | Value
-  | Expression.Expression<Value, Expression.DbType.Any, Expression.Nullability, string, Expression.AggregationKind, any, any, any>
+  | Expression.Scalar<Value, Expression.DbType.Any, Expression.Nullability, string, Expression.ScalarKind, Expression.BindingId>
 
 /** Maps a payload shape to values or expressions of the same runtime type. */
 export type MutationInputOf<Shape> = {
@@ -185,37 +182,33 @@ export type MutationInputOf<Shape> = {
 type Simplify<T> = { readonly [K in keyof T]: T[K] } & {}
 
 /** Input accepted by boolean plan clauses such as `where(...)` and joins. */
-export type PredicateInput = Expression.Expression<
+export type PredicateInput = Expression.Scalar<
   boolean,
   Expression.DbType.Any,
   Expression.Nullability,
   string,
   "scalar",
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.BindingId
 > | boolean
 
 /** Input accepted by `having(...)`. */
-export type HavingPredicateInput = Expression.Expression<
+export type HavingPredicateInput = Expression.Scalar<
   boolean,
   Expression.DbType.Any,
   Expression.Nullability,
   string,
   "scalar" | "aggregate",
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.BindingId
 > | boolean
 
 /** Input accepted by `GROUP BY`. */
-export type GroupByInput = Expression.Expression<
+export type GroupByInput = Expression.Scalar<
   any,
   Expression.DbType.Any,
   Expression.Nullability,
   string,
   "scalar",
-  any
+  Expression.BindingId
 >
 
 /** Maps a literal runtime value to its SQL-level DB type descriptor. */
@@ -230,29 +223,23 @@ type LiteralDbType<Value extends LiteralValue> =
 type LiteralNullability<Value extends LiteralValue> = Value extends null ? "always" : "never"
 /** Converts a supported input into its canonical expression type. */
 type AsExpression<Value extends ExpressionInput> = Value extends Expression.Any ? Value : LiteralExpression<Extract<Value, LiteralValue>>
-/** Extracts provenance from an operator input after coercion. */
-type SourceOfInput<Value extends ExpressionInput> = SourceOf<AsExpression<Value>>
 /** Extracts dialect from an operator input after coercion. */
 type DialectOfInput<Value extends ExpressionInput> = DialectOf<AsExpression<Value>>
 /** Extracts dependencies from an operator input after coercion. */
 type DependenciesOfInput<Value extends ExpressionInput> = DependenciesOf<AsExpression<Value>>
-/** Extracts required sources from an operator input after coercion. */
-type RequiredFromInput<Value extends ExpressionInput> = RequiredFromDependencies<DependenciesOfInput<Value>>
+/** Extracts required bindings from an operator input after coercion. */
+type RequiredFromInput<Value extends ExpressionInput> = DependenciesOfInput<Value>
 /** String-valued expressions accepted by text operators. */
-export type StringExpressionInput = Expression.Expression<
+export type StringExpressionInput = Expression.Scalar<
   string | null,
   Expression.DbType.Any,
   Expression.Nullability,
   string,
-  Expression.AggregationKind,
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.ScalarKind,
+  Expression.BindingId
 > | string
 /** Converts a string operator input into its canonical expression type. */
 type AsStringExpression<Value extends StringExpressionInput> = Value extends Expression.Any ? Value : LiteralExpression<Extract<Value, string>>
-/** Extracts provenance from a string operator input after coercion. */
-type SourceOfStringInput<Value extends StringExpressionInput> = SourceOf<AsStringExpression<Value>>
 /** Extracts dialect from a string operator input after coercion. */
 type DialectOfStringInput<Value extends StringExpressionInput> = DialectOf<AsStringExpression<Value>>
 /** Extracts dependencies from a string operator input after coercion. */
@@ -260,10 +247,8 @@ type DependenciesOfStringInput<Value extends StringExpressionInput> = Dependenci
 /** Extracts intrinsic nullability from a string operator input after coercion. */
 type NullabilityOfStringInput<Value extends StringExpressionInput> = Expression.NullabilityOf<AsStringExpression<Value>>
 
-/** Extracts a required table name from expression provenance. */
-type RequiredFromSource<Source> = Source extends { readonly tableName: infer Name extends string } ? Name : never
-/** Extracts required table names from an expression dependency map. */
-export type RequiredFromDependencies<Dependencies extends Expression.SourceDependencies> = Extract<keyof Dependencies, string>
+/** Extracts required bindings from an expression dependency union. */
+export type RequiredFromDependencies<Dependencies extends Expression.BindingId> = Dependencies
 
 type LiteralGroupingKey<Value> =
   Value extends string ? `string:${Value}` :
@@ -378,8 +363,13 @@ type GroupingKeyOfAst<Ast extends ExpressionAst.Any> =
             ? "exists(subquery)"
           : never
 
-/** Canonical grouping identity for an expression AST. */
-export type GroupingKeyOfExpression<Value extends Expression.Any> = GroupingKeyOfAst<AstOf<Value>>
+/** Canonical grouping identity for an expression. */
+export type GroupingKeyOfExpression<Value extends Expression.Any> =
+  Expression.GroupKeyOf<Value> extends infer GroupKey extends string
+    ? string extends GroupKey
+      ? GroupingKeyOfAst<AstOf<Value>>
+      : GroupKey
+    : GroupingKeyOfAst<AstOf<Value>>
 
 /**
  * Recursive selection tree accepted by `select(...)`.
@@ -418,7 +408,7 @@ export type ExtractDialect<Selection> = Selection extends Expression.Any
  * The query layer only needs the plan metadata and the static table name. It
  * deliberately avoids depending on the full table-definition surface.
  */
-export type TableLike<Name extends string = string, Dialect extends string = string> = Plan.Plan<any, any, Record<string, Plan.AnySource>, Dialect> & {
+export type TableLike<Name extends string = string, Dialect extends string = string> = RowSet.RowSet<any, any, Record<string, RowSet.AnySource>, Dialect> & {
   readonly [Table.TypeId]: {
     readonly name: Name
     readonly baseName: string
@@ -776,7 +766,7 @@ type JsonShapeIssues<
       : JsonShapeIssue<Path, "type_mismatch", Expected, Received>
 
 type MutationAcceptedInput<Column> =
-  Column extends Expression.Expression<infer Runtime, any, any, any, any, any, any, any>
+  Column extends Expression.Scalar<infer Runtime, any, any, any, any, any>
     ? MutationValueInput<Runtime>
     : never
 
@@ -784,14 +774,14 @@ type MutationValueCompatibilityIssue<
   Column,
   Value,
   ColumnName extends string
-> = Column extends Expression.Expression<any, infer ColumnDb extends Expression.DbType.Any, any, any, any, any, any, any>
+> = Column extends Expression.Scalar<any, infer ColumnDb extends Expression.DbType.Any, any, any, any, any>
   ? ColumnDb extends Expression.DbType.Json<"postgres", infer ExpectedKind>
-    ? Value extends Expression.Expression<any, infer ValueDb extends Expression.DbType.Any, any, any, any, any, any, any>
+    ? Value extends Expression.Scalar<any, infer ValueDb extends Expression.DbType.Any, any, any, any, any>
       ? ValueDb extends Expression.DbType.Json<"postgres", infer ReceivedKind>
         ? [ExpectedKind] extends [ReceivedKind]
           ? [ReceivedKind] extends [ExpectedKind]
-            ? Value extends Expression.Expression<infer ReceivedRuntime, any, any, any, any, any, any, any>
-              ? Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+            ? Value extends Expression.Scalar<infer ReceivedRuntime, any, any, any, any, any>
+              ? Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
                 ? [ReceivedRuntime] extends [ExpectedRuntime]
                   ? never
                   : JsonMutationShapeError<ColumnName, ExpectedRuntime, ReceivedRuntime>
@@ -799,29 +789,29 @@ type MutationValueCompatibilityIssue<
               : never
             : JsonMutationDbKindError<ColumnName, ExpectedKind, ReceivedKind>
           : JsonMutationDbKindError<ColumnName, ExpectedKind, ReceivedKind>
-        : Value extends Expression.Expression<infer ReceivedRuntime, any, any, any, any, any, any, any>
-          ? Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+        : Value extends Expression.Scalar<infer ReceivedRuntime, any, any, any, any, any>
+          ? Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
             ? [ReceivedRuntime] extends [ExpectedRuntime]
               ? never
               : JsonMutationShapeError<ColumnName, ExpectedRuntime, ReceivedRuntime>
             : never
-          : Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+          : Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
             ? [Value] extends [ExpectedRuntime]
               ? never
               : JsonMutationShapeError<ColumnName, ExpectedRuntime, Value>
             : never
-      : Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+      : Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
         ? [Value] extends [ExpectedRuntime]
           ? never
           : JsonMutationShapeError<ColumnName, ExpectedRuntime, Value>
         : never
-    : Value extends Expression.Expression<infer ReceivedRuntime, any, any, any, any, any, any, any>
-      ? Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+    : Value extends Expression.Scalar<infer ReceivedRuntime, any, any, any, any, any>
+      ? Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
         ? [ReceivedRuntime] extends [ExpectedRuntime]
           ? never
           : MutationValueShapeError<ColumnName, ExpectedRuntime, ReceivedRuntime>
         : never
-      : Column extends Expression.Expression<infer ExpectedRuntime, any, any, any, any, any, any, any>
+      : Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
         ? [Value] extends [ExpectedRuntime]
           ? never
           : MutationValueShapeError<ColumnName, ExpectedRuntime, Value>
@@ -965,15 +955,13 @@ type DerivedLeafExpression<
   Value extends Expression.Any,
   Alias extends string,
   ColumnName extends string
-> = Expression.Expression<
+> = Expression.Scalar<
   Expression.RuntimeOf<Value>,
   Expression.DbTypeOf<Value>,
   Expression.NullabilityOf<Value>,
   DialectOf<Value>,
   "scalar",
-  Expression.ColumnSource<Alias, ColumnName, Alias>,
-  Record<Alias, true>,
-  "propagate"
+  Alias
 > & {
   readonly [ExpressionAst.TypeId]: ExpressionAst.ColumnNode<Alias, ColumnName>
 }
@@ -994,41 +982,60 @@ export type DerivedSelectionOf<
 /** Extracts the static SQL table name from a table-like value. */
 export type TableNameOf<T extends TableLike> = T[typeof Table.TypeId]["name"]
 /** Extracts the effective dialect from a table-like value. */
-export type TableDialectOf<T extends TableLike> = T[typeof Plan.TypeId]["dialect"]
+export type TableDialectOf<T extends TableLike> = T[typeof RowSet.TypeId]["dialect"]
 /** Names of sources already available to a plan. */
-type AvailableNames<Available extends Record<string, Plan.AnySource>> = Extract<keyof Available, string>
+type AvailableNames<Available extends Record<string, RowSet.AnySource>> = Extract<keyof Available, string>
 /** Availability mode of a named source within the current plan scope. */
 type SourceModeOf<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Name extends string
 > = Name extends keyof Available ? Available[Name]["mode"] : never
 type TrueAssumptions = TrueFormula
 
+/** Extracts the public plan state carried under `RowSet.TypeId`. */
+type QueryPlanParts<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = PlanValue[typeof RowSet.TypeId]
+
+/** Extracts the internal phantom query state carried under `QueryTypeId`. */
+type QueryPlanState<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = PlanValue[typeof QueryTypeId]
+
 /** Extracts the selection carried by a query plan. */
-export type SelectionOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue[typeof Plan.TypeId]["selection"]
+export type SelectionOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanParts<PlanValue>["selection"]
 /** Extracts the public required-source state carried by a query plan. */
-export type RequiredOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue[typeof Plan.TypeId]["required"]
+export type RequiredOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanParts<PlanValue>["required"]
 /** Extracts the available-source scope carried by a query plan. */
-export type AvailableOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue[typeof Plan.TypeId]["available"]
+export type AvailableOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanParts<PlanValue>["available"]
 /** Extracts the effective dialect carried by a query plan. */
-export type PlanDialectOf<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue[typeof Plan.TypeId]["dialect"]
+export type PlanDialectOf<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanParts<PlanValue>["dialect"]
 /** Extracts the grouped-source phantom carried by a query plan. */
-export type GroupedOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, infer Grouped, any, any, any, any, any> ? Grouped : never
+export type GroupedOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanState<PlanValue>["grouped"]
 /** Extracts the available-name phantom carried by a query plan. */
-export type ScopedNamesOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, infer ScopedNames, any, any, any, any> ? ScopedNames : never
+export type ScopedNamesOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanState<PlanValue>["availableNames"]
 /** Extracts the outstanding-required-source phantom carried by a query plan. */
-export type OutstandingOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, any, infer Outstanding, any, any, any> ? Outstanding : never
-export type AssumptionsOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, infer Assumptions, any, any> ? Assumptions : TrueAssumptions
-export type CapabilitiesOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, infer Capabilities, any> ? Capabilities : never
+export type OutstandingOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanState<PlanValue>["required"]
+export type AssumptionsOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanState<PlanValue>["assumptions"]
+export type CapabilitiesOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanState<PlanValue>["capabilities"]
 /** Extracts capabilities contributed by a source wrapper. */
 export type SourceCapabilitiesOf<Source extends SourceLike> =
   Source extends TableLike<any, any> ? never :
@@ -1037,14 +1044,20 @@ export type SourceCapabilitiesOf<Source extends SourceLike> =
         Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? CapabilitiesOfPlan<PlanValue> :
           never
 /** Extracts the statement kind carried by a query plan. */
-export type StatementOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, infer Statement> ? Statement : never
+export type StatementOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanState<PlanValue>["statement"]
 /** Extracts the mutation target phantom carried by a query plan. */
-export type MutationTargetOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, infer Target> ? Target : never
+export type MutationTargetOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanState<PlanValue>["target"]
 /** Extracts whether an insert plan still needs a source attached. */
-export type InsertSourceStateOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, infer InsertState> ? InsertState : "ready"
+export type InsertSourceStateOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanState<PlanValue>["insertSource"]
+export type StateOfPlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
+> = QueryPlanParts<PlanValue>
 
 type PresenceWitnessKeysOfSelection<Selection> = Selection extends Expression.Any
   ? AstOf<Selection> extends ExpressionAst.ColumnNode<any, any>
@@ -1060,7 +1073,7 @@ type PresenceWitnessKeysOfSelection<Selection> = Selection extends Expression.An
 
 export type PresenceWitnessKeysOfSource<Source extends SourceLike> =
   Source extends TableLike<any, any>
-    ? PresenceWitnessKeysOfSelection<Source[typeof Plan.TypeId]["selection"]>
+    ? PresenceWitnessKeysOfSelection<Source[typeof RowSet.TypeId]["selection"]>
     : Source extends { readonly columns: infer Columns }
       ? PresenceWitnessKeysOfSelection<Columns>
       : never
@@ -1071,21 +1084,21 @@ export type PresenceWitnessKeysOfSource<Source extends SourceLike> =
  * This is used by `from(...)` and the join builders.
  */
 export type AddAvailable<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Name extends string,
-  Mode extends Plan.SourceMode = "required",
+  Mode extends RowSet.SourceMode = "required",
   PresentFormula extends PredicateFormula = TrueFormula,
   PresenceWitness extends string = never
-> = Available & Record<Name, Plan.Source<Name, Mode, PresentFormula, PresenceWitness>>
+> = Available & Record<Name, RowSet.Source<Name, Mode, PresentFormula, PresenceWitness>>
 
 export type AddAvailableMany<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Names extends string,
-  Mode extends Plan.SourceMode = "required",
+  Mode extends RowSet.SourceMode = "required",
   PresentFormula extends PredicateFormula = TrueFormula,
   PresenceWitness extends string = never
 > = Available & {
-  readonly [K in Names]: Plan.Source<K, Mode, PresentFormula, PresenceWitness>
+  readonly [K in Names]: RowSet.Source<K, Mode, PresentFormula, PresenceWitness>
 }
 
 /** Join mode projected into the plan's source-scope mode lattice. */
@@ -1094,27 +1107,27 @@ export type JoinSourceMode<Kind extends QueryAst.JoinKind> = Kind extends "left"
   : "required"
 
 type DemoteAllAvailable<
-  Available extends Record<string, Plan.AnySource>
+  Available extends Record<string, RowSet.AnySource>
 > = {
-  readonly [K in keyof Available]: Available[K] extends Plan.Source<
+  readonly [K in keyof Available]: Available[K] extends RowSet.Source<
     infer Name extends string,
     any,
     infer PresentFormula extends PredicateFormula,
     infer PresenceWitness extends string
   >
-    ? Plan.Source<Name, "optional", PresentFormula, PresenceWitness>
+    ? RowSet.Source<Name, "optional", PresentFormula, PresenceWitness>
     : never
 }
 
 export type ExistingAvailableAfterJoin<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Kind extends QueryAst.JoinKind
 > = Kind extends "right" | "full"
   ? DemoteAllAvailable<Available>
   : Available
 
 export type AvailableAfterJoin<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   JoinedName extends string,
   Kind extends QueryAst.JoinKind,
   PresentFormula extends PredicateFormula = TrueFormula,
@@ -1134,7 +1147,7 @@ export type AvailableAfterJoin<
  */
 export type AddExpressionRequired<
   Required,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Value extends ExpressionInput
 > = Exclude<Required | RequiredFromInput<Value>, AvailableNames<Available>>
 
@@ -1146,7 +1159,7 @@ export type AddExpressionRequired<
  */
 export type AddJoinRequired<
   Required,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   JoinedName extends string,
   Predicate extends PredicateInput | never,
   Kind extends QueryAst.JoinKind = "inner"
@@ -1157,8 +1170,8 @@ export type AddJoinRequired<
 
 /** Merges two aggregation kinds through a derived expression. */
 export type MergeAggregation<
-  Left extends Expression.AggregationKind,
-  Right extends Expression.AggregationKind
+  Left extends Expression.ScalarKind,
+  Right extends Expression.ScalarKind
 > = Left extends "window"
   ? "window"
   : Right extends "window"
@@ -1172,9 +1185,9 @@ export type MergeAggregation<
 /** Folds aggregation kinds across a tuple of expressions. */
 type MergeAggregationTuple<
   Values extends readonly Expression.Any[],
-  Current extends Expression.AggregationKind = "scalar"
+  Current extends Expression.ScalarKind = "scalar"
 > = Values extends readonly [infer Head extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
-  ? MergeAggregationTuple<Tail, MergeAggregation<Current, AggregationOf<Head>>>
+  ? MergeAggregationTuple<Tail, MergeAggregation<Current, KindOf<Head>>>
   : Current
 
 /** Merges two nullability states for null-propagating scalar operators. */
@@ -1204,23 +1217,18 @@ export type TupleDialect<
   Values extends readonly Expression.Any[]
 > = Values[number] extends never ? never : DialectOf<Values[number]>
 
-/** Source union across a tuple of expressions. */
-export type TupleSource<
-  Values extends readonly Expression.Any[]
-> = Values[number] extends never ? never : SourceOf<Values[number]>
-
 /** Converts a union into an intersection. */
 type UnionToIntersection<Union> = (
   Union extends any ? (value: Union) => void : never
 ) extends (value: infer Intersection) => void ? Intersection : never
 
-/** Dependency-map intersection suitable for provenance unions across a tuple. */
+/** Dependency union across a tuple of scalar expressions. */
 export type TupleDependencies<
   Values extends readonly Expression.Any[]
-> = DependencyRecord<Values[number] extends never ? never : Extract<keyof DependenciesOf<Values[number]>, string>>
+> = Values[number] extends never ? never : DependenciesOf<Values[number]>
 
-/** Builds a canonical dependency map from a string union of table names. */
-export type DependencyRecord<Keys extends string> = [Keys] extends [never] ? {} : Record<Keys, true>
+/** Builds the canonical dependency union from a string union of table names. */
+export type DependencyRecord<Keys extends string> = Keys
 
 /** Grouped expression identities carried by a tuple of scalar expressions. */
 export type GroupedKeysFromValues<
@@ -1231,7 +1239,7 @@ export type GroupedKeysFromValues<
 
 /** Whether a selection contains any aggregate expressions. */
 type SelectionHasAggregate<Selection> = Selection extends Expression.Any
-  ? AggregationOf<Selection> extends "aggregate" ? true : false
+  ? KindOf<Selection> extends "aggregate" ? true : false
   : Selection extends Record<string, any>
     ? Extract<{
         [K in keyof Selection]: SelectionHasAggregate<Selection[K]>
@@ -1243,9 +1251,9 @@ type IsGroupedSelectionValid<
   Selection,
   Grouped extends string
 > = Selection extends Expression.Any
-  ? AggregationOf<Selection> extends "aggregate"
+  ? KindOf<Selection> extends "aggregate"
     ? true
-    : AggregationOf<Selection> extends "window"
+    : KindOf<Selection> extends "window"
       ? false
       : RequiredFromDependencies<DependenciesOf<Selection>> extends never
         ? true
@@ -1281,7 +1289,7 @@ type MergeNullabilityStates<
 
 type FoldEffectiveNullability<
   Values extends readonly Expression.Any[],
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = Extract<{
   [K in keyof Values]: Values[K] extends Expression.Any ? EffectiveNullability<Values[K], Available, Assumptions> : never
@@ -1295,7 +1303,7 @@ type FoldEffectiveNullability<
 
 type CoalesceEffectiveNullability<
   Values extends readonly Expression.Any[],
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = Extract<{
   [K in keyof Values]: Values[K] extends Expression.Any ? EffectiveNullability<Values[K], Available, Assumptions> : never
@@ -1327,26 +1335,26 @@ type KnownGuaranteedSourceNames<
 > = PreciseFactSet<GuaranteedSourceNames<Assumptions>>
 
 type ExplicitlyRequiredSourceNames<
-  Available extends Record<string, Plan.AnySource>
+  Available extends Record<string, RowSet.AnySource>
 > = Extract<{
   readonly [K in keyof Available]:
-    Available[K] extends Plan.Source<any, infer Mode extends Plan.SourceMode>
+    Available[K] extends RowSet.Source<any, infer Mode extends RowSet.SourceMode>
       ? Mode extends "required" ? K : never
       : never
 }[keyof Available], string>
 
-type PresentFormulaOfSource<Source extends Plan.AnySource> =
-  Source extends Plan.Source<any, any, infer PresentFormula extends PredicateFormula, any>
+type PresentFormulaOfSource<Source extends RowSet.AnySource> =
+  Source extends RowSet.Source<any, any, infer PresentFormula extends PredicateFormula, any>
     ? PresentFormula
     : TrueFormula
 
-type PresenceWitnessesOfSource<Source extends Plan.AnySource> =
-  Source extends Plan.Source<any, any, any, infer PresenceWitness extends string>
+type PresenceWitnessesOfSource<Source extends RowSet.AnySource> =
+  Source extends RowSet.Source<any, any, any, infer PresenceWitness extends string>
     ? PresenceWitness
     : never
 
 type ImpliedSourceNamesFromRequired<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Required extends string
 > = Extract<{
   readonly [K in Extract<keyof Available, string>]:
@@ -1356,7 +1364,7 @@ type ImpliedSourceNamesFromRequired<
 }[Extract<keyof Available, string>], string>
 
 type ExpandRequiredSourceNames<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Required extends string
 > = ExpandRequiredSourceNamesStep<
   Available,
@@ -1365,7 +1373,7 @@ type ExpandRequiredSourceNames<
 >
 
 type ExpandRequiredSourceNamesStep<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Current extends string,
   Next extends string
 > = [Exclude<Next, Current>] extends [never]
@@ -1373,7 +1381,7 @@ type ExpandRequiredSourceNamesStep<
   : ExpandRequiredSourceNames<Available, Next>
 
 type DirectlyAbsentSourceNames<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = Extract<{
   readonly [K in Extract<keyof Available, string>]:
@@ -1389,7 +1397,7 @@ type DirectlyAbsentSourceNames<
 }[Extract<keyof Available, string>], string>
 
 type ImpliedAbsentSourceNames<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Absent extends string
 > = Extract<{
   readonly [K in Extract<keyof Available, string>]:
@@ -1399,7 +1407,7 @@ type ImpliedAbsentSourceNames<
 }[Extract<keyof Available, string>], string>
 
 type ExpandAbsentSourceNames<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Current extends string
 > = ExpandAbsentSourceNamesStep<
   Available,
@@ -1408,7 +1416,7 @@ type ExpandAbsentSourceNames<
 >
 
 type ExpandAbsentSourceNamesStep<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Current extends string,
   Next extends string
 > = [Exclude<Next, Current>] extends [never]
@@ -1416,12 +1424,12 @@ type ExpandAbsentSourceNamesStep<
   : ExpandAbsentSourceNames<Available, Next>
 
 type AbsentSourceNamesInScope<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = ExpandAbsentSourceNames<Available, DirectlyAbsentSourceNames<Available, Assumptions>>
 
 type RequiredSourceNamesInScope<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = Exclude<
   ExpandRequiredSourceNames<
@@ -1432,17 +1440,17 @@ type RequiredSourceNamesInScope<
 >
 
 type EffectiveAvailable<
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = {
   readonly [K in keyof Available]:
-    Available[K] extends Plan.Source<
+    Available[K] extends RowSet.Source<
       infer Name extends string,
-      infer Mode extends Plan.SourceMode,
+      infer Mode extends RowSet.SourceMode,
       infer PresentFormula extends PredicateFormula,
       infer PresenceWitness extends string
     >
-      ? Plan.Source<
+      ? RowSet.Source<
           Name,
           K extends RequiredSourceNamesInScope<Available, Assumptions> ? "required" : Mode,
           PresentFormula,
@@ -1454,17 +1462,20 @@ type EffectiveAvailable<
 }
 
 type HasAbsentSource<
-  Dependencies extends Expression.SourceDependencies,
-  Available extends Record<string, Plan.AnySource>,
+  Dependencies extends Expression.BindingId,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
+> = Extract<Dependencies, AbsentSourceNamesInScope<Available, Assumptions>> extends never ? false : true
+
+type OptionalSourceNamesInScope<
+  Available extends Record<string, RowSet.AnySource>
 > = Extract<{
-  [K in keyof Dependencies & string]:
-    K extends AbsentSourceNamesInScope<Available, Assumptions> ? true : never
-}[keyof Dependencies & string], true> extends never ? false : true
+  [K in keyof Available & string]: SourceModeOf<Available, K> extends "optional" ? K : never
+}[keyof Available & string], string>
 
 type BaseEffectiveNullability<
   Value extends Expression.Any,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = AstOf<Value> extends ExpressionAst.ColumnNode<infer TableName extends string, infer ColumnName extends string>
   ? TableName extends AbsentSourceNamesInScope<Available, Assumptions>
@@ -1474,22 +1485,18 @@ type BaseEffectiveNullability<
     : `${TableName}.${ColumnName}` extends KnownGuaranteedNonNullKeys<Assumptions>
       ? "never"
       : Expression.NullabilityOf<Value> extends "always" ? "always"
-        : Expression.SourceNullabilityOf<Value> extends "resolved"
-          ? Expression.NullabilityOf<Value>
         : HasAbsentSource<DependenciesOf<Value>, Available, Assumptions> extends true ? "always"
-        : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
-        : Expression.NullabilityOf<Value>
+          : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
+            : Expression.NullabilityOf<Value>
   : Expression.NullabilityOf<Value> extends "always" ? "always"
-    : Expression.SourceNullabilityOf<Value> extends "resolved"
-      ? Expression.NullabilityOf<Value>
-      : HasAbsentSource<DependenciesOf<Value>, Available, Assumptions> extends true ? "always"
+    : HasAbsentSource<DependenciesOf<Value>, Available, Assumptions> extends true ? "always"
       : HasOptionalSource<DependenciesOf<Value>, Available> extends true ? "maybe"
-      : Expression.NullabilityOf<Value>
+        : Expression.NullabilityOf<Value>
 
 type CaseOutputOf<
   Branches extends readonly ExpressionAst.CaseBranchNode[],
   Else extends Expression.Any,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = Branches extends readonly [
   infer Head extends ExpressionAst.CaseBranchNode,
@@ -1509,7 +1516,7 @@ type CaseOutputOf<
 type EffectiveNullabilityOfAst<
   Value extends Expression.Any,
   Ast extends ExpressionAst.Any,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > = Ast extends ExpressionAst.ColumnNode<any, any>
   ? BaseEffectiveNullability<Value, Available, Assumptions>
@@ -1537,7 +1544,7 @@ type EffectiveNullabilityOfAst<
 
 export type EffectiveNullability<
   Value extends Expression.Any,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > =
   AstOf<Value> extends infer Ast extends ExpressionAst.Any
@@ -1547,7 +1554,7 @@ export type EffectiveNullability<
 /** Result runtime type of an expression after effective nullability is resolved. */
 export type ExpressionOutput<
   Value extends Expression.Any,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > = AstOf<Value> extends infer Ast extends ExpressionAst.Any
   ? Ast extends ExpressionAst.CaseNode<infer Branches extends readonly ExpressionAst.CaseBranchNode[], infer Else extends Expression.Any>
@@ -1570,7 +1577,7 @@ export type ExpressionOutput<
 /** Result runtime type of a nested selection after source-scope nullability is resolved. */
 export type OutputOfSelection<
   Selection,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula = TrueAssumptions
 > = Selection extends Expression.Any
   ? ExpressionOutput<Selection, Available, Assumptions>
@@ -1582,7 +1589,7 @@ export type OutputOfSelection<
 
 type ResolvedSelectionOutput<
   Selection,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Assumptions extends PredicateFormula
 > = OutputOfSelection<
   Selection,
@@ -1593,7 +1600,7 @@ type ResolvedSelectionOutput<
 /** Resolved row type produced by a concrete query plan. */
 export type ResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   SelectionOfPlan<PlanValue> extends infer Selection
-    ? AvailableOfPlan<PlanValue> extends infer Available extends Record<string, Plan.AnySource>
+    ? AvailableOfPlan<PlanValue> extends infer Available extends Record<string, RowSet.AnySource>
       ? AssumptionsOfPlan<PlanValue> extends infer Assumptions extends PredicateFormula
         ? ResolvedSelectionOutput<Selection, Available, Assumptions>
         : never
@@ -1606,7 +1613,7 @@ export type ResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any,
 /** Conservative runtime row shape produced by remapping projection aliases. */
 export type RuntimeResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   SelectionOfPlan<PlanValue> extends infer Selection
-    ? AvailableOfPlan<PlanValue> extends infer Available extends Record<string, Plan.AnySource>
+    ? AvailableOfPlan<PlanValue> extends infer Available extends Record<string, RowSet.AnySource>
       ? OutputOfSelection<Selection, Available, TrueAssumptions>
       : never
     : never
@@ -1642,7 +1649,7 @@ type DialectCompatibilityError<
   EngineDialect extends string
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: plan dialect is not compatible with the target renderer or executor"
-  readonly __effect_qb_plan_dialect__: PlanValue[typeof Plan.TypeId]["dialect"]
+  readonly __effect_qb_plan_dialect__: PlanValue[typeof RowSet.TypeId]["dialect"]
   readonly __effect_qb_target_dialect__: EngineDialect
   readonly __effect_qb_hint__: "Use the matching dialect module or renderer/executor"
 }
@@ -1669,25 +1676,23 @@ type InsertHasOptionalDefaults<
 /** Narrows a query plan to aggregate-compatible selections. */
 export type AggregationCompatiblePlan<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
-> = PlanValue extends QueryPlan<infer Selection, any, any, any, infer Grouped, any, any, any, any, any>
-  ? IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
-  : never
+> = IsAggregationCompatibleSelection<SelectionOfPlan<PlanValue>, GroupedOfPlan<PlanValue>> extends true
+  ? PlanValue
+  : AggregationCompatibilityError<PlanValue>
 
 /** Narrows a query plan to aggregate-compatible, source-complete plans. */
 export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  PlanValue extends QueryPlan<infer Selection, infer Required, any, any, infer Grouped, any, any, any, any, infer Statement, any, infer InsertState>
-    ? Statement extends "insert"
-      ? InsertState extends "missing"
-        ? InsertHasOptionalDefaults<PlanValue> extends true
-          ? PlanValue
-          : InsertSourceCompletenessError<PlanValue>
-        : HasKnownOutstanding<Required> extends true
-          ? SourceCompletenessError<PlanValue, Extract<Required, string>>
-          : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
-      : HasKnownOutstanding<Required> extends true
-        ? SourceCompletenessError<PlanValue, Extract<Required, string>>
-        : IsAggregationCompatibleSelection<Selection, Grouped> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
-    : never
+  StatementOfPlan<PlanValue> extends "insert"
+    ? InsertSourceStateOfPlan<PlanValue> extends "missing"
+      ? InsertHasOptionalDefaults<PlanValue> extends true
+        ? PlanValue
+        : InsertSourceCompletenessError<PlanValue>
+      : HasKnownOutstanding<RequiredOfPlan<PlanValue>> extends true
+        ? SourceCompletenessError<PlanValue, Extract<RequiredOfPlan<PlanValue>, string>>
+        : IsAggregationCompatibleSelection<SelectionOfPlan<PlanValue>, GroupedOfPlan<PlanValue>> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
+    : HasKnownOutstanding<RequiredOfPlan<PlanValue>> extends true
+      ? SourceCompletenessError<PlanValue, Extract<RequiredOfPlan<PlanValue>, string>>
+      : IsAggregationCompatibleSelection<SelectionOfPlan<PlanValue>, GroupedOfPlan<PlanValue>> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>
 
 /** Whether a plan dialect is compatible with a target engine dialect. */
 type IsDialectCompatible<
@@ -1703,7 +1708,7 @@ type IsDialectCompatible<
 export type DialectCompatiblePlan<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   EngineDialect extends string
-> = IsDialectCompatible<PlanValue[typeof Plan.TypeId]["dialect"], EngineDialect> extends true
+> = IsDialectCompatible<PlanValue[typeof RowSet.TypeId]["dialect"], EngineDialect> extends true
   ? CompletePlan<PlanValue>
   : DialectCompatibilityError<PlanValue, EngineDialect>
 
@@ -1711,7 +1716,7 @@ export type DialectCompatiblePlan<
 export type DialectCompatibleNestedPlan<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   EngineDialect extends string
-> = IsDialectCompatible<PlanValue[typeof Plan.TypeId]["dialect"], EngineDialect> extends true
+> = IsDialectCompatible<PlanValue[typeof RowSet.TypeId]["dialect"], EngineDialect> extends true
   ? AggregationCompatiblePlan<PlanValue>
   : DialectCompatibilityError<PlanValue, EngineDialect>
 
@@ -1796,11 +1801,9 @@ export type SetCompatibleRightPlan<
 
 /** True when any of an expression's dependencies are optional in the current scope. */
 type HasOptionalSource<
-  Dependencies extends Expression.SourceDependencies,
-  Available extends Record<string, Plan.AnySource>
-> = Extract<{
-  [K in keyof Dependencies & string]: SourceModeOf<Available, K> extends "optional" ? true : never
-}[keyof Dependencies & string], true> extends never ? false : true
+  Dependencies extends Expression.BindingId,
+  Available extends Record<string, RowSet.AnySource>
+> = Extract<Dependencies, OptionalSourceNamesInScope<Available>> extends never ? false : true
 
 /**
  * Concrete query-plan value produced by the query DSL.
@@ -1812,65 +1815,51 @@ type HasOptionalSource<
 export type QueryPlan<
   Selection,
   Required = never,
-  Available extends Record<string, Plan.AnySource> = {},
+  Available extends Record<string, RowSet.AnySource> = {},
   Dialect extends string = never,
   Grouped extends string = never,
-  ScopedNames extends string = Extract<keyof Available, string>,
-  Outstanding extends string = Extract<Required, string>,
+  ScopedNames extends string = never,
+  Outstanding extends string = never,
   Assumptions extends PredicateFormula = TrueAssumptions,
   Capabilities extends QueryCapability = "read",
   Statement extends QueryAst.QueryStatement = "select",
-  Target = unknown,
+  Target = any,
   InsertState extends InsertSourceState = InsertSourceState
-> = Plan.Plan<Selection, Required, Available, Dialect> & {
-  readonly [Plan.TypeId]: Plan.State<Selection, Required, Available, Dialect>
+> = RowSet.RowSet<Selection, Required, Available, Dialect> & {
+  readonly [QueryTypeId]: QueryState<
+    Outstanding,
+    ScopedNames,
+    Grouped,
+    Assumptions,
+    Capabilities,
+    Statement,
+    Target,
+    InsertState
+  >
   readonly [QueryAst.TypeId]: QueryAst.Ast<Selection, Grouped, Statement>
-  readonly [QueryTypeId]: QueryState<Outstanding, ScopedNames, Grouped, Assumptions, Capabilities, Statement, Target, InsertState>
 }
 
-/**
- * Normalizes expression provenance into a flat list.
- *
- * Single-source expressions store one provenance object, while derived
- * operators may carry multiple sources. This helper hides that shape
- * difference.
- */
-const normalizeSources = (source: unknown): readonly unknown[] =>
-  source === undefined ? [] : Array.isArray(source) ? source : [source]
-
-/**
- * Merges the provenance of two expressions into one normalized runtime value.
- *
- * The result is:
- * - `undefined` when neither side is sourced
- * - a single provenance object when exactly one source exists
- * - an array when multiple sources are involved
- */
-export const mergeSources = (left: unknown, right?: unknown): unknown => {
-  const values = [...normalizeSources(left), ...normalizeSources(right)]
-  if (values.length === 0) {
-    return undefined
-  }
-  if (values.length === 1) {
-    return values[0]
-  }
-  return values
+export namespace Plan {
+  export type Any = QueryPlan<any, any, any, any, any, any, any, any, any, any>
 }
 
-/** Merges two expression dependency maps into a single normalized record. */
-export const mergeDependencies = (
-  left: Expression.SourceDependencies,
-  right: Expression.SourceDependencies = {}
-): Expression.SourceDependencies => ({
-  ...left,
-  ...right
-})
+/** Merges two expression dependency records into a single normalized record. */
+export const mergeDependencies = <
+  Left extends Expression.BindingId = never,
+  Right extends Expression.BindingId = never
+>(
+  left: Record<Left, true> | undefined,
+  right: Record<Right, true> | undefined = undefined
+): Record<Left | Right, true> => ({
+  ...(left ?? {}),
+  ...(right ?? {})
+}) as Record<Left | Right, true>
 
 /** Merges expression aggregation kinds at runtime. */
 export const mergeAggregationRuntime = (
-  left: Expression.AggregationKind,
-  right: Expression.AggregationKind = "scalar"
-): Expression.AggregationKind =>
+  left: Expression.ScalarKind,
+  right: Expression.ScalarKind = "scalar"
+): Expression.ScalarKind =>
   left === "window" || right === "window"
     ? "window"
     : left === "aggregate" || right === "aggregate"
@@ -1880,10 +1869,10 @@ export const mergeAggregationRuntime = (
 /** Folds runtime aggregation across a list of expressions. */
 export const mergeAggregationManyRuntime = (
   values: readonly Expression.Any[]
-): Expression.AggregationKind =>
+): Expression.ScalarKind =>
   values.reduce(
-    (current, value) => mergeAggregationRuntime(current, value[Expression.TypeId].aggregation),
-    "scalar" as Expression.AggregationKind
+    (current, value) => mergeAggregationRuntime(current, value[Expression.TypeId].kind),
+    "scalar" as Expression.ScalarKind
   )
 
 /** Merges expression nullability for null-propagating scalar operators. */
@@ -1906,19 +1895,14 @@ export const mergeNullabilityManyRuntime = (
     "never" as Expression.Nullability
   )
 
-/** Merges provenance across a variadic expression input list. */
-export const mergeManySources = (values: readonly Expression.Any[]): unknown =>
-  values.reduce<unknown>(
-    (current, value) => mergeSources(current, value[Expression.TypeId].source),
-    undefined
-  )
-
 /** Merges dependency maps across a variadic expression input list. */
-export const mergeManyDependencies = (values: readonly Expression.Any[]): Expression.SourceDependencies =>
-  values.reduce(
-    (current, value) => mergeDependencies(current, value[Expression.TypeId].dependencies),
-    {} as Expression.SourceDependencies
-  )
+export const mergeManyDependencies = <Values extends readonly Expression.Any[]>(
+  values: Values
+): Record<TupleDependencies<Values>, true> =>
+  values.reduce<Record<string, true>>(
+    (current, value) => mergeDependencies(current, value[Expression.TypeId].dependencies) as Record<string, true>,
+    {}
+  ) as Record<TupleDependencies<Values>, true>
 
 /**
  * Creates a runtime expression object from fully computed static metadata.
@@ -1931,19 +1915,34 @@ export const makeExpression = <
   Db extends Expression.DbType.Any,
   Nullable extends Expression.Nullability,
   Dialect extends string,
-  Aggregation extends Expression.AggregationKind,
-  Source,
-  Dependencies extends Expression.SourceDependencies = {},
-  SourceNullability extends Expression.SourceNullabilityMode = "propagate",
-  Ast extends ExpressionAst.Any = ExpressionAst.Any
+  Kind extends Expression.ScalarKind,
+  Deps extends Expression.BindingId = never,
+  Ast extends ExpressionAst.Any = ExpressionAst.Any,
+  GroupKey extends string = GroupingKeyOfAst<Ast>
 >(
-  state: Expression.State<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability>,
+  state: {
+    readonly runtime: Runtime
+    readonly dbType: Db
+    readonly runtimeSchema?: Schema.Schema.Any
+    readonly nullability: Nullable
+    readonly dialect: Dialect
+    readonly kind?: Kind
+    readonly dependencies?: Record<string, true>
+  },
   ast: Ast
-): Expression.Expression<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability> & {
+): Expression.Scalar<Runtime, Db, Nullable, Dialect, Kind, Deps, GroupKey> & {
   readonly [ExpressionAst.TypeId]: Ast
 } => {
   const expression = Object.create(ExpressionProto)
-  expression[Expression.TypeId] = state
+  expression[Expression.TypeId] = {
+    runtime: state.runtime,
+    dbType: state.dbType,
+    runtimeSchema: state.runtimeSchema,
+    nullability: state.nullability,
+    dialect: state.dialect,
+    kind: state.kind ?? ("scalar" as Kind),
+    dependencies: state.dependencies ?? {}
+  } as Expression.State<Runtime, Db, Nullable, Dialect, Kind, Deps>
   expression[ExpressionAst.TypeId] = ast
   return expression
 }
@@ -1955,7 +1954,7 @@ export const makeExpression = <
 export const makePlan = <
   Selection,
   Required,
-  Available extends Record<string, Plan.AnySource>,
+  Available extends Record<string, RowSet.AnySource>,
   Dialect extends string,
   Grouped extends string = never,
   ScopedNames extends string = Extract<keyof Available, string>,
@@ -1963,10 +1962,10 @@ export const makePlan = <
   Assumptions extends PredicateFormula = TrueAssumptions,
   Capabilities extends QueryCapability = "read",
   Statement extends QueryAst.QueryStatement = "select",
-  Target = never,
-  InsertState extends InsertSourceState = "ready"
+  Target = any,
+  InsertState extends InsertSourceState = InsertSourceState
 >(
-  state: Plan.State<Selection, Required, Available, Dialect>,
+  state: RowSet.State<Selection, Required, Available, Dialect>,
   ast: QueryAst.Ast<Selection, Grouped, Statement>,
   _assumptions?: Assumptions,
   _capabilities?: Capabilities,
@@ -1975,7 +1974,7 @@ export const makePlan = <
   _insertState?: InsertState
 ): QueryPlan<Selection, Required, Available, Dialect, Grouped, ScopedNames, Outstanding, Assumptions, Capabilities, Statement, Target, InsertState> => {
   const plan = Object.create(PlanProto)
-  plan[Plan.TypeId] = state
+  plan[RowSet.TypeId] = state
   plan[QueryAst.TypeId] = ast
   plan[QueryTypeId] = {
     required: undefined as unknown as Outstanding,

@@ -1,4 +1,4 @@
-import type * as Expression from "./expression.js"
+import type * as Expression from "./scalar.js"
 import type * as Query from "./query.js"
 import type * as JsonPath from "./json/path.js"
 import type { JsonNode } from "./json/ast.js"
@@ -136,7 +136,7 @@ export interface CaseNode<
 
 /** `exists (<subquery>)` expression node. */
 export interface ExistsNode<
-  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Query.Plan.Any = Query.Plan.Any
 > {
   readonly kind: "exists"
   readonly plan: PlanValue
@@ -144,7 +144,7 @@ export interface ExistsNode<
 
 /** Scalar subquery expression node. */
 export interface ScalarSubqueryNode<
-  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Query.Plan.Any = Query.Plan.Any
 > {
   readonly kind: "scalarSubquery"
   readonly plan: PlanValue
@@ -153,7 +153,7 @@ export interface ScalarSubqueryNode<
 /** `value in (<subquery>)` expression node. */
 export interface InSubqueryNode<
   Left extends Expression.Any = Expression.Any,
-  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Query.Plan.Any = Query.Plan.Any
 > {
   readonly kind: "inSubquery"
   readonly left: Left
@@ -165,7 +165,7 @@ export interface QuantifiedComparisonNode<
   Kind extends "comparisonAny" | "comparisonAll" = "comparisonAny" | "comparisonAll",
   Operator extends "eq" | "neq" | "lt" | "lte" | "gt" | "gte" = "eq" | "neq" | "lt" | "lte" | "gt" | "gte",
   Left extends Expression.Any = Expression.Any,
-  PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> = Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Query.Plan.Any = Query.Plan.Any
 > {
   readonly kind: Kind
   readonly operator: Operator

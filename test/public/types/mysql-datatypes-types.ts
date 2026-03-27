@@ -1,4 +1,4 @@
-import { Query as Q, Table, Column as C, Expression as E } from "effect-qb/mysql"
+import { Query as Q, Table, Column as C, Scalar as E } from "effect-qb/mysql"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),

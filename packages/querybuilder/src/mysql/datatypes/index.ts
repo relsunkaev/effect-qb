@@ -1,5 +1,5 @@
 import type { DatatypeModule } from "../../internal/datatypes/define.js"
-import type * as Expression from "../../internal/expression.js"
+import type * as Expression from "../../internal/scalar.js"
 import { mysqlDatatypeKinds } from "./spec.js"
 
 const mysqlDatatypeModule = {

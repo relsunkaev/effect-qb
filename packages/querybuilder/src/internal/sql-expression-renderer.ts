@@ -1,5 +1,5 @@
 import * as Query from "./query.js"
-import * as Expression from "./expression.js"
+import * as Expression from "./scalar.js"
 import * as Table from "./table.js"
 import * as QueryAst from "./query-ast.js"
 import type { RenderState, SqlDialect } from "./dialect.js"
@@ -818,7 +818,7 @@ export const renderQueryAst = (
     case "set": {
       const setAst = ast as QueryAst.Ast<Record<string, unknown>, any, "set">
       const base = renderQueryAst(
-        Query.getAst(setAst.setBase as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>) as QueryAst.Ast<
+        Query.getAst(setAst.setBase as Query.Plan.Any) as QueryAst.Ast<
           Record<string, unknown>,
           any,
           QueryAst.QueryStatement
@@ -831,7 +831,7 @@ export const renderQueryAst = (
         `(${base.sql})`,
         ...(setAst.setOperations ?? []).map((entry) => {
           const rendered = renderQueryAst(
-            Query.getAst(entry.query as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>) as QueryAst.Ast<
+            Query.getAst(entry.query as Query.Plan.Any) as QueryAst.Ast<
               Record<string, unknown>,
               any,
               QueryAst.QueryStatement
@@ -858,7 +858,7 @@ export const renderQueryAst = (
       } else if (insertAst.insertSource?.kind === "query") {
         const columns = insertAst.insertSource.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
         const renderedQuery = renderQueryAst(
-          Query.getAst(insertAst.insertSource.query as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>) as QueryAst.Ast<
+          Query.getAst(insertAst.insertSource.query as Query.Plan.Any) as QueryAst.Ast<
             Record<string, unknown>,
             any,
             QueryAst.QueryStatement
@@ -1151,7 +1151,7 @@ const renderSourceReference = (
   if (typeof source === "object" && source !== null && "kind" in source && (source as { readonly kind?: string }).kind === "cte") {
     const cte = source as unknown as {
       readonly name: string
-      readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+      readonly plan: Query.Plan.Any
       readonly recursive?: boolean
     }
     if (!state.cteNames.has(cte.name)) {
@@ -1168,7 +1168,7 @@ const renderSourceReference = (
   if (typeof source === "object" && source !== null && "kind" in source && (source as { readonly kind?: string }).kind === "derived") {
     const derived = source as unknown as {
       readonly name: string
-      readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+      readonly plan: Query.Plan.Any
     }
     if (!state.cteNames.has(derived.name)) {
       // derived tables are inlined, so no CTE registration is needed
@@ -1178,7 +1178,7 @@ const renderSourceReference = (
   if (typeof source === "object" && source !== null && "kind" in source && (source as { readonly kind?: string }).kind === "lateral") {
     const lateral = source as unknown as {
       readonly name: string
-      readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any>
+      readonly plan: Query.Plan.Any
     }
     return `lateral (${renderQueryAst(Query.getAst(lateral.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect).sql}) as ${dialect.quoteIdentifier(lateral.name)}`
   }

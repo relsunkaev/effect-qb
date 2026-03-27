@@ -19,7 +19,7 @@ export interface PostgresRenderResult {
 /**
  * Renders the current query AST into Postgres SQL plus bind parameters.
  */
-export const renderPostgresPlan = <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+export const renderPostgresPlan = <PlanValue extends Query.Plan.Any>(
   plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
 ): PostgresRenderResult => {
   const state: RenderState = {
@@ -28,7 +28,7 @@ export const renderPostgresPlan = <PlanValue extends Query.QueryPlan<any, any, a
     cteNames: new Set<string>()
   }
   const rendered = renderQueryAst(
-    Query.getAst(plan as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>) as any,
+    Query.getAst(plan as Query.Plan.Any) as any,
     state,
     postgresDialect
   )

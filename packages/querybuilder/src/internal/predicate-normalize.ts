@@ -1,4 +1,4 @@
-import type * as Expression from "./expression.js"
+import type * as Expression from "./scalar.js"
 import type * as ExpressionAst from "./expression-ast.js"
 import type { ColumnKeyOfExpression, ValueKey } from "./predicate-key.js"
 import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./predicate-formula.js"

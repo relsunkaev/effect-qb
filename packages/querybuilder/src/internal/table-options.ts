@@ -4,7 +4,7 @@ import {
   type AnyColumnDefinition,
   type IsNullable
 } from "./column-state.js"
-import type { Any as AnyExpression } from "./expression.js"
+import type { Any as AnyExpression } from "./scalar.js"
 import type { Any as AnySchemaExpression } from "./schema-expression.js"
 import type { TableFieldMap } from "./schema-derivation.js"
 

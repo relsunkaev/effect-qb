@@ -1,6 +1,6 @@
 import type * as Schema from "effect/Schema"
 
-import type * as Expression from "../internal/expression.js"
+import type * as Expression from "../internal/scalar.js"
 import { ColumnTypeId, type AnyColumnDefinition } from "../internal/column-state.js"
 import * as BaseTable from "../internal/table.js"
 

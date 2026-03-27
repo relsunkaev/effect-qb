@@ -39,36 +39,38 @@ export type AnySource = Source<string, SourceMode, PredicateFormula, string>
  * operations.
  */
 export interface State<
-  Selection,
+  Columns,
   Required,
   Available extends Record<string, AnySource>,
   Dialect extends string
 > {
-  readonly selection: Selection
+  readonly selection: Columns
   readonly required: Required
   readonly available: Available
   readonly dialect: Dialect
 }
 
 /**
- * A composable logical query plan.
+ * A composable logical row set.
  *
  * Tables implement this interface as already-complete plans. Future query
  * builders such as `select()` and `from()` should produce and transform values
  * with this same structure.
  */
-export interface Plan<
-  Selection,
+export interface RowSet<
+  Columns,
   Required = never,
   Available extends Record<string, AnySource> = {},
   Dialect extends string = never
 > extends Pipeable {
-  readonly [TypeId]: State<Selection, Required, Available, Dialect>
+  readonly [TypeId]: State<Columns, Required, Available, Dialect>
 }
 
 /** Convenience alias for any plan-like value. */
-export type Any = Plan<any, any, Record<string, AnySource>, string>
+export type Any = RowSet<any, any, Record<string, AnySource>, string>
+/** Extracts a row set's columns shape. */
+export type ColumnsOf<Value extends Any> = Value[typeof TypeId]["selection"]
 /** Extracts a plan's selection shape. */
-export type SelectionOf<Value extends Any> = Value[typeof TypeId]["selection"]
+export type SelectionOf<Value extends Any> = ColumnsOf<Value>
 /** Extracts a plan's effective dialect. */
 export type DialectOf<Value extends Any> = Value[typeof TypeId]["dialect"]

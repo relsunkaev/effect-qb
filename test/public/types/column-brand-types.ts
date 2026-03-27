@@ -31,9 +31,9 @@ const brandedPostgresNickname = postgresAccounts.nickname.pipe(
 const brandedPostgresAge = postgresAccounts.age.pipe(Postgres.Column.brand);
 
 type PostgresIdRuntime =
-  (typeof brandedPostgresId)[Postgres.Expression.TypeId]["runtime"];
+  (typeof brandedPostgresId)[Postgres.Scalar.TypeId]["runtime"];
 type PostgresNicknameRuntime =
-  (typeof brandedPostgresNickname)[Postgres.Expression.TypeId]["runtime"];
+  (typeof brandedPostgresNickname)[Postgres.Scalar.TypeId]["runtime"];
 type PostgresAgeSchema = Schema.Schema.Type<typeof brandedPostgresAge.schema>;
 type InlineBrandedPostgresSelect = Schema.Schema.Type<
   typeof inlineBrandedPostgresAccounts.schemas.select
@@ -164,7 +164,7 @@ const brandedMysqlEmail = mysqlAccounts.email.pipe(Mysql.Column.brand);
 const brandedMysqlQuota = mysqlAccounts.quota.pipe(Mysql.Column.brand);
 
 type MysqlEmailRuntime =
-  (typeof brandedMysqlEmail)[Mysql.Expression.TypeId]["runtime"];
+  (typeof brandedMysqlEmail)[Mysql.Scalar.TypeId]["runtime"];
 type MysqlQuotaSchema = Schema.Schema.Type<typeof brandedMysqlQuota.schema>;
 
 type _AssertMysqlEmailRuntime = Assert<

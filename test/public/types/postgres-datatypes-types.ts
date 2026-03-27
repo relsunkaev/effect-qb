@@ -1,5 +1,5 @@
 import * as Pg from "effect-qb/postgres"
-import { Query as Q, Table, Column as C, Expression as E } from "effect-qb/postgres"
+import { Query as Q, Table, Column as C, Scalar as E } from "effect-qb/postgres"
 import * as Schema from "effect/Schema"
 
 const users = Table.make("users", {

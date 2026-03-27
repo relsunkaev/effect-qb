@@ -1,8 +1,8 @@
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import * as Plan from "./plan.js"
-import type { Any as AnyExpression } from "./expression.js"
+import * as Plan from "./row-set.js"
+import type { Any as AnyExpression } from "./scalar.js"
 import type { TrueFormula } from "./predicate-formula.js"
 import type { BoundColumnFrom } from "./column-state.js"
 import { bindColumn, type AnyColumnDefinition } from "./column-state.js"
@@ -162,7 +162,7 @@ export type TableDefinition<
   >
   readonly [OptionsSymbol]: readonly TableOptionSpec[]
   readonly [DeclaredOptionsSymbol]: readonly TableOptionSpec[]
-} & BoundColumns<Name, Fields> & Plan.Plan<
+} & BoundColumns<Name, Fields> & Plan.RowSet<
     BoundColumns<Name, Fields>,
     never,
     Record<Name, Plan.Source<Name, "required", TrueFormula>>,
@@ -194,7 +194,7 @@ export type TableClassStatic<
   readonly [DeclaredOptionsSymbol]?: readonly TableOptionSpec[]
   readonly [options]?: ClassDeclaredTableOptions
   readonly tableName: Name
-} & BoundColumns<Name, Fields> & Plan.Plan<
+} & BoundColumns<Name, Fields> & Plan.RowSet<
     BoundColumns<Name, Fields>,
     never,
     Record<Name, Plan.Source<Name, "required", TrueFormula>>,

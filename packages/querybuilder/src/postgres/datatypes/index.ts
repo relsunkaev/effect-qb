@@ -1,5 +1,5 @@
 import type { DatatypeModule } from "../../internal/datatypes/define.js"
-import type * as Expression from "../../internal/expression.js"
+import type * as Expression from "../../internal/scalar.js"
 import { postgresDatatypeFamilies, postgresDatatypeKinds } from "./spec.js"
 
 const postgresDatatypeModule = {

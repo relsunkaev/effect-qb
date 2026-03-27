@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "@effect/sql/SqlClient"
 import * as SqlError from "@effect/sql/SqlError"
 
-import * as Expression from "./expression.js"
+import * as Expression from "./scalar.js"
 import * as ExpressionAst from "./expression-ast.js"
 import { resolveImplicationScope, type ImplicationScope } from "./implication-runtime.js"
 import { normalizeDbValue } from "./runtime-normalize.js"
@@ -12,7 +12,7 @@ import { flattenSelection } from "./projections.js"
 import * as Query from "./query.js"
 import * as QueryAst from "./query-ast.js"
 import * as Renderer from "./renderer.js"
-import * as Plan from "./plan.js"
+import * as Plan from "./row-set.js"
 
 /** Flat database row keyed by rendered projection aliases. */
 export type FlatRow = Readonly<Record<string, unknown>>
@@ -73,7 +73,7 @@ export interface Executor<
   Context = never
 > {
   readonly dialect: Dialect
-  execute<PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute<PlanValue extends Query.Plan.Any>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 }
@@ -117,21 +117,21 @@ const hasWriteStatement = (statement: QueryAst.QueryStatement): boolean =>
 
 const hasWriteCapabilityInSource = (source: unknown): boolean =>
   typeof source === "object" && source !== null && "plan" in source
-    ? hasWriteCapability((source as { readonly plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any, any> }).plan)
+    ? hasWriteCapability((source as { readonly plan: Query.Plan.Any }).plan)
     : false
 
 export const hasWriteCapability = (
-  plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  plan: Query.Plan.Any
 ): boolean => {
   const ast = Query.getAst(plan)
   if (hasWriteStatement(ast.kind)) {
     return true
   }
   if (ast.kind === "set") {
-    if (ast.setBase && hasWriteCapability((ast.setBase as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>))) {
+    if (ast.setBase && hasWriteCapability((ast.setBase as Query.Plan.Any))) {
       return true
     }
-    if ((ast.setOperations ?? []).some((entry) => hasWriteCapability(entry.query as Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>))) {
+    if ((ast.setOperations ?? []).some((entry) => hasWriteCapability(entry.query as Query.Plan.Any))) {
       return true
     }
   }
@@ -198,9 +198,6 @@ const hasOptionalSourceDependency = (
   scope: ImplicationScope
 ): boolean => {
   const state = expression[Expression.TypeId]
-  if (state.sourceNullability === "resolved") {
-    return false
-  }
   return Object.keys(state.dependencies).some((sourceName) =>
     !scope.absentSourceNames.has(sourceName) && scope.sourceModes.get(sourceName) === "optional")
 }
@@ -223,8 +220,7 @@ const effectiveRuntimeNullability = (
       return "never"
     }
   }
-  if (expression[Expression.TypeId].sourceNullability !== "resolved" &&
-      Object.keys(expression[Expression.TypeId].dependencies).some((sourceName) => scope.absentSourceNames.has(sourceName))) {
+  if (Object.keys(expression[Expression.TypeId].dependencies).some((sourceName) => scope.absentSourceNames.has(sourceName))) {
     return "always"
   }
   return hasOptionalSourceDependency(expression, scope)
@@ -295,7 +291,7 @@ const decodeProjectionValue = (
 
 export const decodeRows = (
   rendered: Renderer.RenderedQuery<any, any>,
-  plan: Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  plan: Query.Plan.Any,
   rows: ReadonlyArray<FlatRow>,
   options: {
     readonly driverMode?: DriverMode
@@ -338,7 +334,7 @@ export const make = <
   Context = never
 >(
   dialect: Dialect,
-  execute: <PlanValue extends Query.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends Query.Plan.Any>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
 ): Executor<Dialect, Error, Context> => ({

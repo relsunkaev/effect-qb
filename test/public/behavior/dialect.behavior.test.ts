@@ -89,8 +89,8 @@ describe("dialect behavior", () => {
     const pgExpr = Postgres.Function.concat(Postgres.Function.lower(pgUsers.email), "-user");
     const myExpr = Mysql.Function.concat(Mysql.Function.lower(myUsers.email), "-user");
 
-    expect(pgExpr[Postgres.Expression.TypeId].dbType.dialect).toBe("postgres");
-    expect(myExpr[Mysql.Expression.TypeId].dbType.dialect).toBe("mysql");
+    expect(pgExpr[Postgres.Scalar.TypeId].dbType.dialect).toBe("postgres");
+    expect(myExpr[Mysql.Scalar.TypeId].dbType.dialect).toBe("mysql");
   });
 
   test("mixed-dialect tables are rejected consistently from the shared table layer", () => {

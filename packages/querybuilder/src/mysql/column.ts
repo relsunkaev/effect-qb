@@ -1,5 +1,5 @@
 import * as BaseColumn from "../internal/column.js"
-import * as Expression from "../internal/expression.js"
+import * as Expression from "../internal/scalar.js"
 import { LocalDateTimeStringSchema } from "../internal/runtime-value.js"
 
 /** MySQL-specialized column-definition DSL. */

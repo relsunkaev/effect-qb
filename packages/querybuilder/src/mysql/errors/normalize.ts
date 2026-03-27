@@ -9,10 +9,18 @@ import {
   type MysqlErrorSymbol,
   type MysqlErrorTag
 } from "./catalog.js"
+import {
+  mysqlKnownErrorClassesBySymbol,
+  type KnownMysqlErrorBySymbol as ExactKnownMysqlErrorBySymbol
+} from "./generated.js"
 import type {
   MysqlErrorFields,
   MysqlQueryContext
 } from "./fields.js"
+import type {
+  MysqlErrorLike,
+  MysqlKnownErrorBase
+} from "./types.js"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
@@ -46,36 +54,16 @@ const normalizeFields = (error: Record<string, unknown>): MysqlErrorFields => ({
   hostname: asString(error.hostname)
 })
 
-/** Raw MySQL-like error shape as commonly exposed by client libraries. */
-export interface MysqlErrorLike {
-  readonly code?: string
-  readonly errno?: string | number
-  readonly sqlState?: string
-  readonly sqlMessage?: string
-  readonly message?: string
-  readonly fatal?: boolean
-  readonly sql?: string
-  readonly syscall?: string
-  readonly address?: string
-  readonly port?: string | number
-  readonly hostname?: string
-}
+export type { MysqlErrorLike } from "./types.js"
 
 /** Structured known MySQL error derived from the generated official catalog. */
-export type KnownMysqlError<Symbol extends MysqlErrorSymbol = MysqlErrorSymbol> = Readonly<{
-  readonly _tag: MysqlErrorTag<Symbol>
-  readonly category: MysqlErrorDescriptor<Symbol>["category"]
-  readonly number: MysqlErrorDescriptor<Symbol>["number"]
-  readonly symbol: Symbol
-  readonly documentedSqlState: MysqlErrorDescriptor<Symbol>["sqlState"]
-  readonly messageTemplate: MysqlErrorDescriptor<Symbol>["messageTemplate"]
-  readonly message: string
-  readonly query?: MysqlQueryContext
-  readonly raw: MysqlErrorLike
-} & MysqlErrorFields>
+export type KnownMysqlError<Symbol extends MysqlErrorSymbol = MysqlErrorSymbol> =
+  [MysqlErrorSymbol] extends [Symbol]
+    ? MysqlKnownErrorBase
+    : ExactKnownMysqlErrorBySymbol<Symbol>
 
 /** Extracts the normalized MySQL error variant for a specific symbol. */
-export type KnownMysqlErrorBySymbol<Symbol extends MysqlErrorSymbol> = KnownMysqlError<Symbol>
+export type KnownMysqlErrorBySymbol<Symbol extends MysqlErrorSymbol> = ExactKnownMysqlErrorBySymbol<Symbol>
 
 /** MySQL-like error whose symbol or number is not in the current catalog. */
 export type UnknownMysqlCodeError = Readonly<{
@@ -153,23 +141,20 @@ const findDescriptor = (error: MysqlErrorLike): MysqlErrorDescriptor | undefined
   return undefined
 }
 
-const makeKnownMysqlError = <Symbol extends MysqlErrorSymbol>(
-  descriptor: MysqlErrorDescriptor<Symbol>,
+const makeKnownMysqlError = (
+  descriptor: MysqlErrorDescriptor,
   raw: MysqlErrorLike,
   query?: MysqlQueryContext
-): KnownMysqlError<Symbol> => ({
-  _tag: descriptor.tag,
-  category: descriptor.category,
-  number: descriptor.number,
-  symbol: descriptor.symbol,
-  documentedSqlState: descriptor.sqlState,
-  messageTemplate: descriptor.messageTemplate,
-  message: errorMessageOf(raw),
-  query,
-  raw,
-  ...normalizeFields(raw as Record<string, unknown>),
-  sqlState: asString(raw.sqlState) ?? descriptor.sqlState
-}) as KnownMysqlError<Symbol>
+): MysqlKnownErrorBase => {
+  const ErrorClass = mysqlKnownErrorClassesBySymbol[descriptor.symbol]
+  return new ErrorClass({
+    message: errorMessageOf(raw),
+    query,
+    raw,
+    ...normalizeFields(raw as Record<string, unknown>),
+    sqlState: asString(raw.sqlState) ?? descriptor.sqlState
+  }) as MysqlKnownErrorBase
+}
 
 /** Normalizes an unknown failure into a structured MySQL driver error. */
 export const normalizeMysqlDriverError = (
@@ -221,7 +206,10 @@ export const hasSymbol = <Symbol extends MysqlErrorSymbol>(
   error: MysqlDriverError | { readonly symbol?: string },
   symbol: Symbol
 ): error is KnownMysqlErrorBySymbol<Symbol> =>
-  "symbol" in error && error.symbol === symbol
+  (typeof error === "object" &&
+    error !== null &&
+    error instanceof mysqlKnownErrorClassesBySymbol[symbol]) ||
+  ("symbol" in error && error.symbol === symbol)
 
 /** Type guard for a specific documented MySQL error number. */
 export const hasNumber = <Number extends MysqlErrorNumber>(

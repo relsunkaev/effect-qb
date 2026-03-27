@@ -1,4 +1,4 @@
-import * as Expression from "./expression.js"
+import * as Expression from "./scalar.js"
 import { groupingKeyOfExpression } from "./grouping-key.js"
 
 /** Recursive selection value accepted by aggregate-shape validation. */
@@ -13,7 +13,7 @@ const isExpression = (value: unknown): value is Expression.Any =>
 
 const selectionHasAggregate = (selection: SelectionValue): boolean => {
   if (isExpression(selection)) {
-    return selection[Expression.TypeId].aggregation === "aggregate"
+    return selection[Expression.TypeId].kind === "aggregate"
   }
   return Object.values(selection).some((value) => selectionHasAggregate(value))
 }
@@ -23,7 +23,7 @@ const isGroupedSelectionValid = (
   groupedExpressions: ReadonlySet<string>
 ): boolean => {
   if (isExpression(selection)) {
-    const aggregation = selection[Expression.TypeId].aggregation
+    const aggregation = selection[Expression.TypeId].kind
     if (aggregation === "aggregate") {
       return true
     }

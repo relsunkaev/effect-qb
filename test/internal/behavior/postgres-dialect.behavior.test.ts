@@ -1143,7 +1143,7 @@ describe("postgres dialect behavior", () => {
       [ExpressionAst.TypeId]: {
         kind: "unsupported"
       }
-    } as unknown as Postgres.Expression.Any
+    } as unknown as Postgres.Scalar.Any
 
     expect(() => renderExpression(unsupportedExpression, {
       params: [],

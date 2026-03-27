@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import { Column as C, Expression as E, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Scalar as E, Function as F, Query as Q, Table } from "effect-qb/postgres"
 
 const payloadSchema = Schema.Struct({
   profile: Schema.Struct({

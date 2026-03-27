@@ -18,19 +18,19 @@ const localTime = Postgres.Function.localTime()
 const localTimestamp = Postgres.Function.localTimestamp()
 const now = Postgres.Function.now()
 
-type CurrentDateRuntime = Postgres.Expression.RuntimeOf<typeof currentDate>
-type CurrentTimeRuntime = Postgres.Expression.RuntimeOf<typeof currentTime>
-type CurrentTimestampRuntime = Postgres.Expression.RuntimeOf<typeof currentTimestamp>
-type LocalTimeRuntime = Postgres.Expression.RuntimeOf<typeof localTime>
-type LocalTimestampRuntime = Postgres.Expression.RuntimeOf<typeof localTimestamp>
-type NowRuntime = Postgres.Expression.RuntimeOf<typeof now>
+type CurrentDateRuntime = Postgres.Scalar.RuntimeOf<typeof currentDate>
+type CurrentTimeRuntime = Postgres.Scalar.RuntimeOf<typeof currentTime>
+type CurrentTimestampRuntime = Postgres.Scalar.RuntimeOf<typeof currentTimestamp>
+type LocalTimeRuntime = Postgres.Scalar.RuntimeOf<typeof localTime>
+type LocalTimestampRuntime = Postgres.Scalar.RuntimeOf<typeof localTimestamp>
+type NowRuntime = Postgres.Scalar.RuntimeOf<typeof now>
 
-type _AssertCurrentDate = Assert<IsExact<CurrentDateRuntime, Postgres.Expression.LocalDateString>>
-type _AssertCurrentTime = Assert<IsExact<CurrentTimeRuntime, Postgres.Expression.OffsetTimeString>>
-type _AssertCurrentTimestamp = Assert<IsExact<CurrentTimestampRuntime, Postgres.Expression.InstantString>>
-type _AssertLocalTime = Assert<IsExact<LocalTimeRuntime, Postgres.Expression.LocalTimeString>>
-type _AssertLocalTimestamp = Assert<IsExact<LocalTimestampRuntime, Postgres.Expression.LocalDateTimeString>>
-type _AssertNow = Assert<IsExact<NowRuntime, Postgres.Expression.InstantString>>
+type _AssertCurrentDate = Assert<IsExact<CurrentDateRuntime, Postgres.Scalar.LocalDateString>>
+type _AssertCurrentTime = Assert<IsExact<CurrentTimeRuntime, Postgres.Scalar.OffsetTimeString>>
+type _AssertCurrentTimestamp = Assert<IsExact<CurrentTimestampRuntime, Postgres.Scalar.InstantString>>
+type _AssertLocalTime = Assert<IsExact<LocalTimeRuntime, Postgres.Scalar.LocalTimeString>>
+type _AssertLocalTimestamp = Assert<IsExact<LocalTimestampRuntime, Postgres.Scalar.LocalDateTimeString>>
+type _AssertNow = Assert<IsExact<NowRuntime, Postgres.Scalar.InstantString>>
 
 void currentDate
 void currentTime

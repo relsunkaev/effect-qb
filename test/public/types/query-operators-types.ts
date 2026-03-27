@@ -77,7 +77,7 @@ Q.like(users.id, "%@example.com")
 Q.match(users.id).when(users.email, "bad").else("ok")
 
 const idAsText = Postgres.Cast.to(users.id, Postgres.Type.text())
-type IdAsText = Postgres.Expression.RuntimeOf<typeof idAsText>
+type IdAsText = Postgres.Scalar.RuntimeOf<typeof idAsText>
 const castRowId: IdAsText = "user-1"
 void castRowId
 

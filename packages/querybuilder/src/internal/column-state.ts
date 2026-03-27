@@ -2,7 +2,7 @@ import type * as Brand from "effect/Brand"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import * as Expression from "./expression.js"
+import * as Expression from "./scalar.js"
 import * as ExpressionAst from "./expression-ast.js"
 import type * as SchemaExpression from "./schema-expression.js"
 
@@ -56,8 +56,7 @@ export interface ColumnState<
   PrimaryKey extends boolean,
   Unique extends boolean,
   Ref,
-  Source = never,
-  Dependencies extends Expression.SourceDependencies = {}
+  Dependencies extends Expression.BindingId = never
 > {
   readonly select: Select
   readonly insert: Insert
@@ -83,8 +82,7 @@ export interface ColumnState<
     readonly schemaName?: string
     readonly values: readonly [string, ...string[]]
   }
-  readonly source: Source
-  readonly dependencies: Dependencies
+  readonly dependencies?: Dependencies
 }
 
 /** Unbound column definition produced by the `Column` DSL. */
@@ -99,15 +97,13 @@ export interface ColumnDefinition<
   PrimaryKey extends boolean,
   Unique extends boolean,
   Ref,
-  Source = never,
-  Dependencies extends Expression.SourceDependencies = {}
-> extends Pipeable, Expression.Expression<
+  Dependencies extends Expression.BindingId = never
+> extends Pipeable, Expression.Scalar<
     Select,
     Db,
     Nullable extends true ? "maybe" : "never",
     Db["dialect"],
     "scalar",
-    Source,
     Dependencies
   > {
   readonly pipe: Pipeable["pipe"]
@@ -122,7 +118,6 @@ export interface ColumnDefinition<
     PrimaryKey,
     Unique,
     Ref,
-    Source,
     Dependencies
   >
   readonly schema: Schema.Schema<NonNullable<Select>, any, any>
@@ -161,11 +156,11 @@ export interface BoundColumn<
   HasDefault extends boolean,
   Generated extends boolean,
   PrimaryKey extends boolean,
-    Unique extends boolean,
-    Ref,
-    TableName extends string,
-    ColumnName extends string,
-    BaseTableName extends string = TableName
+  Unique extends boolean,
+  Ref,
+  TableName extends string,
+  ColumnName extends string,
+  BaseTableName extends string = TableName
 > extends ColumnDefinition<
     Select,
     Insert,
@@ -177,8 +172,7 @@ export interface BoundColumn<
     PrimaryKey,
     Unique,
     Ref,
-    Expression.ColumnSource<TableName, ColumnName, BaseTableName>,
-    Record<TableName, true>
+    TableName
   > {
   readonly [BoundColumnTypeId]: {
     readonly tableName: TableName
@@ -192,9 +186,7 @@ export interface BoundColumn<
     Nullable extends true ? "maybe" : "never",
     Db["dialect"],
     "scalar",
-    Expression.ColumnSource<TableName, ColumnName, BaseTableName>,
-    Record<TableName, true>,
-    "propagate"
+    TableName
   >
   readonly [ExpressionAst.TypeId]: ExpressionAst.ColumnNode<TableName, ColumnName>
 }
@@ -226,6 +218,7 @@ export type AnyBoundColumn = BoundColumn<
   boolean,
   any,
   string,
+  string,
   string
 >
 
@@ -247,8 +240,7 @@ export const makeColumnDefinition = <
   PrimaryKey extends boolean,
   Unique extends boolean,
   Ref,
-  Source = never,
-  Dependencies extends Expression.SourceDependencies = {}
+  Dependencies extends Expression.BindingId = never
 >(
   schema: Schema.Schema<NonNullable<Select>, any, any>,
   metadata: ColumnDefinition<
@@ -262,7 +254,6 @@ export const makeColumnDefinition = <
     PrimaryKey,
     Unique,
     Ref,
-    Source,
     Dependencies
   >["metadata"]
 ): ColumnDefinition<
@@ -276,7 +267,6 @@ export const makeColumnDefinition = <
   PrimaryKey,
   Unique,
   Ref,
-  Source,
   Dependencies
 > => {
   const column = Object.create(ColumnProto)
@@ -288,10 +278,8 @@ export const makeColumnDefinition = <
     runtimeSchema: schema,
     nullability: (metadata.nullable ? "maybe" : "never") as Nullable extends true ? "maybe" : "never",
     dialect: metadata.dbType.dialect,
-    aggregation: "scalar",
-    source: undefined as Source,
-    sourceNullability: "propagate" as const,
-    dependencies: {} as Dependencies
+    kind: "scalar",
+    dependencies: {}
   }
   column[ColumnTypeId] = {
     select: undefined as Select,
@@ -308,9 +296,7 @@ export const makeColumnDefinition = <
     generatedValue: metadata.generatedValue,
     ddlType: metadata.ddlType,
     identity: metadata.identity,
-    enum: metadata.enum,
-    source: undefined as Source,
-    dependencies: {} as Dependencies
+    enum: metadata.enum
   }
   return column
 }
@@ -326,8 +312,7 @@ export const remapColumnDefinition = <
   PrimaryKey extends boolean,
   Unique extends boolean,
   Ref,
-  Source = never,
-  Dependencies extends Expression.SourceDependencies = {}
+  Dependencies extends Expression.BindingId = never
 >(
   column: ColumnDefinition<
     Select,
@@ -340,7 +325,6 @@ export const remapColumnDefinition = <
     PrimaryKey,
     Unique,
     Ref,
-    Source,
     Dependencies
   >,
   options: {
@@ -356,7 +340,6 @@ export const remapColumnDefinition = <
       PrimaryKey,
       Unique,
       Ref,
-      Source,
       Dependencies
     >["metadata"]
   } = {}
@@ -371,7 +354,6 @@ export const remapColumnDefinition = <
   PrimaryKey,
   Unique,
   Ref,
-  Source,
   Dependencies
 > => {
   const schema = options.schema ?? column.schema
@@ -450,16 +432,8 @@ export const bindColumn = <
     runtimeSchema: schema,
     nullability: (column.metadata.nullable ? "maybe" : "never") as IsNullable<Column> extends true ? "maybe" : "never",
     dialect: column.metadata.dbType.dialect,
-    aggregation: "scalar",
-    source: {
-      tableName,
-      columnName,
-      baseTableName
-    },
-    sourceNullability: "propagate" as const,
-    dependencies: {
-      [tableName]: true
-    } as Record<TableName, true>
+    kind: "scalar",
+    dependencies: {}
   }
   bound[ExpressionAst.TypeId] = {
     kind: "column",

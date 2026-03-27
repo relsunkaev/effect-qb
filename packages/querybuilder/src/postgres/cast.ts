@@ -1,17 +1,15 @@
-import type * as Expression from "../internal/expression.js"
+import type * as Expression from "../internal/scalar.js"
 import { postgresQuery } from "./private/query.js"
 
 type CastInput = Parameters<typeof postgresQuery.cast>[0]
 type CastTarget = Parameters<typeof postgresQuery.cast>[1]
-type CastExpression<Target extends CastTarget> = Expression.Expression<
+type CastExpression<Target extends CastTarget> = Expression.Scalar<
   Expression.RuntimeOfDbType<Target>,
   Target,
   Expression.Nullability,
   string,
-  Expression.AggregationKind,
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.ScalarKind,
+  Expression.BindingId
 >
 
 const to: {

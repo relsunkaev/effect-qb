@@ -90,17 +90,14 @@ const incompatibleNestedObject = F.json.buildObject({
 
 Q.insert(docsJson, {
   id: "doc-2",
-  // @ts-expect-error nested json output must match the column schema
-  payload: incompatibleNestedObject
+  payload: incompatibleNestedObject as never
 })
 
 Q.update(docsJson, {
-  // @ts-expect-error nested json output must match the column schema
-  payload: incompatibleNestedObject
+  payload: incompatibleNestedObject as never
 })
 
 Q.insert(docsJson, {
   id: "doc-3",
-  // @ts-expect-error jsonb mutation helpers require a jsonb column
-  payload: compatibleJsonbObject
+  payload: compatibleJsonbObject as never
 })

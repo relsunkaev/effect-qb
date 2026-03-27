@@ -1,4 +1,4 @@
-import * as Expression from "../../internal/expression.js"
+import * as Expression from "../../internal/scalar.js"
 import type { JsonPathUsageError } from "../../internal/json/errors.js"
 import * as JsonPath from "../../internal/json/path.js"
 import type {
@@ -9,26 +9,22 @@ import type {
 } from "../../internal/json/types.js"
 import { postgresQuery } from "../private/query.js"
 
-type PostgresJsonExpression<Runtime = unknown> = Expression.Expression<
+type PostgresJsonExpression<Runtime = unknown> = Expression.Scalar<
   Runtime,
   Expression.DbType.Json<"postgres", "json" | "jsonb">,
   Expression.Nullability,
   string,
-  Expression.AggregationKind,
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.ScalarKind,
+  Expression.BindingId
 >
 
-type PostgresJsonbExpression<Runtime = unknown> = Expression.Expression<
+type PostgresJsonbExpression<Runtime = unknown> = Expression.Scalar<
   Runtime,
   Expression.DbType.Json<"postgres", "jsonb">,
   Expression.Nullability,
   string,
-  Expression.AggregationKind,
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.ScalarKind,
+  Expression.BindingId
 >
 
 type ExactJsonPathInput = JsonPath.ExactSegment | JsonPath.Path<any>
@@ -151,15 +147,13 @@ type JsonNullabilityOf<Output> =
 type JsonResultExpression<
   Runtime,
   Db extends Expression.DbType.Json<any, any>
-> = Expression.Expression<
+> = Expression.Scalar<
   Runtime,
   Db,
   JsonNullabilityOf<Runtime>,
   string,
-  Expression.AggregationKind,
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.ScalarKind,
+  Expression.BindingId
 >
 
 type JsonDbOf<Base extends PostgresJsonExpression<any>> =
@@ -186,15 +180,13 @@ type JsonTextRuntime<
 type JsonTextResultExpression<
   Base extends PostgresJsonExpression<any>,
   Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment
-> = Expression.Expression<
+> = Expression.Scalar<
   JsonTextRuntime<Base, Target>,
   Expression.DbType.PgText,
   JsonNullabilityOf<JsonTextRuntime<Base, Target>>,
   string,
-  Expression.AggregationKind,
-  any,
-  Expression.SourceDependencies,
-  Expression.SourceNullabilityMode
+  Expression.ScalarKind,
+  Expression.BindingId
 >
 
 const exactPath = <Segments extends readonly JsonPath.CanonicalSegment[]>(

@@ -20,23 +20,8 @@ export const TypeId: unique symbol = Symbol.for("effect-qb/Expression")
 
 export type TypeId = typeof TypeId
 
-/**
- * Bound source provenance for a column-like expression.
- *
- * `tableName` is the logical source identity currently visible to the query
- * layer. For aliased sources this is the alias, while `baseTableName` retains
- * the underlying physical table name for downstream renderer work.
- */
-export interface ColumnSource<
-  TableName extends string = string,
-  ColumnName extends string = string,
-  BaseTableName extends string = TableName
-> {
-  readonly tableName: TableName
-  readonly columnName: ColumnName
-  readonly baseTableName: BaseTableName
-}
-
+/** Scope-local binding identifier used for dependency tracking. */
+export type BindingId = string
 /**
  * Three-state nullability lattice.
  *
@@ -52,28 +37,7 @@ export type Nullability = "never" | "maybe" | "always"
  * - `aggregate`: grouped expression such as `count(*)`
  * - `window`: windowed expression such as `row_number() over (...)`
  */
-export type AggregationKind = "scalar" | "aggregate" | "window"
-
-/**
- * Whether an expression should still be promoted by optional-source scope.
- *
- * Most expressions propagate optional-source nullability because a missing
- * joined row turns their inputs into `null`. Some expressions, such as
- * `coalesce(...)`, `is null`, and aggregates, already model their own
- * null-handling semantics and should not be promoted again by plan scope.
- */
-export type SourceNullabilityMode = "propagate" | "resolved"
-
-/**
- * Phantom dependency map of source names referenced by an expression.
- *
- * This is intentionally separate from runtime provenance (`source`). The
- * dependency map is the cheap, composable type-level representation used by the
- * query layer to resolve scope-sensitive nullability after joins. Dependencies
- * are tracked by logical source identity, which means aliased sources are kept
- * distinct from one another even when they point at the same base table.
- */
-export type SourceDependencies = Record<string, true>
+export type ScalarKind = "scalar" | "aggregate" | "window"
 
 /** Database-type descriptors carried alongside decoded runtime types. */
 export declare namespace DbType {
@@ -267,61 +231,51 @@ export interface State<
   Db extends DbType.Any,
   Nullable extends Nullability,
   Dialect extends string,
-  Aggregation extends AggregationKind,
-  Source = never,
-  Dependencies extends SourceDependencies = {},
-  SourceNullability extends SourceNullabilityMode = "propagate"
+  Kind extends ScalarKind,
+  Deps extends BindingId = never
 > {
   readonly runtime: Runtime
   readonly dbType: Db
   readonly runtimeSchema?: Schema.Schema.Any
   readonly nullability: Nullable
   readonly dialect: Dialect
-  readonly aggregation: Aggregation
-  readonly source: Source
-  readonly sourceNullability: SourceNullability
-  /**
-   * Type-level source dependency map used for lazy nullability resolution.
-   *
-   * Unlike `source`, which preserves runtime provenance detail for diagnostics
-   * and plan assembly, `dependencies` only needs to record which tables are
-   * referenced at all.
-   */
-  readonly dependencies: Dependencies
+  readonly kind: Kind
+  readonly dependencies: Record<string, true>
 }
 
 /**
- * A typed SQL expression.
+ * A typed scalar SQL expression.
  *
  * `Runtime` is the decoded TypeScript type while `Db` captures the SQL-level
  * type identity. Both are needed: multiple SQL types may decode to the same
  * runtime type but still have different comparison/cast semantics.
  */
-export interface Expression<
+export interface Scalar<
   Runtime,
   Db extends DbType.Any,
   Nullable extends Nullability = "never",
   Dialect extends string = Db["dialect"],
-  Aggregation extends AggregationKind = "scalar",
-  Source = never,
-  Dependencies extends SourceDependencies = {},
-  SourceNullability extends SourceNullabilityMode = "propagate"
+  Kind extends ScalarKind = "scalar",
+  Deps extends BindingId = never,
+  GroupKey extends string = string
 > extends Pipeable {
-  readonly [TypeId]: State<Runtime, Db, Nullable, Dialect, Aggregation, Source, Dependencies, SourceNullability>
+  readonly [TypeId]: State<Runtime, Db, Nullable, Dialect, Kind, Deps>
 }
 
 /** Convenience alias for any expression-like value. */
-export type Any = Expression<any, DbType.Any, Nullability, string, AggregationKind, any, SourceDependencies, SourceNullabilityMode>
+export type Any = Scalar<any, DbType.Any, Nullability, string, ScalarKind, BindingId, string>
 /** Extracts an expression's decoded runtime type. */
 export type RuntimeOf<Value extends Any> = Value[typeof TypeId]["runtime"]
 /** Extracts an expression's database-type descriptor. */
 export type DbTypeOf<Value extends Any> = Value[typeof TypeId]["dbType"]
 /** Extracts an expression's nullability state. */
 export type NullabilityOf<Value extends Any> = Value[typeof TypeId]["nullability"]
-/** Extracts an expression's source dependency map. */
-export type DependenciesOf<Value extends Any> = Value[typeof TypeId]["dependencies"]
-/** Extracts how plan-scope nullability should apply to an expression. */
-export type SourceNullabilityOf<Value extends Any> = Value[typeof TypeId]["sourceNullability"]
+/** Extracts an expression's kind. */
+export type KindOf<Value extends Any> = Value[typeof TypeId]["kind"]
+/** Extracts an expression's source dependency union. */
+export type DependenciesOf<Value extends Any> = Value extends Scalar<any, any, any, any, any, infer Deps> ? Deps : never
+/** Extracts an expression's grouping identity. */
+export type GroupKeyOf<Value extends Any> = Value extends Scalar<any, any, any, any, any, any, infer GroupKey> ? GroupKey : never
 
 /** Maps a database type descriptor back to its decoded runtime type. */
 export type RuntimeOfDbType<Db extends DbType.Any> = RuntimeOfDbTypeLookup<Db>
