@@ -481,21 +481,10 @@ type ComparableArgs<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any,
   Operator extends string
-> = ComparableGuard<
-  Left,
-  Right,
-  Dialect,
-  TextDb,
-  NumericDb,
-  BoolDb,
-  TimestampDb,
-  NullDb,
-  Operator
-> extends infer Guard
-  ? Guard extends true
-    ? readonly [left: Left, right: Right]
-    : readonly [Guard]
-  : never
+> = readonly [
+  left: Left,
+  right: Right & ComparableInput<NoInfer<Left>, NoInfer<Right>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>
+]
 
 type ContainmentGuard<
   Left extends ExpressionInput,
@@ -543,11 +532,10 @@ type TextArgs<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any,
   Operator extends string
-> = TextGuard<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
-  ? TextGuard<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
-    ? readonly [left: Left, right: Right]
-    : readonly [TextGuard<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
-  : readonly [TextGuard<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
+> = readonly [
+  left: Left & TextInput<NoInfer<Left>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>,
+  right: Right & TextInput<NoInfer<Right>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>
+]
 
 type MembershipArgs<
   Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]],
@@ -1160,7 +1148,7 @@ type MatchBuilder<
   NullDb extends Expression.DbType.Any
 > = {
   when<Compare extends ExpressionInput, Then extends ExpressionInput>(
-    compare: Compare & ComparableInput<Subject, Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
+    compare: Compare & ComparableInput<NoInfer<Subject>, NoInfer<Compare>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
     result: Then
   ): MatchBuilder<
     Subject,
@@ -1223,7 +1211,7 @@ type MatchStarter<
   NullDb extends Expression.DbType.Any
 > = {
   when<Compare extends ExpressionInput, Then extends ExpressionInput>(
-    compare: Compare & ComparableInput<Subject, Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
+    compare: Compare & ComparableInput<NoInfer<Subject>, NoInfer<Compare>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
     result: Then
   ): MatchBuilder<
     Subject,
@@ -3059,8 +3047,8 @@ type BinaryPredicateExpression<
     head: Head,
     ...tail: {
       readonly [K in keyof Tail]: Tail[K] & ComparableInput<
-        Head,
-        Tail[K],
+        NoInfer<Head>,
+        NoInfer<Tail[K]>,
         Dialect,
         TextDb,
         NumericDb,
@@ -3080,8 +3068,8 @@ type BinaryPredicateExpression<
     head: Head,
     ...tail: {
       readonly [K in keyof Tail]: Tail[K] & ComparableInput<
-        Head,
-        Tail[K],
+        NoInfer<Head>,
+        NoInfer<Tail[K]>,
         Dialect,
         TextDb,
         NumericDb,
