@@ -4,7 +4,7 @@
 
 // README.md:412-463
 import type * as Brand from "effect/Brand"
-import { Column as C, Scalar as E, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.brand),

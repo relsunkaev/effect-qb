@@ -411,7 +411,7 @@ This is useful when:
 
 ```ts
 import type * as Brand from "effect/Brand"
-import { Column as C, Expression as E, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.brand),
@@ -1216,31 +1216,50 @@ These preserve the original effect type parameters and add the ambient SQL trans
 
 The built-in executors return tagged errors for both read and write plans. Which tags are available depends on the plan's capabilities.
 
-### Catch Capability Errors On Read Plans
+### Catch Read-Plan Errors
 
-Read-only plans do not expose write-only database errors directly. Those cases surface as query-requirements errors instead:
+Read-only plans can still surface tagged database errors that make sense for reads. For example, invalid input to a typed filter can raise `invalid-text-representation`:
 
 ```ts
 import * as Effect from "effect/Effect"
+import * as Pg from "effect-qb/postgres"
 import { Column as C, Executor, Query as Q, Table } from "effect-qb/postgres"
+
+class InvalidUserId extends Error {
+  constructor(readonly details: {
+    readonly value: string
+  }) {
+    super("Invalid user id")
+  }
+}
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
   email: C.text()
 })
 
+const badUserId = Pg.Cast.to("not-a-uuid", Pg.Type.uuid())
+
 const plan = Q.select({
   id: users.id,
   email: users.email
 }).pipe(
-  Q.from(users)
+  Q.from(users),
+  Q.where(Q.eq(users.id, badUserId))
 )
 
 const executor = Executor.make()
 
 const rows = executor.execute(plan).pipe(
-  Effect.catchTag("@postgres/unknown/query-requirements", (error) =>
-    Effect.fail(error.cause)
+  Effect.catchTag("@postgres/data-exception/invalid-text-representation", () =>
+    Effect.fail(new InvalidUserId({ value: "not-a-uuid" }))
+  )
+)
+
+// @ts-expect-error read plans do not expose write-only errors
+executor.execute(plan).pipe(
+  Effect.catchTag("@postgres/integrity-constraint-violation/unique-violation", (error) =>
+    Effect.fail(error)
   )
 )
 ```
