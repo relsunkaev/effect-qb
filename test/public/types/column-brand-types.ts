@@ -196,6 +196,17 @@ type _AssertMysqlRowQuota = Assert<
     : false
 >;
 
+const brandedReferenceUsers = Postgres.Table.make("branded_reference_users", {
+  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey, Postgres.Column.brand),
+  email: Postgres.Column.text(),
+});
+
+const brandedReferenceSessions = Postgres.Table.make("branded_reference_sessions", {
+  userId: Postgres.Column.uuid().pipe(
+    Postgres.Column.references(() => brandedReferenceUsers.id),
+  ),
+});
+
 void brandedPostgresId;
 void brandedPostgresNickname;
 void brandedPostgresAge;
@@ -207,3 +218,4 @@ void inlineBrandedPostgresPlan;
 void brandedMysqlEmail;
 void brandedMysqlQuota;
 void mysqlPlan;
+void brandedReferenceSessions;

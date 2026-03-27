@@ -695,6 +695,13 @@ type JsonArrayPath<Path extends string> = Path extends ""
   ? "[number]"
   : `${Path}[number]`
 
+type JsonTupleIndexPath<
+  Path extends string,
+  Index extends string
+> = Path extends ""
+  ? `[${Index}]`
+  : `${Path}[${Index}]`
+
 type JsonIssueKeyPath<Path extends string> = Path extends ""
   ? "root"
   : Path
@@ -741,6 +748,22 @@ type JsonObjectShapeIssues<
         JsonShapeIssues<Expected[K], Received[K], JsonObjectKeyPath<Path, K>>
     }[JsonSharedKeys<Expected, Received>]
 
+type JsonTupleIndices<Value extends readonly unknown[]> = Extract<keyof Value, `${number}`>
+
+type JsonTupleShapeIssues<
+  Expected extends readonly unknown[],
+  Received extends readonly unknown[],
+  Path extends string
+> =
+  | {
+      readonly [K in Exclude<JsonTupleIndices<Expected>, JsonTupleIndices<Received>>]:
+        JsonShapeIssue<JsonTupleIndexPath<Path, K>, "missing_required_property", Expected[K], undefined>
+    }[Exclude<JsonTupleIndices<Expected>, JsonTupleIndices<Received>>]
+  | {
+      readonly [K in Extract<JsonTupleIndices<Expected>, JsonTupleIndices<Received>>]:
+        JsonShapeIssues<Expected[K], Received[K], JsonTupleIndexPath<Path, K>>
+    }[Extract<JsonTupleIndices<Expected>, JsonTupleIndices<Received>>]
+
 type JsonShapeIssues<
   Expected,
   Received,
@@ -749,7 +772,15 @@ type JsonShapeIssues<
   ? never
   : [Expected] extends [readonly (infer ExpectedElement)[]]
     ? [Received] extends [readonly (infer ReceivedElement)[]]
-      ? JsonShapeIssues<ExpectedElement, ReceivedElement, JsonArrayPath<Path>>
+      ? number extends Expected["length"]
+        ? JsonShapeIssues<ExpectedElement, ReceivedElement, JsonArrayPath<Path>>
+        : number extends Received["length"]
+          ? JsonShapeIssues<ExpectedElement, ReceivedElement, JsonArrayPath<Path>>
+          : JsonTupleShapeIssues<Expected, Received, Path> extends infer Issues
+            ? [Issues] extends [never]
+              ? JsonShapeIssue<Path, "type_mismatch", Expected, Received>
+              : Issues
+            : never
       : JsonShapeIssue<Path, "type_mismatch", Expected, Received>
     : [Expected] extends [object]
       ? [Expected] extends [Function]

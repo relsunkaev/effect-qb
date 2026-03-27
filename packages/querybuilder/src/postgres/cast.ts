@@ -7,7 +7,7 @@ type CastExpression<Target extends CastTarget> = Expression.Scalar<
   Expression.RuntimeOfDbType<Target>,
   Target,
   Expression.Nullability,
-  string,
+  Target["dialect"],
   Expression.ScalarKind,
   Expression.BindingId
 >

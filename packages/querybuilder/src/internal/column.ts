@@ -48,8 +48,8 @@ type ReferentialAction = "noAction" | "restrict" | "cascade" | "setNull" | "setD
 type CompatibleReference<
   Self extends AnyColumnDefinition,
   Target extends AnyBoundColumn
-> = [BaseSelectType<Self>] extends [BaseSelectType<Target>]
-  ? [BaseSelectType<Target>] extends [BaseSelectType<Self>]
+> = [Self[typeof ColumnTypeId]["dbType"]] extends [Target[typeof ColumnTypeId]["dbType"]]
+  ? [Target[typeof ColumnTypeId]["dbType"]] extends [Self[typeof ColumnTypeId]["dbType"]]
     ? Self
     : never
   : never

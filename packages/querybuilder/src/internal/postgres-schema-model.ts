@@ -88,7 +88,13 @@ export const toTableModel = (table: Table.AnyTable): TableModel => {
   }
 }
 
-export const toEnumModel = (definition: EnumDefinition): EnumModel => ({
+export const toEnumModel = <
+  Name extends string,
+  Values extends readonly [string, ...string[]],
+  SchemaName extends string | undefined
+>(
+  definition: EnumDefinition<Name, Values, SchemaName>
+): EnumModel => ({
   kind: "enum",
   schemaName: definition.schemaName,
   name: definition.name,

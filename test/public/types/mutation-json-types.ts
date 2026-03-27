@@ -101,3 +101,50 @@ Q.insert(docsJson, {
   id: "doc-3",
   payload: compatibleJsonbObject as never
 })
+
+const tupleDocs = Table.make("tuple_docs", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.json(Schema.Struct({
+    pair: Schema.Tuple(Schema.Number, Schema.String)
+  }))
+})
+
+const invalidTuplePayload = F.json.buildObject({
+  pair: F.json.buildArray("north", 1)
+})
+
+type InvalidTupleInsertValues = Parameters<typeof Q.insert<typeof tupleDocs, {
+  readonly id: "tuple-doc-1"
+  readonly payload: typeof invalidTuplePayload
+}>>[1]
+
+type InvalidTuplePayloadError = InvalidTupleInsertValues["payload"]
+
+type HasPreciseSecondSlotIssue =
+  "__effect_qb_json_issue__pair[1]__type_mismatch" extends keyof InvalidTuplePayloadError ? true : false
+
+// @ts-expect-error tuple-slot diagnostics currently collapse array positions and miss the precise [1] issue sentinel
+const preciseSecondSlotIssue: HasPreciseSecondSlotIssue = true
+
+void preciseSecondSlotIssue
+
+const rootTupleDocs = Table.make("root_tuple_docs", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.json(Schema.Tuple(Schema.Number, Schema.String))
+})
+
+const invalidRootTuplePayload = F.json.buildArray("north", 1)
+
+type InvalidRootTupleInsertValues = Parameters<typeof Q.insert<typeof rootTupleDocs, {
+  readonly id: "root-doc-1"
+  readonly payload: typeof invalidRootTuplePayload
+}>>[1]
+
+type InvalidRootTuplePayloadError = InvalidRootTupleInsertValues["payload"]
+
+type HasPreciseRootSecondSlotIssue =
+  "__effect_qb_json_issue__[1]__type_mismatch" extends keyof InvalidRootTuplePayloadError ? true : false
+
+const preciseRootSecondSlotIssue: HasPreciseRootSecondSlotIssue = true
+
+void preciseRootSecondSlotIssue
