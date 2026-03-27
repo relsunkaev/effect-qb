@@ -12,7 +12,6 @@ import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/
 import { toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
 import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
 import { planPostgresPull } from "../../../packages/database/src/postgres/pull.js"
-import { unsafeAny } from "../../helpers/unsafe.ts"
 
 const repoRoot = process.cwd()
 
@@ -30,13 +29,13 @@ describe("postgres schema management", () => {
 
     const source: SchemaModel = {
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(status))],
-      tables: [toTableModel(unsafeAny(users))]
+      enums: [toEnumModel(status as unknown as Parameters<typeof toEnumModel>[0])],
+      tables: [toTableModel(users as unknown as Parameters<typeof toTableModel>[0])]
     }
 
     const database: SchemaModel = {
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(Pg.schema("public").enum("status", ["pending", "active"] as const)))],
+      enums: [toEnumModel(Pg.schema("public").enum("status", ["pending", "active"] as const) as unknown as Parameters<typeof toEnumModel>[0])],
       tables: [{
         kind: "table",
         schemaName: "public",
@@ -82,19 +81,19 @@ describe("postgres schema management", () => {
   test("classifies enum shrink and reorder as manual destructive changes", () => {
     const database: SchemaModel = {
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(Pg.schema("public").enum("status", ["pending", "active"] as const)))],
+      enums: [toEnumModel(Pg.schema("public").enum("status", ["pending", "active"] as const) as unknown as Parameters<typeof toEnumModel>[0])],
       tables: []
     }
 
     const shrink = planPostgresSchemaDiff({
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(Pg.schema("public").enum("status", ["pending"] as const)))],
+      enums: [toEnumModel(Pg.schema("public").enum("status", ["pending"] as const) as unknown as Parameters<typeof toEnumModel>[0])],
       tables: []
     }, database)
 
     const reorder = planPostgresSchemaDiff({
       dialect: "postgres",
-      enums: [toEnumModel(unsafeAny(Pg.schema("public").enum("status", ["active", "pending"] as const)))],
+      enums: [toEnumModel(Pg.schema("public").enum("status", ["active", "pending"] as const) as unknown as Parameters<typeof toEnumModel>[0])],
       tables: []
     }, database)
 
@@ -510,24 +509,24 @@ const users = Table.make("users", {
         quantity: C.int()
       }).pipe(
         Table.check("quantity_matches_stripe", (t) => {
-          const stripeQuantity = unsafeAny(t.stripe).pipe(
+          const stripeQuantity = t.stripe.pipe(
             Pg.Function.json.get(Pg.Function.json.key("line_item")),
             Pg.Function.json.text(Pg.Function.json.key("quantity")),
             Pg.Cast.to(Pg.Type.text()),
             Pg.Cast.to(Pg.Type.int4())
           )
 
-          return unsafeAny(Pg.Query.or(
+          return Pg.Query.or(
             Pg.Query.isNull(t.stripe),
-            Pg.Query.eq(unsafeAny(stripeQuantity), t.quantity)
-          ))
+            Pg.Query.eq(stripeQuantity, t.quantity)
+          )
         })
       )
 
       const plan = await planPostgresPull(tempDir, { include: ["src/**/*.ts"] }, discovered, {
         dialect: "postgres",
         enums: [],
-        tables: [toTableModel(unsafeAny(proposalProducts))]
+        tables: [toTableModel(proposalProducts as unknown as Parameters<typeof toTableModel>[0])]
       })
 
       expect(plan.updates).toHaveLength(1)
@@ -543,26 +542,51 @@ const users = Table.make("users", {
   })
 
   test("extends boolean groups with raw predicates through pipe", () => {
-    const predicate = Pg.Query.and(
-      Pg.Query.isNull(Pg.Query.column("stripe", Pg.Type.jsonb(), true)),
-      Pg.Query.eq(
-        Pg.Query.column("quantity", Pg.Type.int4()),
-        Pg.Query.literal(0)
-      )
+    const stripe = Pg.Query.column("stripe", Pg.Type.jsonb(), true) as Pg.Scalar.Any
+    const quantity = Pg.Query.column("quantity", Pg.Type.int4()) as Pg.Scalar.Any
+    const viewedAt = Pg.Query.column("viewed_at", Pg.Type.timestamp(), true) as Pg.Scalar.Any
+    const zero = Pg.Query.literal(0) as Pg.Scalar.Any
+    const threshold = Pg.Query.literal(new Date("2024-01-01T00:00:00.000Z")) as Pg.Scalar.Any
+    const and = Pg.Query.and as (
+      ...values: readonly [Pg.Query.ExpressionInput, ...Pg.Query.ExpressionInput[]]
+    ) => Pg.Scalar.Any & {
+      pipe: (...values: readonly [Pg.Query.ExpressionInput, ...Pg.Query.ExpressionInput[]]) => Pg.Scalar.Any
+    }
+    const or = Pg.Query.or as (
+      ...values: readonly [Pg.Query.ExpressionInput, ...Pg.Query.ExpressionInput[]]
+    ) => Pg.Scalar.Any
+    const eq = Pg.Query.eq as (
+      left: Pg.Query.ExpressionInput,
+      right: Pg.Query.ExpressionInput
+    ) => Pg.Scalar.Any
+    const gte = Pg.Query.gte as (
+      left: Pg.Query.ExpressionInput,
+      right: Pg.Query.ExpressionInput
+    ) => Pg.Scalar.Any
+
+    const predicate = and(
+      Pg.Query.isNull(stripe),
+      eq(quantity, zero)
     ).pipe(
-      Pg.Query.gte(Pg.Query.column("quantity", Pg.Type.int4()), 0),
-      Pg.Query.or(
-        Pg.Query.isNull(Pg.Query.column("viewed_at", Pg.Type.timestamp(), true)),
-        Pg.Query.gte(Pg.Query.column("viewed_at", Pg.Type.timestamp(), true), Pg.Query.literal(new Date("2024-01-01T00:00:00.000Z")))
+      gte(quantity, 0),
+      or(
+        Pg.Query.isNull(viewedAt),
+        gte(viewedAt, threshold)
       )
     )
 
-    const ast = unsafeAny(predicate)[ExpressionAst.TypeId] as ExpressionAst.VariadicNode<"and">
+    const ast = (predicate as unknown as {
+      readonly [ExpressionAst.TypeId]: ExpressionAst.VariadicNode<"and">
+    })[ExpressionAst.TypeId]
 
     expect(ast.kind).toBe("and")
     expect(ast.values).toHaveLength(4)
-    expect(unsafeAny(ast.values[2])[ExpressionAst.TypeId]).toMatchObject({ kind: "gte" })
-    expect(unsafeAny(ast.values[3])[ExpressionAst.TypeId]).toMatchObject({ kind: "or" })
+    expect((ast.values[2] as unknown as {
+      readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+    })[ExpressionAst.TypeId]).toMatchObject({ kind: "gte" })
+    expect((ast.values[3] as unknown as {
+      readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+    })[ExpressionAst.TypeId]).toMatchObject({ kind: "or" })
   })
 
   test("orders pulled additions so foreign-key targets appear first", async () => {
@@ -600,8 +624,8 @@ const users = Table.make("users", {
         dialect: "postgres",
         enums: [],
         tables: [
-          toTableModel(unsafeAny(accountMappings)),
-          toTableModel(unsafeAny(connections))
+          toTableModel(accountMappings as unknown as Parameters<typeof toTableModel>[0]),
+          toTableModel(connections as unknown as Parameters<typeof toTableModel>[0])
         ]
       }
 

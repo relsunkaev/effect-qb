@@ -364,7 +364,11 @@ type ComparableGuard<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any,
   Operator extends string
-> = DialectDbTypeOfInput<
+> = 0 extends (1 & Left)
+  ? true
+  : 0 extends (1 & Right)
+    ? true
+    : DialectDbTypeOfInput<
   Left,
   Dialect,
   TextDb,
