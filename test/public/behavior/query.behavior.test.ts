@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, expect, test } from "bun:test"
 
-import { Plan, Query as Q, Function as F, Table } from "#postgres"
+import { RowSet, Query as Q, Function as F, Table } from "#postgres"
 import { Column as C } from "#postgres"
 import { makeRootEmployees, makeRootSocialGraph } from "../../fixtures/schema.ts"
 import { unsafeAny } from "../../helpers/unsafe.ts"
@@ -16,8 +16,8 @@ describe("query behavior", () => {
       Q.where(true)
     )
 
-    expect(plan[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
-    expect(plan[Plan.TypeId].available).toEqual({})
+    expect(plan[RowSet.TypeId].required as unknown as readonly string[]).toEqual([])
+    expect(plan[RowSet.TypeId].available).toEqual({})
   })
 
   test("required sources are de-duplicated and satisfied incrementally across joins", () => {
@@ -30,15 +30,15 @@ describe("query behavior", () => {
       predicate: Q.and(Q.eq(users.email, "alice@example.com"), Q.isNull(posts.title))
     })
 
-    expect(selected[Plan.TypeId].required as unknown as readonly string[]).toEqual(["users", "posts", "comments"])
+    expect(selected[RowSet.TypeId].required as unknown as readonly string[]).toEqual(["users", "posts", "comments"])
 
     const partiallySatisfied = selected.pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
     )
 
-    expect(partiallySatisfied[Plan.TypeId].required as unknown as readonly string[]).toEqual(["comments"])
-    expect(partiallySatisfied[Plan.TypeId].available).toMatchObject({
+    expect(partiallySatisfied[RowSet.TypeId].required as unknown as readonly string[]).toEqual(["comments"])
+    expect(partiallySatisfied[RowSet.TypeId].available).toMatchObject({
       users: { name: "users", mode: "required", baseName: "users" },
       posts: { name: "posts", mode: "optional", baseName: "posts" }
     })
@@ -54,15 +54,15 @@ describe("query behavior", () => {
       reportId: report.id
     })
 
-    expect(selected[Plan.TypeId].required as unknown as readonly string[]).toEqual(["manager", "report"])
+    expect(selected[RowSet.TypeId].required as unknown as readonly string[]).toEqual(["manager", "report"])
 
     const sourced = selected.pipe(
       Q.from(manager),
       Q.leftJoin(report, Q.eq(report.managerId, manager.id))
     )
 
-    expect(sourced[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
-    expect(sourced[Plan.TypeId].available).toMatchObject({
+    expect(sourced[RowSet.TypeId].required as unknown as readonly string[]).toEqual([])
+    expect(sourced[RowSet.TypeId].available).toMatchObject({
       manager: { name: "manager", mode: "required", baseName: "employees" },
       report: { name: "report", mode: "optional", baseName: "employees" }
     })
@@ -78,15 +78,15 @@ describe("query behavior", () => {
       Q.having(unsafeAny(Q.eq(unsafeAny(F.count(posts.id)), 2)))
     )
 
-    expect(plan[Plan.TypeId].required as unknown as readonly string[]).toEqual(["posts", "users"])
+    expect(plan[RowSet.TypeId].required as unknown as readonly string[]).toEqual(["posts", "users"])
 
     const sourced = plan.pipe(
       Q.from(users),
       Q.innerJoin(posts, Q.eq(users.id, posts.userId))
     )
 
-    expect(sourced[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
-    expect(sourced[Plan.TypeId].available).toMatchObject({
+    expect(sourced[RowSet.TypeId].required as unknown as readonly string[]).toEqual([])
+    expect(sourced[RowSet.TypeId].available).toMatchObject({
       users: { name: "users", mode: "required", baseName: "users" },
       posts: { name: "posts", mode: "required", baseName: "posts" }
     })

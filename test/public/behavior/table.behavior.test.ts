@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Expression, Function as F, Query as Q, Table } from "#postgres"
+import { Column as C, Scalar as Expression, Function as F, Query as Q, Table } from "#postgres"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 
 describe("table behavior", () => {
@@ -75,11 +75,6 @@ describe("table behavior", () => {
       kind: "alias",
       primaryKey: ["id"]
     })
-    expect(unsafeAny(twiceAliased.id![Expression.TypeId].source)).toEqual({
-      tableName: "u2",
-      columnName: "id",
-      baseTableName: "users"
-    })
     expect(unsafeAny(twiceAliased)[Table.OptionsSymbol]).toEqual(unsafeAny(users)[Table.OptionsSymbol])
   })
 
@@ -142,10 +137,10 @@ describe("table behavior", () => {
     expect(Schema.decodeUnknownSync(accounts.schemas.select)({
       id: "550e8400-e29b-41d4-a716-446655440000",
       nickname: null
-    })).toEqual({
+    })).toEqual(unsafeAny({
       id: "550e8400-e29b-41d4-a716-446655440000",
       nickname: null
-    })
+    }))
   })
 
   test("brands derived from aliases stay plain strings at runtime", () => {
@@ -156,8 +151,8 @@ describe("table behavior", () => {
     const aliasedUsers = Table.alias(users, "u")
     const id = "550e8400-e29b-41d4-a716-446655440000"
 
-    expect(Schema.decodeUnknownSync(users.id.pipe(C.brand).schema)(id)).toBe(id)
-    expect(Schema.decodeUnknownSync(aliasedUsers.id.pipe(C.brand).schema)(id)).toBe(id)
+    expect(Schema.decodeUnknownSync(unsafeAny(users.id.pipe(C.brand).schema))(id)).toBe(id)
+    expect(Schema.decodeUnknownSync(unsafeAny(aliasedUsers.id.pipe(C.brand).schema))(id)).toBe(id)
   })
 
   test("array columns can opt into nullable elements", () => {

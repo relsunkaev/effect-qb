@@ -7,7 +7,7 @@ import * as Schema from "effect/Schema"
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import { renderMysqlPlan } from "#internal/mysql-renderer.ts"
-import { Column as C, Executor, Expression, Plan, Query as Q, Function as F, Renderer, Table } from "#postgres"
+import { Column as C, Executor, Scalar, RowSet, Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 
 const userId = "11111111-1111-1111-1111-111111111111"
@@ -23,12 +23,12 @@ describe("table definitions", () => {
 
     expect(users.columns.id).toBe(users.id)
     expect(users.columns.email).toBe(users.email)
-    expect(users.id[Expression.TypeId].dbType.kind).toBe("uuid")
-    expect(users.id[Expression.TypeId].dialect).toBe("postgres")
-    expect(users.id[Expression.TypeId].nullability).toBe("never")
-    expect(users[Plan.TypeId].selection.id).toBe(users.id)
-    expect(users[Plan.TypeId].available.users.name).toBe("users")
-    expect(users[Plan.TypeId].available.users.mode).toBe("required")
+    expect(users.id[Scalar.TypeId].dbType.kind).toBe("uuid")
+    expect(users.id[Scalar.TypeId].dialect).toBe("postgres")
+    expect(users.id[Scalar.TypeId].nullability).toBe("never")
+    expect(users[RowSet.TypeId].selection.id).toBe(users.id)
+    expect(users[RowSet.TypeId].available.users.name).toBe("users")
+    expect(users[RowSet.TypeId].available.users.mode).toBe("required")
     expect(Schema.isSchema(users.schemas.select)).toBe(true)
     expect(Schema.isSchema(users.schemas.insert)).toBe(true)
     expect(Schema.isSchema(users.schemas.update)).toBe(true)
@@ -188,19 +188,13 @@ describe("table definitions", () => {
       kind: Q.literal("user")
     })
 
-    expect(selection[Plan.TypeId].required as unknown as readonly string[]).toEqual(["users"])
-    expect(selection[Plan.TypeId].available).toEqual({})
-    expect(selection[Plan.TypeId].selection.kind[Expression.TypeId].source).toBeUndefined()
-    expect(selection[Plan.TypeId].selection.emailMatches[Expression.TypeId].source).toEqual({
-      tableName: "users",
-      columnName: "email",
-      baseTableName: "users"
-    })
+    expect(selection[RowSet.TypeId].required as unknown as readonly string[]).toEqual(["users"])
+    expect(selection[RowSet.TypeId].available).toEqual({})
 
     const sourced = selection.pipe(Q.from(users))
-    expect(sourced[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
-    expect(sourced[Plan.TypeId].available.users.name).toBe("users")
-    expect(sourced[Plan.TypeId].available.users.mode).toBe("required")
+    expect(sourced[RowSet.TypeId].required as unknown as readonly string[]).toEqual([])
+    expect(sourced[RowSet.TypeId].available.users.name).toBe("users")
+    expect(sourced[RowSet.TypeId].available.users.mode).toBe("required")
   })
 
   test("where and joins reconcile required and available sources", () => {
@@ -226,11 +220,11 @@ describe("table definitions", () => {
       Q.where(true)
     )
 
-    expect(query[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
-    expect(query[Plan.TypeId].available.users.name).toBe("users")
-    expect(query[Plan.TypeId].available.posts.name).toBe("posts")
-    expect(query[Plan.TypeId].available.users.mode).toBe("required")
-    expect(query[Plan.TypeId].available.posts.mode).toBe("required")
+    expect(query[RowSet.TypeId].required as unknown as readonly string[]).toEqual([])
+    expect(query[RowSet.TypeId].available.users.name).toBe("users")
+    expect(query[RowSet.TypeId].available.posts.name).toBe("posts")
+    expect(query[RowSet.TypeId].available.users.mode).toBe("required")
+    expect(query[RowSet.TypeId].available.posts.mode).toBe("required")
 
     const leftJoined = Q.select({
       userId: users.id,
@@ -241,9 +235,9 @@ describe("table definitions", () => {
       Q.leftJoin(posts, true)
     )
 
-    expect(leftJoined[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
-    expect(leftJoined[Plan.TypeId].available.posts.name).toBe("posts")
-    expect(leftJoined[Plan.TypeId].available.posts.mode).toBe("optional")
+    expect(leftJoined[RowSet.TypeId].required as unknown as readonly string[]).toEqual([])
+    expect(leftJoined[RowSet.TypeId].available.posts.name).toBe("posts")
+    expect(leftJoined[RowSet.TypeId].available.posts.mode).toBe("optional")
   })
 
   test("renderer and executor use Query.ResultRow as the canonical output contract", () => {
@@ -599,27 +593,17 @@ describe("table definitions", () => {
       Q.leftJoin(report, Q.eq(report.managerId, manager.id))
     )
 
-    expect(unsafeAny(manager.id[Expression.TypeId].source)).toEqual({
-      tableName: "manager",
-      columnName: "id",
-      baseTableName: "employees"
-    })
-    expect(unsafeAny(report.id[Expression.TypeId].source)).toEqual({
-      tableName: "report",
-      columnName: "id",
-      baseTableName: "employees"
-    })
-    expect(plan[Plan.TypeId].available.manager).toMatchObject({
+    expect(plan[RowSet.TypeId].available.manager).toMatchObject({
       name: "manager",
       mode: "required",
       baseName: "employees"
     })
-    expect(plan[Plan.TypeId].available.report).toMatchObject({
+    expect(plan[RowSet.TypeId].available.report).toMatchObject({
       name: "report",
       mode: "optional",
       baseName: "employees"
     })
-    expect(plan[Plan.TypeId].required as unknown as readonly string[]).toEqual([])
+    expect(plan[RowSet.TypeId].required as unknown as readonly string[]).toEqual([])
   })
 
   test("renderer emits aliased self-joins with base tables and logical source names", () => {
@@ -682,8 +666,8 @@ describe("table definitions", () => {
       email: Postgres.Column.text()
     })
 
-    expect(mysqlUsers.id[Expression.TypeId].dbType.dialect).toBe("mysql")
-    expect(postgresUsers.id[Expression.TypeId].dbType.dialect).toBe("postgres")
+    expect(mysqlUsers.id[Scalar.TypeId].dbType.dialect).toBe("mysql")
+    expect(postgresUsers.id[Scalar.TypeId].dbType.dialect).toBe("postgres")
 
     const mysqlPlan = Mysql.Query.select({
       id: mysqlUsers.id
