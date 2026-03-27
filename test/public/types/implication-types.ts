@@ -144,9 +144,16 @@ const promotedByNotIn = Q.select({
 type PromotedByNotInRow = Q.ResultRow<typeof promotedByNotIn>
 const promotedNotInTitle: PromotedByNotInRow["title"] = "draft"
 const promotedNotInUpperTitle: PromotedByNotInRow["upperTitle"] = "DRAFT"
+// @ts-expect-error NOT IN over literal values should refine the filtered column to non-null
 const promotedNotInNullTitle: PromotedByNotInRow["title"] = null
+// @ts-expect-error derived expressions should inherit the non-null proof from NOT IN
 const promotedNotInNullUpperTitle: PromotedByNotInRow["upperTitle"] = null
+declare const promotedByNotInRow: PromotedByNotInRow
+const promotedNotInShouldBeNonNull: string = promotedByNotInRow.title
+const promotedNotInUpperShouldBeNonNull: string = promotedByNotInRow.upperTitle
 void promotedNotInTitle
 void promotedNotInUpperTitle
 void promotedNotInNullTitle
 void promotedNotInNullUpperTitle
+void promotedNotInShouldBeNonNull
+void promotedNotInUpperShouldBeNonNull

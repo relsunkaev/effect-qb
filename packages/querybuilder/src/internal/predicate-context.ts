@@ -246,9 +246,12 @@ type ApplyNegativeAtom<
 type FramesFromItems<
   Items extends readonly PredicateFormula[],
   Direction extends Polarity
-> = {
-  readonly [K in keyof Items]: Items[K] extends PredicateFormula ? Frame<Items[K], Direction> : never
-} & readonly Frame[]
+> = Items extends readonly [
+  infer Head extends PredicateFormula,
+  ...infer Tail extends readonly PredicateFormula[]
+]
+  ? readonly [Frame<Head, Direction>, ...FramesFromItems<Tail, Direction>]
+  : readonly []
 
 type IntersectEqLiteralMaps<
   Left,

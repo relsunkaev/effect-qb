@@ -622,7 +622,10 @@ export const formulaOfExpression = (value: Expression.Any): PredicateFormula => 
       const [left, ...rest] = ast.values
       return left === undefined
         ? trueFormula()
-        : allFormula(rest.map((value: Expression.Any) => formulaOfNeq(left, value)))
+        : combineFacts(
+            nonNullFactsOfExpression(left),
+            allFormula(rest.map((value: Expression.Any) => formulaOfNeq(left, value)))
+          )
     }
     case "between":
       return combineFacts(

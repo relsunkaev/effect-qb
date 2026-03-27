@@ -433,7 +433,9 @@ export const bindColumn = <
     nullability: (column.metadata.nullable ? "maybe" : "never") as IsNullable<Column> extends true ? "maybe" : "never",
     dialect: column.metadata.dbType.dialect,
     kind: "scalar",
-    dependencies: {}
+    dependencies: {
+      [tableName]: true
+    }
   }
   bound[ExpressionAst.TypeId] = {
     kind: "column",

@@ -202,10 +202,10 @@ type FormulaOfVariadic<
       ? Values extends readonly [infer Left extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
         ? OrFormulas<FormulaOfInValues<Left, Tail>>
         : False
-      : Kind extends "notIn"
-        ? Values extends readonly [infer Left extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
-          ? AndFormulas<FormulaOfNotInValues<Left, Tail>>
-          : True
+  : Kind extends "notIn"
+    ? Values extends readonly [infer Left extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
+      ? CombineFacts<NonNullFactsOfExpression<Left>, AndFormulas<FormulaOfNotInValues<Left, Tail>>>
+      : True
         : Kind extends "between"
           ? FactsOfExpressions<Values> extends infer Facts extends PredicateFormula
             ? [Facts] extends [never]
