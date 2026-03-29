@@ -1,9 +1,9 @@
-import * as Table from "./table.js"
-import type { AnyColumnDefinition } from "./column-state.js"
-import { normalizeDdlExpressionSql } from "./schema-ddl.js"
-import type { TableOptionSpec } from "./table-options.js"
-import type { EnumDefinition } from "../postgres/schema-management.js"
-import { EnumTypeId } from "../postgres/schema-management.js"
+import * as Table from "../../internal/table.js"
+import type { AnyColumnDefinition } from "../../internal/column-state.js"
+import { normalizeDdlExpressionSql } from "../../internal/schema-ddl.js"
+import type { TableOptionSpec } from "../../internal/table-options.js"
+import type { EnumDefinition } from "../schema-management.js"
+import { EnumTypeId } from "../schema-management.js"
 
 export interface EnumModel {
   readonly kind: "enum"

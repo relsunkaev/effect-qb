@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect"
 
 import * as CoreRenderer from "#internal/renderer.ts"
 import * as ExpressionAst from "#internal/expression-ast.ts"
-import { postgresDialect } from "#internal/postgres-dialect.ts"
+import { postgresDialect } from "../../../packages/querybuilder/src/postgres/internal/dialect.ts"
 import { renderExpression } from "#internal/sql-expression-renderer.ts"
 import * as Postgres from "#postgres"
 import { makePostgresSocialGraph } from "../../fixtures/schema.ts"

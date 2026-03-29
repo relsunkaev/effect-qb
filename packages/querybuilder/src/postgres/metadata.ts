@@ -10,7 +10,7 @@ export {
   type EnumModel,
   type SchemaModel,
   type TableModel
-} from "../internal/postgres-schema-model.js"
+} from "./internal/schema-model.js"
 
 export {
   EnumTypeId,

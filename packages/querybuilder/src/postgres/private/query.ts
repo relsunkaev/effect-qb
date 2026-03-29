@@ -1,1 +1,1 @@
-export { postgresQuery } from "../../internal/postgres-query.js"
+export { postgresQuery } from "../internal/query.js"

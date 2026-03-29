@@ -1,8 +1,8 @@
-import * as Query from "./query.js"
-import { type RenderState } from "./dialect.js"
-import { postgresDialect } from "./postgres-dialect.js"
-import { type Projection } from "./projections.js"
-import { renderQueryAst } from "./sql-expression-renderer.js"
+import * as Query from "../../internal/query.js"
+import { type RenderState } from "../../internal/dialect.js"
+import { postgresDialect } from "./dialect.js"
+import { type Projection } from "../../internal/projections.js"
+import { renderQueryAst } from "../../internal/sql-expression-renderer.js"
 
 /**
  * Minimal rendered-query payload produced by the built-in Postgres renderer.
