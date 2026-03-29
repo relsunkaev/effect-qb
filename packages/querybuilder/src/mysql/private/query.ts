@@ -1,1 +1,1 @@
-export { mysqlQuery } from "../../internal/mysql-query.js"
+export { mysqlQuery } from "../internal/query.js"

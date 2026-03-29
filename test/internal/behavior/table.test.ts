@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
-import { renderMysqlPlan } from "#internal/mysql-renderer.ts"
+import { renderMysqlPlan } from "../../../packages/querybuilder/src/mysql/internal/renderer.ts"
 import { Column as C, Executor, Scalar, RowSet, Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 

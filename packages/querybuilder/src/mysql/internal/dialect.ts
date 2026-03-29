@@ -1,4 +1,4 @@
-import type { RenderState, SqlDialect } from "./dialect.js"
+import type { RenderState, SqlDialect } from "../../internal/dialect.js"
 
 const quoteIdentifier = (value: string): string => `\`${value.replaceAll("`", "``")}\``
 

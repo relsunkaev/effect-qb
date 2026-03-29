@@ -4,7 +4,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as CoreExecutor from "../internal/executor.js"
 import * as CoreQuery from "../internal/query.js"
 import * as CoreRenderer from "../internal/renderer.js"
-import { renderMysqlPlan } from "../internal/mysql-renderer.js"
+import { renderMysqlPlan } from "./internal/renderer.js"
 import {
   narrowMysqlDriverErrorForReadQuery,
   normalizeMysqlDriverError,

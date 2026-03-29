@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect"
 
 import * as CoreRenderer from "#internal/renderer.ts"
 import * as ExpressionAst from "#internal/expression-ast.ts"
-import { mysqlDialect } from "#internal/mysql-dialect.ts"
+import { mysqlDialect } from "../../../packages/querybuilder/src/mysql/internal/dialect.ts"
 import { renderExpression } from "#internal/sql-expression-renderer.ts"
 import * as Mysql from "#mysql"
 import { makeMysqlSocialGraph } from "../../fixtures/schema.ts"

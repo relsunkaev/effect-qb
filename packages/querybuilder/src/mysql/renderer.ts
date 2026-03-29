@@ -1,5 +1,5 @@
 import * as CoreRenderer from "../internal/renderer.js"
-import { renderMysqlPlan } from "../internal/mysql-renderer.js"
+import { renderMysqlPlan } from "./internal/renderer.js"
 
 /** MySQL-specialized rendered query shape. */
 export type RenderedQuery<Row> = CoreRenderer.RenderedQuery<Row, "mysql">
