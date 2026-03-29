@@ -1,9 +1,9 @@
 import type * as Brand from "effect/Brand"
 import * as Schema from "effect/Schema"
 
-import type { JsonPrimitive, JsonValue } from "./json/types.js"
+import type { JsonPrimitive, JsonValue } from "../json/types.js"
 
-export type { JsonPrimitive, JsonValue } from "./json/types.js"
+export type { JsonPrimitive, JsonValue } from "../json/types.js"
 
 export type LocalDateString = string & Brand.Brand<"LocalDateString">
 export type LocalTimeString = string & Brand.Brand<"LocalTimeString">

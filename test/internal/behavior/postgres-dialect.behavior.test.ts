@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import * as CoreRenderer from "#internal/renderer.ts"
 import * as ExpressionAst from "#internal/expression-ast.ts"
 import { postgresDialect } from "../../../packages/querybuilder/src/postgres/internal/dialect.ts"
-import { renderExpression } from "#internal/sql-expression-renderer.ts"
+import { renderExpression } from "../../../packages/querybuilder/src/postgres/internal/sql-expression-renderer.ts"
 import * as Postgres from "#postgres"
 import { makePostgresSocialGraph } from "../../fixtures/schema.ts"
 import { buildGroupedConcatPlan } from "../../helpers/dialect-matrix.ts"
@@ -1136,8 +1136,11 @@ describe("postgres dialect behavior", () => {
     }])
   })
 
-  test("uses the built-in postgres renderer and rejects unknown expression nodes", () => {
-    expect(() => CoreRenderer.make("postgres")).not.toThrow()
+  test("uses the postgres entrypoint renderer and rejects unknown expression nodes", () => {
+    expect(() => Postgres.Renderer.make()).not.toThrow()
+    expect(() => (CoreRenderer.make as (dialect: string) => unknown)("postgres")).toThrow(
+      "Renderer.make requires an explicit render implementation for dialect: postgres"
+    )
 
     const unsupportedExpression = {
       [ExpressionAst.TypeId]: {

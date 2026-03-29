@@ -1,4 +1,4 @@
-import type { PredicateAtom } from "./predicate-atom.js"
+import type { PredicateAtom } from "./atom.js"
 
 export interface TrueFormula {
   readonly kind: "true"

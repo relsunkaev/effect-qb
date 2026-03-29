@@ -132,7 +132,7 @@ Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, 
 ## Quick Start
 
 ```ts
-import { Column as C, Function as F, Query as Q, Renderer, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Renderer, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -197,7 +197,7 @@ Every table exposes derived Effect Schemas:
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
@@ -291,7 +291,7 @@ Example:
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Executor, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Executor, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
@@ -368,7 +368,7 @@ That distinction is important:
 `Q.RuntimeResultRow<typeof plan>` is the runtime remap shape. It is separate from the logical row type, but runtime execution still uses the same implication facts to validate impossible rows and collapse always-null projections where the proof is strong enough.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const posts = Table.make("posts", {
   id: C.uuid().pipe(C.primaryKey),
@@ -474,7 +474,7 @@ JSON columns can carry a schema. That schema feeds:
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -488,13 +488,13 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = F.json.path(
-  F.json.key("profile"),
-  F.json.key("address"),
-  F.json.key("city")
+const cityPath = J.json.path(
+  J.json.key("profile"),
+  J.json.key("address"),
+  J.json.key("city")
 )
 
-const city = F.json.get(docs.payload, cityPath)
+const city = J.json.get(docs.payload, cityPath)
 
 type City = Q.ExpressionOutput<typeof city, {
   readonly docs: {
@@ -528,7 +528,7 @@ This matters for:
 Selections define the result type directly. Nested objects stay nested in the row type.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -576,7 +576,7 @@ Projection typing is local. You usually do not need to define row interfaces you
 `effect-qb/postgres` exposes `Postgres.Function` for typed SQL expressions. The helpers are expressions, so they compose like other query values and keep their result types.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -599,14 +599,14 @@ const userSummary = Q.select({
 - aggregate helpers like `count`, `max`, and `min`
 - window helpers like `over`, `rowNumber`, `rank`, and `denseRank`
 - temporal helpers like `now`, `currentDate`, `currentTime`, `currentTimestamp`, `localTime`, and `localTimestamp`
-- JSON helpers via `Function.json`
+- JSON helpers via `Json.json`
 
 ### Bringing Sources Into Scope
 
 `from(...)` and joins make referenced sources available to the plan. Derived tables, CTEs, and correlated sources stay typed.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -659,7 +659,7 @@ The same source story applies to:
 Predicates do more than render SQL. They can narrow result types and joined tables.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -706,7 +706,7 @@ The expression surface is large, but the important point is that result-shaping 
 
 ```ts
 import * as Pg from "effect-qb/postgres"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const posts = Table.make("posts", {
   id: C.uuid().pipe(C.primaryKey),
@@ -730,7 +730,7 @@ const shapedPosts = Q.select({
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -743,14 +743,14 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = F.json.path(
-  F.json.key("profile"),
-  F.json.key("address"),
-  F.json.key("city")
+const cityPath = J.json.path(
+  J.json.key("profile"),
+  J.json.key("address"),
+  J.json.key("city")
 )
 
 const docCity = Q.select({
-  city: F.json.text(docs.payload, cityPath)
+  city: J.json.text(docs.payload, cityPath)
 }).pipe(
   Q.from(docs)
 )
@@ -758,12 +758,12 @@ const docCity = Q.select({
 
 The same JSON path object can be reused across:
 
-- `Function.json.get(...)`
-- `Function.json.text(...)`
-- `Function.json.set(...)`
-- `Function.json.insert(...)`
-- `Function.json.delete(...)`
-- `Function.json.pathExists(...)`
+- `Json.json.get(...)`
+- `Json.json.text(...)`
+- `Json.json.set(...)`
+- `Json.json.insert(...)`
+- `Json.json.delete(...)`
+- `Json.json.pathExists(...)`
 
 Comparison and cast safety are dialect-aware. Incompatible operands are rejected unless you make the conversion explicit with `Pg.Cast.to(...)`.
 
@@ -772,7 +772,7 @@ Comparison and cast safety are dialect-aware. Incompatible operands are rejected
 Grouped queries are checked structurally, not just by source provenance.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -827,7 +827,7 @@ This catches invalid grouped queries before rendering, then the fixed plan keeps
 Subqueries and set operators stay part of the same typed plan model.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1082,7 +1082,7 @@ Schema-backed columns and preserved projections can enforce runtime transforms d
 ### Renderer
 
 ```ts
-import { Column as C, Function as F, Query as Q, Renderer as PostgresRenderer, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Renderer as PostgresRenderer, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1125,7 +1125,7 @@ They do not carry a query-result schema.
 ### Executor
 
 ```ts
-import { Column as C, Function as F, Query as Q, Executor as PostgresExecutor, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Executor as PostgresExecutor, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1179,7 +1179,7 @@ Those types are narrower than the raw dialect error catalogs. For example, known
 ### Transaction Helpers
 
 ```ts
-import { Column as C, Function as F, Query as Q, Executor as PostgresExecutor, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Executor as PostgresExecutor, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1404,7 +1404,7 @@ The same branded error shape applies when `where(...)`, joins, or projections re
 Predicates refine result types, not just SQL.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1439,7 +1439,7 @@ Equality against a non-null literal narrows too. You do not need `isNotNull(...)
 When the predicate references a joined source, that proof can promote the whole source, not just the filtered column.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1491,7 +1491,7 @@ Comparison and set predicates can narrow both selected expressions and optional 
 Left joins start conservative. Predicates can promote them, and `isNull(...)` can prove the opposite.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1524,7 +1524,7 @@ type MaybePostsRow = Q.ResultRow<typeof maybePosts>
 Any non-null proof on the joined table can promote the whole joined source, not just the join key.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1573,7 +1573,7 @@ type AbsentAcrossDependentLeftJoinsRow = Q.ResultRow<typeof absentAcrossDependen
 Grouped queries are checked structurally:
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1639,7 +1639,7 @@ Schema-backed JSON columns are checked on insert and update.
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -1655,13 +1655,13 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = F.json.path(
-  F.json.key("profile"),
-  F.json.key("address"),
-  F.json.key("city")
+const cityPath = J.json.path(
+  J.json.key("profile"),
+  J.json.key("address"),
+  J.json.key("city")
 )
 
-const compatibleObject = F.json.buildObject({
+const compatibleObject = J.json.buildObject({
   profile: {
     address: {
       city: "Macon",
@@ -1672,7 +1672,7 @@ const compatibleObject = F.json.buildObject({
   note: null
 })
 
-const deletedRequiredField = F.json.delete(compatibleObject, cityPath)
+const deletedRequiredField = J.json.delete(compatibleObject, cityPath)
 
 Q.insert(docs, {
   id: "doc-1",

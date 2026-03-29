@@ -4,6 +4,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
+import * as CoreRenderer from "#internal/renderer.ts"
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import { renderMysqlPlan } from "../../../packages/querybuilder/src/mysql/internal/renderer.ts"
@@ -502,7 +503,7 @@ describe("table definitions", () => {
       id: Q.literal("user-1")
     })
 
-    const renderer = Renderer.make("postgres", () => ({
+    const renderer = CoreRenderer.make("postgres", () => ({
       sql: "select $1 as duplicate_alias, $2 as duplicate_alias",
       params: ["user-1", "user-2"],
       projections: [
@@ -519,7 +520,7 @@ describe("table definitions", () => {
       id: Q.literal("user-1")
     })
 
-    const renderer = Renderer.make("postgres", () => ({
+    const renderer = CoreRenderer.make("postgres", () => ({
       sql: "select $1 as profile, $2 as profile_id",
       params: ["user", "user-1"],
       projections: [

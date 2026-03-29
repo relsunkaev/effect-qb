@@ -450,10 +450,10 @@ void incompletePlanMissingSource
 void incompletePlanHint
 
 // @ts-expect-error incomplete plans are not renderable
-const incompleteRendered = Renderer.make("postgres").render(incomplete)
+const incompleteRendered = Renderer.make().render(incomplete)
 void incompleteRendered
 
-const rendered = Renderer.make("postgres").render(windowPlan)
+const rendered = Renderer.make().render(windowPlan)
 type RenderedRow = Renderer.RowOf<typeof rendered>
 const renderedRow: RenderedRow = {
   userId: "user-1",

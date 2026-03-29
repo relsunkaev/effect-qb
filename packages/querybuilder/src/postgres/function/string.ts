@@ -1,6 +1,6 @@
-import { postgresQuery } from "../private/query.js"
+import { postgresDsl } from "../internal/dsl.js"
 
 /** Postgres string functions. */
-export const lower = postgresQuery.lower
-export const upper = postgresQuery.upper
-export const concat = postgresQuery.concat
+export const lower = postgresDsl.lower
+export const upper = postgresDsl.upper
+export const concat = postgresDsl.concat

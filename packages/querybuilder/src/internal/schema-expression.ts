@@ -13,7 +13,6 @@ const SchemaExpressionProto = {
 
 export interface SchemaExpression extends Pipeable {
   readonly [TypeId]: {
-    readonly dialect: "postgres"
     readonly ast: Expr
   }
 }
@@ -26,7 +25,6 @@ export const isSchemaExpression = (value: unknown): value is SchemaExpression =>
 export const fromAst = (ast: Expr): SchemaExpression => {
   const expression = Object.create(SchemaExpressionProto)
   expression[TypeId] = {
-    dialect: "postgres",
     ast
   }
   return expression

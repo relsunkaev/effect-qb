@@ -1,22 +1,5 @@
-import type * as Expression from "./scalar.js"
-import { mysqlDatatypeKinds } from "../mysql/datatypes/spec.js"
-import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
-import type { RuntimeTag } from "./datatypes/shape.js"
-
-const stripParameterizedKind = (kind: string): string => {
-  const openParen = kind.indexOf("(")
-  return openParen === -1 ? kind : kind.slice(0, openParen)
-}
-
-const stripArrayKind = (kind: string): string => {
-  let current = kind
-  while (current.endsWith("[]")) {
-    current = current.slice(0, -2)
-  }
-  return current
-}
-
-const baseKind = (kind: string): string => stripArrayKind(stripParameterizedKind(kind))
+import type * as Expression from "../scalar.js"
+import type { RuntimeTag } from "../datatypes/shape.js"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -39,17 +22,9 @@ const formatLocalDateTime = (value: Date): string => {
 }
 
 const runtimeTagOfBaseDbType = (
-  dialect: string,
-  kind: string
+  dbType: Expression.DbType.Base<string, string>
 ): RuntimeTag | undefined => {
-  const normalizedKind = baseKind(kind)
-  if (dialect === "postgres") {
-    return postgresDatatypeKinds[normalizedKind as keyof typeof postgresDatatypeKinds]?.runtime
-  }
-  if (dialect === "mysql") {
-    return mysqlDatatypeKinds[normalizedKind as keyof typeof mysqlDatatypeKinds]?.runtime
-  }
-  return undefined
+  return dbType.runtime
 }
 
 const expectString = (value: unknown, label: string): string => {
@@ -298,7 +273,7 @@ export const normalizeDbValue = (
   if ("variant" in dbType && (dbType.variant === "enum" || dbType.variant === "set")) {
     return expectString(value, "text")
   }
-  switch (runtimeTagOfBaseDbType(dbType.dialect, dbType.kind)) {
+  switch (runtimeTagOfBaseDbType(dbType)) {
     case "string":
       return expectString(value, "text")
     case "number":

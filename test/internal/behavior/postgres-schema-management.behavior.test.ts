@@ -510,8 +510,8 @@ const users = Table.make("users", {
       }).pipe(
         Table.check("quantity_matches_stripe", (t) => {
           const stripeQuantity = t.stripe.pipe(
-            Pg.Function.json.get(Pg.Function.json.key("line_item")),
-            Pg.Function.json.text(Pg.Function.json.key("quantity")),
+            Pg.Json.json.get(Pg.Json.json.key("line_item")),
+            Pg.Json.json.text(Pg.Json.json.key("quantity")),
             Pg.Cast.to(Pg.Type.text()),
             Pg.Cast.to(Pg.Type.int4())
           )
@@ -532,8 +532,8 @@ const users = Table.make("users", {
       expect(plan.updates).toHaveLength(1)
       const after = plan.updates[0]?.after ?? ""
       expect(after).toContain(`stripe.pipe(`)
-      expect(after).toContain(`Pg.Function.json.get(Pg.Function.json.key("line_item"))`)
-      expect(after).toContain(`Pg.Function.json.text(Pg.Function.json.key("quantity"))`)
+      expect(after).toContain(`Pg.Json.json.get(Pg.Json.json.key("line_item"))`)
+      expect(after).toContain(`Pg.Json.json.text(Pg.Json.json.key("quantity"))`)
       expect(after).toContain(`Pg.Cast.to(Pg.Type.text())`)
       expect(after).toContain(`Pg.Cast.to(Pg.Type.int4())`)
     } finally {

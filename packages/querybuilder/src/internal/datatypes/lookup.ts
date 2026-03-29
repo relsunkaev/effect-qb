@@ -1,31 +1,5 @@
 import type * as Expression from "../scalar.js"
-import type { mysqlDatatypeFamilies, mysqlDatatypeKinds } from "../../mysql/datatypes/spec.js"
-import type { postgresDatatypeFamilies, postgresDatatypeKinds } from "../../postgres/datatypes/spec.js"
 import type { RuntimeOfTag, RuntimeTag } from "./shape.js"
-
-type KnownDialect = "postgres" | "mysql"
-
-type DialectKinds<Dialect extends KnownDialect> =
-  Dialect extends "postgres" ? typeof postgresDatatypeKinds :
-    typeof mysqlDatatypeKinds
-
-type DialectFamilies<Dialect extends KnownDialect> =
-  Dialect extends "postgres" ? typeof postgresDatatypeFamilies :
-    typeof mysqlDatatypeFamilies
-
-type StripParameterizedKind<Kind extends string> =
-  Kind extends `${infer Base}(${string}`
-    ? StripParameterizedKind<Base>
-    : Kind
-
-type StripArrayKind<Kind extends string> =
-  Kind extends `${infer Base}[]`
-    ? StripArrayKind<Base>
-    : Kind
-
-type BaseKind<Kind extends string> = StripArrayKind<StripParameterizedKind<Kind>>
-
-type IsArrayKind<Kind extends string> = Kind extends `${string}[]` ? true : false
 
 type ExactKindFamily =
   | "array"
@@ -35,101 +9,55 @@ type ExactKindFamily =
   | "enum"
   | "set"
 
-type KnownKindFamily<
-  Dialect extends KnownDialect,
-  Kind extends string
-> = IsArrayKind<Kind> extends true
-  ? "array"
-  : BaseKind<Kind> extends "null"
-    ? "null"
-    : BaseKind<Kind> extends keyof DialectKinds<Dialect>
-      ? DialectKinds<Dialect>[BaseKind<Kind>] extends { readonly family: infer Family extends string }
-        ? Family
-        : never
-      : `other:${Dialect}:${Kind}`
+type BaseFamilyOf<Db extends Expression.DbType.Base<any, any>> =
+  Db extends { readonly family?: infer Family extends string }
+    ? Family
+    : Db["kind"] extends "null"
+      ? "null"
+      : `other:${Db["dialect"]}:${Db["kind"]}`
 
-type KnownKindRuntimeTag<
-  Dialect extends KnownDialect,
-  Kind extends string
-> = IsArrayKind<Kind> extends true
-  ? "array"
-  : BaseKind<Kind> extends "null"
-    ? "null"
-    : BaseKind<Kind> extends keyof DialectKinds<Dialect>
-      ? DialectKinds<Dialect>[BaseKind<Kind>] extends { readonly runtime: infer Runtime extends RuntimeTag }
-        ? Runtime
-        : "unknown"
-      : "unknown"
+type BaseRuntimeTagOf<Db extends Expression.DbType.Base<any, any>> =
+  Db extends { readonly runtime?: infer Runtime extends RuntimeTag }
+    ? Runtime
+    : "unknown"
 
-type FamilyCastTargets<
-  Dialect extends KnownDialect,
-  Family extends string
-> = Family extends keyof DialectFamilies<Dialect>
-  ? DialectFamilies<Dialect>[Family] extends { readonly castTargets: readonly (infer CastTarget extends string)[] }
-    ? CastTarget
+type BaseCompareGroupOf<Db extends Expression.DbType.Base<any, any>> =
+  Db extends { readonly compareGroup?: infer CompareGroup extends string }
+    ? CompareGroup
+    : BaseFamilyOf<Db>
+
+type BaseCastTargetsOf<Db extends Expression.DbType.Base<any, any>> =
+  Db extends { readonly castTargets?: readonly (infer Target extends string)[] }
+    ? Target
     : never
-  : never
 
-type FamilyHasTextualTrait<
-  Dialect extends KnownDialect,
-  Family extends string
-> = Family extends keyof DialectFamilies<Dialect>
-  ? DialectFamilies<Dialect>[Family] extends { readonly traits: infer Traits }
+type BaseHasTextualTrait<Db extends Expression.DbType.Base<any, any>> =
+  Db extends { readonly traits?: infer Traits }
     ? Traits extends { readonly textual: true }
       ? true
       : false
     : false
-  : false
-
-type BaseFamilyOf<
-  Dialect extends KnownDialect,
-  Kind extends string
-> = Kind extends keyof DialectKinds<Dialect>
-  ? DialectKinds<Dialect>[Kind] extends { readonly family: infer Family extends string }
-    ? Family
-    : never
-  : `other:${Dialect}:${Kind}`
-
-type BaseRuntimeTagOf<
-  Dialect extends KnownDialect,
-  Kind extends string
-> = Kind extends keyof DialectKinds<Dialect>
-  ? DialectKinds<Dialect>[Kind] extends { readonly runtime: infer Runtime extends RuntimeTag }
-    ? Runtime
-    : "unknown"
-  : "unknown"
-
-type BaseCompareGroupOf<
-  Dialect extends KnownDialect,
-  Kind extends string
-> = BaseFamilyOf<Dialect, Kind> extends ExactKindFamily
-  ? Kind
-  : BaseFamilyOf<Dialect, Kind> extends keyof DialectFamilies<Dialect>
-    ? DialectFamilies<Dialect>[BaseFamilyOf<Dialect, Kind>] extends { readonly compareGroup: infer CompareGroup extends string }
-      ? CompareGroup
-      : never
-    : BaseFamilyOf<Dialect, Kind>
 
 export type FamilyOfDbType<Db extends Expression.DbType.Any> =
   Db extends Expression.DbType.Domain<any, infer Base extends Expression.DbType.Any, any>
     ? FamilyOfDbType<Base>
     : Db extends Expression.DbType.Array<any, any, any>
       ? "array"
-    : Db extends Expression.DbType.Range<any, any, any>
-      ? "range"
-      : Db extends Expression.DbType.Multirange<any, any, any>
-        ? "multirange"
-        : Db extends Expression.DbType.Composite<any, any, any>
-          ? "record"
-          : Db extends Expression.DbType.Enum<any, any>
-            ? "enum"
-            : Db extends Expression.DbType.Set<any, any>
-              ? "set"
-              : Db extends Expression.DbType.Json<any, any>
-                ? "json"
-              : Db extends Expression.DbType.Base<infer Dialect extends KnownDialect, infer Kind extends string>
-                ? BaseFamilyOf<Dialect, Kind>
-                : "other:unknown:unknown"
+      : Db extends Expression.DbType.Range<any, any, any>
+        ? "range"
+        : Db extends Expression.DbType.Multirange<any, any, any>
+          ? "multirange"
+          : Db extends Expression.DbType.Composite<any, any, any>
+            ? "record"
+            : Db extends Expression.DbType.Enum<any, any>
+              ? "enum"
+              : Db extends Expression.DbType.Set<any, any>
+                ? "set"
+                : Db extends Expression.DbType.Json<any, any>
+                  ? "json"
+                  : Db extends Expression.DbType.Base<any, any>
+                    ? BaseFamilyOf<Db>
+                    : "other:unknown:unknown"
 
 export type CompareGroupOfDbType<Db extends Expression.DbType.Any> =
   Db extends Expression.DbType.Domain<any, infer Base extends Expression.DbType.Any, any>
@@ -140,17 +68,17 @@ export type CompareGroupOfDbType<Db extends Expression.DbType.Any> =
         ? Kind
         : Db extends Expression.DbType.Multirange<any, any, infer Kind extends string>
           ? Kind
-        : Db extends Expression.DbType.Composite<any, any, infer Kind extends string>
+          : Db extends Expression.DbType.Composite<any, any, infer Kind extends string>
             ? Kind
             : Db extends Expression.DbType.Enum<any, infer Kind extends string>
               ? Kind
-            : Db extends Expression.DbType.Set<any, infer Kind extends string>
-              ? Kind
-            : Db extends Expression.DbType.Json<any, any>
-              ? never
-                : Db extends Expression.DbType.Base<infer Dialect extends KnownDialect, infer Kind extends string>
-                  ? BaseCompareGroupOf<Dialect, Kind>
-                  : "other:unknown:unknown"
+              : Db extends Expression.DbType.Set<any, infer Kind extends string>
+                ? Kind
+                : Db extends Expression.DbType.Json<any, any>
+                  ? never
+                  : Db extends Expression.DbType.Base<any, any>
+                    ? BaseCompareGroupOf<Db>
+                    : "other:unknown:unknown"
 
 export type RuntimeOfDbType<Db extends Expression.DbType.Any> =
   Db extends Expression.DbType.Domain<any, infer Base extends Expression.DbType.Any, any>
@@ -159,17 +87,17 @@ export type RuntimeOfDbType<Db extends Expression.DbType.Any> =
       ? ReadonlyArray<RuntimeOfDbType<Element>>
       : Db extends Expression.DbType.Composite<any, infer Fields extends Record<string, Expression.DbType.Any>, any>
         ? { readonly [K in keyof Fields]: RuntimeOfDbType<Fields[K]> }
-      : Db extends Expression.DbType.Range<any, any, any> | Expression.DbType.Multirange<any, any, any>
-        ? unknown
-        : Db extends Expression.DbType.Json<any, any>
-          ? import("../runtime-value.js").JsonValue
+        : Db extends Expression.DbType.Range<any, any, any> | Expression.DbType.Multirange<any, any, any>
+          ? unknown
+          : Db extends Expression.DbType.Json<any, any>
+            ? import("../runtime/value.js").JsonValue
             : Db extends Expression.DbType.Enum<any, any> | Expression.DbType.Set<any, any>
-            ? string
-            : Db extends Expression.DbType.Base<infer Dialect extends KnownDialect, infer Kind extends string>
-              ? BaseRuntimeTagOf<Dialect, Kind> extends infer Runtime extends RuntimeTag
-                ? RuntimeOfTag<Runtime>
+              ? string
+              : Db extends Expression.DbType.Base<any, any>
+                ? BaseRuntimeTagOf<Db> extends infer Runtime extends RuntimeTag
+                  ? RuntimeOfTag<Runtime>
+                  : unknown
                 : unknown
-              : unknown
 
 export type CanCompareDbTypes<
   Left extends Expression.DbType.Any,
@@ -221,12 +149,8 @@ export type CanTextuallyCoerceDbType<
       ? true
       : Db extends Expression.DbType.Json<any, any>
         ? false
-        : Db extends Expression.DbType.Base<infer D extends KnownDialect, infer Kind extends string>
-          ? Kind extends keyof DialectKinds<D>
-            ? FamilyHasTextualTrait<D, BaseFamilyOf<D, Kind>> extends true
-              ? true
-              : false
-            : false
+        : Db extends Expression.DbType.Base<any, any>
+          ? BaseHasTextualTrait<Db>
           : false
   : false
 
@@ -252,29 +176,14 @@ export type CanCastDbType<
               | Expression.DbType.Enum<any, any>
               | Expression.DbType.Set<any, any>
             ? true
-          : Source extends Expression.DbType.Base<infer SourceDialect extends KnownDialect, infer SourceKind extends string>
-            ? Target extends Expression.DbType.Base<infer TargetDialect extends KnownDialect, infer TargetKind extends string>
-              ? SourceDialect extends TargetDialect
-                ? SourceKind extends keyof DialectKinds<SourceDialect>
-                  ? TargetKind extends keyof DialectKinds<TargetDialect>
-                    ? BaseFamilyOf<SourceDialect, SourceKind> extends ExactKindFamily
-                      ? BaseFamilyOf<SourceDialect, TargetKind> extends "text"
-                        ? FamilyCastTargets<SourceDialect, Extract<BaseFamilyOf<SourceDialect, SourceKind>, string>> extends infer Targets extends string
-                          ? "text" extends Targets
-                            ? true
-                            : false
-                          : false
-                        : false
-                      : BaseFamilyOf<SourceDialect, TargetKind> extends FamilyCastTargets<
-                          SourceDialect,
-                          Extract<BaseFamilyOf<SourceDialect, SourceKind>, string>
-                        >
-                        ? true
-                        : false
+            : Source extends Expression.DbType.Base<any, any>
+              ? Target extends Expression.DbType.Base<any, any>
+                ? BaseFamilyOf<Target> extends ExactKindFamily
+                  ? false
+                  : BaseFamilyOf<Target> extends BaseCastTargetsOf<Source>
+                    ? true
                     : false
-                  : false
                 : false
               : false
-            : false
     : false
   : false

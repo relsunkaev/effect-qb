@@ -1,8 +1,8 @@
 import type * as Expression from "./scalar.js"
 import type * as ExpressionAst from "./expression-ast.js"
-import type { PredicateFormula } from "./predicate-formula.js"
-import type { AssumeFormulaFalse, AssumeFormulaTrue, Contradicts, Implies } from "./predicate-analysis.js"
-import type { FormulaOfExpression } from "./predicate-normalize.js"
+import type { PredicateFormula } from "./predicate/formula.js"
+import type { AssumeFormulaFalse, AssumeFormulaTrue, Contradicts, Implies } from "./predicate/analysis.js"
+import type { FormulaOfExpression } from "./predicate/normalize.js"
 
 export interface CasePath<
   Assumptions extends PredicateFormula,

@@ -1,6 +1,5 @@
 import * as Query from "./query.js"
 import { type Projection, validateProjections } from "./projections.js"
-import { renderPostgresPlan } from "../postgres/internal/renderer.js"
 
 /** Symbol used to attach rendered-query phantom row metadata. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Renderer")
@@ -55,33 +54,23 @@ type CustomRender<Dialect extends string> = <PlanValue extends Query.Plan.Any>(
 }
 
 /**
- * Constructs a renderer from a dialect and optional implementation callback.
- *
- * When no callback is provided, the library supplies a built-in renderer for
- * `"postgres"` that consumes the query AST directly and produces SQL text plus
- * parameter values.
+ * Constructs a renderer from a dialect and implementation callback.
  */
-export function make(dialect: "postgres"): Renderer<"postgres">
 export function make<Dialect extends string>(
   dialect: Dialect,
   render: CustomRender<Dialect>
 ): Renderer<Dialect>
 export function make<Dialect extends string>(
   dialect: Dialect,
-  render?: CustomRender<Dialect>
+  render: CustomRender<Dialect>
 ): Renderer<Dialect> {
-  const implementation = render ?? ((dialect === "postgres"
-    ? renderPostgresPlan
-    : undefined) as CustomRender<Dialect> | undefined)
-
-  if (!implementation) {
-    throw new Error(`No built-in renderer for dialect: ${dialect}`)
+  if (typeof render !== "function") {
+    throw new Error(`Renderer.make requires an explicit render implementation for dialect: ${dialect}`)
   }
-
   return {
     dialect,
     render(plan) {
-      const rendered = implementation(plan)
+      const rendered = render(plan)
       const projections = rendered.projections ?? []
       validateProjections(projections)
       return {
@@ -97,6 +86,3 @@ export function make<Dialect extends string>(
     }
   } as Renderer<Dialect>
 }
-
-/** Built-in Postgres renderer backed by the current query AST. */
-export const postgres = make("postgres")

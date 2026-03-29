@@ -1,10 +1,10 @@
-import type * as Expression from "./scalar.js"
-import type { RenderState, SqlDialect } from "./dialect.js"
-import { postgresDialect } from "../postgres/internal/dialect.js"
-import * as SchemaExpression from "./schema-expression.js"
+import type * as Expression from "../../internal/scalar.js"
+import type { RenderState, SqlDialect } from "../../internal/dialect.js"
+import * as SchemaExpression from "../../internal/schema-expression.js"
 import { renderExpression } from "./sql-expression-renderer.js"
-import type { DdlExpressionLike } from "./table-options.js"
+import type { DdlExpressionLike } from "../../internal/table-options.js"
 import { parse, toSql } from "pgsql-ast-parser"
+import { postgresDialect } from "./dialect.js"
 
 export const renderDdlExpression = (
   expression: DdlExpressionLike,

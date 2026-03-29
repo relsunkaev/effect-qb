@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import * as CoreRenderer from "#internal/renderer.ts"
 import * as ExpressionAst from "#internal/expression-ast.ts"
 import { mysqlDialect } from "../../../packages/querybuilder/src/mysql/internal/dialect.ts"
-import { renderExpression } from "#internal/sql-expression-renderer.ts"
+import { renderExpression } from "../../../packages/querybuilder/src/mysql/internal/sql-expression-renderer.ts"
 import * as Mysql from "#mysql"
 import { makeMysqlSocialGraph } from "../../fixtures/schema.ts"
 import { buildGroupedConcatPlan } from "../../helpers/dialect-matrix.ts"
@@ -1097,10 +1097,10 @@ describe("mysql dialect behavior", () => {
   test("uses the mysql entrypoint renderer while the core one-argument renderer path rejects mysql", () => {
     expect(() => Mysql.Renderer.make()).not.toThrow()
     expect(() => (CoreRenderer.make as (dialect: string) => unknown)("mysql")).toThrow(
-      "No built-in renderer for dialect: mysql"
+      "Renderer.make requires an explicit render implementation for dialect: mysql"
     )
     expect(() => (CoreRenderer.make as (dialect: string) => unknown)("sqlite")).toThrow(
-      "No built-in renderer for dialect: sqlite"
+      "Renderer.make requires an explicit render implementation for dialect: sqlite"
     )
 
     const unsupportedExpression = {

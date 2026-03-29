@@ -1,8 +1,8 @@
-import type * as Expression from "./scalar.js"
-import type * as ExpressionAst from "./expression-ast.js"
-import type { ColumnKeyOfExpression, ValueKey } from "./predicate-key.js"
-import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./predicate-formula.js"
-import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, UnknownAtom } from "./predicate-atom.js"
+import type * as Expression from "../scalar.js"
+import type * as ExpressionAst from "../expression-ast.js"
+import type { ColumnKeyOfExpression, ValueKey } from "./key.js"
+import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./formula.js"
+import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, UnknownAtom } from "./atom.js"
 
 type AstOf<Value extends Expression.Any> = Value extends {
   readonly [ExpressionAst.TypeId]: infer Ast extends ExpressionAst.Any
@@ -16,8 +16,8 @@ type True = TrueFormula
 type False = FalseFormula
 
 type UnknownTag<Tag extends string> = AtomFormula<UnknownAtom<Tag>>
-type AtomOf<Atom extends import("./predicate-atom.js").PredicateAtom> = AtomFormula<Atom>
-type FactOf<Atom extends import("./predicate-atom.js").PredicateAtom> = AtomFormula<Atom>
+type AtomOf<Atom extends import("./atom.js").PredicateAtom> = AtomFormula<Atom>
+type FactOf<Atom extends import("./atom.js").PredicateAtom> = AtomFormula<Atom>
 
 type NonNullFactsOfExpression<Value extends Expression.Any> =
   [ColumnKeyOfExpression<Value>] extends [never]
@@ -31,7 +31,7 @@ type CombineFacts<
   ? Right
   : [Right] extends [never]
     ? Left
-    : import("./predicate-formula.js").NormalizeBooleanConstants<AllFormula<[Left, Right]>>
+    : import("./formula.js").NormalizeBooleanConstants<AllFormula<[Left, Right]>>
 
 type FactsOfExpressions<Values extends readonly Expression.Any[]> =
   Values extends readonly [
@@ -77,7 +77,7 @@ type FormulaOfEq<
             ? False
             : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Left>, ValueKey<RightLiteral>>>
         : UnknownTag<"eq:unsupported">
-      : AtomOf<import("./predicate-atom.js").EqColumnAtom<ColumnKeyOfExpression<Left>, ColumnKeyOfExpression<Right>>>
+      : AtomOf<import("./atom.js").EqColumnAtom<ColumnKeyOfExpression<Left>, ColumnKeyOfExpression<Right>>>
 
 type FormulaOfNeq<
   Left extends Expression.Any,
@@ -149,11 +149,11 @@ type FormulaOfIsNotDistinctFrom<
 
 type OrFormulas<
   Items extends readonly PredicateFormula[]
-> = import("./predicate-formula.js").NormalizeBooleanConstants<AnyFormula<Items>>
+> = import("./formula.js").NormalizeBooleanConstants<AnyFormula<Items>>
 
 type AndFormulas<
   Items extends readonly PredicateFormula[]
-> = import("./predicate-formula.js").NormalizeBooleanConstants<AllFormula<Items>>
+> = import("./formula.js").NormalizeBooleanConstants<AllFormula<Items>>
 
 type FormulaTupleOf<
   Values extends readonly Expression.Any[]
@@ -163,11 +163,11 @@ type FormulaTupleOf<
 
 type AllFormulaOfValues<
   Values extends readonly Expression.Any[]
-> = import("./predicate-formula.js").NormalizeBooleanConstants<AllFormula<FormulaTupleOf<Values>>>
+> = import("./formula.js").NormalizeBooleanConstants<AllFormula<FormulaTupleOf<Values>>>
 
 type AnyFormulaOfValues<
   Values extends readonly Expression.Any[]
-> = import("./predicate-formula.js").NormalizeBooleanConstants<AnyFormula<FormulaTupleOf<Values>>>
+> = import("./formula.js").NormalizeBooleanConstants<AnyFormula<FormulaTupleOf<Values>>>
 
 type FormulaOfInValues<
   Left extends Expression.Any,
@@ -226,7 +226,7 @@ type FormulaOfUnary<
       ? UnknownTag<"isNotNull:unsupported">
       : AtomOf<NonNullAtom<ColumnKeyOfExpression<Inner>>>
     : Kind extends "not"
-      ? import("./predicate-formula.js").Not<FormulaOfExpression<Inner>>
+      ? import("./formula.js").Not<FormulaOfExpression<Inner>>
       : UnknownTag<`unary:${Kind}`>
 
 type FormulaOfBinary<
@@ -242,7 +242,7 @@ type FormulaOfBinary<
       : Kind extends "isNotDistinctFrom"
         ? FormulaOfIsNotDistinctFrom<Left, Right>
         : Kind extends "isDistinctFrom"
-          ? import("./predicate-formula.js").Not<FormulaOfIsNotDistinctFrom<Left, Right>>
+          ? import("./formula.js").Not<FormulaOfIsNotDistinctFrom<Left, Right>>
           : CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
 
 type FormulaOfAst<

@@ -2,7 +2,7 @@ import * as Query from "../../internal/query.js"
 import { type RenderState } from "../../internal/dialect.js"
 import { mysqlDialect } from "./dialect.js"
 import { type Projection } from "../../internal/projections.js"
-import { renderQueryAst } from "../../internal/sql-expression-renderer.js"
+import { renderQueryAst } from "./sql-expression-renderer.js"
 
 /**
  * Internal rendered-query payload produced by the built-in MySQL renderer.

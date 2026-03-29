@@ -1,6 +1,6 @@
-import { postgresQuery } from "../private/query.js"
+import { postgresDsl } from "../internal/dsl.js"
 
 /** Postgres aggregate functions. */
-export const count = postgresQuery.count
-export const max = postgresQuery.max
-export const min = postgresQuery.min
+export const count = postgresDsl.count
+export const max = postgresDsl.max
+export const min = postgresDsl.min

@@ -189,7 +189,7 @@ const filteredNullPostId: FilteredRow["postId"] = null
 const filteredNullPostTitleUpper: FilteredRow["postTitleUpper"] = null
 void filteredPostTitleUpper
 
-const renderer = Renderer.make("postgres")
+const renderer = Postgres.Renderer.make()
 
 const rendered = renderer.render(leftJoined)
 type RenderedLeftJoinedRow = Renderer.RowOf<typeof rendered>
@@ -230,7 +230,7 @@ const nestedPlan = Q.select({
   Q.from(users)
 )
 
-const runtimeRenderer = Renderer.make("postgres")
+const runtimeRenderer = Postgres.Renderer.make()
 const runtimeDriver = Executor.driver("postgres", <Row>(
   query: Renderer.RenderedQuery<Row, "postgres">
 ): Effect.Effect<ReadonlyArray<Executor.FlatRow>, never, never> => {

@@ -1,5 +1,5 @@
-import type * as Expression from "./scalar.js"
-import type * as ExpressionAst from "./expression-ast.js"
+import type * as Expression from "../scalar.js"
+import type * as ExpressionAst from "../expression-ast.js"
 
 export type ColumnKey<
   TableName extends string,

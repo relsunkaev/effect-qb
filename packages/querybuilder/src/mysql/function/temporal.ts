@@ -3,6 +3,7 @@ import type * as Schema from "effect/Schema"
 import type * as Expression from "../../internal/scalar.js"
 import type * as ExpressionAst from "../../internal/expression-ast.js"
 import { makeExpression } from "../../internal/query.js"
+import { mysqlDatatypes } from "../datatypes/index.js"
 import {
   LocalDateStringSchema,
   LocalDateTimeStringSchema,
@@ -10,7 +11,7 @@ import {
   type LocalDateString,
   type LocalDateTimeString,
   type LocalTimeString
-} from "../../internal/runtime-value.js"
+} from "../../internal/runtime/value.js"
 
 type TemporalExpression<
   Runtime,
@@ -54,7 +55,7 @@ const makeTemporal = <
 export const currentDate = () =>
   makeTemporal(
     "current_date",
-    { dialect: "mysql", kind: "date" } as Expression.DbType.MySqlDate,
+    mysqlDatatypes.date(),
     LocalDateStringSchema
   )
 
@@ -62,7 +63,7 @@ export const currentDate = () =>
 export const currentTime = () =>
   makeTemporal(
     "current_time",
-    { dialect: "mysql", kind: "time" } as Expression.DbType.MySqlTime,
+    mysqlDatatypes.time(),
     LocalTimeStringSchema
   )
 
@@ -70,7 +71,7 @@ export const currentTime = () =>
 export const currentTimestamp = () =>
   makeTemporal(
     "current_timestamp",
-    { dialect: "mysql", kind: "timestamp" } as Expression.DbType.MySqlTimestamp,
+    mysqlDatatypes.timestamp(),
     LocalDateTimeStringSchema
   )
 
@@ -78,7 +79,7 @@ export const currentTimestamp = () =>
 export const localTime = () =>
   makeTemporal(
     "localtime",
-    { dialect: "mysql", kind: "time" } as Expression.DbType.MySqlTime,
+    mysqlDatatypes.time(),
     LocalTimeStringSchema
   )
 
@@ -86,7 +87,7 @@ export const localTime = () =>
 export const localTimestamp = () =>
   makeTemporal(
     "localtimestamp",
-    { dialect: "mysql", kind: "timestamp" } as Expression.DbType.MySqlTimestamp,
+    mysqlDatatypes.timestamp(),
     LocalDateTimeStringSchema
   )
 
@@ -94,6 +95,6 @@ export const localTimestamp = () =>
 export const now = () =>
   makeTemporal(
     "now",
-    { dialect: "mysql", kind: "timestamp" } as Expression.DbType.MySqlTimestamp,
+    mysqlDatatypes.timestamp(),
     LocalDateTimeStringSchema
   )

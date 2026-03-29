@@ -1,6 +1,6 @@
-import * as Expression from "./scalar.js"
-import * as ExpressionAst from "./expression-ast.js"
-import type { PredicateAtom } from "./predicate-atom.js"
+import * as Expression from "../scalar.js"
+import * as ExpressionAst from "../expression-ast.js"
+import type { PredicateAtom } from "./atom.js"
 import type {
   EqColumnAtom,
   EqLiteralAtom,
@@ -8,7 +8,7 @@ import type {
   NonNullAtom,
   NullAtom,
   UnknownAtom
-} from "./predicate-atom.js"
+} from "./atom.js"
 import type {
   AllFormula,
   AnyFormula,
@@ -17,7 +17,7 @@ import type {
   NotFormula,
   PredicateFormula,
   TrueFormula
-} from "./predicate-formula.js"
+} from "./formula.js"
 
 export interface RuntimeContext {
   readonly nonNullKeys: ReadonlySet<string>

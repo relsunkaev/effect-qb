@@ -3,7 +3,7 @@
 // Code fences: 370-399
 
 // README.md:370-399
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const posts = Table.make("posts", {
   id: C.uuid().pipe(C.primaryKey),

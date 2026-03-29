@@ -3,6 +3,7 @@ import type * as Schema from "effect/Schema"
 import type * as Expression from "../../internal/scalar.js"
 import type * as ExpressionAst from "../../internal/expression-ast.js"
 import { makeExpression } from "../../internal/query.js"
+import { postgresDatatypes } from "../datatypes/index.js"
 import {
   InstantStringSchema,
   LocalDateStringSchema,
@@ -14,7 +15,7 @@ import {
   type LocalDateTimeString,
   type LocalTimeString,
   type OffsetTimeString
-} from "../../internal/runtime-value.js"
+} from "../../internal/runtime/value.js"
 
 type TemporalExpression<
   Runtime,
@@ -58,7 +59,7 @@ const makeTemporal = <
 export const now = () =>
   makeTemporal(
     "now",
-    { dialect: "postgres", kind: "timestamptz" } as Expression.DbType.PgTimestamptz,
+    postgresDatatypes.timestamptz(),
     InstantStringSchema
   )
 
@@ -66,7 +67,7 @@ export const now = () =>
 export const currentDate = () =>
   makeTemporal(
     "current_date",
-    { dialect: "postgres", kind: "date" } as Expression.DbType.PgDate,
+    postgresDatatypes.date(),
     LocalDateStringSchema
   )
 
@@ -74,7 +75,7 @@ export const currentDate = () =>
 export const currentTime = () =>
   makeTemporal(
     "current_time",
-    { dialect: "postgres", kind: "timetz" } as Expression.DbType.PgTimetz,
+    postgresDatatypes.timetz(),
     OffsetTimeStringSchema
   )
 
@@ -82,7 +83,7 @@ export const currentTime = () =>
 export const currentTimestamp = () =>
   makeTemporal(
     "current_timestamp",
-    { dialect: "postgres", kind: "timestamptz" } as Expression.DbType.PgTimestamptz,
+    postgresDatatypes.timestamptz(),
     InstantStringSchema
   )
 
@@ -90,7 +91,7 @@ export const currentTimestamp = () =>
 export const localTime = () =>
   makeTemporal(
     "localtime",
-    { dialect: "postgres", kind: "time" } as Expression.DbType.PgTime,
+    postgresDatatypes.time(),
     LocalTimeStringSchema
   )
 
@@ -98,6 +99,6 @@ export const localTime = () =>
 export const localTimestamp = () =>
   makeTemporal(
     "localtimestamp",
-    { dialect: "postgres", kind: "timestamp" } as Expression.DbType.PgTimestamp,
+    postgresDatatypes.timestamp(),
     LocalDateTimeStringSchema
   )

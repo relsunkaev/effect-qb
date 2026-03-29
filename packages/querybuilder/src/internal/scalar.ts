@@ -1,6 +1,7 @@
 import type { Pipeable } from "effect/Pipeable"
 import type * as Schema from "effect/Schema"
 import type { RuntimeOfDbType as RuntimeOfDbTypeLookup } from "./datatypes/lookup.js"
+import type { DatatypeTraits, RuntimeTag } from "./datatypes/shape.js"
 
 export type {
   BigIntString,
@@ -13,7 +14,7 @@ export type {
   LocalTimeString,
   OffsetTimeString,
   YearString
-} from "./runtime-value.js"
+} from "./runtime/value.js"
 
 /** Symbol used to attach expression metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Expression")
@@ -45,11 +46,16 @@ export declare namespace DbType {
   export interface Base<Dialect extends string, Kind extends string> {
     readonly dialect: Dialect
     readonly kind: Kind
+    readonly family?: string
+    readonly runtime?: RuntimeTag
+    readonly compareGroup?: string
+    readonly castTargets?: readonly string[]
+    readonly traits?: DatatypeTraits
   }
 
   /** JSON-like database type. */
   export interface Json<
-    Dialect extends string = "postgres",
+    Dialect extends string = string,
     SchemaName extends string = "json"
   > extends Base<Dialect, SchemaName>
   {
@@ -117,103 +123,7 @@ export declare namespace DbType {
     readonly variant: "set"
   }
 
-  export type PgUuid = Base<"postgres", "uuid">
-  export type PgText = Base<"postgres", "text">
-  export type PgVarchar = Base<"postgres", "varchar">
-  export type PgChar = Base<"postgres", "char">
-  export type PgCitext = Base<"postgres", "citext">
-  export type PgInt2 = Base<"postgres", "int2">
-  export type PgInt4 = Base<"postgres", "int4">
-  export type PgInt8 = Base<"postgres", "int8">
-  export type PgNumeric = Base<"postgres", "numeric">
-  export type PgFloat4 = Base<"postgres", "float4">
-  export type PgFloat8 = Base<"postgres", "float8">
-  export type PgBool = Base<"postgres", "bool">
-  export type PgDate = Base<"postgres", "date">
-  export type PgTime = Base<"postgres", "time">
-  export type PgTimestamp = Base<"postgres", "timestamp">
-  export type PgTimetz = Base<"postgres", "timetz">
-  export type PgTimestamptz = Base<"postgres", "timestamptz">
-  export type PgInterval = Base<"postgres", "interval">
-  export type PgBytea = Base<"postgres", "bytea">
-  export type PgJsonb = Base<"postgres", "jsonb">
-  export type PgArray<Element extends Any = any> = Array<"postgres", Element, string>
-  export type PgRange<Subtype extends Any = any, Kind extends string = string> = Range<"postgres", Subtype, Kind>
-  export type PgMultirange<Subtype extends Any = any, Kind extends string = string> = Multirange<"postgres", Subtype, Kind>
-  export type PgComposite<Fields extends Record<string, Any> = Record<string, any>, Kind extends string = string> = Composite<"postgres", Fields, Kind>
-  export type PgDomain<BaseType extends Any = any, Kind extends string = string> = Domain<"postgres", BaseType, Kind>
-
-  export type MySqlUuid = Base<"mysql", "uuid">
-  export type MySqlText = Base<"mysql", "text">
-  export type MySqlVarchar = Base<"mysql", "varchar">
-  export type MySqlChar = Base<"mysql", "char">
-  export type MySqlTinyInt = Base<"mysql", "tinyint">
-  export type MySqlSmallInt = Base<"mysql", "smallint">
-  export type MySqlMediumInt = Base<"mysql", "mediumint">
-  export type MySqlInt = Base<"mysql", "int">
-  export type MySqlBigInt = Base<"mysql", "bigint">
-  export type MySqlNumeric = Base<"mysql", "decimal">
-  export type MySqlFloat = Base<"mysql", "float">
-  export type MySqlDouble = Base<"mysql", "double">
-  export type MySqlBool = Base<"mysql", "boolean">
-  export type MySqlDate = Base<"mysql", "date">
-  export type MySqlTime = Base<"mysql", "time">
-  export type MySqlDatetime = Base<"mysql", "datetime">
-  export type MySqlTimestamp = Base<"mysql", "timestamp">
-  export type MySqlBinary = Base<"mysql", "binary">
-  export type MySqlVarBinary = Base<"mysql", "varbinary">
-  export type MySqlBlob = Base<"mysql", "blob">
-  export type MySqlArray<Element extends Any = any> = Array<"mysql", Element, string>
-  export type MySqlComposite<Fields extends Record<string, Any> = Record<string, any>, Kind extends string = string> = Composite<"mysql", Fields, Kind>
-  export type MySqlDomain<BaseType extends Any = any, Kind extends string = string> = Domain<"mysql", BaseType, Kind>
-
   export type Any =
-    | PgUuid
-    | PgText
-    | PgVarchar
-    | PgChar
-    | PgCitext
-    | PgInt2
-    | PgInt4
-    | PgInt8
-    | PgNumeric
-    | PgFloat4
-    | PgFloat8
-    | PgBool
-    | PgDate
-    | PgTime
-    | PgTimestamp
-    | PgInterval
-    | PgBytea
-    | PgJsonb
-    | PgArray
-    | PgRange
-    | PgMultirange
-    | PgComposite
-    | PgDomain
-    | MySqlUuid
-    | MySqlText
-    | MySqlVarchar
-    | MySqlChar
-    | MySqlTinyInt
-    | MySqlSmallInt
-    | MySqlMediumInt
-    | MySqlInt
-    | MySqlBigInt
-    | MySqlNumeric
-    | MySqlFloat
-    | MySqlDouble
-    | MySqlBool
-    | MySqlDate
-    | MySqlTime
-    | MySqlDatetime
-    | MySqlTimestamp
-    | MySqlBinary
-    | MySqlVarBinary
-    | MySqlBlob
-    | MySqlArray
-    | MySqlComposite
-    | MySqlDomain
     | Json
     | Base<string, string>
     | Array<string, any, string>

@@ -72,7 +72,7 @@ Q.createIndex(memberships, ["missing"])
 // @ts-expect-error dropIndex only accepts known table columns
 Q.dropIndex(memberships, ["missing"])
 
-const renderer = Renderer.make("postgres")
+const renderer = Renderer.make()
 const executor = Executor.custom(<PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
   plan: Q.DialectCompatiblePlan<PlanValue, "postgres">
 ): Effect.Effect<any, never, never> => {

@@ -1,7 +1,7 @@
-import { postgresQuery } from "../private/query.js"
+import { postgresDsl } from "../internal/dsl.js"
 
 /** Postgres window functions. */
-export const over = postgresQuery.over
-export const rowNumber = postgresQuery.rowNumber
-export const rank = postgresQuery.rank
-export const denseRank = postgresQuery.denseRank
+export const over = postgresDsl.over
+export const rowNumber = postgresDsl.rowNumber
+export const rank = postgresDsl.rank
+export const denseRank = postgresDsl.denseRank

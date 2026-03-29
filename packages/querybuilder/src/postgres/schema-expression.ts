@@ -13,4 +13,4 @@ export {
 export {
   normalizeDdlExpressionSql,
   renderDdlExpressionSql
-} from "../internal/schema-ddl.js"
+} from "./internal/schema-ddl.js"

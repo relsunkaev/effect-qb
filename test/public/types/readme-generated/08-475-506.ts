@@ -4,7 +4,7 @@
 
 // README.md:475-506
 import * as Schema from "effect/Schema"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -18,13 +18,13 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = F.json.path(
-  F.json.key("profile"),
-  F.json.key("address"),
-  F.json.key("city")
+const cityPath = J.json.path(
+  J.json.key("profile"),
+  J.json.key("address"),
+  J.json.key("city")
 )
 
-const city = F.json.get(docs.payload, cityPath)
+const city = J.json.get(docs.payload, cityPath)
 
 type City = Q.ExpressionOutput<typeof city, {
   readonly docs: {

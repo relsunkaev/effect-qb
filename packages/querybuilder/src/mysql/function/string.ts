@@ -1,6 +1,6 @@
-import { mysqlQuery } from "../private/query.js"
+import { mysqlDsl } from "../internal/dsl.js"
 
 /** MySQL string functions. */
-export const lower = mysqlQuery.lower
-export const upper = mysqlQuery.upper
-export const concat = mysqlQuery.concat
+export const lower = mysqlDsl.lower
+export const upper = mysqlDsl.upper
+export const concat = mysqlDsl.concat

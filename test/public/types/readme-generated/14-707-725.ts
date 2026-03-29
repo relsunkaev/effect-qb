@@ -4,7 +4,7 @@
 
 // README.md:707-725
 import * as Pg from "effect-qb/postgres"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const posts = Table.make("posts", {
   id: C.uuid().pipe(C.primaryKey),

@@ -10,10 +10,10 @@ import type { JsonNode } from "./json/ast.js"
 import type * as JsonPath from "./json/path.js"
 import type { QueryCapability } from "./query-requirements.js"
 import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./case-analysis.js"
-import type { ContradictsFormula, GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate-analysis.js"
-import type { ColumnKeyOfExpression } from "./predicate-key.js"
-import type { PredicateFormula, TrueFormula } from "./predicate-formula.js"
-import { trueFormula } from "./predicate-runtime.js"
+import type { ContradictsFormula, GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate/analysis.js"
+import type { ColumnKeyOfExpression } from "./predicate/key.js"
+import type { PredicateFormula, TrueFormula } from "./predicate/formula.js"
+import { trueFormula } from "./predicate/runtime.js"
 
 export type {
   MergeCapabilities,
@@ -26,7 +26,7 @@ export type {
   RuntimeOfDbType,
   TextCompatibleDbType,
   CastableDbType
-} from "./coercion-analysis.js"
+} from "./coercion/analysis.js"
 export type {
   CanonicalSegment as JsonPathSegment,
   DescendSegment as JsonPathDescendSegment,
@@ -61,12 +61,12 @@ export type {
 export type {
   CoercionKind,
   CoercionKindOf
-} from "./coercion-kind.js"
+} from "./coercion/kind.js"
 export type {
   CanCastDbType,
   CanCompareDbTypes,
   CanContainDbTypes
-} from "./coercion-rules.js"
+} from "./coercion/rules.js"
 export type {
   ConflictClause,
   LockClause,
@@ -146,7 +146,7 @@ type LiteralExpression<Value extends LiteralValue> = Expression.Scalar<
   Value,
   LiteralDbType<Value>,
   LiteralNullability<Value>,
-  "postgres",
+  string,
   "scalar",
   never
 >
@@ -213,11 +213,11 @@ export type GroupByInput = Expression.Scalar<
 
 /** Maps a literal runtime value to its SQL-level DB type descriptor. */
 type LiteralDbType<Value extends LiteralValue> =
-  Value extends string ? Expression.DbType.PgText :
-    Value extends number ? Expression.DbType.PgNumeric :
-      Value extends boolean ? Expression.DbType.PgBool :
-        Value extends Date ? Expression.DbType.PgTimestamp :
-          Expression.DbType.Base<"postgres", "null">
+  Value extends string ? Expression.DbType.Base<string, "text"> :
+    Value extends number ? Expression.DbType.Base<string, "numeric"> :
+      Value extends boolean ? Expression.DbType.Base<string, "boolean"> :
+        Value extends Date ? Expression.DbType.Base<string, "timestamp"> :
+          Expression.DbType.Base<string, "null">
 
 /** Maps a literal runtime value to its static nullability state. */
 type LiteralNullability<Value extends LiteralValue> = Value extends null ? "always" : "never"
@@ -639,12 +639,12 @@ type JsonMutationDbKindError<
   ExpectedKind extends string,
   ReceivedKind extends string
 > = {
-  readonly __effect_qb_error__: "effect-qb: incompatible postgres json mutation value"
+  readonly __effect_qb_error__: "effect-qb: incompatible json mutation value"
   readonly __effect_qb_column__: ColumnName
-  readonly __effect_qb_reason__: "postgres json/jsonb kinds do not match"
+  readonly __effect_qb_reason__: "json kinds do not match"
   readonly __effect_qb_expected_json_kind__: ExpectedKind
   readonly __effect_qb_received_json_kind__: ReceivedKind
-  readonly __effect_qb_hint__: "Use postgres.Function.json for json columns and postgres.Function.jsonb for jsonb columns"
+  readonly __effect_qb_hint__: "Use the dialect Json helpers that match the target json kind"
 }
 
 type JsonMutationShapeError<
@@ -652,7 +652,7 @@ type JsonMutationShapeError<
   Expected,
   Received
 > = {
-  readonly __effect_qb_error__: "effect-qb: incompatible postgres json mutation value"
+  readonly __effect_qb_error__: "effect-qb: incompatible json mutation value"
   readonly __effect_qb_column__: ColumnName
   readonly __effect_qb_reason__: "json value is not assignable to the target column schema"
   readonly __effect_qb_json_issues__: JsonShapeIssues<Expected, Received>
@@ -806,9 +806,9 @@ type MutationValueCompatibilityIssue<
   Value,
   ColumnName extends string
 > = Column extends Expression.Scalar<any, infer ColumnDb extends Expression.DbType.Any, any, any, any, any>
-  ? ColumnDb extends Expression.DbType.Json<"postgres", infer ExpectedKind>
+  ? ColumnDb extends Expression.DbType.Json<infer ColumnDialect extends string, infer ExpectedKind>
     ? Value extends Expression.Scalar<any, infer ValueDb extends Expression.DbType.Any, any, any, any, any>
-      ? ValueDb extends Expression.DbType.Json<"postgres", infer ReceivedKind>
+      ? ValueDb extends Expression.DbType.Json<ColumnDialect, infer ReceivedKind>
         ? [ExpectedKind] extends [ReceivedKind]
           ? [ReceivedKind] extends [ExpectedKind]
             ? Value extends Expression.Scalar<infer ReceivedRuntime, any, any, any, any, any>

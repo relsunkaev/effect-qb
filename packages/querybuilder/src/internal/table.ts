@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema"
 
 import * as Plan from "./row-set.js"
 import type { Any as AnyExpression } from "./scalar.js"
-import type { TrueFormula } from "./predicate-formula.js"
+import type { TrueFormula } from "./predicate/formula.js"
 import type { BoundColumnFrom } from "./column-state.js"
 import { bindColumn, type AnyColumnDefinition } from "./column-state.js"
 import {
@@ -346,7 +346,7 @@ const validateClassOptions = (declaredOptions: readonly TableOptionSpec[]): void
 const resolveFieldDialect = (fields: TableFieldMap): string => {
   const dialects = [...new Set(Object.values(fields).map((field) => field.metadata.dbType.dialect))]
   if (dialects.length === 0) {
-    return "postgres"
+    throw new Error("Cannot infer table dialect from an empty field set")
   }
   if (dialects.length > 1) {
     throw new Error(`Mixed table dialects are not supported: ${dialects.join(", ")}`)

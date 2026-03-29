@@ -1,4 +1,4 @@
-import type * as Expression from "./scalar.js"
+import type * as Expression from "../scalar.js"
 
 export type OperandCompatibilityError<
   Operator extends string,

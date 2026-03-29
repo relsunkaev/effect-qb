@@ -8,6 +8,8 @@ export * as Errors from "./mysql/errors/index.js"
 export * as Scalar from "./internal/scalar.js"
 /** MySQL-specialized SQL function expressions. */
 export * as Function from "./mysql/function/index.js"
+/** MySQL-specialized JSON expression helpers. */
+export * as Json from "./mysql/json.js"
 /** MySQL-specialized typed query execution contracts. */
 export * as Executor from "./mysql/executor.js"
 /** Shared logical row-set interfaces. */

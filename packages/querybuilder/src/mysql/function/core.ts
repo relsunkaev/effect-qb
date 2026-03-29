@@ -1,5 +1,5 @@
-import { mysqlQuery } from "../private/query.js"
+import { mysqlDsl } from "../internal/dsl.js"
 
 /** MySQL scalar core functions. */
-export const coalesce = mysqlQuery.coalesce
-export const call = mysqlQuery.call
+export const coalesce = mysqlDsl.coalesce
+export const call = mysqlDsl.call

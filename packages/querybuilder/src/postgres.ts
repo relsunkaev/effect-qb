@@ -10,6 +10,8 @@ export * as Scalar from "./internal/scalar.js"
 export { cast as Cast } from "./postgres/cast.js"
 /** Postgres-specialized SQL function expressions. */
 export * as Function from "./postgres/function/index.js"
+/** Postgres-specialized JSON expression helpers. */
+export * as Json from "./postgres/json.js"
 /** Postgres-specialized typed query execution contracts. */
 export * as Executor from "./postgres/executor.js"
 /** Shared logical row-set interfaces. */

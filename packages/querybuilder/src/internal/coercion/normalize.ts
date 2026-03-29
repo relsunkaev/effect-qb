@@ -1,4 +1,4 @@
-import type * as Expression from "./scalar.js"
+import type * as Expression from "../scalar.js"
 
 /** Extracts the database type carried by an expression. */
 export type DbTypeOfExpression<Value extends Expression.Any> = Expression.DbTypeOf<Value>

@@ -1,5 +1,5 @@
 import type { Pipeable } from "effect/Pipeable"
-import type { PredicateFormula } from "./predicate-formula.js"
+import type { PredicateFormula } from "./predicate/formula.js"
 
 /** Symbol used to attach logical-plan metadata to runtime values. */
 export const TypeId: unique symbol = Symbol.for("effect-qb/Plan")

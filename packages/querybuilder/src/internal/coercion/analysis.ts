@@ -1,6 +1,6 @@
-import type * as Expression from "./scalar.js"
-import type { CastTargetError, OperandCompatibilityError } from "./coercion-errors.js"
-import type { CanCastDbType, CanCompareDbTypes, CanTextuallyCoerceDbType } from "./coercion-rules.js"
+import type * as Expression from "../scalar.js"
+import type { CastTargetError, OperandCompatibilityError } from "./errors.js"
+import type { CanCastDbType, CanCompareDbTypes, CanTextuallyCoerceDbType } from "./rules.js"
 
 export type ComparableDbType<
   Left extends Expression.DbType.Any,

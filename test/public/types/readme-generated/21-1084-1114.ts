@@ -3,7 +3,7 @@
 // Code fences: 1084-1114
 
 // README.md:1084-1114
-import { Column as C, Function as F, Query as Q, Renderer as PostgresRenderer, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Renderer as PostgresRenderer, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey),

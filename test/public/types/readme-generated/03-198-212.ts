@@ -4,7 +4,7 @@
 
 // README.md:198-212
 import * as Schema from "effect/Schema"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),

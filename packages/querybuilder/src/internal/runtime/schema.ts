@@ -1,19 +1,19 @@
 import * as Schema from "effect/Schema"
 import * as SchemaAST from "effect/SchemaAST"
 
-import * as Expression from "./scalar.js"
-import * as ExpressionAst from "./expression-ast.js"
-import * as Query from "./query.js"
-import * as JsonPath from "./json/path.js"
-import type { PredicateFormula } from "./predicate-formula.js"
+import * as Expression from "../scalar.js"
+import * as ExpressionAst from "../expression-ast.js"
+import * as Query from "../query.js"
+import * as JsonPath from "../json/path.js"
+import type { PredicateFormula } from "../predicate/formula.js"
 import {
   assumeFormulaFalse,
   assumeFormulaTrue,
   contradictsFormula,
   formulaOfExpression as formulaOfExpressionRuntime,
   impliesFormula
-} from "./predicate-runtime.js"
-import { flattenSelection } from "./projections.js"
+} from "../predicate/runtime.js"
+import { flattenSelection } from "../projections.js"
 import {
   BigIntStringSchema,
   DecimalStringSchema,
@@ -24,10 +24,8 @@ import {
   LocalTimeStringSchema,
   OffsetTimeStringSchema,
   YearStringSchema
-} from "./runtime-value.js"
-import { mysqlDatatypeKinds } from "../mysql/datatypes/spec.js"
-import { postgresDatatypeKinds } from "../postgres/datatypes/spec.js"
-import type { RuntimeTag } from "./datatypes/shape.js"
+} from "./value.js"
+import type { RuntimeTag } from "../datatypes/shape.js"
 
 export type RuntimeSchema = Schema.Schema<any, any, any>
 
@@ -36,21 +34,6 @@ type SchemaContext = {
 }
 
 const schemaCache = new WeakMap<Expression.Any, RuntimeSchema | undefined>()
-
-const stripParameterizedKind = (kind: string): string => {
-  const openParen = kind.indexOf("(")
-  return openParen === -1 ? kind : kind.slice(0, openParen)
-}
-
-const stripArrayKind = (kind: string): string => {
-  let current = kind
-  while (current.endsWith("[]")) {
-    current = current.slice(0, -2)
-  }
-  return current
-}
-
-const baseKind = (kind: string): string => stripArrayKind(stripParameterizedKind(kind))
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -98,17 +81,9 @@ const runtimeSchemaForTag = (tag: RuntimeTag): RuntimeSchema | undefined => {
 }
 
 const runtimeTagOfBaseDbType = (
-  dialect: string,
-  kind: string
+  dbType: Expression.DbType.Base<string, string>
 ): RuntimeTag | undefined => {
-  const normalizedKind = baseKind(kind)
-  if (dialect === "postgres") {
-    return postgresDatatypeKinds[normalizedKind as keyof typeof postgresDatatypeKinds]?.runtime
-  }
-  if (dialect === "mysql") {
-    return mysqlDatatypeKinds[normalizedKind as keyof typeof mysqlDatatypeKinds]?.runtime
-  }
-  return undefined
+  return dbType.runtime
 }
 
 export const runtimeSchemaForDbType = (
@@ -132,7 +107,7 @@ export const runtimeSchemaForDbType = (
   if ("variant" in dbType && (dbType.variant === "enum" || dbType.variant === "set")) {
     return Schema.String
   }
-  const runtimeTag = runtimeTagOfBaseDbType(dbType.dialect, dbType.kind)
+  const runtimeTag = runtimeTagOfBaseDbType(dbType)
   return runtimeTag === undefined ? undefined : runtimeSchemaForTag(runtimeTag)
 }
 

@@ -4,6 +4,7 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as CoreExecutor from "../internal/executor.js"
 import * as CoreQuery from "../internal/query.js"
 import * as CoreRenderer from "../internal/renderer.js"
+import { renderPostgresPlan } from "./internal/renderer.js"
 import {
   narrowPostgresDriverErrorForReadQuery,
   normalizePostgresDriverError,
@@ -116,9 +117,9 @@ export function make<Error = never, Context = never>(
   options: MakeOptions<Error, Context> = {}
 ): QueryExecutor<any> {
   if (options.driver) {
-    return fromDriver(options.renderer ?? CoreRenderer.make("postgres"), options.driver, options.driverMode)
+    return fromDriver(options.renderer ?? CoreRenderer.make("postgres", renderPostgresPlan), options.driver, options.driverMode)
   }
-  return fromDriver(options.renderer ?? CoreRenderer.make("postgres"), sqlClientDriver(), options.driverMode)
+  return fromDriver(options.renderer ?? CoreRenderer.make("postgres", renderPostgresPlan), sqlClientDriver(), options.driverMode)
 }
 
 /** Creates a Postgres-specialized executor from a typed implementation callback. */

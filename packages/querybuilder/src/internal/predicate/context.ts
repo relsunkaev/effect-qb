@@ -1,5 +1,5 @@
-import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, PredicateAtom, UnknownAtom } from "./predicate-atom.js"
-import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./predicate-formula.js"
+import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, PredicateAtom, UnknownAtom } from "./atom.js"
+import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./formula.js"
 
 type Polarity = "positive" | "negative"
 

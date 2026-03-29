@@ -1,5 +1,5 @@
-import type { PredicateAtom } from "./predicate-atom.js"
-import type { AtomFormula, FalseFormula, PredicateFormula, TrueFormula } from "./predicate-formula.js"
+import type { PredicateAtom } from "./atom.js"
+import type { AtomFormula, FalseFormula, PredicateFormula, TrueFormula } from "./formula.js"
 
 export interface BranchLimitExceeded {
   readonly kind: "branch-limit-exceeded"

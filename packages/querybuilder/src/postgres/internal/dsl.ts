@@ -1,14 +1,14 @@
 import { pipeArguments } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import { mysqlDatatypes } from "../datatypes/index.js"
+import { postgresDatatypes } from "../datatypes/index.js"
 
 import * as Expression from "../../internal/scalar.js"
 import * as Plan from "../../internal/row-set.js"
 import * as Table from "../../internal/table.js"
-import type { CastTargetError, OperandCompatibilityError } from "../../internal/coercion-errors.js"
-import type { RuntimeOfDbType } from "../../internal/coercion-analysis.js"
-import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "../../internal/coercion-rules.js"
+import type { CastTargetError, OperandCompatibilityError } from "../../internal/coercion/errors.js"
+import type { RuntimeOfDbType } from "../../internal/coercion/analysis.js"
+import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "../../internal/coercion/rules.js"
 import {
   currentRequiredList,
   extractRequiredRuntime,
@@ -116,10 +116,10 @@ import type {
   JsonValueAtPath,
   NormalizeJsonLiteral
 } from "../../internal/json/types.js"
-import type { AssumeTrue } from "../../internal/predicate-analysis.js"
-import type { FormulaOfPredicate } from "../../internal/predicate-normalize.js"
-import type { TrueFormula } from "../../internal/predicate-formula.js"
-import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "../../internal/predicate-runtime.js"
+import type { AssumeTrue } from "../../internal/predicate/analysis.js"
+import type { FormulaOfPredicate } from "../../internal/predicate/normalize.js"
+import type { TrueFormula } from "../../internal/predicate/formula.js"
+import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "../../internal/predicate/runtime.js"
 import { dedupeGroupedExpressions } from "../../internal/grouping-key.js"
 import { makeCteSource, makeDerivedSource, makeLateralSource } from "../../internal/derived-table.js"
 import * as ProjectionAlias from "../../internal/projection-alias.js"
@@ -1351,23 +1351,35 @@ type NumberWindowExpression<
  * that manufacture new expressions are specialized to the supplied dialect DB
  * types instead of relying on the Postgres-default root module.
  */
-export const mysqlQuery = (() => {
-type Dialect = "mysql"
-type TextDb = Expression.DbType.MySqlText
-type NumericDb = Expression.DbType.MySqlDouble
-type BoolDb = Expression.DbType.MySqlBool
-type TimestampDb = Expression.DbType.MySqlTimestamp
-type NullDb = Expression.DbType.Base<"mysql", "null">
-type TypeWitnesses = typeof mysqlDatatypes
+export const postgresDsl = (() => {
+type Dialect = "postgres"
+type TextDb = ReturnType<typeof postgresDatatypes.text>
+type NumericDb = ReturnType<typeof postgresDatatypes.float8>
+type BoolDb = ReturnType<typeof postgresDatatypes.boolean>
+type TimestampDb = ReturnType<typeof postgresDatatypes.timestamp>
+type NullDb = Expression.DbType.Base<"postgres", "null"> & {
+  readonly family: "null"
+  readonly runtime: "unknown"
+  readonly compareGroup: "null"
+  readonly traits: {}
+}
+type TypeWitnesses = typeof postgresDatatypes
 
 const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, TypeWitnesses> = {
-  dialect: "mysql",
-  textDb: { dialect: "mysql", kind: "text" } as TextDb,
-  numericDb: { dialect: "mysql", kind: "double" } as NumericDb,
-  boolDb: { dialect: "mysql", kind: "boolean" } as BoolDb,
-  timestampDb: { dialect: "mysql", kind: "timestamp" } as TimestampDb,
-  nullDb: { dialect: "mysql", kind: "null" } as NullDb,
-  type: mysqlDatatypes
+  dialect: "postgres",
+  textDb: postgresDatatypes.text() as TextDb,
+  numericDb: postgresDatatypes.float8() as NumericDb,
+  boolDb: postgresDatatypes.boolean() as BoolDb,
+  timestampDb: postgresDatatypes.timestamp() as TimestampDb,
+  nullDb: {
+    dialect: "postgres",
+    kind: "null",
+    family: "null",
+    runtime: "unknown",
+    compareGroup: "null",
+    traits: {}
+  } as NullDb,
+  type: postgresDatatypes
 }
   const ValuesInputProto = {
     pipe(this: unknown) {
@@ -2044,7 +2056,7 @@ type BinaryPredicateExpression<
   })
 
   const jsonDb = makeJsonDb("json")
-  const jsonbDb = makeJsonDb("json" as JsonbKindForDialect<Dialect>)
+  const jsonbDb = makeJsonDb("jsonb" as JsonbKindForDialect<Dialect>)
 
   const isExpressionValue = (value: unknown): value is Expression.Any =>
     value !== null && typeof value === "object" && Expression.TypeId in value
@@ -2111,11 +2123,8 @@ type BinaryPredicateExpression<
   ): JsonDbOfExpression<Base> => base[Expression.TypeId].dbType as JsonDbOfExpression<Base>
 
   const resolveJsonMergeDbType = (
-    ...values: readonly Expression.Any[]
-  ): Expression.DbType.Json<any, any> =>
-    values.some((value) => value[Expression.TypeId].dbType.kind === "jsonb")
-      ? jsonbDb
-      : jsonDb
+    ..._values: readonly Expression.Any[]
+  ): Expression.DbType.Json<any, any> => jsonbDb
 
   const makeJsonLiteralExpression = <Value extends JsonLiteralInput>(
     value: Value,
@@ -3567,7 +3576,7 @@ type BinaryPredicateExpression<
 
   const uuidGenerateV4 = (): Expression.Scalar<
     string,
-    Expression.DbType.PgUuid,
+    Expression.DbType.Base<"postgres", "uuid">,
     "never",
     Dialect,
     "scalar",
@@ -3576,7 +3585,7 @@ type BinaryPredicateExpression<
     readonly [ExpressionAst.TypeId]: ExpressionAst.FunctionCallNode<"uuid_generate_v4", readonly []>
   } => makeExpression({
     runtime: undefined as unknown as string,
-    dbType: { dialect: "postgres", kind: "uuid" } as Expression.DbType.PgUuid,
+    dbType: postgresDatatypes.uuid(),
     nullability: "never",
     dialect: profile.dialect as Dialect,
     kind: "scalar",
@@ -3591,8 +3600,8 @@ type BinaryPredicateExpression<
   const nextVal = <Value extends ExpressionInput>(
     value: Value
   ): Expression.Scalar<
-    Expression.RuntimeOfDbType<Expression.DbType.PgInt8>,
-    Expression.DbType.PgInt8,
+    Expression.RuntimeOfDbType<Expression.DbType.Base<"postgres", "int8">>,
+    Expression.DbType.Base<"postgres", "int8">,
     "never",
     Dialect,
     "scalar",
@@ -3600,8 +3609,8 @@ type BinaryPredicateExpression<
   > & {
     readonly [ExpressionAst.TypeId]: ExpressionAst.FunctionCallNode<"nextval", readonly [Expression.Any]>
   } => makeExpression({
-    runtime: undefined as unknown as Expression.RuntimeOfDbType<Expression.DbType.PgInt8>,
-    dbType: { dialect: "postgres", kind: "int8" } as Expression.DbType.PgInt8,
+    runtime: undefined as unknown as Expression.RuntimeOfDbType<Expression.DbType.Base<"postgres", "int8">>,
+    dbType: postgresDatatypes.int8(),
     nullability: "never",
     dialect: profile.dialect as Dialect,
     kind: "scalar",
@@ -5786,11 +5795,37 @@ type AsCurriedResult<
       }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
     }
 
-  const distinctOn = {
-    __effect_qb_error__: "effect-qb: distinctOn(...) is only supported by the postgres dialect",
-    __effect_qb_dialect__: profile.dialect,
-    __effect_qb_hint__: "Use postgres.Query.distinctOn(...) or regular distinct()/grouping logic"
-  } as DistinctOnApi<Dialect>
+  const distinctOn = ((...values: readonly ExpressionInput[]) => {
+    const expressions = values.map((value) => toDialectExpression(value)) as Expression.Any[]
+    return <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+      plan: PlanValue & RequireSelectStatement<PlanValue>
+    ): QueryPlan<
+      SelectionOfPlan<PlanValue>,
+      RequiredOfPlan<PlanValue>,
+      AvailableOfPlan<PlanValue>,
+      PlanDialectOf<PlanValue>,
+      GroupedOfPlan<PlanValue>,
+      ScopedNamesOfPlan<PlanValue>,
+      OutstandingOfPlan<PlanValue>,
+      AssumptionsOfPlan<PlanValue>,
+      CapabilitiesOfPlan<PlanValue>,
+      StatementOfPlan<PlanValue>
+    > => {
+      const current = plan[Plan.TypeId]
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      return makePlan({
+        selection: current.selection,
+        required: current.required as RequiredOfPlan<PlanValue>,
+        available: current.available,
+        dialect: current.dialect as PlanDialectOf<PlanValue>
+      }, {
+        ...currentAst,
+        distinct: true,
+        distinctOn: expressions
+      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>)
+    }
+  }) as DistinctOnApi<Dialect>
 
   const limit = <Value extends NumericExpressionInput>(
     value: Value
