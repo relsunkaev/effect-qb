@@ -47,6 +47,49 @@ jobs:
           bunx npm pack --dry-run ./packages/querybuilder
           bunx npm pack --dry-run ./packages/database
 
+      - name: Smoke test packed querybuilder package
+        run: bun run test:pack
+
+  verify-node:
+    name: Verify Node 22
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+          cache: true
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build package
+        run: bun run build
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.0.0
+          cache: npm
+
+      - name: Smoke test published entrypoints
+        run: |
+          node --input-type=module <<'EOF'
+          import * as QueryBuilder from "./packages/querybuilder/dist/postgres.js"
+          import * as Database from "./packages/database/dist/index.js"
+
+          if (typeof QueryBuilder.Query?.select !== "function") {
+            throw new Error("querybuilder postgres entrypoint did not load")
+          }
+
+          if (typeof Database.defineConfig !== "function") {
+            throw new Error("database entrypoint did not load")
+          }
+          EOF
+
   integration:
     name: Integration
     runs-on: ubuntu-latest
