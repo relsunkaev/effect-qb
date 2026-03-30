@@ -1684,10 +1684,12 @@ Q.insert(docs, {
 For updates, column-derived JSON expressions are checked too:
 
 ```ts
-Q.update(docs, {
-  // @ts-expect-error deleting a required field makes the json output incompatible
+const invalidUpdate = {
   payload: deletedRequiredField
-})
+}
+
+// @ts-expect-error deleting a required field makes the json output incompatible
+Q.update(docs, invalidUpdate)
 ```
 
 The same compatibility checks apply anywhere a mutation assigns to a schema-backed JSON column.

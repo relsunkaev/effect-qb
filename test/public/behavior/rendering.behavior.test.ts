@@ -20,7 +20,7 @@ describe("rendering behavior", () => {
       Q.orderBy(F.lower(users.email), "desc")
     )
 
-    const rendered = Renderer.make("postgres").render(plan)
+    const rendered = Renderer.make().render(plan)
 
     expect(rendered.sql).toBe('select (lower("users"."email") || $1) as "label", coalesce("posts"."title", $2) as "fallbackTitle", (not (("users"."email" = $3) or ("posts"."title" is null))) as "ok" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where (("users"."email" = $4) and ("posts"."title" is not null)) order by lower("users"."email") desc')
     expect(rendered.params).toEqual(["::", "missing", "a", "alice@example.com"])
@@ -62,7 +62,7 @@ describe("rendering behavior", () => {
       label: Q.literal("user")
     })
 
-    const rendered = Renderer.make("postgres").render(plan)
+    const rendered = Renderer.make().render(plan)
 
     expect(rendered.sql).toBe('select $1 as "answer", $2 as "label"')
     expect(rendered.params).toEqual([42, "user"])
@@ -88,7 +88,7 @@ describe("rendering behavior", () => {
       Q.from(users)
     )
 
-    const renderer = Renderer.make("postgres")
+    const renderer = Renderer.make()
     const first = renderer.render(plan)
     const second = renderer.render(plan)
 
@@ -118,7 +118,7 @@ describe("rendering behavior", () => {
       Q.from(users)
     )
 
-    expect(() => Renderer.make("postgres").render(invalid)).toThrow("Duplicate projection alias: profile__id")
+    expect(() => Renderer.make().render(invalid)).toThrow("Duplicate projection alias: profile__id")
   })
 
   test("quotes aliased self-joins with logical alias names and physical base tables", () => {

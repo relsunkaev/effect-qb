@@ -1,6 +1,6 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1640-1682, 1686-1691
+// Code fences: 1640-1682, 1686-1693
 
 // README.md:1640-1682
 import * as Schema from "effect/Schema"
@@ -46,11 +46,13 @@ Q.insert(docs, {
 })
 
 {
-  // README.md:1686-1691
-  Q.update(docs, {
-    // @ts-expect-error deleting a required field makes the json output incompatible
+  // README.md:1686-1693
+  const invalidUpdate = {
     payload: deletedRequiredField
-  })
+  }
+
+  // @ts-expect-error deleting a required field makes the json output incompatible
+  Q.update(docs, invalidUpdate)
 }
 
 export {};

@@ -13,6 +13,15 @@ Default to using Bun instead of Node.js.
 - Use `bun run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
 - Bun automatically loads .env, so don't use dotenv.
 
+## TypeScript
+
+This project should use `tsgo` for TypeScript compilation and typechecking.
+
+- Use `bunx tsgo` instead of `tsc`
+- Use `bunx tsgo -p <tsconfig>` for project typechecks
+- Prefer existing repo scripts that already invoke `tsgo`
+- Do not introduce new `tsc`-based scripts or documentation unless there is a specific, documented reason
+
 ## APIs
 
 - `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.

@@ -509,16 +509,24 @@ const users = Table.make("users", {
         quantity: C.int()
       }).pipe(
         Table.check("quantity_matches_stripe", (t) => {
-          const stripeQuantity = t.stripe.pipe(
-            Pg.Json.json.get(Pg.Json.json.key("line_item")),
-            Pg.Json.json.text(Pg.Json.json.key("quantity")),
-            Pg.Cast.to(Pg.Type.text()),
-            Pg.Cast.to(Pg.Type.int4())
+          const stripePipe = (t.stripe as Pg.Scalar.Any).pipe as (
+            ...operations: ReadonlyArray<(value: Pg.Scalar.Any) => Pg.Scalar.Any>
+          ) => Pg.Scalar.Any
+          const eq = Pg.Query.eq as unknown as (
+            left: Pg.Scalar.Any,
+            right: Pg.Scalar.Any
+          ) => Pg.Scalar.Any
+
+          const stripeQuantity = stripePipe(
+            Pg.Json.json.get(Pg.Json.json.key("line_item")) as (value: Pg.Scalar.Any) => Pg.Scalar.Any,
+            Pg.Json.json.text(Pg.Json.json.key("quantity")) as (value: Pg.Scalar.Any) => Pg.Scalar.Any,
+            Pg.Cast.to(Pg.Type.text()) as (value: Pg.Scalar.Any) => Pg.Scalar.Any,
+            Pg.Cast.to(Pg.Type.int4()) as (value: Pg.Scalar.Any) => Pg.Scalar.Any
           )
 
           return Pg.Query.or(
             Pg.Query.isNull(t.stripe),
-            Pg.Query.eq(stripeQuantity, t.quantity)
+            eq(stripeQuantity, t.quantity as Pg.Scalar.Any)
           )
         })
       )
@@ -542,26 +550,28 @@ const users = Table.make("users", {
   })
 
   test("extends boolean groups with raw predicates through pipe", () => {
+    type AnyInput = Pg.Scalar.Any | string | number | boolean | Date | null
+
     const stripe = Pg.Query.column("stripe", Pg.Type.jsonb(), true) as Pg.Scalar.Any
     const quantity = Pg.Query.column("quantity", Pg.Type.int4()) as Pg.Scalar.Any
     const viewedAt = Pg.Query.column("viewed_at", Pg.Type.timestamp(), true) as Pg.Scalar.Any
     const zero = Pg.Query.literal(0) as Pg.Scalar.Any
     const threshold = Pg.Query.literal(new Date("2024-01-01T00:00:00.000Z")) as Pg.Scalar.Any
     const and = Pg.Query.and as (
-      ...values: readonly [Pg.Query.ExpressionInput, ...Pg.Query.ExpressionInput[]]
+      ...values: readonly [AnyInput, ...AnyInput[]]
     ) => Pg.Scalar.Any & {
-      pipe: (...values: readonly [Pg.Query.ExpressionInput, ...Pg.Query.ExpressionInput[]]) => Pg.Scalar.Any
+      pipe: (...values: readonly [AnyInput, ...AnyInput[]]) => Pg.Scalar.Any
     }
     const or = Pg.Query.or as (
-      ...values: readonly [Pg.Query.ExpressionInput, ...Pg.Query.ExpressionInput[]]
+      ...values: readonly [AnyInput, ...AnyInput[]]
     ) => Pg.Scalar.Any
-    const eq = Pg.Query.eq as (
-      left: Pg.Query.ExpressionInput,
-      right: Pg.Query.ExpressionInput
+    const eq = Pg.Query.eq as unknown as (
+      left: AnyInput,
+      right: AnyInput
     ) => Pg.Scalar.Any
-    const gte = Pg.Query.gte as (
-      left: Pg.Query.ExpressionInput,
-      right: Pg.Query.ExpressionInput
+    const gte = Pg.Query.gte as unknown as (
+      left: AnyInput,
+      right: AnyInput
     ) => Pg.Scalar.Any
 
     const predicate = and(
