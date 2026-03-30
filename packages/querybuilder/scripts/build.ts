@@ -35,9 +35,9 @@ const main = async () => {
     process.exit(exitCode)
   }
 
-  await Bun.write(join(distDir, "postgres.d.ts"), 'export * from "../src/postgres.ts"\n')
-  await Bun.write(join(distDir, "mysql.d.ts"), 'export * from "../src/mysql.ts"\n')
-  await Bun.write(join(distDir, "postgres", "metadata.d.ts"), 'export * from "../../src/postgres/metadata.ts"\n')
+  await Bun.write(join(distDir, "postgres.d.ts"), 'export * from "./postgres.js"\n')
+  await Bun.write(join(distDir, "mysql.d.ts"), 'export * from "./mysql.js"\n')
+  await Bun.write(join(distDir, "postgres", "metadata.d.ts"), 'export * from "./metadata.js"\n')
 
   const distStat = await stat(distDir)
   if (!distStat.isDirectory()) {
