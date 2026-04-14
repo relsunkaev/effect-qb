@@ -1634,7 +1634,7 @@ test("postgres cli pull renders collated check constraint expressions with the q
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`users_email_c_check`)
-    expect(pulledSchema).toContain(`Pg.Query.neq(Pg.Query.collate(t.email, "C"), Pg.Cast.to(Pg.Query.literal(""), Pg.Type.text()))`)
+    expect(pulledSchema).toContain(`Pg.Query.neq(Pg.Query.collate(t.email, "C"), Pg.Query.literal("").pipe(Pg.Cast.to(Pg.Type.text())))`)
 
     await assertIdempotentPullPush(config)
   } finally {
@@ -1663,7 +1663,7 @@ test("postgres cli pull renders collated default expressions with the query DSL"
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`nickname: Column.text().pipe(`)
-    expect(pulledSchema).toContain(`Column.default(Pg.Query.collate(Pg.Query.literal("foo"), "C"))`)
+    expect(pulledSchema).toContain(`Column.default(Pg.Query.collate(Pg.Query.literal("foo").pipe(Pg.Cast.to(Pg.Type.text())), "C"))`)
 
     await assertIdempotentPullPush(config)
   } finally {
@@ -1692,7 +1692,7 @@ test("postgres cli pull renders collated generated expressions with the query DS
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`email_c: Column.text().pipe(`)
-    expect(pulledSchema).toContain(`Column.generated(Pg.Query.collate(t.email, "C"))`)
+    expect(pulledSchema).toContain(`Column.generated(Pg.Query.collate(Pg.Query.column("email", Pg.Type.text()), "C"))`)
 
     await assertIdempotentPullPush(config)
   } finally {

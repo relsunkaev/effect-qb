@@ -32,7 +32,7 @@ const migrationTableSql = (tableName: string): string =>
   `create table if not exists ${qualifyIdentifier(tableName)} (
     id bigint generated always as identity primary key,
     name text not null unique,
-    checksum text not null,
+    checksum text,
     applied_at timestamptz not null default now()
   )`
 
@@ -224,10 +224,11 @@ export const ensureMigrationTable = (
   tableName: string
 ): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
   Effect.flatMap(SqlClient.SqlClient, (sql) =>
-    Effect.zipRight(
-      Effect.asVoid(sql.unsafe(migrationTableSql(tableName))),
-      Effect.asVoid(sql.unsafe(`alter table ${qualifyIdentifier(tableName)} add column if not exists checksum text`))
-    ))
+    Effect.gen(function*() {
+      yield* Effect.asVoid(sql.unsafe(migrationTableSql(tableName)))
+      yield* Effect.asVoid(sql.unsafe(`alter table ${qualifyIdentifier(tableName)} add column if not exists checksum text`))
+      yield* Effect.asVoid(sql.unsafe(`alter table ${qualifyIdentifier(tableName)} alter column checksum drop not null`))
+    }))
 
 export const withMigrationLock = <A>(
   tableName: string,

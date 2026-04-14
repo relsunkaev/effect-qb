@@ -191,10 +191,14 @@ const makeColumnModel = (row: ColumnRow): ColumnModel => ({
   generated: row.generated_sql !== null || row.identity_generation === "a",
   defaultSql: row.default_sql === null
     ? undefined
-    : SchemaExpression.render(parseExpression(row.default_sql, `default for ${row.table_name}.${row.column_name}`)),
+    : SchemaExpression.normalizeDdlExpressionSql(
+        parseExpression(row.default_sql, `default for ${row.table_name}.${row.column_name}`)
+      ),
   generatedSql: row.generated_sql === null
     ? undefined
-    : SchemaExpression.render(parseExpression(row.generated_sql, `generated expression for ${row.table_name}.${row.column_name}`)),
+    : SchemaExpression.normalizeDdlExpressionSql(
+        parseExpression(row.generated_sql, `generated expression for ${row.table_name}.${row.column_name}`)
+      ),
   identity: row.identity_generation === ""
     ? undefined
     : {
@@ -339,7 +343,7 @@ export const introspectPostgresSchema = (
               op.opcdefault,
               n.nspname as schema_name,
               op.opcname as opclass_name
-            from pg_opclass
+            from pg_opclass op
             join pg_namespace n on n.oid = op.opcnamespace
             where op.oid = any($1::oid[])
           `, [[...new Set(opclassOids)]])

@@ -224,35 +224,15 @@ const migrateUp = Command.make(
   },
   ({ config, url }) =>
     Effect.gen(function*() {
-      const { loaded, databaseUrl, pending } = yield* effectFromPromise(async (): Promise<{
+      const { loaded, databaseUrl } = yield* effectFromPromise(async (): Promise<{
         readonly loaded: Awaited<ReturnType<typeof loadPostgresConfig>>
         readonly databaseUrl: string
-        readonly pending: ReadonlyArray<{
-          readonly name: string
-          readonly path: string
-          readonly sql: string
-          readonly checksum: string
-        }>
       }> => {
         const loaded = await loadPostgresConfig(process.cwd(), Option.getOrUndefined(config))
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
-        const files = await readMigrationFiles(
-          migrationDirFromConfig(loaded.cwd, loaded.config.migrations.dir)
-        )
-        const pending = await runPostgresUrl(
-          databaseUrl,
-          withMigrationLock(loaded.config.migrations.table, Effect.gen(function*() {
-            const appliedRows = yield* loadAppliedMigrationRows(loaded.config.migrations.table, files)
-            const applied = new Set(appliedRows.map((row) => row.name))
-            return files.filter((file) => !applied.has(file.name))
-          }))
-        )
-        return { loaded, databaseUrl, pending }
+        return { loaded, databaseUrl }
       })
-      if (pending.length === 0) {
-        return yield* log("no pending migrations")
-      }
-      yield* effectFromPromise(() =>
+      const applied = yield* effectFromPromise(() =>
         runPostgresUrl(
           databaseUrl,
           withMigrationLock(loaded.config.migrations.table, Effect.gen(function*() {
@@ -265,12 +245,16 @@ const migrateUp = Command.make(
             if (currentPending.length > 0) {
               yield* applyMigrationFiles(loaded.config.migrations.table, currentPending)
             }
+            return currentPending
           }))
         )
       )
+      if (applied.length === 0) {
+        return yield* log("no pending migrations")
+      }
       yield* logLines([
-        `applied ${pending.length} migration(s)`,
-        ...pending.map((file) => `  - ${file.name}`)
+        `applied ${applied.length} migration(s)`,
+        ...applied.map((file) => `  - ${file.name}`)
       ])
     })
 )
