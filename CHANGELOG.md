@@ -4,6 +4,65 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.15.0 - 2026-04-14
+
+### Features
+
+- feat(querybuilder): add stream execution APIs
+
+### Fixes
+
+- fix(column): preserve bound-column brands in result rows
+- fix(query): allow any comparisons and drop unsafeAny in tests
+- fix: align typecheck docs and tests with tsgo
+- fix(querybuilder): enforce string length limits in schemas
+- fix(database): stabilize postgres pull and migrations
+
+### Refactors
+
+- refactor(query): reduce type instantiation depth
+- refactor: rename Expression and Plan to Scalar and RowSet
+- refactor(postgres): move private implementation under postgres/internal
+- refactor(mysql): move private implementation under mysql/internal
+- refactor(querybuilder): split dialect internals and simplify typing
+- refactor: overhaul query builder internals
+
+### Docs
+
+- docs(readme): refresh query examples
+- docs(readme): refocus error handling examples
+- docs(readme): use a real read-plan error example
+
+### Tests
+
+- test(readme): typecheck documented examples
+- test(errors): cover tagged postgres executor handlers
+- test: isolate bun coverage config for scripted runs
+
+### Build
+
+- build(packages): declare node 22 support
+- build(packages): point declaration facades at js outputs
+
+### CI
+
+- ci(workflows): dispatch publish from release
+- ci(publish): set npm token env for bun publish
+- ci: add node 22 smoke lane
+
+### Chores
+
+- chore(scripts): remove mysql error catalog generator
+- chore(gitignore): ignore ts trace output
+
+### Other
+
+- fix dependency tracking and not-in implication facts
+- tighten predicate operator input inference
+- fix metadata and json typing regressions
+- document current query shape typing limits
+- update behavior tests for rowset and scalar names
+
 ## 0.14.0 - 2026-03-26
 
 ### Breaking Changes
