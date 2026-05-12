@@ -38,12 +38,14 @@ const schemaCache = new WeakMap<Expression.Any, RuntimeSchema | undefined>()
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+const FiniteNumberSchema = Schema.Number.pipe(Schema.finite())
+
 const runtimeSchemaForTag = (tag: RuntimeTag): RuntimeSchema | undefined => {
   switch (tag) {
     case "string":
       return Schema.String
     case "number":
-      return Schema.Number.pipe(Schema.finite())
+      return FiniteNumberSchema
     case "bigintString":
       return BigIntStringSchema
     case "boolean":
@@ -388,7 +390,7 @@ const deriveRuntimeSchema = (
       return Schema.String
     case "count":
     case "jsonLength":
-      return Schema.Number
+      return FiniteNumberSchema
     case "max":
     case "min":
       return expressionRuntimeSchema(ast.value, context)
@@ -404,7 +406,7 @@ const deriveRuntimeSchema = (
     case "window":
       return ast.function === "over" && ast.value !== undefined
         ? expressionRuntimeSchema(ast.value, context)
-        : Schema.Number
+        : FiniteNumberSchema
     case "jsonGet":
     case "jsonPath":
     case "jsonAccess":
