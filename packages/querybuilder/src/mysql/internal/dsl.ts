@@ -1099,6 +1099,16 @@ type JsonSetOutputOf<
     ? JsonSetAtPath<Root, JsonPath.Path<[Target]>, Next, Operation>
     : never
 
+type JsonSetOutputWithCreateMissing<
+  Root,
+  Target extends JsonPathInput,
+  Next,
+  Operation extends string,
+  CreateMissing extends boolean
+> = false extends CreateMissing
+  ? Root | JsonSetOutputOf<Root, Target, Next, Operation>
+  : JsonSetOutputOf<Root, Target, Next, Operation>
+
 type JsonInsertOutputOf<
   Root,
   Target extends JsonPathInput,
@@ -2681,18 +2691,19 @@ type BinaryPredicateExpression<
   const jsonSet = <
     Base extends JsonExpressionLike<any>,
     Target extends JsonPathInput,
-    Next extends JsonValueInput
+    Next extends JsonValueInput,
+    CreateMissing extends boolean = true
   >(
     base: Base,
     target: Target & JsonSetGuard<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
     next: Next,
     options: {
-      readonly createMissing?: boolean
+      readonly createMissing?: CreateMissing
     } = {}
   ): JsonExpression<
-    JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+    JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
     JsonDbOfExpression<Base>,
-    JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>,
+    JsonNullabilityOf<JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>>,
     DialectOf<Base>,
     KindOf<Base>,
     DependenciesOf<Base>,
@@ -2703,9 +2714,9 @@ type BinaryPredicateExpression<
     return buildJsonNodeExpression(
       [base, newValue],
       {
-        runtime: undefined as unknown as JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+        runtime: undefined as unknown as JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
         dbType: jsonDbTypeOf(base),
-        nullability: undefined as unknown as JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>>
       },
       {
         kind: "jsonSet",
@@ -2715,9 +2726,9 @@ type BinaryPredicateExpression<
         createMissing: options.createMissing ?? true
       }
     ) as JsonExpression<
-      JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+      JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
       JsonDbOfExpression<Base>,
-      JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>,
+      JsonNullabilityOf<JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>>,
       DialectOf<Base>,
       KindOf<Base>,
       DependenciesOf<Base>,

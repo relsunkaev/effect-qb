@@ -653,7 +653,7 @@ const renderJsonExpression = (
         return `${functionName}(${renderPostgresJsonValue(base, state, dialect)}, ${renderPostgresJsonPathArray(segments, state, dialect)}, ${renderPostgresJsonValue(nextValue, state, dialect)}${extra})`
       }
       if (dialect.name === "mysql") {
-        const functionName = kind === "jsonInsert" ? "json_insert" : "json_set"
+        const functionName = kind === "jsonInsert" ? "json_insert" : createMissing ? "json_set" : "json_replace"
         return `${functionName}(${renderExpression(base, state, dialect)}, ${renderMySqlJsonPath(segments, state, dialect)}, ${renderExpression(nextValue, state, dialect)})`
       }
       return undefined
