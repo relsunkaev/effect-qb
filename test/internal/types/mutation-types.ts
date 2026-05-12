@@ -67,6 +67,24 @@ const insertConflictPlan = Q.insert(users, {
   where: Q.isNotNull(Q.excluded(users.bio))
 }))
 
+const badInsertMysqlValue = Q.insert(auditLogs, {
+  note: Mysql.Query.literal("wrong-dialect")
+})
+const badInsertMysqlValueRendered = Renderer.make().render(
+  // @ts-expect-error postgres insert values cannot use mysql expressions
+  badInsertMysqlValue
+)
+void badInsertMysqlValueRendered
+
+const badUpdateMysqlValue = Q.update(users, {
+  email: Mysql.Query.literal("wrong-dialect")
+})
+const badUpdateMysqlValueRendered = Renderer.make().render(
+  // @ts-expect-error postgres update values cannot use mysql expressions
+  badUpdateMysqlValue
+)
+void badUpdateMysqlValueRendered
+
 const badUpsertMysqlInsertValue = Q.upsert(
   users,
   // @ts-expect-error postgres upsert insert values cannot use mysql expressions
