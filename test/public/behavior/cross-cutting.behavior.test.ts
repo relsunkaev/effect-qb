@@ -113,4 +113,31 @@ describe("cross-cutting statement behavior", () => {
       "where(...) is not supported for createTable statements"
     )
   })
+
+  test("rejects runtime returning projections on merge statements", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+    const incomingUsers = Postgres.Table.make("incoming_users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    const mergePlan = Postgres.Query.merge(users, incomingUsers, Postgres.Query.eq(users.id, incomingUsers.id), {
+      whenMatched: {
+        update: {
+          email: incomingUsers.email
+        }
+      }
+    }).pipe(
+      Postgres.Query.returning({
+        merged: Postgres.Query.literal(true)
+      })
+    )
+
+    expect(() => Postgres.Renderer.make().render(mergePlan)).toThrow(
+      "returning(...) is not supported for merge statements"
+    )
+  })
 })
