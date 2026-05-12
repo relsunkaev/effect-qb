@@ -211,4 +211,21 @@ describe("cross-cutting statement behavior", () => {
       "orderBy(...) is not supported for update statements"
     )
   })
+
+  test("rejects runtime lock modifiers on unsupported mutation statements", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    const lockedUpdate = Postgres.Query.update(users, {
+      email: "updated@example.com"
+    }).pipe(
+      Postgres.Query.lock("update")
+    )
+
+    expect(() => Postgres.Renderer.make().render(lockedUpdate)).toThrow(
+      "lock(...) is not supported for update statements"
+    )
+  })
 })
