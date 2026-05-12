@@ -137,6 +137,18 @@ type IndexOptionColumnNames<Spec> =
   | (Spec extends { readonly include: infer Include extends readonly string[] } ? Include[number] : never)
   | (Spec extends { readonly keys: infer Keys } ? IndexKeyColumnNames<Keys> : never)
 
+type ForeignKeyReferencedColumnNames<Spec> = Spec extends { readonly references: () => infer Reference }
+  ? Reference extends { readonly columns: infer Columns extends readonly string[] }
+    ? Columns[number]
+    : never
+  : never
+
+type ForeignKeyKnownReferencedColumnNames<Spec> = Spec extends { readonly references: () => infer Reference }
+  ? Reference extends { readonly knownColumns: infer KnownColumns extends readonly string[] }
+    ? KnownColumns[number]
+    : string
+  : string
+
 type AssertKnownColumnNames<Fields extends TableFieldMap, Columns extends string> = [Columns] extends [never]
   ? true
   : string extends Columns
@@ -144,6 +156,16 @@ type AssertKnownColumnNames<Fields extends TableFieldMap, Columns extends string
     : Exclude<Columns, ColumnNameUnion<Fields>> extends never
       ? true
       : false
+
+type AssertKnownReferenceColumnNames<KnownColumns extends string, Columns extends string> = [Columns] extends [never]
+  ? true
+  : string extends Columns
+    ? true
+    : string extends KnownColumns
+      ? true
+      : Exclude<Columns, KnownColumns> extends never
+        ? true
+        : false
 
 type AssertPrimaryKeyColumns<
   Fields extends TableFieldMap,
@@ -344,6 +366,26 @@ export type ValidateIndexOptionColumns<
   Fields extends TableFieldMap,
   Spec
 > = AssertKnownColumnNames<Fields, IndexOptionColumnNames<Spec>> extends true ? Spec : never
+
+/** Compile-time validation that foreign keys reference known local and target columns. */
+export type ValidateForeignKeyOptionColumns<
+  Fields extends TableFieldMap,
+  Spec
+> = Spec extends { readonly columns: infer Columns extends readonly string[] }
+  ? AssertKnownColumns<Fields, Columns> extends never
+    ? never
+    : AssertKnownReferenceColumnNames<
+        ForeignKeyKnownReferencedColumnNames<Spec>,
+        ForeignKeyReferencedColumnNames<Spec>
+      > extends true
+      ? Spec
+      : never
+  : AssertKnownReferenceColumnNames<
+      ForeignKeyKnownReferencedColumnNames<Spec>,
+      ForeignKeyReferencedColumnNames<Spec>
+    > extends true
+    ? Spec
+    : never
 
 /** Normalizes a public column input into the internal tuple form. */
 export type NormalizeColumns<Columns extends string | readonly string[]> = TupleFromColumns<Columns>

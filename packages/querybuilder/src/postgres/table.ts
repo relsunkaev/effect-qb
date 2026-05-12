@@ -42,6 +42,8 @@ type FieldsOfTable<Table> = Table extends BaseTable.TableDefinition<any, infer F
     ? Fields
     : never
 
+type ColumnNamesOfTable<Table> = Extract<keyof FieldsOfTable<Table>, string>
+
 type PrimaryKeyOfTable<Table> = Table extends BaseTable.TableDefinition<any, any, infer PrimaryKeyColumns extends string, any, any>
   ? PrimaryKeyColumns
   : Table extends BaseTable.TableClassStatic<any, any, infer PrimaryKeyColumns extends string, any>
@@ -178,6 +180,7 @@ type RichIndexInput<Columns extends string | readonly string[] = string | readon
 type PrimaryKeyOptionSpec = Extract<TableOptionSpec, { readonly kind: "primaryKey" }>
 type UniqueOptionSpec = Extract<TableOptionSpec, { readonly kind: "unique" }>
 type IndexOptionSpec = Extract<TableOptionSpec, { readonly kind: "index" }>
+type ForeignKeyOptionSpec = Extract<TableOptionSpec, { readonly kind: "foreignKey" }>
 
 type RichPrimaryKeyOptionSpec<Columns extends string | readonly string[]> = PrimaryKeyOptionSpec & {
   readonly kind: "primaryKey"
@@ -188,6 +191,17 @@ type RichUniqueOptionSpec<Columns extends string | readonly string[]> = UniqueOp
   readonly kind: "unique"
   readonly columns: BaseTable.NormalizeColumns<Columns>
 }
+
+type KnownTargetColumnsInput<
+  TargetTable extends AnyTable,
+  Columns extends string | readonly string[]
+> = BaseTable.NormalizeColumns<Columns> extends infer NormalizedColumns extends readonly string[]
+  ? string extends NormalizedColumns[number]
+    ? unknown
+    : Exclude<NormalizedColumns[number], ColumnNamesOfTable<TargetTable>> extends never
+      ? unknown
+      : never
+  : never
 
 type RichIndexColumnOption<Spec> = Spec extends { readonly columns: infer Columns extends string | readonly string[] }
   ? { readonly columns: BaseTable.NormalizeColumns<Columns> }
@@ -217,6 +231,21 @@ type RichIndexOptionSpec<Spec> = IndexOptionSpec & {
   readonly predicate?: DdlExpressionLike
 } & RichIndexColumnOption<Spec> & RichIndexIncludeOption<Spec> & RichIndexKeysOption<Spec>
 
+type RichForeignKeyOptionSpec<
+  LocalColumns extends string | readonly string[],
+  TargetTable extends AnyTable,
+  TargetColumns extends string | readonly string[]
+> = ForeignKeyOptionSpec & {
+  readonly kind: "foreignKey"
+  readonly columns: BaseTable.NormalizeColumns<LocalColumns>
+  readonly references: () => {
+    readonly tableName: string
+    readonly schemaName?: string
+    readonly columns: BaseTable.NormalizeColumns<TargetColumns>
+    readonly knownColumns: readonly ColumnNamesOfTable<TargetTable>[]
+  }
+}
+
 type RichForeignKeyInput<
   LocalColumns extends string | readonly string[],
   TargetTable extends AnyTable,
@@ -224,7 +253,7 @@ type RichForeignKeyInput<
 > = {
   readonly columns: LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>
   readonly target: () => TargetTable
-  readonly referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
+  readonly referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns> & KnownTargetColumnsInput<NoInfer<TargetTable>, TargetColumns>
   readonly name?: string
   readonly onUpdate?: ReferentialAction
   readonly onDelete?: ReferentialAction
@@ -378,33 +407,33 @@ export const foreignKey = <
 >(
   columnsOrSpec: (LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>) | RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns>,
   target?: () => TargetTable,
-  referencedColumns?: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
-): BaseTable.TableOption =>
+  referencedColumns?: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns> & KnownTargetColumnsInput<NoInfer<TargetTable>, TargetColumns>
+): BaseTable.TableOption<RichForeignKeyOptionSpec<LocalColumns, TargetTable, TargetColumns>> =>
   isObject(columnsOrSpec) && "columns" in columnsOrSpec && "target" in columnsOrSpec
     ? (() => {
         const spec = columnsOrSpec as RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns>
-        const targetTable = spec.target() as BaseTable.AnyTable
+        const targetTable = spec.target()
         const targetState = targetTable[BaseTable.TypeId]
         return BaseTable.option({
-        kind: "foreignKey",
-        columns: normalizeColumns(spec.columns),
-        name: spec.name,
-        references: () => ({
-          tableName: targetState.baseName,
-          schemaName: targetState.schemaName,
-          columns: normalizeColumns(spec.referencedColumns),
-          knownColumns: Object.keys(targetState.fields)
-        }),
-        onUpdate: spec.onUpdate,
-        onDelete: spec.onDelete,
-        deferrable: spec.deferrable,
-        initiallyDeferred: spec.initiallyDeferred
-      })
+          kind: "foreignKey",
+          columns: normalizeColumns(spec.columns) as BaseTable.NormalizeColumns<LocalColumns>,
+          name: spec.name,
+          references: () => ({
+            tableName: targetState.baseName,
+            schemaName: targetState.schemaName,
+            columns: normalizeColumns(spec.referencedColumns) as BaseTable.NormalizeColumns<TargetColumns>,
+            knownColumns: Object.keys(targetState.fields) as unknown as readonly ColumnNamesOfTable<TargetTable>[]
+          }),
+          onUpdate: spec.onUpdate,
+          onDelete: spec.onDelete,
+          deferrable: spec.deferrable,
+          initiallyDeferred: spec.initiallyDeferred
+        } as RichForeignKeyOptionSpec<LocalColumns, TargetTable, TargetColumns>)
       })()
-    : BaseTable.foreignKey<LocalColumns, BaseTable.AnyTable, TargetColumns>(
+    : BaseTable.foreignKey<LocalColumns, TargetTable, TargetColumns>(
         columnsOrSpec as LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
-        target as () => BaseTable.AnyTable,
-        referencedColumns as TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
+        target as () => TargetTable,
+        referencedColumns as TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns> & KnownTargetColumnsInput<NoInfer<TargetTable>, TargetColumns>
       )
 
 export const check: {

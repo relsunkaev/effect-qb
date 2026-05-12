@@ -17,6 +17,7 @@ import {
   type NormalizeColumns,
   type ReferentialAction,
   type TableOptionSpec,
+  type ValidateForeignKeyOptionColumns,
   type ValidateIndexOptionColumns,
   type ValidateKnownColumns,
   type ValidatePrimaryKeyColumns,
@@ -74,9 +75,11 @@ type OptionInputTable<
   ? ValidatePrimaryKeyColumns<Table[typeof TypeId]["fields"], Columns> extends never ? never : Table
   : Spec extends { readonly kind: "index" }
     ? ValidateIndexOptionColumns<Table[typeof TypeId]["fields"], Spec> extends never ? never : Table
-  : Spec extends { readonly columns: infer Columns extends readonly string[] }
-    ? ValidateKnownColumns<Table[typeof TypeId]["fields"], Columns> extends never ? never : Table
-    : Table
+    : Spec extends { readonly kind: "foreignKey" }
+      ? ValidateForeignKeyOptionColumns<Table[typeof TypeId]["fields"], Spec> extends never ? never : Table
+      : Spec extends { readonly columns: infer Columns extends readonly string[] }
+        ? ValidateKnownColumns<Table[typeof TypeId]["fields"], Columns> extends never ? never : Table
+        : Table
 
 type ApplyOption<
   Table extends TableDefinition<any, any, any, "schema", any>,
@@ -208,6 +211,14 @@ export type TableClassStatic<
 
 /** Minimal structural table-like contract used across helper APIs. */
 export type AnyTable = TableDefinition<any, any, any, any, any> | TableClassStatic<any, any, any, any>
+
+type FieldsOfAnyTable<Table extends AnyTable> = Table extends TableDefinition<any, infer Fields extends TableFieldMap, any, any, any>
+  ? Fields
+  : Table extends TableClassStatic<any, infer Fields extends TableFieldMap, any, any>
+    ? Fields
+    : never
+
+type ColumnNamesOfAnyTable<Table extends AnyTable> = Extract<keyof FieldsOfAnyTable<Table>, string>
 
 /** Public table-option builder type used by `Table.index`, `Table.primaryKey`, and friends. */
 export type TableOption<
@@ -720,7 +731,7 @@ export const foreignKey = <
     readonly tableName: string
     readonly schemaName?: string
     readonly columns: NormalizeColumns<TargetColumns>
-    readonly knownColumns: readonly string[]
+    readonly knownColumns: readonly ColumnNamesOfAnyTable<TargetTable>[]
   }
 }> => makeOption({
   kind: "foreignKey",
@@ -729,7 +740,7 @@ export const foreignKey = <
     tableName: target()[TypeId].baseName,
     schemaName: target()[TypeId].schemaName,
     columns: normalizeColumnList(referencedColumns) as NormalizeColumns<TargetColumns>,
-    knownColumns: Object.keys(target()[TypeId].fields)
+    knownColumns: Object.keys(target()[TypeId].fields) as unknown as readonly ColumnNamesOfAnyTable<TargetTable>[]
   })
 })
 

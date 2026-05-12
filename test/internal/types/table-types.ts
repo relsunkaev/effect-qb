@@ -422,25 +422,24 @@ const badForeignKeyReferencedColumn = Table.foreignKey("orgId", () => orgs, "mis
 }))
 void badForeignKeyReferencedColumn
 
-// @ts-expect-error rich foreign key local columns must exist on the source table
-const badRichForeignKeyLocalColumn = Table.foreignKey({
+const badRichForeignKeyLocalColumnOption = Table.foreignKey({
   columns: ["missing"] as const,
   target: () => orgs,
   referencedColumns: ["id"] as const
-})(Table.make("bad_rich_fk_local_column", {
+})
+// @ts-expect-error rich foreign key local columns must exist on the source table
+const badRichForeignKeyLocalColumn = badRichForeignKeyLocalColumnOption(Table.make("bad_rich_fk_local_column", {
   orgId: C.uuid()
 }))
 void badRichForeignKeyLocalColumn
 
 // @ts-expect-error rich foreign keys must reference columns on the target table
-const badRichForeignKeyReferencedColumn = Table.foreignKey({
+const badRichForeignKeyReferencedColumnOption = Table.foreignKey({
   columns: ["orgId"] as const,
   target: () => orgs,
   referencedColumns: ["missing"] as const
-})(Table.make("bad_rich_fk_referenced_column", {
-  orgId: C.uuid()
-}))
-void badRichForeignKeyReferencedColumn
+})
+void badRichForeignKeyReferencedColumnOption
 
 // @ts-expect-error rich primary key columns must exist on the target table
 const badRichPrimaryKeyColumn = Table.primaryKey({ columns: ["missing"] as const })(Table.make("bad_rich_primary_key_column", {
