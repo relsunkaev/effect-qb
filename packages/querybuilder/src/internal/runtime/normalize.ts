@@ -230,11 +230,18 @@ const isJsonValue = (value: unknown): boolean => {
 
 const normalizeJson = (value: unknown): unknown => {
   if (typeof value === "string") {
-    const parsed = JSON.parse(value)
-    if (isJsonValue(parsed)) {
-      return parsed
+    try {
+      const parsed = JSON.parse(value)
+      if (isJsonValue(parsed)) {
+        return parsed
+      }
+      throw new Error("Parsed JSON value is not a valid JSON runtime")
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return value
+      }
+      throw error
     }
-    throw new Error("Parsed JSON value is not a valid JSON runtime")
   }
   if (isJsonValue(value)) {
     return value
