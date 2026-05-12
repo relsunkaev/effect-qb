@@ -385,6 +385,115 @@ describe("executor behavior", () => {
     })
   })
 
+  const invalidTemporalCases = [
+    {
+      name: "fromDriver rejects impossible local-time values",
+      tableName: "invalid_time_events",
+      column: () => C.time(),
+      raw: "25:61:00",
+      stage: "normalize",
+      kind: "time"
+    },
+    {
+      name: "normalized driver mode rejects impossible local-time values",
+      tableName: "normalized_invalid_time_events",
+      column: () => C.time(),
+      raw: "25:61:00",
+      driverMode: "normalized",
+      stage: "schema",
+      kind: "time"
+    },
+    {
+      name: "fromDriver rejects impossible offset-time values",
+      tableName: "invalid_offset_time_events",
+      column: () => C.timetz(),
+      raw: "25:61:00+99:99",
+      stage: "normalize",
+      kind: "timetz"
+    },
+    {
+      name: "normalized driver mode rejects impossible offset-time values",
+      tableName: "normalized_invalid_offset_time_events",
+      column: () => C.timetz(),
+      raw: "25:61:00+99:99",
+      driverMode: "normalized",
+      stage: "schema",
+      kind: "timetz"
+    },
+    {
+      name: "fromDriver rejects impossible local-datetime values",
+      tableName: "invalid_datetime_events",
+      column: () => C.timestamp(),
+      raw: "2026-02-31 10:00:00",
+      stage: "normalize",
+      kind: "timestamp"
+    },
+    {
+      name: "normalized driver mode rejects impossible local-datetime values",
+      tableName: "normalized_invalid_datetime_events",
+      column: () => C.timestamp(),
+      raw: "2026-02-31T10:00:00",
+      driverMode: "normalized",
+      stage: "schema",
+      kind: "timestamp"
+    },
+    {
+      name: "fromDriver rejects impossible instant values",
+      tableName: "invalid_instant_events",
+      column: () => C.timestamptz(),
+      raw: "2026-02-31T10:00:00Z",
+      stage: "normalize",
+      kind: "timestamptz"
+    },
+    {
+      name: "normalized driver mode rejects impossible instant values",
+      tableName: "normalized_invalid_instant_events",
+      column: () => C.timestamptz(),
+      raw: "2026-02-31T10:00:00Z",
+      driverMode: "normalized",
+      stage: "schema",
+      kind: "timestamptz"
+    }
+  ]
+
+  for (const invalidCase of invalidTemporalCases) {
+    test(invalidCase.name, () => {
+      const events = Table.make(invalidCase.tableName, {
+        value: invalidCase.column()
+      })
+
+      const plan = Q.select({
+        value: events.value
+      }).pipe(
+        Q.from(events)
+      )
+
+      const result = Effect.runSync(Effect.either(Executor.make({
+        driverMode: invalidCase.driverMode,
+        driver: Executor.driver("postgres", () => Effect.succeed([
+          {
+            value: invalidCase.raw
+          }
+        ]))
+      }).execute(plan)))
+
+      expect(result).toMatchObject({
+        _tag: "Left",
+        left: {
+          _tag: "RowDecodeError",
+          stage: invalidCase.stage,
+          projection: {
+            alias: "value"
+          },
+          dbType: {
+            dialect: "postgres",
+            kind: invalidCase.kind
+          }
+        }
+      })
+    })
+  }
+
   test("fromDriver normalizes canonical scalar outputs across raw driver variants", () => {
     const metrics = Table.make("metrics", {
       id: C.uuid().pipe(C.primaryKey),
