@@ -28,10 +28,11 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
       ...Record<string, Expression.Any>[]
     ]
     const columnNames = Object.keys(normalizedRows[0]!)
+    const columnNameSet = new Set(columnNames)
     for (const row of normalizedRows) {
       const rowKeys = Object.keys(row)
-      if (rowKeys.length !== columnNames.length || !rowKeys.every((key, index) => key === columnNames[index])) {
-        throw new Error("values(...) rows must project the same columns in the same order")
+      if (rowKeys.length !== columnNames.length || !rowKeys.every((key) => columnNameSet.has(key))) {
+        throw new Error("values(...) rows must project the same columns")
       }
     }
     return Object.assign(Object.create(ctx.ValuesInputProto), {
