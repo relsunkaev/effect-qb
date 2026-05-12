@@ -1,3 +1,5 @@
+import * as Schema from "effect/Schema"
+
 import * as Query from "../../internal/query.js"
 import * as Expression from "../../internal/scalar.js"
 import * as Table from "../../internal/table.js"
@@ -10,6 +12,7 @@ import {
   renderSelectSql,
   toDriverValue
 } from "../../internal/runtime/driver-value-mapping.js"
+import { normalizeDbValue } from "../../internal/runtime/normalize.js"
 import { flattenSelection, type Projection } from "../../internal/projections.js"
 import { type SelectionValue, validateAggregationSelection } from "../../internal/aggregation-validation.js"
 import * as SchemaExpression from "../../internal/schema-expression.js"
@@ -348,14 +351,20 @@ const encodeArrayValues = (
   state: RenderState,
   dialect: SqlDialect
 ): readonly unknown[] =>
-  values.map((value) =>
-    toDriverValue(value, {
+  values.map((value) => {
+    const runtimeSchemaAccepts = column.schema !== undefined &&
+      (Schema.is(column.schema) as (candidate: unknown) => boolean)(value)
+    const normalizedValue = value === null || runtimeSchemaAccepts
+      ? value
+      : normalizeDbValue(column.metadata.dbType, value)
+    return toDriverValue(normalizedValue, {
       dialect: dialect.name,
       valueMappings: state.valueMappings,
       dbType: column.metadata.dbType,
       runtimeSchema: column.schema,
       driverValueMapping: column.metadata.driverValueMapping
-    }))
+    })
+  })
 
 const renderPostgresJsonKind = (
   value: Expression.Any
