@@ -2716,7 +2716,7 @@ type BinaryPredicateExpression<
     CreateMissing extends boolean = true
   >(
     base: Base,
-    target: Target & JsonSetGuard<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+    target: Target & JsonSetGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, "json.set">,
     next: Next,
     options: {
       readonly createMissing?: CreateMissing
@@ -2764,7 +2764,7 @@ type BinaryPredicateExpression<
     InsertAfter extends boolean = false
   >(
     base: Base,
-    target: Target & JsonInsertGuard<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+    target: Target & JsonInsertGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, NoInfer<InsertAfter>, "json.insert">,
     next: Next,
     options: {
       readonly insertAfter?: InsertAfter

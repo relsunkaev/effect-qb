@@ -457,7 +457,7 @@ const jsonb = {
     CreateMissing extends boolean = true
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.set">,
-    target: Target & JsonSetPathGuard<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+    target: Target & JsonSetPathGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, "json.set">,
     next: Next,
     options?: {
       readonly createMissing?: CreateMissing
@@ -476,7 +476,7 @@ const jsonb = {
     InsertAfter extends boolean = false
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.insert">,
-    target: Target & JsonInsertPathGuard<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+    target: Target & JsonInsertPathGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, NoInfer<InsertAfter>, "json.insert">,
     next: Next,
     options?: {
       readonly insertAfter?: InsertAfter
