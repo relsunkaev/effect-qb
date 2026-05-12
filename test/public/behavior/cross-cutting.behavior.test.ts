@@ -245,4 +245,19 @@ describe("cross-cutting statement behavior", () => {
       "returning(...) is not supported for createTable statements"
     )
   })
+
+  test("rejects runtime sources on transaction statements", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    expect(() =>
+      Postgres.Query.transaction().pipe(
+        Postgres.Query.from(users)
+      )
+    ).toThrow(
+      "from(...) is not supported for transaction statements"
+    )
+  })
 })
