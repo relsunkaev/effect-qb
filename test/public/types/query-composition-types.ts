@@ -381,6 +381,23 @@ const nestedSetRight = Q.select({
 // @ts-expect-error nested object selections must currently match exactly across set operands
 const nestedIntersect = Q.intersect(nestedSetLeft, nestedSetRight)
 
+const dottedPathSetLeft = Q.select({
+  profile: {
+    email: users.email
+  }
+}).pipe(
+  Q.from(users)
+)
+
+const dottedPathSetRight = Q.select({
+  "profile.email": users.email
+}).pipe(
+  Q.from(users)
+)
+
+// @ts-expect-error nested selection paths and dotted property keys are distinct set operand shapes
+const dottedPathUnion = Q.union(dottedPathSetLeft, dottedPathSetRight)
+
 const nullableSetLeft = Q.select({
   title: posts.title
 }).pipe(
