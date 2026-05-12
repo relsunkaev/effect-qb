@@ -1065,6 +1065,17 @@ describe("postgres dialect behavior", () => {
     expect(() => Postgres.Renderer.make().render(plan)).toThrow()
   })
 
+  test("rejects invalid postgres lock modes before rendering SQL", () => {
+    const { users } = makePostgresSocialGraph()
+
+    expect(() => Postgres.Query.select({
+      id: users.id
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.lock(unsafeAny("exclusive"))
+    )).toThrow("lock(...) mode must be update or share for select statements")
+  })
+
   test("renders postgres set operators with stable operand ordering", () => {
     const { users } = makePostgresSocialGraph()
 

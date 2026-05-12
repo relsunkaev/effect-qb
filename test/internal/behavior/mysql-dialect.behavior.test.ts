@@ -895,6 +895,16 @@ describe("mysql dialect behavior", () => {
     ])
   })
 
+  test("rejects invalid mysql update lock modes before dropping modifiers", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    expect(() => Mysql.Query.update(users, {
+      email: "author@example.com"
+    }).pipe(
+      Mysql.Query.lock(unsafeAny("quick"))
+    )).toThrow("lock(...) mode must be lowPriority or ignore for update statements")
+  })
+
   test("renders mysql multi-table update assignments", () => {
     const { users, posts } = makeMysqlSocialGraph()
 

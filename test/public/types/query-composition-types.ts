@@ -205,6 +205,9 @@ Q.select({
   Q.lock("update", { nowait: true, skipLocked: true })
 )
 
+// @ts-expect-error lock mode must be update or share for select statements
+Q.lock("exclusive")
+
 type LockPlanCapabilities = Q.CapabilitiesOfPlan<typeof lockPlan>
 const lockPlanCapability: LockPlanCapabilities = "transaction"
 void lockPlanCapability

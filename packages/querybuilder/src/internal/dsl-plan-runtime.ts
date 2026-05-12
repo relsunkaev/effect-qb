@@ -325,6 +325,26 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       const current = plan[Plan.TypeId]
       const currentAst = ctx.getAst(plan)
       const currentQuery = ctx.getQueryState(plan)
+      if (currentQuery.statement === "select" && mode !== "update" && mode !== "share") {
+        throw new Error("lock(...) mode must be update or share for select statements")
+      }
+      if (
+        ctx.profile.dialect === "mysql" &&
+        currentQuery.statement === "update" &&
+        mode !== "lowPriority" &&
+        mode !== "ignore"
+      ) {
+        throw new Error("lock(...) mode must be lowPriority or ignore for update statements")
+      }
+      if (
+        ctx.profile.dialect === "mysql" &&
+        currentQuery.statement === "delete" &&
+        mode !== "lowPriority" &&
+        mode !== "quick" &&
+        mode !== "ignore"
+      ) {
+        throw new Error("lock(...) mode must be lowPriority, quick, or ignore for delete statements")
+      }
       return ctx.makePlan({
         selection: current.selection,
         required: current.required,
