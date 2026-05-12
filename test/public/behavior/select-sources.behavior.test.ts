@@ -399,6 +399,34 @@ describe("select sources behavior", () => {
     )
   })
 
+  test("renders nested mysql common table expressions once at the outer query", () => {
+    const postTitles = Mysql.Query.select({
+      userId: mysqlPosts.userId,
+      title: mysqlPosts.title
+    }).pipe(
+      Mysql.Query.from(mysqlPosts),
+      Mysql.Query.with("post_titles")
+    )
+    const activeTitles = Mysql.Query.select({
+      userId: postTitles.userId,
+      title: postTitles.title
+    }).pipe(
+      Mysql.Query.from(postTitles),
+      Mysql.Query.where(Mysql.Query.isNotNull(postTitles.title)),
+      Mysql.Query.with("active_titles")
+    )
+
+    const plan = Mysql.Query.select({
+      title: activeTitles.title
+    }).pipe(
+      Mysql.Query.from(activeTitles)
+    )
+
+    expect(renderMysql(plan).sql).toBe(
+      "with `post_titles` as (select `posts`.`userId` as `userId`, `posts`.`title` as `title` from `posts`), `active_titles` as (select `post_titles`.`userId` as `userId`, `post_titles`.`title` as `title` from `post_titles` where (`post_titles`.`title` is not null)) select `active_titles`.`title` as `title` from `active_titles`"
+    )
+  })
+
   test("rejects lateral joins before their required outer sources", () => {
     const lateralPosts = Postgres.Query.select({
       postId: pgPosts.id,

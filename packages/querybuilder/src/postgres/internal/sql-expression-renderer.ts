@@ -890,7 +890,8 @@ const assertNoStatementQueryClauses = (
 export const renderQueryAst = (
   ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
   state: RenderState,
-  dialect: SqlDialect
+  dialect: SqlDialect,
+  options: { readonly emitCtes?: boolean } = {}
 ): RenderedQueryAst => {
   let sql = ""
   let projections: readonly Projection[] = []
@@ -1284,7 +1285,7 @@ export const renderQueryAst = (
     }
   }
 
-  if (state.ctes.length === 0) {
+  if (state.ctes.length === 0 || options.emitCtes === false) {
     return {
       sql,
       projections
@@ -1334,7 +1335,12 @@ const renderSourceReference = (
     }
     if (!state.cteNames.has(cte.name)) {
       state.cteNames.add(cte.name)
-      const rendered = renderQueryAst(Query.getAst(cte.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>, state, dialect)
+      const rendered = renderQueryAst(
+        Query.getAst(cte.plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
+        state,
+        dialect,
+        { emitCtes: false }
+      )
       state.ctes.push({
         name: cte.name,
         sql: rendered.sql,
