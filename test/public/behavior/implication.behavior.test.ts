@@ -8,7 +8,7 @@ const userId = "11111111-1111-1111-1111-111111111111"
 const postId = "22222222-2222-2222-2222-222222222222"
 
 describe("implication behavior", () => {
-  test("fromDriver remaps sparse nested projection paths without filling missing siblings", () => {
+  test("fromDriver remaps nested projection paths while preserving null joined siblings", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),
       email: C.text()
@@ -39,7 +39,9 @@ describe("implication behavior", () => {
     const rows = Effect.runSync(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
+          profile__id: userId,
           profile__email: "alice@example.com",
+          post__id: null,
           post__titleState: "missing"
         }
       ]))
@@ -48,9 +50,11 @@ describe("implication behavior", () => {
     expect(rows).toEqual([
       {
         profile: {
+          id: userId,
           email: "alice@example.com"
         },
         post: {
+          id: null,
           titleState: "missing"
         }
       }
