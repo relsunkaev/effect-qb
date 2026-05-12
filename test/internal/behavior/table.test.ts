@@ -390,6 +390,28 @@ describe("table definitions", () => {
     )
   })
 
+  test("runtime grouped validation keeps dotted table and column names distinct", () => {
+    const dottedTable = Table.make("a.b", {
+      status: C.text()
+    })
+    const splitTable = Table.make("a", {
+      "b.status": C.text()
+    })
+
+    const groupedByDotted = Q.select({
+      splitStatus: splitTable["b.status"],
+      statusCount: F.count(dottedTable.status)
+    }).pipe(
+      Q.from(splitTable),
+      Q.crossJoin(dottedTable),
+      Q.groupBy(dottedTable.status)
+    )
+
+    expect(() => Renderer.make("postgres").render(unsafeNever(groupedByDotted))).toThrow(
+      "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
+    )
+  })
+
   test("Executor.fromDriver renders, runs, and decodes nested rows", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),
