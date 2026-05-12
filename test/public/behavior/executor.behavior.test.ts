@@ -638,6 +638,41 @@ describe("executor behavior", () => {
     ])
   })
 
+  test("fromDriver preserves four-digit years when normalizing Date values", () => {
+    const events = Table.make("early_events", {
+      happenedOn: C.date(),
+      happenedAt: C.timestamp()
+    })
+
+    const happenedOn = new Date(Date.UTC(0, 0, 1))
+    happenedOn.setUTCFullYear(1)
+    const happenedAt = new Date(Date.UTC(0, 0, 1, 2, 3, 4))
+    happenedAt.setUTCFullYear(1)
+
+    const plan = Q.select({
+      happenedOn: events.happenedOn,
+      happenedAt: events.happenedAt
+    }).pipe(
+      Q.from(events)
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          happenedOn,
+          happenedAt
+        }
+      ]))
+    }).execute(plan))
+
+    expect(rows).toEqual([
+      {
+        happenedOn: "0001-01-01",
+        happenedAt: "0001-01-01T02:03:04"
+      }
+    ])
+  })
+
   test("fromDriver decodes searched case projections over left joins", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey)
