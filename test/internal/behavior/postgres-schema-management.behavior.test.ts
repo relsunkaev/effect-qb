@@ -9,7 +9,7 @@ import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 import * as ExpressionAst from "../../../packages/querybuilder/src/internal/expression-ast.js"
 import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/postgres-schema-diff.js"
-import { toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
+import { fromDiscoveredValues, toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
 import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
 import { planPostgresPull } from "../../../packages/database/src/postgres/pull.js"
 
@@ -292,6 +292,28 @@ describe("postgres schema management", () => {
       expect.objectContaining({
         kind: "dropEnum",
         sql: `drop type "tenant"."a.status"`
+      })
+    )
+  })
+
+  test("does not collapse discovered enum identities that contain dots", () => {
+    const tenantAStatus = Pg.schema("tenant.a").enum("status", ["active"] as const)
+    const tenantDottedStatus = Pg.schema("tenant").enum("a.status", ["pending"] as const)
+
+    const model = fromDiscoveredValues([tenantAStatus, tenantDottedStatus])
+
+    expect(model.enums).toContainEqual(
+      expect.objectContaining({
+        schemaName: "tenant.a",
+        name: "status",
+        values: ["active"]
+      })
+    )
+    expect(model.enums).toContainEqual(
+      expect.objectContaining({
+        schemaName: "tenant",
+        name: "a.status",
+        values: ["pending"]
       })
     )
   })
