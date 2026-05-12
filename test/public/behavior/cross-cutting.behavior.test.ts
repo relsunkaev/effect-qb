@@ -277,4 +277,21 @@ describe("cross-cutting statement behavior", () => {
       "having(...) is not supported for update statements"
     )
   })
+
+  test("rejects runtime groupBy clauses on mutation statements", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    const groupedUpdate = Postgres.Query.update(users, {
+      email: "updated@example.com"
+    }).pipe(
+      Postgres.Query.groupBy(users.id)
+    )
+
+    expect(() => Postgres.Renderer.make().render(groupedUpdate)).toThrow(
+      "groupBy(...) is not supported for update statements"
+    )
+  })
 })
