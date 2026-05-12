@@ -254,6 +254,26 @@ describe("sqlite behavior", () => {
     }))).toThrow("effect-qb: unknown conflict target column")
   })
 
+  test("renders sqlite string conflict targets", () => {
+    const users = Sqlite.Table.make("users", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+      email: Sqlite.Column.text()
+    })
+
+    const plan = Sqlite.Query.onConflict("email", {
+      update: {
+        email: Sqlite.Query.excluded(users.email)
+      }
+    })(Sqlite.Query.insert(users, {
+      id: "user-1",
+      email: "alice@example.com"
+    }))
+
+    expect(render(plan).sql).toBe(
+      'insert into "users" ("id", "email") values (?, ?) on conflict ("email") do update set "email" = excluded."email"'
+    )
+  })
+
   test("rejects sqlite named conflict targets at runtime", () => {
     const users = Sqlite.Table.make("users", {
       id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),

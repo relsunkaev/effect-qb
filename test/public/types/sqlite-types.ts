@@ -100,6 +100,14 @@ Q.insert(users, userInsert).pipe(
 )
 
 Q.insert(users, userInsert).pipe(
+  Q.onConflict("id", {
+    update: {
+      email: Q.excluded(users.email)
+    }
+  })
+)
+
+Q.insert(users, userInsert).pipe(
   Q.onConflict({
     columns: ["email"] as const,
     where: Q.isNotNull(users.email)
@@ -128,6 +136,10 @@ Q.insert(users, userInsert).pipe(
 Q.upsert(users, userInsert, ["id"] as const,
   // @ts-expect-error sqlite upsert update values require at least one assignment
   {})
+
+Q.upsert(users, userInsert, "id", {
+  email: Q.excluded(users.email)
+})
 
 Q.insert(users, userInsert).pipe(
   // @ts-expect-error sqlite does not support named conflict constraints

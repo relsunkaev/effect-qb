@@ -245,6 +245,26 @@ describe("mysql insert behavior", () => {
     }))).toThrow("effect-qb: unknown conflict target column")
   })
 
+  test("renders mysql string conflict targets", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text()
+    })
+
+    const plan = Mysql.Query.onConflict("email", {
+      update: {
+        email: Mysql.Query.excluded(users.email)
+      }
+    })(Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))
+
+    expect(render(plan).sql).toBe(
+      "insert into `users` (`id`, `email`) values (?, ?) on duplicate key update `email` = values(`email`)"
+    )
+  })
+
   test("rejects mysql object-shaped conflict targets at runtime", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),

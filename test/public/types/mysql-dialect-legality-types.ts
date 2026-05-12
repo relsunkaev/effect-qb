@@ -90,6 +90,13 @@ Q.upsert(users, {
   // @ts-expect-error MySQL upsert update values require at least one assignment.
   {})
 
+const stringConflictUpsert = Q.upsert(users, {
+  id: "user-id",
+  email: "alice@example.com"
+}, "id", {
+  email: Q.excluded(users.email)
+})
+
 const insertCtePlan = Q.insert(users, {
   id: "user-id",
   email: "alice@example.com"
@@ -111,5 +118,6 @@ void unsupportedCreateIndexOption
 void unsupportedDropIndexOption
 void returningMutation
 void lockedPlan
+void stringConflictUpsert
 void insertCte
 void mergePlan

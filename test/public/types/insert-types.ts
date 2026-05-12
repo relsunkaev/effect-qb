@@ -72,6 +72,16 @@ const insertConflictPlan = Q.insert(users, {
   where: Q.isNotNull(Q.excluded(users.bio))
 }))
 
+const insertStringConflictPlan = Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: "writer"
+}).pipe(Q.onConflict("email", {
+  update: {
+    bio: Q.excluded(users.bio)
+  }
+}))
+
 Q.insert(users, {
   id: "user-id",
   email: "alice@example.com",
@@ -117,6 +127,7 @@ void insertSelectPlan
 void incompleteInsertSelectPlan
 void defaultInsertPlan
 void insertConflictPlan
+void insertStringConflictPlan
 
 // @ts-expect-error excluded(...) only accepts bound table columns
 const invalidExcludedExpression = Q.excluded(F.lower(users.bio))
@@ -164,6 +175,16 @@ Mysql.Query.insert(mysqlUsers, {
   },
   // @ts-expect-error mysql conflict actions do not support where(...)
   where: Mysql.Query.isNotNull(Mysql.Query.excluded(mysqlUsers.bio))
+}))
+
+Mysql.Query.insert(mysqlUsers, {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: null
+}).pipe(Mysql.Query.onConflict("email", {
+  update: {
+    bio: Mysql.Query.excluded(mysqlUsers.bio)
+  }
 }))
 
 Mysql.Query.insert(mysqlUsers, {

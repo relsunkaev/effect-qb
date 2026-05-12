@@ -187,6 +187,26 @@ describe("postgres insert behavior", () => {
     }))).toThrow("effect-qb: unknown conflict target column")
   })
 
+  test("renders postgres string conflict targets", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    const plan = Postgres.Query.onConflict("email", {
+      update: {
+        email: Postgres.Query.excluded(users.email)
+      }
+    })(Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))
+
+    expect(render(plan).sql).toBe(
+      'insert into "public"."users" ("id", "email") values ($1, $2) on conflict ("email") do update set "email" = excluded."email"'
+    )
+  })
+
   test("rejects postgres conflict update actions without assignments", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),

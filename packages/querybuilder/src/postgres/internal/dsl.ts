@@ -4400,9 +4400,9 @@ type BinaryPredicateExpression<
 
   const buildConflictTarget = <Target extends MutationTargetLike>(
     target: Target,
-    input: readonly string[] | { readonly columns: readonly string[]; readonly where?: PredicateInput } | { readonly constraint: string }
+    input: string | readonly string[] | { readonly columns: string | readonly string[]; readonly where?: PredicateInput } | { readonly constraint: string }
   ): QueryAst.ConflictTargetClause => {
-    if (Array.isArray(input)) {
+    if (typeof input === "string" || Array.isArray(input)) {
       return {
         kind: "columns",
         columns: normalizeConflictColumns(target, input)
@@ -4415,7 +4415,7 @@ type BinaryPredicateExpression<
       }
     }
     const columnTarget = input as {
-      readonly columns: readonly string[]
+      readonly columns: string | readonly string[]
       readonly where?: PredicateInput
     }
     return {
@@ -4467,6 +4467,11 @@ type ValidateTargetColumns<
   Target extends MutationTargetLike,
   Columns extends readonly string[]
 > = Exclude<Columns[number], Extract<keyof Target[typeof Table.TypeId]["fields"], string>> extends never ? Columns : never
+
+type ValidateTargetColumnInput<
+  Target extends MutationTargetLike,
+  Columns extends DdlColumnInput
+> = ValidateTargetColumns<Target, NormalizeDdlColumns<Columns>> extends never ? never : Columns
 
 type CreateIndexOptions = {
   readonly name?: string
@@ -4880,7 +4885,7 @@ type InsertSourceDialect<Source> =
 type ConflictColumnTarget<
   Target extends MutationTargetLike,
   Columns extends DdlColumnInput
-> = ValidateTargetColumns<Target, NormalizeDdlColumns<Columns>>
+> = ValidateTargetColumnInput<Target, Columns>
 
 type ConflictTargetInput<
   Target extends MutationTargetLike,
@@ -6253,7 +6258,7 @@ type AsCurriedResult<
   >(
     target: Target,
     values: Values & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    conflictColumns: ValidateTargetColumns<Target, NormalizeDdlColumns<Columns>>,
+    conflictColumns: ValidateTargetColumnInput<Target, Columns>,
     updateValues?: UpdateValues & UpdateValuesNonEmptyConstraint<Exclude<UpdateValues, undefined>> & MutationValuesDialectConstraint<Exclude<UpdateValues, undefined>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   ) => QueryPlan<
     {},

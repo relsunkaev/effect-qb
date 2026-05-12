@@ -216,12 +216,20 @@ const upsertPlan = Q.upsert(users, {
   email: "alice@example.com"
 })
 
+const upsertStringConflictPlan = Q.upsert(users, {
+  id: "user-1",
+  email: "alice@example.com"
+}, "id", {
+  email: "alice@example.com"
+})
+
 type UpsertStatement = Q.StatementOfPlan<typeof upsertPlan>
 const upsertStatement: UpsertStatement = "insert"
 type UpsertCapability = Q.CapabilitiesOfPlan<typeof upsertPlan>
 const upsertCapability: UpsertCapability = "write"
 void upsertStatement
 void upsertCapability
+void upsertStringConflictPlan
 
 Q.upsert(users, {
   id: "user-1",
