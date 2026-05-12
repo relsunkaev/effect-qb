@@ -136,6 +136,29 @@ void scalarValue
 void scalarNull
 void scalarInValue
 
+const derivedAliasCollisionSubquery = Postgres.Query.select({
+  "user__id": users.id,
+  user: {
+    id: users.email
+  }
+}).pipe(
+  Postgres.Query.from(users)
+)
+
+// @ts-expect-error derived subquery projection aliases must be unique after path flattening
+const derivedAliasCollisionSource = Postgres.Query.as(derivedAliasCollisionSubquery, "derived_collision")
+void derivedAliasCollisionSource
+
+const derivedAliasedProjectionSubquery = Postgres.Query.select({
+  value: Postgres.Query.as(users.id, "renamed_value")
+}).pipe(
+  Postgres.Query.from(users)
+)
+
+// @ts-expect-error derived subqueries require path-based projection aliases
+const derivedAliasedProjectionSource = Postgres.Query.as(derivedAliasedProjectionSubquery, "derived_alias")
+void derivedAliasedProjectionSource
+
 const groupedSubqueryIds = Postgres.Query.select({
   value: users.id
 }).pipe(
