@@ -127,6 +127,16 @@ Q.like(users.email, "%@example.com")
 Q.ilike(users.email, "%@example.com")
 Q.inSubquery(users.id, ids)
 Json.json.get(users.payload, Json.json.key("tags"))
+Json.json.path(Json.json.key("tags"), Json.json.index(-1))
+
+// @ts-expect-error sqlite JSON paths do not support wildcard segments
+Json.json.wildcard()
+
+// @ts-expect-error sqlite JSON paths do not support slice segments
+Json.json.slice(0, 2)
+
+// @ts-expect-error sqlite JSON paths do not support recursive descent segments
+Json.json.descend()
 
 // @ts-expect-error sqlite does not support regular-expression predicates
 Q.regexMatch(users.email, ".*@example.com")

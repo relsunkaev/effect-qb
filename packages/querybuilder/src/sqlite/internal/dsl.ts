@@ -3115,9 +3115,9 @@ type BinaryPredicateExpression<
   const json = {
     key: JsonPath.key,
     index: JsonPath.index,
-    wildcard: JsonPath.wildcard,
-    slice: JsonPath.slice,
-    descend: JsonPath.descend,
+    wildcard: JsonPath.wildcard as unknown as SqliteUnsupportedJsonFeature<"json.wildcard">,
+    slice: JsonPath.slice as unknown as SqliteUnsupportedJsonFeature<"json.slice">,
+    descend: JsonPath.descend as unknown as SqliteUnsupportedJsonFeature<"json.descend">,
     path: JsonPath.path,
     get: jsonGet,
     access: jsonAccess,
