@@ -177,4 +177,21 @@ describe("cross-cutting statement behavior", () => {
       "offset(...) is not supported for insert statements"
     )
   })
+
+  test("rejects runtime limit modifiers on unsupported mutation statements", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    const limitedUpdate = Postgres.Query.update(users, {
+      email: "updated@example.com"
+    }).pipe(
+      Postgres.Query.limit(5)
+    )
+
+    expect(() => Postgres.Renderer.make().render(limitedUpdate)).toThrow(
+      "limit(...) is not supported for update statements"
+    )
+  })
 })
