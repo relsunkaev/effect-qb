@@ -349,6 +349,41 @@ describe("executor behavior", () => {
     })
   })
 
+  test("fromDriver rejects prefixed local-date strings", () => {
+    const events = Table.make("prefixed_date_events", {
+      happenedOn: C.date()
+    })
+
+    const plan = Q.select({
+      happenedOn: events.happenedOn
+    }).pipe(
+      Q.from(events)
+    )
+
+    const result = Effect.runSync(Effect.either(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          happenedOn: "app:2026-03-18"
+        }
+      ]))
+    }).execute(plan)))
+
+    expect(result).toMatchObject({
+      _tag: "Left",
+      left: {
+        _tag: "RowDecodeError",
+        stage: "normalize",
+        projection: {
+          alias: "happenedOn"
+        },
+        dbType: {
+          dialect: "postgres",
+          kind: "date"
+        }
+      }
+    })
+  })
+
   test("normalized driver mode rejects impossible local-date values", () => {
     const events = Table.make("normalized_date_events", {
       happenedOn: C.date()
