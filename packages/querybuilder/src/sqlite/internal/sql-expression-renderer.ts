@@ -584,7 +584,7 @@ const renderJsonExpression = (
         return `(${renderPostgresJsonValue(ast.left, state, dialect)} || ${renderPostgresJsonValue(ast.right, state, dialect)})`
       }
       if (dialect.name === "sqlite") {
-        return `json_patch(${renderExpression(ast.left, state, dialect)}, ${renderExpression(ast.right, state, dialect)})`
+        return `json_patch(${renderJsonInputExpression(ast.left, state, dialect)}, ${renderJsonInputExpression(ast.right, state, dialect)})`
       }
       return undefined
     }
