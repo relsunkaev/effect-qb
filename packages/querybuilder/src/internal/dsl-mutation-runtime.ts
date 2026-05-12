@@ -105,7 +105,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
     const columns = ctx.normalizeInsertSelectColumns(selection)
     return ctx.makePlan({
       selection: current.selection,
-      required: ctx.currentRequiredList(sourcePlan[Plan.TypeId].required).filter((name) => name !== sourceName),
+      required: ctx.currentRequiredList(sourcePlan[Plan.TypeId].required),
       available: current.available,
       dialect: current.dialect
     }, {

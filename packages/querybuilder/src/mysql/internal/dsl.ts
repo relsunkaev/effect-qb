@@ -5034,7 +5034,7 @@ type InsertFromConstraint<
   Dialect extends string
 > =
   RequirePendingInsertStatement<PlanValue> &
-  (InsertSourceOfPlanInput<PlanValue, CurrentSource, Dialect> extends CurrentSource
+  (CurrentSource extends InsertSourceOfPlanInput<PlanValue, CurrentSource, Dialect>
     ? unknown
     : InsertSourceOfPlanInput<PlanValue, CurrentSource, Dialect>)
 
@@ -5088,12 +5088,12 @@ type InsertFromResult<
   Dialect extends string
 > = QueryPlan<
   SelectionOfPlan<PlanValue>,
-  Exclude<InsertSourceRequired<CurrentSource>, AvailableNames<AvailableOfPlan<PlanValue>>>,
+  InsertSourceRequired<CurrentSource>,
   AvailableOfPlan<PlanValue>,
   PlanDialectOf<PlanValue> | InsertSourceDialect<CurrentSource>,
   GroupedOfPlan<PlanValue>,
   ScopedNamesOfPlan<PlanValue>,
-  Exclude<InsertSourceRequired<CurrentSource>, AvailableNames<AvailableOfPlan<PlanValue>>>,
+  InsertSourceRequired<CurrentSource>,
   AssumptionsOfPlan<PlanValue>,
   CurrentSource extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
     ? MergeCapabilities<CapabilitiesOfPlan<PlanValue>, CapabilitiesOfPlan<CurrentSource>>
