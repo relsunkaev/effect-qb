@@ -348,6 +348,26 @@ describe("select sources behavior", () => {
     )
   })
 
+  test("rejects mutation plans as derived or lateral inline sources", () => {
+    const mutation = Postgres.Query.insert(pgUsers, {
+      id: "11111111-1111-1111-1111-111111111111",
+      email: "alice@example.com"
+    }).pipe(
+      Postgres.Query.returning({
+        id: pgUsers.id,
+        email: pgUsers.email
+      })
+    )
+
+    expect(() => Postgres.Query.as(unsafeAny(mutation), "inserted_users")).toThrow(
+      "inline derived sources only accept select-like query plans"
+    )
+
+    expect(() => Postgres.Query.lateral("inserted_users")(unsafeAny(mutation))).toThrow(
+      "inline derived sources only accept select-like query plans"
+    )
+  })
+
   test("renders common table expressions before referencing cte sources", () => {
     const activePosts = Postgres.Query.select({
       userId: pgPosts.userId,

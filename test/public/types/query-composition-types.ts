@@ -586,6 +586,23 @@ void incompleteDerivedSource
 const incompleteCteSource = Q.with("missing_users")(incomplete)
 void incompleteCteSource
 
+const mutationReturningPlan = Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com"
+}).pipe(
+  Q.returning({
+    id: users.id,
+    email: users.email
+  })
+)
+
+// @ts-expect-error derived table sources only accept select-like plans
+const mutationDerivedSource = Q.as(mutationReturningPlan, "inserted_users")
+// @ts-expect-error lateral sources only accept select-like plans
+const mutationLateralSource = Q.lateral("inserted_users")(mutationReturningPlan)
+void mutationDerivedSource
+void mutationLateralSource
+
 const rendered = Renderer.make().render(windowPlan)
 type RenderedRow = Renderer.RowOf<typeof rendered>
 const renderedRow: RenderedRow = {
