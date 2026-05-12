@@ -71,6 +71,26 @@ void valuesId
 void valuesIdSecondRow
 void valuesEmail
 
+const nullableValuesSource = Postgres.Query.values([
+  { id: Postgres.Query.literal(1), bio: Postgres.Query.literal("writer") },
+  { id: Postgres.Query.literal(2), bio: Postgres.Query.literal(null) }
+] as const).pipe(Postgres.Query.as("nullable_seed"))
+
+const filteredValuesPlan = Postgres.Query.select({
+  id: nullableValuesSource.id,
+  bio: nullableValuesSource.bio
+}).pipe(
+  Postgres.Query.where(Postgres.Query.isNotNull(nullableValuesSource.bio)),
+  Postgres.Query.from(nullableValuesSource)
+)
+
+type FilteredValuesRow = Q.ResultRow<typeof filteredValuesPlan>
+const filteredValuesBio: FilteredValuesRow["bio"] = "writer"
+// @ts-expect-error structured from(...) should preserve non-null facts from earlier filters
+const filteredValuesNullBio: FilteredValuesRow["bio"] = null
+void filteredValuesBio
+void filteredValuesNullBio
+
 // @ts-expect-error values rows must project the same columns
 const invalidValuesRows = Postgres.Query.values([
   { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") },
