@@ -62,6 +62,17 @@ type CorrelatedExistsRow = Q.ResultRow<typeof correlatedExistsPlan>
 const correlatedExistsValue: CorrelatedExistsRow["hasPosts"] = true
 void correlatedExistsValue
 
+const groupedExistsPlan = Q.select({
+  hasPosts: Q.exists(correlatedExistsSubquery),
+  userCount: F.count(users.id)
+}).pipe(
+  Q.from(users),
+  Q.groupBy(Q.exists(correlatedExistsSubquery))
+)
+
+const completeGroupedExistsPlan: Q.CompletePlan<typeof groupedExistsPlan> = groupedExistsPlan
+void completeGroupedExistsPlan
+
 const invalidCorrelatedExistsPlan = Q.select({
   hasPosts: Q.exists(correlatedExistsSubquery)
 })

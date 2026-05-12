@@ -583,6 +583,33 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual(["alice@example.com"])
   })
 
+  test("groups by exists subquery expressions", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const postExists = Postgres.Query.select({
+      id: posts.id
+    }).pipe(
+      Postgres.Query.from(posts),
+      Postgres.Query.where(Postgres.Query.eq(posts.userId, users.id))
+    )
+    const hasPosts = Postgres.Query.exists(postExists)
+
+    const plan = Postgres.Query.select({
+      hasPosts,
+      userCount: Postgres.Function.count(users.id)
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.groupBy(hasPosts)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select exists (select "posts"."id" as "id" from "public"."posts" where ("posts"."userId" = "users"."id")) as "hasPosts", count("users"."id") as "userCount" from "public"."users" group by exists (select "posts"."id" as "id" from "public"."posts" where ("posts"."userId" = "users"."id"))'
+    )
+    expect(rendered.params).toEqual([])
+  })
+
   test("renders window functions and windowed aggregates with postgres syntax", () => {
     const { users, posts } = makePostgresSocialGraph()
 
