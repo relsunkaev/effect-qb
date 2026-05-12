@@ -3,6 +3,22 @@ import * as ExpressionAst from "./expression-ast.js"
 import * as JsonPath from "./json/path.js"
 import { columnPredicateKey } from "./predicate/runtime.js"
 
+const subqueryPlanIds = new WeakMap<object, string>()
+let nextSubqueryPlanId = 0
+
+const subqueryPlanGroupingKey = (plan: unknown): string => {
+  if (plan === null || typeof plan !== "object") {
+    return "unknown"
+  }
+  const existing = subqueryPlanIds.get(plan)
+  if (existing !== undefined) {
+    return existing
+  }
+  const next = `${nextSubqueryPlanId++}`
+  subqueryPlanIds.set(plan, next)
+  return next
+}
+
 const literalGroupingKey = (value: unknown): string => {
   if (value instanceof Date) {
     return `date:${value.toISOString()}`
@@ -138,6 +154,15 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
     case "case":
       return `case(${ast.branches.map((branch: ExpressionAst.CaseBranchNode) =>
         `when:${groupingKeyOfExpression(branch.when)}=>${groupingKeyOfExpression(branch.then)}`).join("|")};else:${groupingKeyOfExpression(ast.else)})`
+    case "exists":
+      return `exists(${subqueryPlanGroupingKey(ast.plan)})`
+    case "scalarSubquery":
+      return `scalarSubquery(${subqueryPlanGroupingKey(ast.plan)})`
+    case "inSubquery":
+      return `inSubquery(${groupingKeyOfExpression(ast.left)},${subqueryPlanGroupingKey(ast.plan)})`
+    case "comparisonAny":
+    case "comparisonAll":
+      return `${ast.kind}(${ast.operator},${groupingKeyOfExpression(ast.left)},${subqueryPlanGroupingKey(ast.plan)})`
     case "jsonGet":
     case "jsonPath":
     case "jsonAccess":

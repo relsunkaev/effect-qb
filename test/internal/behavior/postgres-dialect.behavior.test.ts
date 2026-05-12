@@ -610,6 +610,41 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
+  test("runtime grouped validation keeps exists subqueries distinct", () => {
+    const { users, posts } = makePostgresSocialGraph()
+
+    const hasHello = Postgres.Query.exists(Postgres.Query.select({
+      id: posts.id
+    }).pipe(
+      Postgres.Query.from(posts),
+      Postgres.Query.where(Postgres.Query.and(
+        Postgres.Query.eq(posts.userId, users.id),
+        Postgres.Query.eq(posts.title, "hello")
+      ))
+    ))
+    const hasWorld = Postgres.Query.exists(Postgres.Query.select({
+      id: posts.id
+    }).pipe(
+      Postgres.Query.from(posts),
+      Postgres.Query.where(Postgres.Query.and(
+        Postgres.Query.eq(posts.userId, users.id),
+        Postgres.Query.eq(posts.title, "world")
+      ))
+    ))
+
+    const plan = Postgres.Query.select({
+      hasHello,
+      userCount: Postgres.Function.count(users.id)
+    }).pipe(
+      Postgres.Query.from(users),
+      Postgres.Query.groupBy(hasWorld)
+    )
+
+    expect(() => Postgres.Renderer.make().render(unsafeNever(plan))).toThrow(
+      "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
+    )
+  })
+
   test("renders window functions and windowed aggregates with postgres syntax", () => {
     const { users, posts } = makePostgresSocialGraph()
 
