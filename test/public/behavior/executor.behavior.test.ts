@@ -725,6 +725,42 @@ describe("executor behavior", () => {
     })
   })
 
+  test("normalized driver mode rejects non-finite numeric values", () => {
+    const metrics = Table.make("normalized_metrics", {
+      total: C.float8()
+    })
+
+    const plan = Q.select({
+      total: metrics.total
+    }).pipe(
+      Q.from(metrics)
+    )
+
+    const result = Effect.runSync(Effect.either(Executor.make({
+      driverMode: "normalized",
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          total: Number.POSITIVE_INFINITY
+        }
+      ]))
+    }).execute(plan)))
+
+    expect(result).toMatchObject({
+      _tag: "Left",
+      left: {
+        _tag: "RowDecodeError",
+        stage: "schema",
+        projection: {
+          alias: "total"
+        },
+        dbType: {
+          dialect: "postgres",
+          kind: "float8"
+        }
+      }
+    })
+  })
+
   test("fromDriver enforces structured record cast fields", () => {
     const plan = Q.select({
       profile: Cast.to("{}", Type.record("user_profile", {
