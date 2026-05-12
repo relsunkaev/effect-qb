@@ -207,6 +207,7 @@ void dottedPredicateSplitCanBeRight
 void badDottedPredicateSplitNarrow
 
 const dottedSourcePromotionCollision = Q.select({
+  userId: users.id,
   splitStatus: splitPredicateTable["b.status"],
   dottedStatus: dottedPredicateTable.status
 }).pipe(
