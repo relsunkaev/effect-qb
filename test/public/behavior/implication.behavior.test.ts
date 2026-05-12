@@ -1,8 +1,9 @@
 // @ts-nocheck
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 
-import { Column as C, Executor, Query as Q, Function as F, Renderer, Table } from "#postgres"
+import { Column as C, Executor, Query as Q, Function as F, Renderer, Table, Type } from "#postgres"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const postId = "22222222-2222-2222-2222-222222222222"
@@ -213,6 +214,37 @@ describe("implication behavior", () => {
       },
       raw: 2
     })
+  })
+
+  test("predicate facts keep dotted table and column names distinct", () => {
+    const dottedTable = Table.make("a.b", {
+      status: C.custom(Schema.Literal("left", "right"), Type.text())
+    })
+    const splitTable = Table.make("a", {
+      "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
+    })
+
+    const plan = Q.select({
+      splitStatus: splitTable["b.status"]
+    }).pipe(
+      Q.from(splitTable),
+      Q.crossJoin(dottedTable),
+      Q.where(Q.eq(dottedTable.status, "left"))
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          splitStatus: "right"
+        }
+      ]))
+    }).execute(plan))
+
+    expect(rows).toEqual([
+      {
+        splitStatus: "right"
+      }
+    ])
   })
 
   test("isNull collapses dependent left joins to always-null projections", () => {

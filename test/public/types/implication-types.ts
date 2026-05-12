@@ -22,6 +22,14 @@ const articles = Table.make("articles", {
 
 const articleStatusText = Cast.to(articles.status, Type.text())
 
+const dottedPredicateTable = Table.make("a.b", {
+  status: C.custom(Schema.Literal("left", "right"), Type.text())
+})
+
+const splitPredicateTable = Table.make("a", {
+  "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
+})
+
 const nullFiltered = Q.select({
   title: posts.title,
   upperTitle: F.upper(posts.title)
@@ -175,13 +183,28 @@ const narrowedByEq = Q.select({
   Q.where(Q.eq(posts.title, "draft"))
 )
 
+const dottedPredicateCollision = Q.select({
+  splitStatus: splitPredicateTable["b.status"]
+}).pipe(
+  Q.from(splitPredicateTable),
+  Q.crossJoin(dottedPredicateTable),
+  Q.where(Q.eq(dottedPredicateTable.status, "left"))
+)
+
 type NarrowedByEqRow = Q.ResultRow<typeof narrowedByEq>
+type DottedPredicateCollisionRow = Q.ResultRow<typeof dottedPredicateCollision>
 declare const narrowedByEqRow: NarrowedByEqRow
 const narrowedEqTitle: "draft" = narrowedByEqRow.title
 // @ts-expect-error equality should narrow selected scalar output to the literal
 const badNarrowedEqTitle: NarrowedByEqRow["title"] = "published"
+declare const dottedPredicateCollisionRow: DottedPredicateCollisionRow
+const dottedPredicateSplitCanBeRight: DottedPredicateCollisionRow["splitStatus"] = "right"
+// @ts-expect-error filtering table "a.b".status should not narrow table "a"."b.status"
+const badDottedPredicateSplitNarrow: "left" = dottedPredicateCollisionRow.splitStatus
 void narrowedEqTitle
 void badNarrowedEqTitle
+void dottedPredicateSplitCanBeRight
+void badDottedPredicateSplitNarrow
 
 const narrowedByOr = Q.select({
   title: posts.title
