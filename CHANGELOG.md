@@ -4,6 +4,415 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.17.0 - 2026-05-12
+
+### Features
+
+- feat(querybuilder): add sqlite dialect
+
+### Fixes
+
+- fix(querybuilder): enforce render and decode completeness
+- fix(querybuilder): reject unsupported mysql sql
+- fix(querybuilder): render ddl identifiers safely
+- fix(querybuilder): validate nested query rendering
+- fix(querybuilder): reject unsupported postgres modifiers
+- fix(querybuilder): reject unsupported runtime clauses
+- fix(querybuilder): preserve renderer row types
+- fix(querybuilder): reject missing nested aliases
+- fix(postgres): quote schema enum column types
+- fix(database): preserve quoted ddl enum filters
+- fix(database): canonicalize quoted qualified types
+- fix(postgres): align enum type name literals
+- fix(postgres): quote sequence nextval names
+- fix(database): parse quoted sequence defaults
+- fix(database): infer quoted qualified type kinds
+- fix(database): pull quoted enum arrays
+- fix(database): preserve dotted sequence pull keys
+- fix(database): preserve dotted discovered identities
+- fix(database): parse quoted index support identifiers
+- fix(database): parse quoted migration table names
+- fix(database): preserve dotted introspected table keys
+- fix(querybuilder): escape json predicate path keys
+- fix(querybuilder): compare set projection paths structurally
+- fix(querybuilder): preserve dotted predicate source names
+- fix(querybuilder): escape predicate keys in type facts
+- fix(database): reject malformed migration table identifiers
+- fix(querybuilder): escape dotted grouping keys
+- fix(querybuilder): support json expression grouping keys
+- fix(querybuilder): escape json grouping identity segments
+- fix(querybuilder): support binary predicate grouping keys
+- fix(querybuilder): support collate grouping identity
+- fix(querybuilder): support function grouping keys
+- fix(querybuilder): support subquery grouping keys
+- fix(querybuilder): validate derived projection aliases
+- fix(querybuilder): reject invalid derived aliases in types
+- fix(querybuilder): validate cte lateral aliases in types
+- fix(querybuilder): restrict excluded to columns
+- fix(querybuilder): infer values rows across tuple
+- fix(querybuilder): type-check unnest column lengths
+- fix(querybuilder): type-reject mysql merge
+- fix(querybuilder): reject empty table option columns
+- fix(querybuilder): type-check foreign key arity
+- fix(querybuilder): require rich index target
+- fix(querybuilder): validate rich index columns in types
+- fix(querybuilder): preserve rich constraint columns in types
+- fix(querybuilder): type-check foreign key columns
+- fix(querybuilder): type-check schema table options
+- fix(querybuilder): specialize postgres schema tables
+- fix(querybuilder): type-check class option columns
+- fix(querybuilder): reject cross-dialect from sources
+- fix(querybuilder): reject cross-dialect join sources
+- fix(querybuilder): reject cross-dialect structured source expressions
+- fix(querybuilder): reject cross-dialect table function expressions
+- fix(querybuilder): track distinct on expression sources
+- fix(querybuilder): reject mixed dialect plans
+- fix(querybuilder): track conflict target predicates
+- fix(querybuilder): require merge action clauses
+- fix(querybuilder): reject mixed mutation tuple targets
+- fix(querybuilder): specialize public mutation input dialects
+- fix(querybuilder): reject tuple update value dialects
+- fix(querybuilder): reject upsert value dialects
+- fix(querybuilder): reject mutation value dialects
+- fix(querybuilder): track insert source dialects
+- fix(executor): decode custom projection aliases by path
+- fix(renderer): validate custom projection paths
+- fix(querybuilder): allow reordered values row keys
+- fix(querybuilder): reject empty values rows
+- fix(querybuilder): validate unnest column arrays
+- fix(querybuilder): reject incomplete derived sources
+- fix(querybuilder): enforce lateral source requirements
+- fix(querybuilder): reject incomplete set operands
+- fix(querybuilder): keep insert select source requirements
+- fix(querybuilder): reject mutation subquery expressions
+- fix(querybuilder): avoid duplicate nested ctes
+- fix(mysql): reject data modifying ctes
+- fix(querybuilder): reject mutation inline sources
+- fix(querybuilder): preserve cross join facts
+- fix(querybuilder): preserve structured from facts
+- fix(querybuilder): preserve set result facts
+- fix(querybuilder): preserve only common set facts
+- fix(json): respect createMissing false types
+- fix(mysql): honor json set createMissing false
+- fix(mysql): render json array inserts correctly
+- fix(mysql): render negative json indexes
+- fix(mysql): render negative json slices
+- fix(mysql): render recursive json descent
+- fix(json): reject non-exact mutation paths
+- fix(mysql): type scalar json length
+- fix(json): type array keys as null
+- fix(mysql): type json type names
+- fix(mysql): reject unsupported json helpers
+- fix(postgres): render json keys as json
+- fix(postgres): type json scalar text
+- fix(postgres): preserve curried json helper types
+- fix(json): type negative tuple indexes
+- fix(json): preserve mutation value literals
+- fix(executor): decode json string scalars
+- fix(executor): preserve schema-valid json strings
+- fix(json): distribute nullable helper result types
+- fix(executor): allow schema-valid json nulls
+- fix(executor): reject non-finite json numbers
+- fix(executor): validate normalized json values
+- fix(postgres): preserve json string mutation values
+- fix(executor): reject normalized non-finite numbers
+- fix(executor): validate derived finite numbers
+- fix(executor): canonicalize decimal negative zero
+- fix(executor): reject impossible local dates
+- fix(executor): validate normalized local dates
+- fix(executor): validate temporal runtime strings
+- fix(executor): validate canonical numeric strings
+- fix(executor): pad early Date years
+- fix(mutation): normalize raw column values
+- fix(mutation): normalize unnest array values
+- fix(mutation): normalize literal expression values
+- fix(mutation): validate normalized column values
+- fix(mysql): prioritize returning cte errors
+- fix(executor): reject loose local date strings
+- fix(executor): reject non-decimal numeric strings
+- fix(json): escape control characters in path keys
+- fix(mysql): tighten error catalog type guards
+- fix(errors): parse numeric fields as decimal strings
+- fix(executor): reject non-plain json objects
+- fix(rendering): reject invalid date literal params
+- fix(runtime): reject non-finite json primitives
+- fix(sqlite): store json strings as json text
+- fix(querybuilder): harden statement edge cases
+- fix(querybuilder): reject invalid statement edge cases
+- fix(querybuilder): reject unsupported unique ddl options
+- fix(sqlite): preserve nested json values
+- fix(mysql): preserve nested json values
+- fix(sqlite): preserve json merge literals
+- fix(mysql): render json path exists segments
+- fix(sqlite): render json path exists segments
+- fix(mysql): encode structured json inserts
+- fix(querybuilder): validate unnest insert values
+- fix(querybuilder): reject unknown conflict targets
+- fix(mysql): reject scoped conflict targets
+- fix(sqlite): type scoped conflict predicates
+- fix(mysql): reject object conflict targets
+- fix(sqlite): reject ignored mutation modifiers
+- fix(postgres): reject delete lock modifiers
+- fix(sqlite): avoid invalid rendered sql
+- fix(sqlite): render derived value sources without column aliases
+- fix(querybuilder): inline ddl expression literals
+- fix(sqlite): render set operations as compound selects
+- fix(sqlite): reject unsupported set all variants
+- fix(sqlite): reject unsupported json wildcard paths
+- fix(sqlite): render temporal helpers with sqlite functions
+- fix(sqlite): reject unsupported json array inserts
+- fix(postgres): bind json array indexes as numbers
+- fix(sqlite): reject empty update assignments
+- fix(querybuilder): reject unsupported dialect syntax
+- fix(querybuilder): accept single ddl index columns
+- fix(sqlite): reject all transaction options
+- fix(querybuilder): narrow unique options by dialect
+- fix(sqlite): type-reject lateral sources
+- fix(sqlite): type-reject truncate statements
+- fix(sqlite): type-reject row locks
+- fix(sqlite): type-reject unsupported set all operators
+- fix(sqlite): type-reject unsupported read predicates
+- fix(sqlite): type-reject container operators
+- fix(querybuilder): type-reject conflicting lock options
+- fix(sqlite): type-reject unsupported json path segments
+- fix(sqlite): type-reject json array inserts
+- fix(querybuilder): require conflict updates for action predicates
+- fix(querybuilder): type-reject empty update assignments
+- fix(postgres): type-reject empty merge actions
+- fix(sqlite): type-reject joined deletes
+- fix(mysql): type-reject empty selections
+- fix(sqlite): reject empty selections
+- fix(querybuilder): reject empty conflict updates
+- fix(querybuilder): reject empty upsert updates
+- fix(querybuilder): validate upsert conflict columns
+- fix(querybuilder): accept string conflict columns
+- fix(querybuilder): reject empty returning selections
+- fix(querybuilder): reject scalar selections
+- fix(querybuilder): validate selection leaves
+- fix(postgres): reject empty distinct on
+- fix(querybuilder): reject empty group by
+- fix(querybuilder): reject invalid order directions
+- fix(querybuilder): reject invalid lock modes
+- fix(querybuilder): reject invalid window order directions
+- fix(postgres): normalize rich index columns
+- fix(database): reject invalid index key modifiers
+- fix(database): validate index methods
+- fix(querybuilder): reject invalid foreign key actions
+- fix(querybuilder): validate rendered isolation levels
+- fix(querybuilder): validate rendered lock modes
+- fix(querybuilder): reject invalid transaction kinds
+- fix(querybuilder): reject invalid statement kinds
+- fix(querybuilder): reject unknown table options
+- fix(querybuilder): reject mismatched ddl payloads
+- fix(querybuilder): reject mismatched truncate payloads
+- fix(postgres): reject invalid merge discriminants
+- fix(querybuilder): reject invalid insert sources
+- fix(querybuilder): reject invalid conflict discriminants
+- fix(querybuilder): harden query and mutation runtime guards
+- fix(querybuilder): validate ddl table targets
+- fix(querybuilder): type dialect driver factories
+
+### Tests
+
+- test(querybuilder): cover postgres cte scoping
+- test(database): cover postgres schema diff edge cases
+- test(querybuilder): cover missing projection decode
+- test(querybuilder): reproduce mysql legality type gaps
+- test(querybuilder): reproduce renderer row type gap
+- test(querybuilder): reproduce mysql runtime legality gaps
+- test(querybuilder): reproduce mysql nested json delete path bug
+- test(querybuilder): reproduce mysql json path parameter order bug
+- test(querybuilder): reproduce ddl check qualification bug
+- test(querybuilder): reproduce postgres drop index schema bug
+- test(querybuilder): reproduce incomplete plan render bug
+- test(querybuilder): reproduce set operand runtime validation bug
+- test(querybuilder): reproduce ignored statement filter bug
+- test(querybuilder): reproduce ignored merge returning bug
+- test(querybuilder): reproduce ignored distinct modifier bug
+- test(querybuilder): reproduce ignored offset modifier bug
+- test(querybuilder): reproduce ignored limit modifier bug
+- test(querybuilder): reproduce ignored order modifier bug
+- test(querybuilder): reproduce ignored lock modifier bug
+- test(querybuilder): reproduce ignored ddl returning bug
+- test(querybuilder): cover transaction source rejection
+- test(querybuilder): reproduce ignored having predicate bug
+- test(querybuilder): reproduce ignored group modifier bug
+- test(querybuilder): reproduce ignored join modifier bug
+- test(querybuilder): reproduce ignored transaction filter bug
+- test(querybuilder): reproduce ignored ddl index returning bug
+- test(querybuilder): reproduce ignored ddl drop filter bug
+- test(querybuilder): reproduce ignored ddl index filter bug
+- test(querybuilder): reproduce nested projection decode gap
+- test(querybuilder): reproduce streamed nested decode gap
+- test(querybuilder): cover byte and array decoding
+- test(querybuilder): align implication row fixtures
+- test(querybuilder): cover executor value mapping params
+- test(database): cover migration file parsing
+- test(database): reproduce quoted enum column ddl
+- test(database): typecheck migration parser coverage
+- test(database): reproduce quoted enum filter gap
+- test(database): reproduce quoted qualified type canonicalization
+- test(postgres): reproduce quoted enum type name types
+- test(postgres): reproduce quoted sequence nextval
+- test(database): reproduce quoted sequence pull gap
+- test(database): reproduce quoted type kind inference
+- test(database): reproduce quoted enum array pull gap
+- test(database): reproduce dotted sequence pull gap
+- test(database): reproduce discovered dotted enum identity collapse
+- test(database): reproduce quoted index support identifier rendering
+- test(database): reproduce quoted migration table parsing
+- test(database): reproduce introspected dotted table identity collapse
+- test(querybuilder): reproduce dotted json path predicate key collapse
+- test(querybuilder): cover dotted predicate column keys
+- test(querybuilder): reproduce set projection dotted path collision
+- test(querybuilder): cover dotted set operand type shape
+- test(querybuilder): reproduce dotted source dependency collision
+- test(querybuilder): cover dotted source dependencies
+- test(querybuilder): reproduce dotted table source promotion
+- test(querybuilder): reproduce dotted source promotion types
+- test(database): reproduce malformed migration table config
+- test(package): cover dotted source types in pack smoke
+- test(querybuilder): reproduce dotted grouping key collision
+- test(querybuilder): reproduce json grouping key support
+- test(querybuilder): reproduce json grouping path collisions
+- test(querybuilder): reproduce regex grouping key support
+- test(querybuilder): reproduce collate grouping key support
+- test(querybuilder): reproduce collate grouping type identity
+- test(querybuilder): reproduce function grouping key support
+- test(querybuilder): reproduce exists grouping key support
+- test(querybuilder): cover quantified subquery grouping
+- test(querybuilder): reproduce derived alias collision
+- test(querybuilder): reproduce derived alias type gaps
+- test(querybuilder): cover curried derived alias types
+- test(querybuilder): reproduce cte lateral alias type gaps
+- test(querybuilder): reproduce excluded expression type gap
+- test(querybuilder): reproduce values row type gaps
+- test(querybuilder): reproduce unnest length type gap
+- test(querybuilder): reproduce mysql merge type gap
+- test(querybuilder): reproduce empty table option type gaps
+- test(querybuilder): reproduce foreign key arity type gap
+- test(querybuilder): reproduce rich index shape gap
+- test(querybuilder): reproduce rich index column type gaps
+- test(querybuilder): reproduce rich constraint column type gaps
+- test(querybuilder): reproduce foreign key column type gaps
+- test(querybuilder): cover mysql foreign key column types
+- test(querybuilder): reproduce schema table option type gaps
+- test(querybuilder): reproduce postgres schema dialect leak
+- test(querybuilder): reproduce class option column type gaps
+- test(querybuilder): reproduce cross-dialect source type gaps
+- test(querybuilder): reproduce cross-dialect join type gaps
+- test(querybuilder): cover cross-dialect mutation targets
+- test(querybuilder): cover cross-dialect ddl targets
+- test(querybuilder): cover cross-dialect expressions
+- test(querybuilder): cover cross-dialect merge inputs
+- test(querybuilder): reproduce cross-dialect structured source expressions
+- test(querybuilder): reproduce cross-dialect table function expressions
+- test(querybuilder): reproduce distinct on source gap
+- test(querybuilder): reproduce mixed dialect render gap
+- test(querybuilder): reproduce conflict target predicate source gap
+- test(querybuilder): cover cross-dialect merge predicates
+- test(querybuilder): cover complete merge plans
+- test(querybuilder): reproduce empty merge action gap
+- test(querybuilder): cover cross-dialect merge clauses
+- test(querybuilder): reproduce mixed mutation tuple targets
+- test(querybuilder): reproduce widened mutation value dialect gap
+- test(querybuilder): cover widened predicate dialects
+- test(querybuilder): reproduce tuple update value dialect gap
+- test(querybuilder): reproduce upsert value dialect gaps
+- test(querybuilder): reproduce mutation value dialect gaps
+- test(querybuilder): reproduce insert source dialect gap
+- test(querybuilder): cover invalid returning selections
+- test(querybuilder): cover mutation clause dialects
+- test(querybuilder): cover cross-dialect set operands
+- test(querybuilder): cover wrapped source dialects
+- test(querybuilder): cover lateral source dialects
+- test(executor): reproduce custom projection alias decode
+- test(renderer): reproduce invalid custom projection path
+- test(querybuilder): reproduce values row order mismatch
+- test(querybuilder): reproduce empty values rows
+- test(querybuilder): reproduce invalid unnest values
+- test(mysql): cover unsupported generateSeries rendering
+- test(querybuilder): cover numeric clause dialects
+- test(querybuilder): reproduce incomplete derived sources
+- test(querybuilder): reproduce premature lateral joins
+- test(querybuilder): reproduce incomplete set operands
+- test(querybuilder): reproduce incomplete insert select source
+- test(querybuilder): reproduce mutation subquery expression
+- test(querybuilder): cover cte source rendering
+- test(querybuilder): reproduce duplicate nested ctes
+- test(mysql): reproduce data modifying cte
+- test(querybuilder): reproduce mutation inline sources
+- test(querybuilder): cover curried mutation derived source
+- test(querybuilder): reproduce cross join lost facts
+- test(querybuilder): reproduce structured from lost facts
+- test(querybuilder): reproduce set result lost facts
+- test(querybuilder): reproduce unsound set narrowing
+- test(package): cover packed query type facts
+- test(json): reproduce createMissing false set type
+- test(mysql): reproduce json set createMissing false
+- test(mysql): reproduce json array insert rendering
+- test(mysql): reproduce negative json index rendering
+- test(mysql): reproduce negative json slice rendering
+- test(mysql): reproduce recursive json path rendering
+- test(json): reproduce wildcard mutation path types
+- test(mysql): reproduce scalar json length type
+- test(json): reproduce array json keys type
+- test(mysql): reproduce json type name casing
+- test(mysql): reproduce unsupported json helper types
+- test(postgres): reproduce json keys array rendering
+- test(postgres): reproduce json scalar text types
+- test(postgres): reproduce curried json helper types
+- test(json): reproduce negative tuple index type
+- test(json): reproduce mutation value widening
+- test(pack): cover exported json path types
+- test(types): cover null-leading coalesce strings
+- test(executor): cover record cast decoding
+- test(executor): reproduce json string scalar decode
+- test(executor): reproduce numeric-looking json string decode
+- test(json): reproduce nullable helper union types
+- test(executor): cover instant normalization
+- test(executor): reproduce json null schema decode
+- test(executor): reproduce non-finite json numbers
+- test(executor): reproduce normalized json number validation
+- test(postgres): reproduce json string mutation encoding
+- test(mysql): cover json string insert encoding
+- test(postgres): cover json helper string encoding
+- test(mysql): cover json helper string encoding
+- test(executor): reproduce normalized non-finite numbers
+- test(executor): reproduce normalized aggregate infinity
+- test(executor): cover normalized window finite numbers
+- test(executor): reproduce decimal negative zero
+- test(executor): reproduce impossible local date
+- test(executor): reproduce normalized impossible local date
+- test(executor): reproduce impossible temporal values
+- test(executor): reproduce noncanonical normalized numeric strings
+- test(executor): reproduce noncanonical normalized bigint strings
+- test(executor): reproduce unpadded early Date years
+- test(postgres): reproduce unvalidated insert params
+- test(postgres): reproduce unvalidated unnest insert params
+- test(postgres): reproduce unvalidated literal insert params
+- test(postgres): reproduce unvalidated normalized insert values
+- test(postgres): cover mutation value canonicalization
+- test(json): use valid mutation UUID fixtures
+- test(executor): reproduce prefixed local date coercion
+- test(executor): reproduce hex numeric string coercion
+- test(json): reproduce control character path escaping
+- test(mysql): reproduce loose error catalog guards
+- test(errors): reproduce loose numeric field parsing
+- test(executor): reproduce non-plain json object acceptance
+- test(executor): cover normalized json object domain
+- test(postgres): cover invalid date insert objects
+- test(rendering): reproduce invalid date literal params
+- test(sqlite): cover json merge structured operands
+- test(sqlite): cover partial conflict target execution
+- test(sqlite): cover returning mutations
+- test(sqlite): cover right and full joins
+- test(sqlite): cover composed executor workflows
+
+### CI
+
+- ci: fix package manager setup caches
+
 ## 0.16.0 - 2026-05-12
 
 ### Features

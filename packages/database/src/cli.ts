@@ -399,7 +399,7 @@ const root = Command.make("effectdb", {}, () => Effect.void).pipe(
 
 const cli = Command.run(root, {
   name: "effectdb",
-  version: "0.16.0"
+  version: "0.17.0"
 })
 
 cli(Bun.argv).pipe(
