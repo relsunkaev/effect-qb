@@ -111,6 +111,161 @@ describe("postgres schema management", () => {
     ])
   })
 
+  test("escapes identifiers in handcrafted schema and enum diff SQL", () => {
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [
+        {
+          kind: "enum",
+          schemaName: "audit\"schema",
+          name: "status\"type",
+          values: ["pending", "active"]
+        }
+      ],
+      tables: []
+    }
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [
+        {
+          kind: "enum",
+          schemaName: "audit\"schema",
+          name: "status\"type",
+          values: ["pending"]
+        }
+      ],
+      tables: []
+    }
+
+    const plan = planPostgresSchemaDiff(source, database)
+
+    expect(plan.safeChanges).toEqual([
+      expect.objectContaining({
+        kind: "alterEnumAddValue",
+        sql: `alter type "audit""schema"."status""type" add value if not exists 'active'`
+      })
+    ])
+
+    const createSchemaPlan = planPostgresSchemaDiff({
+      dialect: "postgres",
+      enums: [
+        {
+          kind: "enum",
+          schemaName: "audit\"schema",
+          name: "event",
+          values: ["created"]
+        }
+      ],
+      tables: []
+    }, {
+      dialect: "postgres",
+      enums: [],
+      tables: []
+    })
+
+    expect(createSchemaPlan.safeChanges).toContainEqual(
+      expect.objectContaining({
+        kind: "createSchema",
+        sql: `create schema if not exists "audit""schema"`,
+        rollbackSql: `drop schema if exists "audit""schema" cascade`
+      })
+    )
+  })
+
+  test("does not collapse schema and table identities that contain dots", () => {
+    const idColumn = {
+      name: "id",
+      ddlType: "uuid",
+      dbTypeKind: "uuid",
+      nullable: false,
+      hasDefault: false,
+      generated: false
+    }
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [
+        {
+          kind: "table",
+          schemaName: "tenant.a",
+          name: "users",
+          columns: [idColumn],
+          options: []
+        }
+      ]
+    }
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [
+        {
+          kind: "table",
+          schemaName: "tenant",
+          name: "a.users",
+          columns: [idColumn],
+          options: []
+        }
+      ]
+    }
+
+    const plan = planPostgresSchemaDiff(source, database)
+
+    expect(plan.safeChanges).toContainEqual(
+      expect.objectContaining({
+        kind: "createTable",
+        sql: `create table "tenant.a"."users" ("id" uuid not null)`
+      })
+    )
+    expect(plan.unsafeChanges).toContainEqual(
+      expect.objectContaining({
+        kind: "dropTable",
+        sql: `drop table "tenant"."a.users"`
+      })
+    )
+  })
+
+  test("does not collapse schema and enum identities that contain dots", () => {
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [
+        {
+          kind: "enum",
+          schemaName: "tenant.a",
+          name: "status",
+          values: ["active"]
+        }
+      ],
+      tables: []
+    }
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [
+        {
+          kind: "enum",
+          schemaName: "tenant",
+          name: "a.status",
+          values: ["active"]
+        }
+      ],
+      tables: []
+    }
+
+    const plan = planPostgresSchemaDiff(source, database)
+
+    expect(plan.safeChanges).toContainEqual(
+      expect.objectContaining({
+        kind: "createEnum",
+        sql: `create type "tenant.a"."status" as enum ('active')`
+      })
+    )
+    expect(plan.unsafeChanges).toContainEqual(
+      expect.objectContaining({
+        kind: "dropEnum",
+        sql: `drop type "tenant"."a.status"`
+      })
+    )
+  })
+
   test("detects table, column, constraint, index, and enum renames", () => {
     const source: SchemaModel = {
       dialect: "postgres",
