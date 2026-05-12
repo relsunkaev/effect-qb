@@ -5,6 +5,7 @@ import * as Table from "./table.js"
 import type { PredicateFormula } from "./predicate/formula.js"
 import {
   assumeFormulaTrue,
+  columnPredicateKey,
   contradictsFormula,
   guaranteedNonNullKeys,
   guaranteedNullKeys,
@@ -43,7 +44,7 @@ const collectPresenceWitnesses = (
     const expression = selection as unknown as AstBackedExpression
     const ast = expression[ExpressionAst.TypeId]
     if (ast.kind === "column" && expression[Expression.TypeId].nullability === "never") {
-      output.add(`${ast.tableName}.${ast.columnName}`)
+      output.add(columnPredicateKey(ast.tableName, ast.columnName))
     }
     return
   }

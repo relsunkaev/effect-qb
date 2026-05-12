@@ -16,6 +16,7 @@ import * as Query from "./query.js"
 import * as QueryAst from "./query-ast.js"
 import * as Renderer from "./renderer.js"
 import * as Plan from "./row-set.js"
+import { columnPredicateKey } from "./predicate/runtime.js"
 
 /** Flat database row keyed by rendered projection aliases. */
 export type FlatRow = Readonly<Record<string, unknown>>
@@ -221,7 +222,7 @@ const effectiveRuntimeNullability = (
     return "always"
   }
   if (ast.kind === "column") {
-    const key = `${ast.tableName}.${ast.columnName}`
+    const key = columnPredicateKey(ast.tableName, ast.columnName)
     if (scope.absentSourceNames.has(ast.tableName) || scope.nullKeys.has(key)) {
       return "always"
     }

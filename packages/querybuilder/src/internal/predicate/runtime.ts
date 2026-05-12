@@ -98,7 +98,26 @@ const cloneContext = (context: MutableContext): MutableContext => ({
 
 const freezeContext = (context: MutableContext): RuntimeContext => context
 
-const sourceNameOfKey = (key: string): string => key.split(".", 1)[0] ?? key
+export const columnPredicateKey = (tableName: string, columnName: string): string =>
+  JSON.stringify([tableName, columnName])
+
+const columnPredicateKeyParts = (key: string): readonly [string, string] | undefined => {
+  const jsonSeparator = key.indexOf("#json:")
+  const columnKey = jsonSeparator === -1 ? key : key.slice(0, jsonSeparator)
+  try {
+    const parsed = JSON.parse(columnKey) as unknown
+    return Array.isArray(parsed) &&
+      parsed.length === 2 &&
+      typeof parsed[0] === "string" &&
+      typeof parsed[1] === "string"
+      ? [parsed[0], parsed[1]]
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const sourceNameOfKey = (key: string): string => columnPredicateKeyParts(key)?.[0] ?? key.split(".", 1)[0] ?? key
 
 const addSourceName = (context: MutableContext, key: string): void => {
   context.sourceNames.add(sourceNameOfKey(key))
@@ -386,7 +405,7 @@ const astOf = (value: Expression.Any): ExpressionAst.Any =>
 
 const columnKeyOfExpression = (value: Expression.Any): string | undefined => {
   const ast = astOf(value)
-  return ast.kind === "column" ? `${ast.tableName}.${ast.columnName}` : undefined
+  return ast.kind === "column" ? columnPredicateKey(ast.tableName, ast.columnName) : undefined
 }
 
 const sameDbType = (left: Expression.DbType.Any, right: Expression.DbType.Any): boolean =>
