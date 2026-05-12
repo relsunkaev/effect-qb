@@ -17,6 +17,7 @@ import * as QueryAst from "./query-ast.js"
 import * as Renderer from "./renderer.js"
 import * as Plan from "./row-set.js"
 import { columnPredicateKey } from "./predicate/runtime.js"
+import { isJsonValue } from "./runtime/normalize.js"
 
 /** Flat database row keyed by rendered projection aliases. */
 export type FlatRow = Readonly<Record<string, unknown>>
@@ -304,6 +305,18 @@ const decodeProjectionValue = (
       raw,
       "schema",
       new Error("Received non-null for an always-null projection"),
+      normalized
+    )
+  }
+
+  if (dbTypeAllowsTopLevelJsonNull(expression[Expression.TypeId].dbType) && !isJsonValue(normalized)) {
+    throw makeRowDecodeError(
+      rendered,
+      projection,
+      expression,
+      raw,
+      "schema",
+      new Error("Expected a JSON value"),
       normalized
     )
   }

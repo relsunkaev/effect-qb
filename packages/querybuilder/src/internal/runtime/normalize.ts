@@ -209,7 +209,7 @@ const normalizeBytes = (value: unknown): Uint8Array => {
   throw new Error("Expected a byte array value")
 }
 
-const isJsonValue = (value: unknown): boolean => {
+export const isJsonValue = (value: unknown): boolean => {
   if (value === null) {
     return true
   }
