@@ -591,6 +591,22 @@ describe("table definitions", () => {
     expect(() => renderer.render(plan)).toThrow("Conflicting projection paths: profile conflicts with profile.id")
   })
 
+  test("custom renderers cannot project paths outside the query selection", () => {
+    const plan = Q.select({
+      id: Q.literal("user-1")
+    })
+
+    const renderer = CoreRenderer.make("postgres", () => ({
+      sql: "select $1 as missing_path",
+      params: ["user-1"],
+      projections: [
+        { path: ["profile", "id"], alias: "missing_path" }
+      ]
+    }))
+
+    expect(() => renderer.render(plan)).toThrow("Projection path profile.id does not exist in the query selection")
+  })
+
   test("Executor.fromSqlClient uses SqlClient and decodes rendered rows", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),
