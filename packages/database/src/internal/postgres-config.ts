@@ -78,6 +78,63 @@ const assertOptionalStringArray = (
   }
 }
 
+const parseIdentifierPart = (
+  input: string,
+  start: number
+): { readonly value: string; readonly next: number } | undefined => {
+  if (input[start] === "\"") {
+    let value = ""
+    for (let index = start + 1; index < input.length; index++) {
+      if (input[index] !== "\"") {
+        value += input[index]
+        continue
+      }
+      if (input[index + 1] === "\"") {
+        value += "\""
+        index++
+        continue
+      }
+      return {
+        value,
+        next: index + 1
+      }
+    }
+    return undefined
+  }
+  const match = /^[A-Za-z_][A-Za-z0-9_$]*/.exec(input.slice(start))
+  return match === null
+    ? undefined
+    : {
+        value: match[0],
+        next: start + match[0].length
+      }
+}
+
+const parseQualifiedIdentifier = (value: string): readonly string[] | undefined => {
+  const input = value.trim()
+  if (input.length === 0) {
+    return undefined
+  }
+  const parts: string[] = []
+  let index = 0
+  while (index < input.length) {
+    const part = parseIdentifierPart(input, index)
+    if (part === undefined) {
+      return undefined
+    }
+    parts.push(part.value)
+    index = part.next
+    if (index === input.length) {
+      return parts
+    }
+    if (input[index] !== ".") {
+      return undefined
+    }
+    index += 1
+  }
+  return undefined
+}
+
 function validatePartialPostgresConfig(
   value: unknown,
   label = "config"
@@ -140,6 +197,10 @@ const validateResolvedPostgresConfig = (
 
   if (config.migrations.table.trim().length === 0) {
     throw new Error(`${label}.migrations.table must be a non-empty string`)
+  }
+
+  if (parseQualifiedIdentifier(config.migrations.table) === undefined) {
+    throw new Error(`${label}.migrations.table must be a valid qualified identifier`)
   }
 }
 
