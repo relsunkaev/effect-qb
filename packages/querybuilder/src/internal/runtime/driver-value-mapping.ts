@@ -84,6 +84,22 @@ const findMapping = <Key extends MappingKey>(
   return undefined
 }
 
+const isJsonDbType = (dbType: Expression.DbType.Any | undefined): boolean => {
+  if (dbType === undefined) {
+    return false
+  }
+  if ("base" in dbType) {
+    return isJsonDbType(dbType.base)
+  }
+  return "variant" in dbType && dbType.variant === "json"
+}
+
+const schemaAccepts = (
+  schema: Schema.Schema.Any | undefined,
+  value: unknown
+): boolean =>
+  schema !== undefined && (Schema.is(schema) as (candidate: unknown) => boolean)(value)
+
 const encodeWithSchema = (
   schema: Schema.Schema.Any | undefined,
   value: unknown
@@ -98,6 +114,32 @@ const encodeWithSchema = (
     value: (Schema.encodeUnknownSync as any)(schema)(value),
     encoded: true
   }
+}
+
+const normalizeJsonDriverString = (
+  value: string,
+  context: DriverValueContext
+): unknown | undefined => {
+  if (!isJsonDbType(context.dbType) || context.runtimeSchema === undefined) {
+    return undefined
+  }
+  try {
+    const parsed = JSON.parse(value)
+    if (value.trimStart().startsWith("\"") && schemaAccepts(context.runtimeSchema, parsed)) {
+      return parsed
+    }
+    if (schemaAccepts(context.runtimeSchema, value) && !schemaAccepts(context.runtimeSchema, parsed)) {
+      return value
+    }
+  } catch (error) {
+    if (error instanceof SyntaxError && schemaAccepts(context.runtimeSchema, value)) {
+      return value
+    }
+    if (!(error instanceof SyntaxError)) {
+      throw error
+    }
+  }
+  return undefined
 }
 
 export const toDriverValue = (
@@ -130,6 +172,12 @@ export const fromDriverValue = (
   const custom = findMapping(context, "fromDriver")
   if (custom !== undefined && dbType !== undefined) {
     return custom(value, dbType)
+  }
+  if (typeof value === "string") {
+    const normalizedJsonString = normalizeJsonDriverString(value, context)
+    if (normalizedJsonString !== undefined) {
+      return normalizedJsonString
+    }
   }
   return dbType === undefined
     ? value
