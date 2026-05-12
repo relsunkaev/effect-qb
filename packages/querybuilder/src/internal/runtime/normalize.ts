@@ -1,5 +1,6 @@
 import type * as Expression from "../scalar.js"
 import type { RuntimeTag } from "../datatypes/shape.js"
+import { isValidLocalDateString, localDatePattern } from "./value.js"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -8,22 +9,6 @@ const pad = (value: number, width = 2): string => value.toString().padStart(widt
 
 const formatLocalDate = (value: Date): string =>
   `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())}`
-
-const localDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/
-
-const isValidLocalDateString = (value: string): boolean => {
-  const match = localDatePattern.exec(value)
-  if (match === null) {
-    return false
-  }
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const parsed = new Date(Date.UTC(year, month - 1, day))
-  return parsed.getUTCFullYear() === year &&
-    parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day
-}
 
 const formatLocalTime = (value: Date): string => {
   const milliseconds = value.getUTCMilliseconds()

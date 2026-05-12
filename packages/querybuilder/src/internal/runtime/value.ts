@@ -23,10 +23,27 @@ const brandString = <BrandName extends string>(
     Schema.brand(brand)
   ) as unknown as Schema.Schema<string & Brand.Brand<BrandName>>
 
-export const LocalDateStringSchema = brandString(
-  /^\d{4}-\d{2}-\d{2}$/,
-  "LocalDateString"
-)
+export const localDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/
+
+export const isValidLocalDateString = (value: string): boolean => {
+  const match = localDatePattern.exec(value)
+  if (match === null) {
+    return false
+  }
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  return parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+}
+
+export const LocalDateStringSchema = Schema.String.pipe(
+  Schema.pattern(localDatePattern),
+  Schema.filter(isValidLocalDateString),
+  Schema.brand("LocalDateString")
+) as unknown as Schema.Schema<LocalDateString>
 
 export const LocalTimeStringSchema = brandString(
   /^\d{2}:\d{2}:\d{2}(?:\.\d+)?$/,
