@@ -389,11 +389,22 @@ const renderJsonInputExpression = (
   expression: Expression.Any,
   state: RenderState,
   dialect: SqlDialect
-): string =>
-  renderJsonSelectSql(
+): string => {
+  if (dialect.name === "sqlite" && isJsonDbType(expression[Expression.TypeId].dbType)) {
+    const ast = (expression as Expression.Any & {
+      readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+    })[ExpressionAst.TypeId]
+    if (ast.kind === "literal") {
+      state.params.push(JSON.stringify(ast.value))
+      return "json(?)"
+    }
+    return `json(${renderExpression(expression, state, dialect)})`
+  }
+  return renderJsonSelectSql(
     renderExpression(expression, state, dialect),
     expressionDriverContext(expression, state, dialect)
   )
+}
 
 const encodeArrayValues = (
   values: readonly unknown[],
@@ -728,10 +739,10 @@ const renderJsonExpression = (
           if (insertAfter) {
             unsupportedJsonFeature(dialect, "jsonInsertAfter")
           }
-          return `json_insert(${renderExpression(base, state, dialect)}, ${renderSqliteJsonPath(segments, state, dialect)}, ${renderExpression(nextValue, state, dialect)})`
+          return `json_insert(${renderExpression(base, state, dialect)}, ${renderSqliteJsonPath(segments, state, dialect)}, ${renderJsonInputExpression(nextValue, state, dialect)})`
         }
         const functionName = kind === "jsonInsert" ? "json_insert" : createMissing ? "json_set" : "json_replace"
-        return `${functionName}(${renderExpression(base, state, dialect)}, ${renderSqliteJsonPath(segments, state, dialect)}, ${renderExpression(nextValue, state, dialect)})`
+        return `${functionName}(${renderExpression(base, state, dialect)}, ${renderSqliteJsonPath(segments, state, dialect)}, ${renderJsonInputExpression(nextValue, state, dialect)})`
       }
       return undefined
     }

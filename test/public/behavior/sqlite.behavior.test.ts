@@ -104,18 +104,49 @@ describe("sqlite behavior", () => {
     const rendered = render(plan)
 
     expect(rendered.sql).toBe(
-      'select json_extract("docs"."payload", ?) as "city", json_object(?, ?, ?, ?) as "built", (case when json_type(json_extract("docs"."payload", ?)) = \'array\' then json_array_length(json_extract("docs"."payload", ?)) when json_type(json_extract("docs"."payload", ?)) = \'object\' then (select count(*) from json_each(json_extract("docs"."payload", ?))) else null end) as "tags" from "docs"'
+      'select json_extract("docs"."payload", ?) as "city", json_object(?, json(?), ?, json(?)) as "built", (case when json_type(json_extract("docs"."payload", ?)) = \'array\' then json_array_length(json_extract("docs"."payload", ?)) when json_type(json_extract("docs"."payload", ?)) = \'object\' then (select count(*) from json_each(json_extract("docs"."payload", ?))) else null end) as "tags" from "docs"'
     )
     expect(rendered.params).toEqual([
       "$.profile.address.city",
       "source",
-      "sqlite",
+      JSON.stringify("sqlite"),
       "ok",
-      true,
+      JSON.stringify(true),
       "$.profile.tags",
       "$.profile.tags",
       "$.profile.tags",
       "$.profile.tags"
+    ])
+  })
+
+  test("renders nested sqlite JSON value arguments as JSON instead of SQL strings", () => {
+    const docs = Sqlite.Table.make("docs", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+      payload: Sqlite.Column.json(Schema.Unknown)
+    })
+
+    const rendered = render(Sqlite.Query.select({
+      built: Sqlite.Json.json.buildObject({
+        nested: { ok: true },
+        tags: ["sqlite"]
+      }),
+      patched: Sqlite.Json.json.set(
+        docs.payload,
+        Sqlite.Json.json.path(Sqlite.Json.json.key("nested")),
+        { ok: true }
+      )
+    }).pipe(Sqlite.Query.from(docs)))
+
+    expect(rendered.sql).toBe(
+      'select json_object(?, json(?), ?, json(?)) as "built", json_set("docs"."payload", ?, json(?)) as "patched" from "docs"'
+    )
+    expect(rendered.params).toEqual([
+      "nested",
+      JSON.stringify({ ok: true }),
+      "tags",
+      JSON.stringify(["sqlite"]),
+      "$.nested",
+      JSON.stringify({ ok: true })
     ])
   })
 
