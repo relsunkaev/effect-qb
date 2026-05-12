@@ -83,6 +83,13 @@ const unnestSource = Postgres.Query.unnest({
   email: [Postgres.Query.literal("alice@example.com"), Postgres.Query.literal("bob@example.com")] as const
 }, "seed_rows")
 
+// @ts-expect-error unnest column arrays must have the same length
+const invalidUnnestLengths = Postgres.Query.unnest({
+  id: [Postgres.Query.literal(1), Postgres.Query.literal(2)] as const,
+  email: [Postgres.Query.literal("alice@example.com")] as const
+}, "invalid_seed_rows")
+void invalidUnnestLengths
+
 const unnestPlan = Postgres.Query.select({
   id: unnestSource.id,
   email: unnestSource.email
@@ -234,6 +241,13 @@ const mysqlUnnestSource = Mysql.Query.unnest({
   id: [Mysql.Query.literal(1), Mysql.Query.literal(2)] as const,
   email: [Mysql.Query.literal("alice@example.com"), Mysql.Query.literal("bob@example.com")] as const
 }, "seed_rows")
+
+// @ts-expect-error mysql unnest column arrays must have the same length
+const invalidMysqlUnnestLengths = Mysql.Query.unnest({
+  id: [Mysql.Query.literal(1), Mysql.Query.literal(2)] as const,
+  email: [Mysql.Query.literal("alice@example.com")] as const
+}, "invalid_seed_rows")
+void invalidMysqlUnnestLengths
 
 const mysqlUnnestPlan = Mysql.Query.select({
   id: mysqlUnnestSource.id,
