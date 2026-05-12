@@ -2148,9 +2148,9 @@ type IsDialectCompatible<
   EngineDialect extends string
 > = [PlanDialect] extends [never]
   ? true
-  : Extract<PlanDialect, EngineDialect> extends never
-    ? false
-    : true
+  : Exclude<PlanDialect, EngineDialect> extends never
+    ? true
+    : false
 
 /** Narrows a complete plan to those compatible with a target engine dialect. */
 export type DialectCompatiblePlan<
