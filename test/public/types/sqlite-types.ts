@@ -70,6 +70,11 @@ C.text().pipe(C.unique.options({
   deferrable: true
 }))
 
+// @ts-expect-error sqlite does not support lateral sources.
+Q.lateral("user_posts")(Q.select({
+  id: users.id
+}).pipe(Q.from(users)))
+
 Q.insert(users, userInsert).pipe(
   Q.onConflict(["id"] as const, {
     update: {

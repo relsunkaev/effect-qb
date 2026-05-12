@@ -4673,6 +4673,12 @@ type FullJoinUnsupportedError<Dialect extends string> = {
   readonly __effect_qb_hint__: "Use leftJoin/rightJoin with nullable handling or switch to postgres.Query.fullJoin(...)"
 }
 
+type LateralUnsupportedError<Dialect extends string> = {
+  readonly __effect_qb_error__: "effect-qb: lateral(...) is not supported by the sqlite dialect"
+  readonly __effect_qb_dialect__: Dialect
+  readonly __effect_qb_hint__: "Use postgres.Query.lateral(...), mysql.Query.lateral(...), or rewrite as a non-correlated sqlite source"
+}
+
 type ReturningUnsupportedError<Dialect extends string> = {
   readonly __effect_qb_error__: "effect-qb: returning(...) is only supported by the postgres and sqlite dialects"
   readonly __effect_qb_dialect__: Dialect
@@ -6647,6 +6653,8 @@ export const sqliteDsl = {
   readonly insert: InsertApi
 }
 
+const exportedLateral = lateral as unknown as LateralUnsupportedError<Dialect>
+
 export {
   literal,
   column,
@@ -6702,7 +6710,7 @@ export {
   as,
   with_,
   withRecursive_ as withRecursive,
-  lateral,
+  exportedLateral as lateral,
   scalar,
   inSubquery,
   compareAny,
