@@ -40,6 +40,18 @@ const mergePlan = Q.merge(
   },
 );
 
+const badMergeMysqlPredicate = Q.merge(
+  users,
+  incomingUsers,
+  Mysql.Query.literal(true),
+);
+
+const badMergeMysqlPredicateRendered = Postgres.Renderer.make().render(
+  // @ts-expect-error postgres merge predicates cannot use mysql expressions
+  badMergeMysqlPredicate,
+);
+void badMergeMysqlPredicateRendered;
+
 const transactionPlan = Q.transaction({
   isolationLevel: "serializable",
   readOnly: true,
