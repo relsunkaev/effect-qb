@@ -19,6 +19,14 @@ const posts = Table.make("posts", {
   title: C.text()
 })
 
+const dottedGroupingTable = Table.make("a.b", {
+  status: C.text()
+})
+
+const splitGroupingTable = Table.make("a", {
+  "b.status": C.text()
+})
+
 const existsSubquery = Q.select({
   id: posts.id
 }).pipe(
@@ -273,6 +281,20 @@ const aggregatePlan = Q.select({
 type AggregatePlanCapabilities = Q.CapabilitiesOfPlan<typeof aggregatePlan>
 const aggregateCapability: AggregatePlanCapabilities = "read"
 void aggregateCapability
+
+const invalidDottedGroupedPlan = Q.select({
+  splitStatus: splitGroupingTable["b.status"],
+  statusCount: F.count(dottedGroupingTable.status)
+}).pipe(
+  Q.from(splitGroupingTable),
+  Q.crossJoin(dottedGroupingTable),
+  Q.groupBy(dottedGroupingTable.status)
+)
+
+type InvalidDottedGroupedPlan = Q.CompletePlan<typeof invalidDottedGroupedPlan>
+const invalidDottedGroupedError: BrandedErrorOf<InvalidDottedGroupedPlan> =
+  "effect-qb: invalid grouped selection"
+void invalidDottedGroupedError
 
 const windowPlan = Q.select({
   userId: users.id,

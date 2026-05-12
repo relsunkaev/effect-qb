@@ -1,5 +1,6 @@
 import * as Expression from "./scalar.js"
 import * as ExpressionAst from "./expression-ast.js"
+import { columnPredicateKey } from "./predicate/runtime.js"
 
 const literalGroupingKey = (value: unknown): string => {
   if (value instanceof Date) {
@@ -26,7 +27,7 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
   })[ExpressionAst.TypeId]
   switch (ast.kind) {
     case "column":
-      return `column:${ast.tableName}.${ast.columnName}`
+      return `column:${columnPredicateKey(ast.tableName, ast.columnName)}`
     case "literal":
       return `literal:${literalGroupingKey(ast.value)}`
     case "cast":

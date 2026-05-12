@@ -24,7 +24,7 @@ import type {
 } from "./predicate/analysis.js"
 import type { AssumeFactsFalse, AssumeFactsTrue, PredicateContext } from "./predicate/context.js"
 import type { FormulaOfPredicate } from "./predicate/normalize.js"
-import type { ColumnKeyOfAst, ColumnKeyOfExpression, PredicateKeyOfAst } from "./predicate/key.js"
+import type { ColumnKey, ColumnKeyOfAst, ColumnKeyOfExpression, PredicateKeyOfAst } from "./predicate/key.js"
 import type { PredicateFormula, TrueFormula } from "./predicate/formula.js"
 import { trueFormula } from "./predicate/runtime.js"
 
@@ -338,7 +338,7 @@ type BranchGroupingKeys<
 
 type GroupingKeyOfAst<Ast extends ExpressionAst.Any> =
   Ast extends ExpressionAst.ColumnNode<infer TableName extends string, infer ColumnName extends string>
-    ? `column:${TableName}.${ColumnName}`
+    ? `column:${ColumnKey<TableName, ColumnName>}`
     : Ast extends ExpressionAst.LiteralNode<infer Value>
       ? `literal:${LiteralGroupingKey<Value>}`
     : Ast extends ExpressionAst.ExcludedNode<infer ColumnName extends string>
