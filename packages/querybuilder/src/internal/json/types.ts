@@ -391,8 +391,8 @@ export type JsonLengthResult<Value> =
       null
 
 export type JsonKeysResult<Value> =
-  NormalizeJsonLiteral<Value> extends object
-    ? NormalizeJsonLiteral<Value> extends readonly unknown[]
-      ? readonly []
-      : readonly Extract<keyof NormalizeJsonLiteral<Value>, string>[]
+  NormalizeJsonLiteral<Value> extends readonly unknown[]
+    ? null
+    : NormalizeJsonLiteral<Value> extends object
+      ? readonly Extract<keyof NormalizeJsonLiteral<Value>, string>[]
     : null
