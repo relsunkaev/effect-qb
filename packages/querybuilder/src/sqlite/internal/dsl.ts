@@ -4703,6 +4703,18 @@ type SetAllUnsupportedError<Dialect extends string, Operator extends string> = {
   readonly __effect_qb_hint__: "Use unionAll(...) for duplicate-preserving unions or use the non-ALL set operator"
 }
 
+type RegexUnsupportedError<Dialect extends string, Operator extends string> = {
+  readonly __effect_qb_error__: `effect-qb: ${Operator}(...) is not supported by the sqlite dialect`
+  readonly __effect_qb_dialect__: Dialect
+  readonly __effect_qb_hint__: "Use like(...), ilike(...), or a dialect that supports regular-expression predicates"
+}
+
+type QuantifiedComparisonUnsupportedError<Dialect extends string, Operator extends string> = {
+  readonly __effect_qb_error__: `effect-qb: ${Operator}(...) is not supported by the sqlite dialect`
+  readonly __effect_qb_dialect__: Dialect
+  readonly __effect_qb_hint__: "Use inSubquery(...), exists(...), or a dialect that supports quantified comparisons"
+}
+
 type SqliteCteStatementError<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   PlanValue & {
     readonly __effect_qb_error__: "effect-qb: sqlite cte sources only accept select-like query plans"
@@ -6676,6 +6688,12 @@ const exportedTruncate = truncate as unknown as TruncateUnsupportedError<Dialect
 const exportedLock = lock as unknown as LockUnsupportedError<Dialect>
 const exportedIntersectAll = intersectAll as unknown as SetAllUnsupportedError<Dialect, "intersect">
 const exportedExceptAll = exceptAll as unknown as SetAllUnsupportedError<Dialect, "except">
+const exportedRegexMatch = regexMatch as unknown as RegexUnsupportedError<Dialect, "regexMatch">
+const exportedRegexIMatch = regexIMatch as unknown as RegexUnsupportedError<Dialect, "regexIMatch">
+const exportedRegexNotMatch = regexNotMatch as unknown as RegexUnsupportedError<Dialect, "regexNotMatch">
+const exportedRegexNotIMatch = regexNotIMatch as unknown as RegexUnsupportedError<Dialect, "regexNotIMatch">
+const exportedCompareAny = compareAny as unknown as QuantifiedComparisonUnsupportedError<Dialect, "compareAny">
+const exportedCompareAll = compareAll as unknown as QuantifiedComparisonUnsupportedError<Dialect, "compareAll">
 
 export {
   literal,
@@ -6696,10 +6714,10 @@ export {
   lower,
   like,
   ilike,
-  regexMatch,
-  regexIMatch,
-  regexNotMatch,
-  regexNotIMatch,
+  exportedRegexMatch as regexMatch,
+  exportedRegexIMatch as regexIMatch,
+  exportedRegexNotMatch as regexNotMatch,
+  exportedRegexNotIMatch as regexNotIMatch,
   and,
   or,
   not,
@@ -6735,8 +6753,8 @@ export {
   exportedLateral as lateral,
   scalar,
   inSubquery,
-  compareAny,
-  compareAll,
+  exportedCompareAny as compareAny,
+  exportedCompareAll as compareAll,
   exportedValues as values,
   exportedUnnest as unnest,
   generateSeries,

@@ -119,6 +119,32 @@ Q.lock("update")(selectUsers)
 
 Q.unionAll(selectUsers, selectUsers)
 
+const ids = Q.select({
+  id: users.id
+}).pipe(Q.from(users))
+
+Q.like(users.email, "%@example.com")
+Q.ilike(users.email, "%@example.com")
+Q.inSubquery(users.id, ids)
+
+// @ts-expect-error sqlite does not support regular-expression predicates
+Q.regexMatch(users.email, ".*@example.com")
+
+// @ts-expect-error sqlite does not support case-insensitive regular-expression predicates
+Q.regexIMatch(users.email, ".*@example.com")
+
+// @ts-expect-error sqlite does not support negated regular-expression predicates
+Q.regexNotMatch(users.email, ".*@example.com")
+
+// @ts-expect-error sqlite does not support negated case-insensitive regular-expression predicates
+Q.regexNotIMatch(users.email, ".*@example.com")
+
+// @ts-expect-error sqlite does not support ANY quantified comparisons
+Q.compareAny(users.id, ids, "eq")
+
+// @ts-expect-error sqlite does not support ALL quantified comparisons
+Q.compareAll(users.id, ids, "eq")
+
 // @ts-expect-error sqlite does not support INTERSECT ALL
 Q.intersectAll(selectUsers, selectUsers)
 
