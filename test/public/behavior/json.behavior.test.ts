@@ -706,6 +706,28 @@ describe("json behavior", () => {
     ])
   })
 
+  test("mysql renders recursive json path descent without a leading dot", () => {
+    const docs = makeJsonTable(Mysql)
+
+    const cityDescendPath = Mysql.Json.json.path(
+      Mysql.Json.json.descend(),
+      Mysql.Json.json.key("city")
+    )
+
+    const plan = Mysql.Query.select({
+      cityValues: Mysql.Json.json.get(docs.payload, cityDescendPath)
+    }).pipe(Mysql.Query.from(docs))
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select json_extract(`docs`.`payload`, ?) as `cityValues` from `docs`"
+    )
+    expect(rendered.params).toEqual([
+      "$**.city"
+    ])
+  })
+
   test("mysql preserves nested json delete paths as one path argument", () => {
     const docs = makeJsonTable(Mysql)
     const cityPath = Mysql.Json.json.path(
