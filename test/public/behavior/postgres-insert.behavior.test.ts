@@ -207,6 +207,18 @@ describe("postgres insert behavior", () => {
     )
   })
 
+  test("rejects postgres empty returning selections before omitting returning", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    expect(() => Postgres.Query.returning({})(Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))).toThrow("returning(...) requires at least one selected expression")
+  })
+
   test("rejects postgres conflict update actions without assignments", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),

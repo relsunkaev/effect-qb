@@ -138,6 +138,13 @@ const invalidDefaultInsertPlan = Q.insert(users)
 // @ts-expect-error default-only inserts require every insert column to be optional/generated
 const invalidDefaultInsert: Q.CompletePlan<typeof invalidDefaultInsertPlan> = invalidDefaultInsertPlan
 
+// @ts-expect-error returning selections require at least one selected expression
+Q.returning({})(Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: "writer"
+}))
+
 void invalidDefaultInsertPlan
 const positionalInsertSource = Q.select({
   userId: users.id,

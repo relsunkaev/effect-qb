@@ -1,5 +1,6 @@
 import * as Expression from "./scalar.js"
 import * as Plan from "./row-set.js"
+import { flattenSelection } from "./projections.js"
 
 type DslQueryRuntimeContext = {
   readonly profile: {
@@ -136,8 +137,11 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
       }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
     }
 
-  const returning = (selection: any) =>
-    (plan: any) => {
+  const returning = (selection: any) => {
+    if (flattenSelection(selection as Record<string, unknown>).length === 0) {
+      throw new Error("returning(...) requires at least one selected expression")
+    }
+    return (plan: any) => {
       const current = plan[Plan.TypeId]
       const currentAst = ctx.getAst(plan)
       const currentQuery = ctx.getQueryState(plan)
@@ -152,6 +156,7 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
         select: selection
       }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement, currentQuery.target, currentQuery.insertSource)
     }
+  }
 
   return {
     values,

@@ -274,6 +274,18 @@ describe("sqlite behavior", () => {
     )
   })
 
+  test("rejects sqlite empty returning selections before omitting returning", () => {
+    const users = Sqlite.Table.make("users", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+      email: Sqlite.Column.text()
+    })
+
+    expect(() => Sqlite.Query.returning({})(Sqlite.Query.insert(users, {
+      id: "user-1",
+      email: "alice@example.com"
+    }))).toThrow("returning(...) requires at least one selected expression")
+  })
+
   test("rejects sqlite named conflict targets at runtime", () => {
     const users = Sqlite.Table.make("users", {
       id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),

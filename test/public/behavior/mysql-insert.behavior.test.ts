@@ -265,6 +265,18 @@ describe("mysql insert behavior", () => {
     )
   })
 
+  test("rejects mysql empty returning selections before treating them as no-ops", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text()
+    })
+
+    expect(() => unsafeAny(Mysql.Query.returning)({})(Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))).toThrow("returning(...) requires at least one selected expression")
+  })
+
   test("rejects mysql object-shaped conflict targets at runtime", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),

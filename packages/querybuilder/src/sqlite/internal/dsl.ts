@@ -6142,9 +6142,20 @@ type AsCurriedResult<
       FactsOfPlan<PlanValue>
     >
 
+  type ReturningSelectionNonEmptyError<Selection> = Selection & {
+    readonly __effect_qb_error__: "effect-qb: returning(...) requires at least one selected expression"
+  }
+
+  type ReturningSelectionNonEmptyConstraint<Selection> =
+    Selection extends Expression.Any
+      ? unknown
+      : [Extract<keyof Selection, string>] extends [never]
+        ? ReturningSelectionNonEmptyError<Selection>
+        : unknown
+
   type ReturningApi = Dialect extends "postgres" | "sqlite"
     ? <Selection extends SelectionShape>(
-        selection: Selection
+        selection: Selection & ReturningSelectionNonEmptyConstraint<Selection>
       ) =>
         <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
           plan: PlanValue & RequireMutationStatement<PlanValue>

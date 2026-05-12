@@ -108,6 +108,11 @@ Q.insert(users, userInsert).pipe(
 )
 
 Q.insert(users, userInsert).pipe(
+  // @ts-expect-error sqlite returning selections require at least one selected expression
+  Q.returning({})
+)
+
+Q.insert(users, userInsert).pipe(
   Q.onConflict({
     columns: ["email"] as const,
     where: Q.isNotNull(users.email)
