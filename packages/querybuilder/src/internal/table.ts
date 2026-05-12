@@ -12,6 +12,7 @@ import {
   resolvePrimaryKeyColumns,
   type DdlExpressionLike,
   type IndexKeySpec,
+  type MatchingColumnArityInput,
   type NonEmptyColumnInput,
   type NormalizeColumns,
   type ReferentialAction,
@@ -142,7 +143,7 @@ export interface TableSchemaNamespace<SchemaName extends string> {
 }
 
 export type DeclaredTableOptions = readonly TableOptionBuilderLike[]
-export type { DdlExpressionLike, IndexKeySpec, NonEmptyColumnInput, NormalizeColumns, ReferentialAction } from "./table-options.js"
+export type { DdlExpressionLike, IndexKeySpec, MatchingColumnArityInput, NonEmptyColumnInput, NormalizeColumns, ReferentialAction } from "./table-options.js"
 
 export type TableDefinition<
   Name extends string,
@@ -708,7 +709,7 @@ export const foreignKey = <
 >(
   columns: LocalColumns & NonEmptyColumnInput<LocalColumns>,
   target: () => TargetTable,
-  referencedColumns: TargetColumns & NonEmptyColumnInput<TargetColumns>
+  referencedColumns: TargetColumns & NonEmptyColumnInput<TargetColumns> & MatchingColumnArityInput<LocalColumns, TargetColumns>
 ): TableOption<{
   readonly kind: "foreignKey"
   readonly columns: NormalizeColumns<LocalColumns>

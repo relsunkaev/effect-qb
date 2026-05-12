@@ -110,6 +110,15 @@ type TupleFromColumns<Columns> = Columns extends readonly [infer Head extends st
 export type NonEmptyColumnInput<Columns extends string | readonly string[]> =
   TupleFromColumns<Columns> extends never ? never : Columns
 
+export type MatchingColumnArityInput<
+  Left extends string | readonly string[],
+  Right extends string | readonly string[]
+> = TupleFromColumns<Left>["length"] extends TupleFromColumns<Right>["length"]
+  ? TupleFromColumns<Right>["length"] extends TupleFromColumns<Left>["length"]
+    ? unknown
+    : never
+  : never
+
 type AssertKnownColumns<Fields extends TableFieldMap, Columns extends readonly string[]> = Exclude<
   Columns[number],
   ColumnNameUnion<Fields>

@@ -172,7 +172,7 @@ type RichForeignKeyInput<
 > = {
   readonly columns: LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>
   readonly target: () => TargetTable
-  readonly referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
+  readonly referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
   readonly name?: string
   readonly onUpdate?: ReferentialAction
   readonly onDelete?: ReferentialAction
@@ -335,7 +335,7 @@ export const foreignKey = <
 >(
   columnsOrSpec: (LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>) | RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns>,
   target?: () => TargetTable,
-  referencedColumns?: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
+  referencedColumns?: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
 ): BaseTable.TableOption =>
   isObject(columnsOrSpec) && "columns" in columnsOrSpec && "target" in columnsOrSpec
     ? (() => {
@@ -361,7 +361,7 @@ export const foreignKey = <
     : BaseTable.foreignKey<LocalColumns, BaseTable.AnyTable, TargetColumns>(
         columnsOrSpec as LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
         target as () => BaseTable.AnyTable,
-        referencedColumns as TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
+        referencedColumns as TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
       )
 
 export const check: {

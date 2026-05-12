@@ -146,12 +146,12 @@ export const foreignKey = <
 >(
   columns: LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
   target: () => TargetTable,
-  referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
+  referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
 ): BaseTable.TableOption =>
   BaseTable.foreignKey<LocalColumns, BaseTable.AnyTable, TargetColumns>(
     columns as LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
     target as () => BaseTable.AnyTable,
-    referencedColumns as TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
+    referencedColumns as TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
   )
 
 export const check = BaseTable.check
