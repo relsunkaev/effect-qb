@@ -76,6 +76,16 @@ type JsonSetOutputOf<
     ? JsonSetAtPath<Root, JsonPath.Path<[Target]>, Next, Operation>
     : never
 
+type JsonSetOutputWithCreateMissing<
+  Root,
+  Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment,
+  Next,
+  Operation extends string,
+  CreateMissing extends boolean
+> = false extends CreateMissing
+  ? Root | JsonSetOutputOf<Root, Target, Next, Operation>
+  : JsonSetOutputOf<Root, Target, Next, Operation>
+
 type JsonInsertOutputOf<
   Root,
   Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment,
@@ -442,17 +452,20 @@ const jsonb = {
   set: <
     Base extends PostgresJsonExpression<any>,
     Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>,
-    Next extends Parameters<typeof postgresJsonb.set>[2]
+    Next extends Parameters<typeof postgresJsonb.set>[2],
+    CreateMissing extends boolean = true
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.set">,
     target: Target & JsonSetPathGuard<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
     next: Next,
-    options?: Parameters<typeof postgresJsonb.set>[3]
+    options?: {
+      readonly createMissing?: CreateMissing
+    }
   ): JsonResultExpression<
-    JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+    JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
     Expression.DbTypeOf<Base>
   > => postgresJsonb.set(base as any, target as any, next, options) as unknown as JsonResultExpression<
-    JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+    JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
     Expression.DbTypeOf<Base>
   >,
   insert: <

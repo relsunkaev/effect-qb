@@ -403,6 +403,34 @@ describe("json behavior", () => {
     ])
   })
 
+  test("postgres renders jsonb set without creating missing keys", () => {
+    const docs = makeJsonbTable(Postgres)
+
+    const suitePath = Postgres.Json.jsonb.path(
+      Postgres.Json.jsonb.key("profile"),
+      Postgres.Json.jsonb.key("address"),
+      Postgres.Json.jsonb.key("suite")
+    )
+
+    const plan = Postgres.Query.select({
+      setSuite: Postgres.Json.jsonb.set(docs.payload, suitePath, "12A", {
+        createMissing: false
+      })
+    }).pipe(Postgres.Query.from(docs))
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select jsonb_set("docs"."payload", array[$1, $2, $3], cast($4 as jsonb), false) as "setSuite" from "public"."docs"'
+    )
+    expect(rendered.params).toEqual([
+      "profile",
+      "address",
+      "suite",
+      "12A"
+    ])
+  })
+
   test("mysql rejects unsupported json path match", () => {
     const docs = makeJsonTable(Mysql)
 
