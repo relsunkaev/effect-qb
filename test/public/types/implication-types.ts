@@ -213,9 +213,19 @@ const dottedSourcePromotionCollision = Q.select({
 }).pipe(
   Q.from(users),
   Q.leftJoin(splitPredicateTable, Q.eq(splitPredicateTable["b.status"], "right")),
-  Q.leftJoin(dottedPredicateTable, Q.eq(dottedPredicateTable.status, "left"))
+  Q.leftJoin(dottedPredicateTable, Q.eq(dottedPredicateTable.status, "left")),
+  Q.where(Q.isNotNull(dottedPredicateTable.status))
 )
-void dottedSourcePromotionCollision
+
+type DottedSourcePromotionCollisionRow = Q.ResultRow<typeof dottedSourcePromotionCollision>
+const dottedPromotionSplitCanBeNull: DottedSourcePromotionCollisionRow["splitStatus"] = null
+// @ts-expect-error filtering table "a.b" should not promote unrelated table "a"
+const badDottedPromotionSplitRequired: Exclude<DottedSourcePromotionCollisionRow["splitStatus"], null> =
+  dottedPromotionSplitCanBeNull
+const dottedPromotionStatusIsRequired: Exclude<DottedSourcePromotionCollisionRow["dottedStatus"], null> = "left"
+void dottedPromotionSplitCanBeNull
+void badDottedPromotionSplitRequired
+void dottedPromotionStatusIsRequired
 
 const narrowedByOr = Q.select({
   title: posts.title
