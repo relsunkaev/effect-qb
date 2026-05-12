@@ -607,6 +607,23 @@ describe("table definitions", () => {
     expect(() => renderer.render(plan)).toThrow("Projection path profile.id does not exist in the query selection")
   })
 
+  test("custom renderers must project every selected path", () => {
+    const plan = Q.select({
+      id: Q.literal("user-1"),
+      email: Q.literal("alice@example.com")
+    })
+
+    const renderer = CoreRenderer.make("postgres", () => ({
+      sql: "select $1 as id",
+      params: ["user-1"],
+      projections: [
+        { path: ["id"], alias: "id" }
+      ]
+    }))
+
+    expect(() => renderer.render(plan)).toThrow("Projection path email is missing from rendered projections")
+  })
+
   test("Executor.fromSqlClient uses SqlClient and decodes rendered rows", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),

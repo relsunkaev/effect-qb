@@ -1,6 +1,6 @@
 import * as Query from "./query.js"
 import type * as Expression from "./scalar.js"
-import { type Projection, validateProjections } from "./projections.js"
+import { flattenSelection, type Projection, validateProjections } from "./projections.js"
 import * as Plan from "./row-set.js"
 
 /** Symbol used to attach rendered-query phantom row metadata. */
@@ -57,6 +57,29 @@ type CustomRender<Dialect extends string> = <PlanValue extends Query.Plan.Any>(
   readonly valueMappings?: Expression.DriverValueMappings
 }
 
+const projectionPathKey = (path: readonly string[]): string => JSON.stringify(path)
+
+const formatProjectionPath = (path: readonly string[]): string => path.join(".")
+
+const validateProjectionPathsMatchSelection = (
+  plan: Query.Plan.Any,
+  projections: readonly Projection[]
+): void => {
+  const expected = flattenSelection(Query.getAst(plan).select as Record<string, unknown>)
+  const expectedPaths = new Set(expected.map((projection) => projectionPathKey(projection.path)))
+  const actualPaths = new Set(projections.map((projection) => projectionPathKey(projection.path)))
+  for (const projection of projections) {
+    if (!expectedPaths.has(projectionPathKey(projection.path))) {
+      throw new Error(`Projection path ${formatProjectionPath(projection.path)} does not exist in the query selection`)
+    }
+  }
+  for (const projection of expected) {
+    if (!actualPaths.has(projectionPathKey(projection.path))) {
+      throw new Error(`Projection path ${formatProjectionPath(projection.path)} is missing from rendered projections`)
+    }
+  }
+}
+
 /**
  * Constructs a renderer from a dialect and implementation callback.
  */
@@ -81,6 +104,7 @@ export function make<Dialect extends string>(
       const rendered = render(plan)
       const projections = rendered.projections ?? []
       validateProjections(projections)
+      validateProjectionPathsMatchSelection(plan as Query.Plan.Any, projections)
       return {
         sql: rendered.sql,
         params: rendered.params ?? [],
