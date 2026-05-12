@@ -242,6 +242,33 @@ const unionPlan = Q.union(activeUsers, archivedUsers)
 const intersectPlan = Q.intersect(activeUsers, archivedUsers)
 const exceptPlan = Q.except(activeUsers, archivedUsers)
 
+const setPosts = Table.make("set_posts", {
+  id: C.uuid().pipe(C.primaryKey),
+  title: C.text().pipe(C.nullable)
+})
+
+const titledSetPosts = Q.select({
+  title: setPosts.title
+}).pipe(
+  Q.from(setPosts),
+  Q.where(Q.isNotNull(setPosts.title))
+)
+
+const archivedTitledSetPosts = Q.select({
+  title: setPosts.title
+}).pipe(
+  Q.from(setPosts),
+  Q.where(Q.isNotNull(setPosts.title))
+)
+
+const unionTitledPosts = Q.unionAll(titledSetPosts, archivedTitledSetPosts)
+type UnionTitledPostsRow = Q.ResultRow<typeof unionTitledPosts>
+const unionTitle: UnionTitledPostsRow["title"] = "hello"
+// @ts-expect-error set operator result rows should preserve narrowed operand output
+const unionNullTitle: UnionTitledPostsRow["title"] = null
+void unionTitle
+void unionNullTitle
+
 const incompleteSetOperand = Q.select({
   email: users.email
 })
