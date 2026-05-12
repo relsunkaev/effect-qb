@@ -76,6 +76,7 @@ export interface ColumnState<
   readonly defaultValue?: DdlExpression
   readonly generatedValue?: DdlExpression
   readonly ddlType?: string
+  readonly driverValueMapping?: Expression.DriverValueMapping
   readonly identity?: {
     readonly generation: "always" | "byDefault"
   }
@@ -137,6 +138,7 @@ export interface ColumnDefinition<
     readonly defaultValue?: DdlExpression
     readonly generatedValue?: DdlExpression
     readonly ddlType?: string
+    readonly driverValueMapping?: Expression.DriverValueMapping
     readonly identity?: {
       readonly generation: "always" | "byDefault"
     }
@@ -289,6 +291,7 @@ export const makeColumnDefinition = <
     runtime: undefined as Select,
     dbType: metadata.dbType,
     runtimeSchema: schema,
+    driverValueMapping: metadata.driverValueMapping,
     nullability: (metadata.nullable ? "maybe" : "never") as Nullable extends true ? "maybe" : "never",
     dialect: metadata.dbType.dialect,
     kind: "scalar",
@@ -308,6 +311,7 @@ export const makeColumnDefinition = <
     defaultValue: metadata.defaultValue,
     generatedValue: metadata.generatedValue,
     ddlType: metadata.ddlType,
+    driverValueMapping: metadata.driverValueMapping,
     identity: metadata.identity,
     enum: metadata.enum
   }
@@ -379,6 +383,7 @@ export const remapColumnDefinition = <
     runtime: undefined as Select,
     dbType: metadata.dbType,
     runtimeSchema: schema,
+    driverValueMapping: metadata.driverValueMapping,
     nullability: (metadata.nullable ? "maybe" : "never") as Nullable extends true ? "maybe" : "never",
     dialect: metadata.dbType.dialect
   }
@@ -397,6 +402,7 @@ export const remapColumnDefinition = <
     defaultValue: metadata.defaultValue,
     generatedValue: metadata.generatedValue,
     ddlType: metadata.ddlType,
+    driverValueMapping: metadata.driverValueMapping,
     identity: metadata.identity,
     enum: metadata.enum
   }
@@ -443,6 +449,7 @@ export const bindColumn = <
     runtime: undefined as SelectType<Column>,
     dbType: column.metadata.dbType,
     runtimeSchema: schema,
+    driverValueMapping: column.metadata.driverValueMapping,
     nullability: (column.metadata.nullable ? "maybe" : "never") as IsNullable<Column> extends true ? "maybe" : "never",
     dialect: column.metadata.dbType.dialect,
     kind: "scalar",

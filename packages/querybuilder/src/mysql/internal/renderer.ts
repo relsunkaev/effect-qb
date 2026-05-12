@@ -1,4 +1,5 @@
 import * as Query from "../../internal/query.js"
+import type * as Expression from "../../internal/scalar.js"
 import { type RenderState } from "../../internal/dialect.js"
 import { mysqlDialect } from "./dialect.js"
 import { type Projection } from "../../internal/projections.js"
@@ -11,16 +12,23 @@ export interface MysqlRenderResult {
   readonly sql: string
   readonly params: readonly unknown[]
   readonly projections: readonly Projection[]
+  readonly valueMappings?: Expression.DriverValueMappings
+}
+
+export interface MysqlRenderOptions {
+  readonly valueMappings?: Expression.DriverValueMappings
 }
 
 /**
  * Renders the current query AST into MySQL-shaped SQL plus bind parameters.
  */
 export const renderMysqlPlan = <PlanValue extends Query.Plan.Any>(
-  plan: Query.DialectCompatiblePlan<PlanValue, "mysql">
+  plan: Query.DialectCompatiblePlan<PlanValue, "mysql">,
+  options: MysqlRenderOptions = {}
 ): MysqlRenderResult => {
   const state: RenderState = {
     params: [],
+    valueMappings: options.valueMappings,
     ctes: [],
     cteNames: new Set<string>()
   }
@@ -32,6 +40,7 @@ export const renderMysqlPlan = <PlanValue extends Query.Plan.Any>(
   return {
     sql: rendered.sql,
     params: state.params,
-    projections: rendered.projections
+    projections: rendered.projections,
+    valueMappings: state.valueMappings
   }
 }

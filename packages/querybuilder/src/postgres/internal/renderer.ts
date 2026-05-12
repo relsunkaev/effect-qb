@@ -1,4 +1,5 @@
 import * as Query from "../../internal/query.js"
+import type * as Expression from "../../internal/scalar.js"
 import { type RenderState } from "../../internal/dialect.js"
 import { postgresDialect } from "./dialect.js"
 import { type Projection } from "../../internal/projections.js"
@@ -14,16 +15,23 @@ export interface PostgresRenderResult {
   readonly sql: string
   readonly params: readonly unknown[]
   readonly projections: readonly Projection[]
+  readonly valueMappings?: Expression.DriverValueMappings
+}
+
+export interface PostgresRenderOptions {
+  readonly valueMappings?: Expression.DriverValueMappings
 }
 
 /**
  * Renders the current query AST into Postgres SQL plus bind parameters.
  */
 export const renderPostgresPlan = <PlanValue extends Query.Plan.Any>(
-  plan: Query.DialectCompatiblePlan<PlanValue, "postgres">
+  plan: Query.DialectCompatiblePlan<PlanValue, "postgres">,
+  options: PostgresRenderOptions = {}
 ): PostgresRenderResult => {
   const state: RenderState = {
     params: [],
+    valueMappings: options.valueMappings,
     ctes: [],
     cteNames: new Set<string>()
   }
@@ -35,6 +43,7 @@ export const renderPostgresPlan = <PlanValue extends Query.Plan.Any>(
   return {
     sql: rendered.sql,
     params: state.params,
-    projections: rendered.projections
+    projections: rendered.projections,
+    valueMappings: state.valueMappings
   }
 }

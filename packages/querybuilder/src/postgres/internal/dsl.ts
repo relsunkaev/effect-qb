@@ -1572,6 +1572,42 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     >
   }
 
+  const retargetLiteralExpression = (
+    value: Expression.Any,
+    target: Expression.Any
+  ): Expression.Any => {
+    const ast = (value as unknown as { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
+    if (ast.kind !== "literal") {
+      return value
+    }
+    const targetState = target[Expression.TypeId]
+    return makeExpression({
+      runtime: value[Expression.TypeId].runtime,
+      dbType: targetState.dbType,
+      runtimeSchema: targetState.runtimeSchema,
+      driverValueMapping: targetState.driverValueMapping,
+      nullability: value[Expression.TypeId].nullability,
+      dialect: targetState.dialect,
+      kind: "scalar",
+      dependencies: {}
+    }, ast)
+  }
+
+  const alignBinaryPredicateExpressions = (
+    left: Expression.Any,
+    right: Expression.Any
+  ): readonly [Expression.Any, Expression.Any] => {
+    const leftAst = (left as unknown as { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
+    const rightAst = (right as unknown as { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
+    if (leftAst.kind === "literal" && rightAst.kind !== "literal") {
+      return [retargetLiteralExpression(left, right), right]
+    }
+    if (rightAst.kind === "literal" && leftAst.kind !== "literal") {
+      return [left, retargetLiteralExpression(right, left)]
+    }
+    return [left, right]
+  }
+
   const toDialectStringExpression = <Value extends StringExpressionInput>(
     value: Value
   ): DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
@@ -1749,8 +1785,10 @@ type BinaryPredicateExpression<
     kind: Kind,
     nullability: Nullability = "maybe" as Nullability,
   ): any => {
-    const leftExpression = toDialectExpression(left)
-    const rightExpression = toDialectExpression(right)
+    const [leftExpression, rightExpression] = alignBinaryPredicateExpressions(
+      toDialectExpression(left),
+      toDialectExpression(right)
+    )
     return (makeExpression as any)({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
@@ -1773,17 +1811,21 @@ type BinaryPredicateExpression<
     kind: ExpressionAst.VariadicKind
   ): Expression.Any => {
     const expressions = values.map((value) => toDialectExpression(value as any)) as readonly Expression.Any[]
+    const [head, ...tail] = expressions
+    const alignedExpressions = (head !== undefined && (kind === "in" || kind === "notIn" || kind === "between"))
+      ? [head, ...tail.map((value) => retargetLiteralExpression(value, head))]
+      : expressions
     return makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability: "maybe",
-      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
+      dialect: (alignedExpressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
       kind: "scalar",
 
-      dependencies: mergeManyDependencies(expressions)
+      dependencies: mergeManyDependencies(alignedExpressions)
     }, {
       kind,
-      values: expressions
+      values: alignedExpressions
     })
   }
 
@@ -2089,6 +2131,7 @@ type BinaryPredicateExpression<
       runtime: undefined as unknown as RuntimeOfDbType<Target>,
       dbType: target as Target,
       runtimeSchema: undefined,
+      driverValueMapping: (target as Expression.DbType.Any).driverValueMapping,
       nullability: expression[Expression.TypeId].nullability,
       dialect: expression[Expression.TypeId].dialect,
       kind: expression[Expression.TypeId].kind,
@@ -2168,6 +2211,14 @@ type BinaryPredicateExpression<
     kind
   })
 
+  const driverValueMapping = <Db extends Expression.DbType.Any>(
+    dbType: Db,
+    mapping: Expression.DriverValueMapping
+  ): Db => ({
+    ...dbType,
+    driverValueMapping: mapping
+  })
+
   const type = {
     ...profile.type,
     array,
@@ -2177,7 +2228,8 @@ type BinaryPredicateExpression<
     domain,
     enum: enum_,
     set,
-    custom
+    custom,
+    driverValueMapping
   }
 
   const makeJsonDb = <Kind extends string>(
@@ -3387,6 +3439,8 @@ type BinaryPredicateExpression<
     return makeExpression({
       runtime: undefined as Expression.RuntimeOf<ScalarOutputOfPlan<PlanValue>> | null,
       dbType: expression[Expression.TypeId].dbType as Expression.DbTypeOf<ScalarOutputOfPlan<PlanValue>>,
+      runtimeSchema: expression[Expression.TypeId].runtimeSchema,
+      driverValueMapping: expression[Expression.TypeId].driverValueMapping,
       nullability: "maybe",
       dialect: profile.dialect as Dialect,
       kind: "scalar",
@@ -3930,6 +3984,7 @@ type BinaryPredicateExpression<
       runtime: undefined as Expression.RuntimeOf<Value>,
       dbType: value[Expression.TypeId].dbType as Expression.DbTypeOf<Value>,
       runtimeSchema: value[Expression.TypeId].runtimeSchema,
+      driverValueMapping: value[Expression.TypeId].driverValueMapping,
       nullability: value[Expression.TypeId].nullability as Expression.NullabilityOf<Value>,
       dialect: profile.dialect as Dialect,
       kind: "scalar",
@@ -3954,11 +4009,13 @@ type BinaryPredicateExpression<
     column: Expression.Any
   ): Expression.Any => {
     if (value !== null && typeof value === "object" && Expression.TypeId in value) {
-      return value as unknown as Expression.Any
+      return retargetLiteralExpression(value as unknown as Expression.Any, column)
     }
     return makeExpression({
       runtime: value as Value,
       dbType: column[Expression.TypeId].dbType,
+      runtimeSchema: column[Expression.TypeId].runtimeSchema,
+      driverValueMapping: column[Expression.TypeId].driverValueMapping,
       nullability: value === null ? "always" : "never",
       dialect: column[Expression.TypeId].dialect,
       kind: "scalar",
@@ -4033,6 +4090,7 @@ type BinaryPredicateExpression<
         runtime: undefined as never,
         dbType: state.dbType,
         runtimeSchema: state.runtimeSchema,
+        driverValueMapping: state.driverValueMapping,
         nullability: state.nullability,
         dialect: state.dialect,
         kind: "scalar",

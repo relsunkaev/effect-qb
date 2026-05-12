@@ -51,6 +51,7 @@ export declare namespace DbType {
     readonly compareGroup?: string
     readonly castTargets?: readonly string[]
     readonly traits?: DatatypeTraits
+    readonly driverValueMapping?: DriverValueMapping
   }
 
   /** JSON-like database type. */
@@ -135,6 +136,15 @@ export declare namespace DbType {
     | Set<string, string>
   }
 
+export interface DriverValueMapping {
+  readonly fromDriver?: (value: unknown, dbType: DbType.Any) => unknown
+  readonly toDriver?: (value: unknown, dbType: DbType.Any) => unknown
+  readonly selectSql?: (sql: string, dbType: DbType.Any) => string
+  readonly jsonSelectSql?: (sql: string, dbType: DbType.Any) => string
+}
+
+export type DriverValueMappings = Readonly<Record<string, DriverValueMapping | undefined>>
+
 /** Canonical static metadata stored on an expression. */
 export interface State<
   Runtime,
@@ -147,6 +157,7 @@ export interface State<
   readonly runtime: Runtime
   readonly dbType: Db
   readonly runtimeSchema?: Schema.Schema.Any
+  readonly driverValueMapping?: DriverValueMapping
   readonly nullability: Nullable
   readonly dialect: Dialect
   readonly kind: Kind

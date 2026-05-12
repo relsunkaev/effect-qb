@@ -5,6 +5,11 @@ import * as QueryAst from "../../internal/query-ast.js"
 import type { RenderState, SqlDialect } from "../../internal/dialect.js"
 import * as ExpressionAst from "../../internal/expression-ast.js"
 import * as JsonPath from "../../internal/json/path.js"
+import {
+  renderJsonSelectSql,
+  renderSelectSql,
+  toDriverValue
+} from "../../internal/runtime/driver-value-mapping.js"
 import { flattenSelection, type Projection } from "../../internal/projections.js"
 import { type SelectionValue, validateAggregationSelection } from "../../internal/aggregation-validation.js"
 import * as SchemaExpression from "../../internal/schema-expression.js"
@@ -294,10 +299,53 @@ const renderPostgresJsonValue = (
     throw new Error("Expected a JSON expression")
   }
   const rendered = renderExpression(value, state, dialect)
+  const ast = (value as Expression.Any & {
+    readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+  })[ExpressionAst.TypeId]
+  if (ast.kind === "literal") {
+    return `cast(${rendered} as jsonb)`
+  }
   return value[Expression.TypeId].dbType.kind === "jsonb"
     ? rendered
     : `cast(${rendered} as jsonb)`
 }
+
+const expressionDriverContext = (
+  expression: Expression.Any,
+  state: RenderState,
+  dialect: SqlDialect
+) => ({
+  dialect: dialect.name,
+  valueMappings: state.valueMappings,
+  dbType: expression[Expression.TypeId].dbType,
+  runtimeSchema: expression[Expression.TypeId].runtimeSchema,
+  driverValueMapping: expression[Expression.TypeId].driverValueMapping
+})
+
+const renderJsonInputExpression = (
+  expression: Expression.Any,
+  state: RenderState,
+  dialect: SqlDialect
+): string =>
+  renderJsonSelectSql(
+    renderExpression(expression, state, dialect),
+    expressionDriverContext(expression, state, dialect)
+  )
+
+const encodeArrayValues = (
+  values: readonly unknown[],
+  column: Table.AnyTable[typeof Table.TypeId]["fields"][string],
+  state: RenderState,
+  dialect: SqlDialect
+): readonly unknown[] =>
+  values.map((value) =>
+    toDriverValue(value, {
+      dialect: dialect.name,
+      valueMappings: state.valueMappings,
+      dbType: column.metadata.dbType,
+      runtimeSchema: column.schema,
+      driverValueMapping: column.metadata.driverValueMapping
+    }))
 
 const renderPostgresJsonKind = (
   value: Expression.Any
@@ -460,7 +508,7 @@ const renderJsonExpression = (
         : []
       const renderedEntries = entries.flatMap((entry) => [
         dialect.renderLiteral(entry.key, state),
-        renderExpression(entry.value, state, dialect)
+        renderJsonInputExpression(entry.value, state, dialect)
       ])
       if (dialect.name === "postgres") {
         return `${postgresExpressionKind === "jsonb" ? "jsonb" : "json"}_build_object(${renderedEntries.join(", ")})`
@@ -474,7 +522,7 @@ const renderJsonExpression = (
       const values = Array.isArray((ast as { readonly values?: readonly Expression.Any[] }).values)
         ? (ast as { readonly values: readonly Expression.Any[] }).values
         : []
-      const renderedValues = values.map((value) => renderExpression(value, state, dialect)).join(", ")
+      const renderedValues = values.map((value) => renderJsonInputExpression(value, state, dialect)).join(", ")
       if (dialect.name === "postgres") {
         return `${postgresExpressionKind === "jsonb" ? "jsonb" : "json"}_build_array(${renderedValues})`
       }
@@ -488,7 +536,7 @@ const renderJsonExpression = (
         return undefined
       }
       if (dialect.name === "postgres") {
-        return `to_json(${renderExpression(base, state, dialect)})`
+        return `to_json(${renderJsonInputExpression(base, state, dialect)})`
       }
       if (dialect.name === "mysql") {
         return `cast(${renderExpression(base, state, dialect)} as json)`
@@ -499,7 +547,7 @@ const renderJsonExpression = (
         return undefined
       }
       if (dialect.name === "postgres") {
-        return `to_jsonb(${renderExpression(base, state, dialect)})`
+        return `to_jsonb(${renderJsonInputExpression(base, state, dialect)})`
       }
       if (dialect.name === "mysql") {
         return `cast(${renderExpression(base, state, dialect)} as json)`
@@ -753,7 +801,7 @@ const renderSelectionList = (
   const flattened = flattenSelection(selection)
   const projections = selectionProjections(selection)
   const sql = flattened.map(({ expression, alias }) =>
-    `${renderExpression(expression, state, dialect)} as ${dialect.quoteIdentifier(alias)}`).join(", ")
+    `${renderSelectSql(renderExpression(expression, state, dialect), expressionDriverContext(expression, state, dialect))} as ${dialect.quoteIdentifier(alias)}`).join(", ")
   return {
     sql,
     projections
@@ -874,14 +922,18 @@ export const renderQueryAst = (
           const table = targetSource.source as Table.AnyTable
           const fields = table[Table.TypeId].fields
           const rendered = unnestSource.values.map((entry) =>
-            `cast(${dialect.renderLiteral(entry.values, state)} as ${renderCastType(dialect, fields[entry.columnName]!.metadata.dbType)}[])`
+            `cast(${dialect.renderLiteral(encodeArrayValues(entry.values, fields[entry.columnName]!, state, dialect), state)} as ${renderCastType(dialect, fields[entry.columnName]!.metadata.dbType)}[])`
           ).join(", ")
           sql += ` (${columns}) select * from unnest(${rendered})`
         } else {
           const rowCount = unnestSource.values[0]?.values.length ?? 0
           const rows = Array.from({ length: rowCount }, (_, index) =>
             `(${unnestSource.values.map((entry) =>
-              dialect.renderLiteral(entry.values[index], state)
+              dialect.renderLiteral(
+                entry.values[index],
+                state,
+                (targetSource.source as Table.AnyTable)[Table.TypeId].fields[entry.columnName]![Expression.TypeId]
+              )
             ).join(", ")})`
           ).join(", ")
           sql += ` (${columns}) values ${rows}`
@@ -1253,7 +1305,7 @@ export const renderExpression = (
         ? dialect.quoteIdentifier(ast.columnName)
         : `${dialect.quoteIdentifier(ast.tableName)}.${dialect.quoteIdentifier(ast.columnName)}`
     case "literal":
-      return dialect.renderLiteral(ast.value, state)
+      return dialect.renderLiteral(ast.value, state, expression[Expression.TypeId])
     case "excluded":
       return dialect.name === "mysql"
         ? `values(${dialect.quoteIdentifier(ast.columnName)})`

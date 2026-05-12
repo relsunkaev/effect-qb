@@ -165,6 +165,7 @@ export const unique = BaseColumn.unique
 const default_ = BaseColumn.default_
 export const generated = BaseColumn.generated
 export const ddlType = BaseColumn.ddlType
+export const driverValueMapping = BaseColumn.driverValueMapping
 export const array = BaseColumn.array
 export const identityAlways = BaseColumn.identityAlways
 export const identityByDefault = BaseColumn.identityByDefault

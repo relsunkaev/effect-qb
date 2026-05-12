@@ -5,6 +5,7 @@ import * as Stream from "effect/Stream"
 import * as CoreExecutor from "../internal/executor.js"
 import * as CoreQuery from "../internal/query.js"
 import * as CoreRenderer from "../internal/renderer.js"
+import type * as Expression from "../internal/scalar.js"
 import { renderPostgresPlan } from "./internal/renderer.js"
 import {
   narrowPostgresDriverErrorForReadQuery,
@@ -28,6 +29,7 @@ export interface MakeOptions<Error = never, Context = never> {
   readonly renderer?: Renderer
   readonly driver?: Driver<Error, Context>
   readonly driverMode?: CoreExecutor.DriverMode
+  readonly valueMappings?: Expression.DriverValueMappings
 }
 /** Standard composed error shape for Postgres executors. */
 export type PostgresExecutorError = PostgresDriverError | RowDecodeError
@@ -67,7 +69,8 @@ const fromDriver = <
 >(
   renderer: Renderer,
   sqlDriver: Driver<Error, Context>,
-  driverMode: CoreExecutor.DriverMode = "raw"
+  driverMode: CoreExecutor.DriverMode = "raw",
+  valueMappings?: Expression.DriverValueMappings
 ): QueryExecutor<Context> => ({
   dialect: "postgres",
   execute(plan) {
@@ -76,7 +79,7 @@ const fromDriver = <
       Effect.flatMap(
         sqlDriver.execute(rendered),
         (rows) => Effect.try({
-          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode }),
+          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }),
           catch: (error) => error as RowDecodeError
         })
       ),
@@ -97,7 +100,7 @@ const fromDriver = <
       Stream.mapChunksEffect(
         sqlDriver.stream(rendered),
         (rows) => Effect.try({
-          try: () => CoreExecutor.decodeChunk(rendered, plan, rows, { driverMode }),
+          try: () => CoreExecutor.decodeChunk(rendered, plan, rows, { driverMode, valueMappings }),
           catch: (error) => error as RowDecodeError
         })
       ),
@@ -135,6 +138,7 @@ export function make(
   options: {
     readonly renderer?: Renderer
     readonly driverMode?: CoreExecutor.DriverMode
+    readonly valueMappings?: Expression.DriverValueMappings
   }
 ): QueryExecutor<SqlClient.SqlClient>
 export function make<Error = never, Context = never>(
@@ -142,15 +146,26 @@ export function make<Error = never, Context = never>(
     readonly renderer?: Renderer
     readonly driver: Driver<Error, Context>
     readonly driverMode?: CoreExecutor.DriverMode
+    readonly valueMappings?: Expression.DriverValueMappings
   }
 ): QueryExecutor<Context>
 export function make<Error = never, Context = never>(
   options: MakeOptions<Error, Context> = {}
 ): QueryExecutor<any> {
   if (options.driver) {
-    return fromDriver(options.renderer ?? CoreRenderer.make("postgres", renderPostgresPlan), options.driver, options.driverMode)
+    return fromDriver(
+      options.renderer ?? CoreRenderer.make("postgres", (plan) => renderPostgresPlan(plan, { valueMappings: options.valueMappings })),
+      options.driver,
+      options.driverMode,
+      options.valueMappings
+    )
   }
-  return fromDriver(options.renderer ?? CoreRenderer.make("postgres", renderPostgresPlan), sqlClientDriver(), options.driverMode)
+  return fromDriver(
+    options.renderer ?? CoreRenderer.make("postgres", (plan) => renderPostgresPlan(plan, { valueMappings: options.valueMappings })),
+    sqlClientDriver(),
+    options.driverMode,
+    options.valueMappings
+  )
 }
 
 /** Creates a Postgres-specialized executor from a typed implementation callback. */

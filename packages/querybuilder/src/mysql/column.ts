@@ -100,6 +100,7 @@ export const primaryKey = BaseColumn.primaryKey
 export const unique = BaseColumn.unique
 const default_ = BaseColumn.default_
 export const generated = BaseColumn.generated
+export const driverValueMapping = BaseColumn.driverValueMapping
 export const references = BaseColumn.references
 export const schema = BaseColumn.schema
 export { default_ as default }

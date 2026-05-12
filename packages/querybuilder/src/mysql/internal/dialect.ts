@@ -1,15 +1,21 @@
-import type { RenderState, SqlDialect } from "../../internal/dialect.js"
+import type { RenderState, RenderValueContext, SqlDialect } from "../../internal/dialect.js"
+import { toDriverValue } from "../../internal/runtime/driver-value-mapping.js"
 
 const quoteIdentifier = (value: string): string => `\`${value.replaceAll("`", "``")}\``
 
-const renderLiteral = (value: unknown, state: RenderState): string => {
-  if (value === null) {
+const renderLiteral = (value: unknown, state: RenderState, context: RenderValueContext = {}): string => {
+  const driverValue = toDriverValue(value, {
+    dialect: "mysql",
+    valueMappings: state.valueMappings,
+    ...context
+  })
+  if (driverValue === null) {
     return "null"
   }
-  if (typeof value === "boolean") {
-    return value ? "true" : "false"
+  if (typeof driverValue === "boolean") {
+    return driverValue ? "true" : "false"
   }
-  state.params.push(value)
+  state.params.push(driverValue)
   return "?"
 }
 

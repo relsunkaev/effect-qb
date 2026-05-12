@@ -123,6 +123,20 @@ type DdlTypedColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   ReferencesOf<Column>
 > & PreserveBrand<Column>
 
+type DriverValueMappedColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
+  SelectType<Column>,
+  InsertType<Column>,
+  UpdateType<Column>,
+  Column[typeof ColumnTypeId]["dbType"],
+  IsNullable<Column>,
+  HasDefault<Column>,
+  IsGenerated<Column>,
+  IsPrimaryKey<Column>,
+  Column[typeof ColumnTypeId]["unique"],
+  ReferencesOf<Column>,
+  Column[typeof ColumnTypeId]["dependencies"]
+> & PreserveBrand<Column>
+
 type GeneratedColumn<Column extends AnyColumnDefinition> = ColumnDefinition<
   SelectType<Column>,
   InsertType<Column>,
@@ -542,6 +556,14 @@ export const ddlType = <SqlType extends string>(sqlType: SqlType) =>
       ...column.metadata,
       ddlType: sqlType
     }) as DdlTypedColumn<Column>
+
+/** Overrides how a column crosses the SQL driver boundary. */
+export const driverValueMapping = (mapping: Expression.DriverValueMapping) =>
+  <Column extends AnyColumnDefinition>(column: Column): DriverValueMappedColumn<Column> =>
+    mapColumn(column, {
+      ...column.metadata,
+      driverValueMapping: mapping
+    }) as DriverValueMappedColumn<Column>
 
 /** Marks a column as a Postgres array type. */
 export const array = <Options extends ArrayOptions | undefined = undefined>(

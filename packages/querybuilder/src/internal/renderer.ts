@@ -1,4 +1,5 @@
 import * as Query from "./query.js"
+import type * as Expression from "./scalar.js"
 import { type Projection, validateProjections } from "./projections.js"
 
 /** Symbol used to attach rendered-query phantom row metadata. */
@@ -21,6 +22,7 @@ export interface RenderedQuery<Row, Dialect extends string = string> {
   readonly params: readonly unknown[]
   readonly dialect: Dialect
   readonly projections: readonly Projection[]
+  readonly valueMappings?: Expression.DriverValueMappings
   readonly [TypeId]: {
     readonly row: Row
     readonly dialect: Dialect
@@ -51,6 +53,7 @@ type CustomRender<Dialect extends string> = <PlanValue extends Query.Plan.Any>(
   readonly sql: string
   readonly params?: readonly unknown[]
   readonly projections?: readonly Projection[]
+  readonly valueMappings?: Expression.DriverValueMappings
 }
 
 /**
@@ -77,6 +80,7 @@ export function make<Dialect extends string>(
         sql: rendered.sql,
         params: rendered.params ?? [],
         projections,
+        valueMappings: rendered.valueMappings,
         dialect,
         [TypeId]: {
           row: undefined as any,

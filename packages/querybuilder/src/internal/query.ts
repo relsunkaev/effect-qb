@@ -2191,6 +2191,7 @@ export const makeExpression = <
     readonly runtime: Runtime
     readonly dbType: Db
     readonly runtimeSchema?: Schema.Schema.Any
+    readonly driverValueMapping?: Expression.DriverValueMapping
     readonly nullability: Nullable
     readonly dialect: Dialect
     readonly kind?: Kind
@@ -2212,6 +2213,7 @@ export const makeExpression = <
     runtime: state.runtime,
     dbType: state.dbType,
     runtimeSchema: state.runtimeSchema,
+    driverValueMapping: state.driverValueMapping,
     nullability: state.nullability,
     dialect: state.dialect,
     kind: state.kind ?? ("scalar" as Kind),

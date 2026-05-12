@@ -25,6 +25,10 @@ type PostgresTypeNamespace = typeof postgresDatatypes & {
   readonly enum: <Kind extends string>(kind: Kind) => Expression.DbType.Enum<"postgres", Kind>
   readonly set: <Kind extends string>(kind: Kind) => Expression.DbType.Set<"postgres", Kind>
   readonly custom: <Kind extends string>(kind: Kind) => Expression.DbType.Base<"postgres", Kind>
+  readonly driverValueMapping: <Db extends Expression.DbType.Any>(
+    dbType: Db,
+    mapping: Expression.DriverValueMapping
+  ) => Db
 }
 
 /** Postgres database-type constructors for casts and typed column references. */

@@ -9,7 +9,7 @@ import * as Stream from "effect/Stream"
 import * as Expression from "./scalar.js"
 import * as ExpressionAst from "./expression-ast.js"
 import { resolveImplicationScope, type ImplicationScope } from "./implication-runtime.js"
-import { normalizeDbValue } from "./runtime/normalize.js"
+import { fromDriverValue } from "./runtime/driver-value-mapping.js"
 import { expressionRuntimeSchema } from "./runtime/schema.js"
 import { flattenSelection } from "./projections.js"
 import * as Query from "./query.js"
@@ -243,12 +243,19 @@ const decodeProjectionValue = (
   expression: Expression.Any,
   raw: unknown,
   scope: ImplicationScope,
-  driverMode: DriverMode
+  driverMode: DriverMode,
+  valueMappings?: Expression.DriverValueMappings
 ): unknown => {
   let normalized = raw
   if (driverMode === "raw") {
     try {
-      normalized = normalizeDbValue(expression[Expression.TypeId].dbType, raw)
+      normalized = fromDriverValue(raw, {
+        dialect: rendered.dialect,
+        dbType: expression[Expression.TypeId].dbType,
+        runtimeSchema: expression[Expression.TypeId].runtimeSchema,
+        driverValueMapping: expression[Expression.TypeId].driverValueMapping,
+        valueMappings
+      })
     } catch (cause) {
       throw makeRowDecodeError(rendered, projection, expression, raw, "normalize", cause)
     }
@@ -303,6 +310,7 @@ export const makeRowDecoder = (
   plan: Query.Plan.Any,
   options: {
     readonly driverMode?: DriverMode
+    readonly valueMappings?: Expression.DriverValueMappings
   } = {}
 ): ((row: FlatRow) => any) => {
   const projections = flattenSelection(
@@ -312,6 +320,7 @@ export const makeRowDecoder = (
     projections.map((projection) => [projection.alias, projection.expression] as const)
   )
   const driverMode = options.driverMode ?? "raw"
+  const valueMappings = options.valueMappings ?? rendered.valueMappings
   const scope = resolveImplicationScope(plan[Plan.TypeId].available, Query.getQueryState(plan).assumptions)
   return (row) => {
     const decoded: Record<string, unknown> = {}
@@ -326,7 +335,7 @@ export const makeRowDecoder = (
       setPath(
         decoded,
         projection.path,
-        decodeProjectionValue(rendered, projection, expression, row[projection.alias], scope, driverMode)
+        decodeProjectionValue(rendered, projection, expression, row[projection.alias], scope, driverMode, valueMappings)
       )
     }
     return decoded
@@ -339,6 +348,7 @@ export const decodeChunk = (
   rows: Chunk.Chunk<FlatRow>,
   options: {
     readonly driverMode?: DriverMode
+    readonly valueMappings?: Expression.DriverValueMappings
   } = {}
 ): Chunk.Chunk<any> => {
   const decodeRow = makeRowDecoder(rendered, plan, options)
@@ -351,6 +361,7 @@ export const decodeRows = (
   rows: ReadonlyArray<FlatRow>,
   options: {
     readonly driverMode?: DriverMode
+    readonly valueMappings?: Expression.DriverValueMappings
   } = {}
 ): ReadonlyArray<any> => {
   const decodeRow = makeRowDecoder(rendered, plan, options)
