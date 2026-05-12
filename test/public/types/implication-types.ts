@@ -206,6 +206,16 @@ void badNarrowedEqTitle
 void dottedPredicateSplitCanBeRight
 void badDottedPredicateSplitNarrow
 
+const dottedSourcePromotionCollision = Q.select({
+  splitStatus: splitPredicateTable["b.status"],
+  dottedStatus: dottedPredicateTable.status
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(splitPredicateTable, Q.eq(splitPredicateTable["b.status"], "right")),
+  Q.leftJoin(dottedPredicateTable, Q.eq(dottedPredicateTable.status, "left"))
+)
+void dottedSourcePromotionCollision
+
 const narrowedByOr = Q.select({
   title: posts.title
 }).pipe(
