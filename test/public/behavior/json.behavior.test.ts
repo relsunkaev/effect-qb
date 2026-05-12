@@ -446,6 +446,31 @@ describe("json behavior", () => {
     ])
   })
 
+  test("postgres preserves jsonb helper string scalars that look like JSON", () => {
+    const docs = makeJsonbTable(Postgres)
+    const suitePath = Postgres.Json.jsonb.path(
+      Postgres.Json.jsonb.key("profile"),
+      Postgres.Json.jsonb.key("address"),
+      Postgres.Json.jsonb.key("suite")
+    )
+
+    const plan = Postgres.Query.select({
+      setSuite: Postgres.Json.jsonb.set(docs.payload, suitePath, "42"),
+      builtObject: Postgres.Json.jsonb.buildObject({ code: "42" })
+    }).pipe(Postgres.Query.from(docs))
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.params).toEqual([
+      "profile",
+      "address",
+      "suite",
+      "42",
+      "code",
+      "42"
+    ])
+  })
+
   test("mysql rejects unsupported json path match", () => {
     const docs = makeJsonTable(Mysql)
 
