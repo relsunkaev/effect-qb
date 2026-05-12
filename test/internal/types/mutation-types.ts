@@ -94,6 +94,17 @@ const badUpdateMysqlValue = Q.update(users, {
 })
 void badUpdateMysqlValue
 
+const badUpdateMysqlWhere = Q.update(users, {
+  email: "updated@example.com"
+}).pipe(
+  Q.where(Mysql.Query.literal(true))
+)
+const badUpdateMysqlWhereRendered = Renderer.make().render(
+  // @ts-expect-error postgres mutation filters cannot use mysql expressions
+  badUpdateMysqlWhere
+)
+void badUpdateMysqlWhereRendered
+
 const badUpsertMysqlInsertValue = Q.upsert(
   users,
   // @ts-expect-error postgres upsert insert values cannot use mysql expressions
@@ -356,6 +367,17 @@ const mysqlJoinedUpdate = Mysql.Query.limit(5)(
     )
   )
 )
+
+const badMysqlUpdatePostgresOrderBy = Mysql.Query.update(mysqlMutationUsers, {
+  email: "updated@example.com"
+}).pipe(
+  Mysql.Query.orderBy(Postgres.Query.literal(1))
+)
+const badMysqlUpdatePostgresOrderByRendered = Mysql.Renderer.make().render(
+  // @ts-expect-error mysql mutation ordering cannot use postgres expressions
+  badMysqlUpdatePostgresOrderBy
+)
+void badMysqlUpdatePostgresOrderByRendered
 
 const mysqlMultiUpdate = Mysql.Query.update([mysqlMutationUsers, mysqlMutationPosts], {
   users: {
