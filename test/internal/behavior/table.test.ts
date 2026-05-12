@@ -504,6 +504,43 @@ describe("table definitions", () => {
     ])
   })
 
+  test("custom renderer projection aliases decode through their result paths", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey)
+    })
+
+    const plan = Q.select({
+      id: users.id
+    }).pipe(
+      Q.from(users)
+    )
+
+    const renderer = CoreRenderer.make("postgres", () => ({
+      sql: "select users.id as custom_user_id from users",
+      projections: [
+        { path: ["id"], alias: "custom_user_id" }
+      ]
+    }))
+
+    const driver = Executor.driver("postgres", (query) => {
+      expect(query.projections).toEqual([
+        { path: ["id"], alias: "custom_user_id" }
+      ])
+      return Effect.succeed([
+        {
+          custom_user_id: userId
+        }
+      ])
+    })
+
+    const rows = Effect.runSync(Executor.make({ renderer, driver }).execute(plan))
+    expect(rows).toEqual([
+      {
+        id: userId
+      }
+    ])
+  })
+
   test("renderer rejects duplicate explicit projection aliases", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),
