@@ -248,6 +248,21 @@ describe("mysql errors", () => {
     expect(error.query?.sql).toBe("select `users`.`id` as `id` from `users`")
   })
 
+  test("normalizes only decimal mysql numeric error fields", () => {
+    const error = Mysql.Errors.normalizeMysqlDriverError({
+      code: "ER_NOT_IN_OUR_CATALOG",
+      errno: 999999,
+      port: "0xCEA",
+      sqlMessage: "future mysql error"
+    })
+
+    expect(error._tag).toBe("@mysql/unknown/code")
+    if (error._tag !== "@mysql/unknown/code") {
+      throw new Error("Expected unknown code")
+    }
+    expect(error.port).toBeUndefined()
+  })
+
   test("fromSqlClient normalizes allowed mysql failures on the stream path", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)

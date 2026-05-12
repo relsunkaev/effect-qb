@@ -225,6 +225,20 @@ describe("postgres errors", () => {
     expect(error.hint).toBe("Perhaps you meant FROM.")
   })
 
+  test("normalizes only decimal postgres numeric error fields", () => {
+    const error = Postgres.Errors.normalizePostgresDriverError({
+      code: "42601",
+      message: "syntax error",
+      position: "0x10"
+    })
+
+    expect(error._tag).toBe("@postgres/syntax-error-or-access-rule-violation/syntax-error")
+    if (error._tag !== "@postgres/syntax-error-or-access-rule-violation/syntax-error") {
+      throw new Error("Expected syntax error")
+    }
+    expect(error.position).toBeUndefined()
+  })
+
   test("fromSqlClient normalizes syntax errors on the stream path", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
