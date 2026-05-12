@@ -175,7 +175,19 @@ type RichIndexInput<Columns extends string | readonly string[] = string | readon
     }
 )
 
+type PrimaryKeyOptionSpec = Extract<TableOptionSpec, { readonly kind: "primaryKey" }>
+type UniqueOptionSpec = Extract<TableOptionSpec, { readonly kind: "unique" }>
 type IndexOptionSpec = Extract<TableOptionSpec, { readonly kind: "index" }>
+
+type RichPrimaryKeyOptionSpec<Columns extends string | readonly string[]> = PrimaryKeyOptionSpec & {
+  readonly kind: "primaryKey"
+  readonly columns: BaseTable.NormalizeColumns<Columns>
+}
+
+type RichUniqueOptionSpec<Columns extends string | readonly string[]> = UniqueOptionSpec & {
+  readonly kind: "unique"
+  readonly columns: BaseTable.NormalizeColumns<Columns>
+}
 
 type RichIndexColumnOption<Spec> = Spec extends { readonly columns: infer Columns extends string | readonly string[] }
   ? { readonly columns: BaseTable.NormalizeColumns<Columns> }
@@ -278,7 +290,7 @@ export const primaryKey: {
   }>
   <const Columns extends string | readonly string[]>(
     spec: RichPrimaryKeyInput<Columns>
-  ): BaseTable.TableOption
+  ): BaseTable.TableOption<RichPrimaryKeyOptionSpec<Columns>>
 } = ((input: unknown) =>
   isObject(input) && "columns" in input
     ? BaseTable.option({
@@ -299,7 +311,7 @@ export const unique: {
   }>
   <const Columns extends string | readonly string[]>(
     spec: RichUniqueInput<Columns>
-  ): BaseTable.TableOption
+  ): BaseTable.TableOption<RichUniqueOptionSpec<Columns>>
 } = ((input: unknown) =>
   isObject(input) && "columns" in input && ("name" in input || "nullsNotDistinct" in input || "deferrable" in input || "initiallyDeferred" in input)
     ? BaseTable.option({
