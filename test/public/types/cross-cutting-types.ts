@@ -51,6 +51,20 @@ const missingMergeActions = Q.merge(
 );
 void missingMergeActions;
 
+Q.merge(users, incomingUsers, Q.eq(users.id, incomingUsers.id), {
+  whenMatched: {
+    // @ts-expect-error merge update actions require at least one assignment
+    update: {},
+  },
+});
+
+Q.merge(users, incomingUsers, Q.eq(users.id, incomingUsers.id), {
+  whenNotMatched: {
+    // @ts-expect-error merge insert actions require at least one value
+    values: {},
+  },
+});
+
 const badMergeMysqlPredicate = Q.merge(
   users,
   incomingUsers,

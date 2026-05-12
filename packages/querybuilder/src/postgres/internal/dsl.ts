@@ -4770,6 +4770,15 @@ type NestedUpdateValuesNonEmptyConstraint<Values> =
       ? unknown
       : UpdateValuesNonEmptyError<Values>
 
+type MergeInsertValuesNonEmptyError<Values> = Values & {
+  readonly __effect_qb_error__: "effect-qb: merge insert actions require at least one value"
+}
+
+type MergeInsertValuesNonEmptyConstraint<Values> =
+  [Extract<keyof Values, string>] extends [never]
+    ? MergeInsertValuesNonEmptyError<Values>
+    : unknown
+
 type InsertShapeExtraKeys<TargetShape, SourceShape> = Exclude<Extract<keyof SourceShape, string>, Extract<keyof TargetShape, string>>
 type InsertShapeMissingKeys<TargetShape, SourceShape> = Exclude<RequiredKeys<TargetShape>, Extract<keyof SourceShape, string>>
 type InsertShapeMismatchedKeys<TargetShape, SourceShape> = Extract<{
@@ -4963,7 +4972,7 @@ type MergeWhenMatchedUpdate<
   Values extends MutationInputOf<Table.UpdateOf<Target>>,
   Predicate extends PredicateInput | undefined = undefined
 > = {
-  readonly update: Values
+  readonly update: Values & UpdateValuesNonEmptyConstraint<Values>
   readonly predicate?: Predicate
   readonly delete?: never
 }
@@ -4973,7 +4982,7 @@ type MergeWhenNotMatched<
   Values extends MutationInputOf<Table.InsertOf<Target>>,
   Predicate extends PredicateInput | undefined = undefined
 > = {
-  readonly values: Values
+  readonly values: Values & MergeInsertValuesNonEmptyConstraint<Values>
   readonly predicate?: Predicate
 }
 
