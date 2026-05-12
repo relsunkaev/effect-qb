@@ -1,6 +1,13 @@
 import type * as Expression from "../scalar.js"
 import type { RuntimeTag } from "../datatypes/shape.js"
-import { isValidLocalDateString, localDatePattern } from "./value.js"
+import {
+  isValidInstantString,
+  isValidLocalDateString,
+  isValidLocalDateTimeString,
+  isValidLocalTimeString,
+  isValidOffsetTimeString,
+  localDatePattern
+} from "./value.js"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -142,7 +149,7 @@ const normalizeLocalTime = (value: unknown): string => {
     return formatLocalTime(value)
   }
   const raw = expectString(value, "local time").trim()
-  if (/^\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw)) {
+  if (isValidLocalTimeString(raw)) {
     return raw
   }
   throw new Error("Expected a local-time value")
@@ -153,7 +160,7 @@ const normalizeOffsetTime = (value: unknown): string => {
     return `${formatLocalTime(value)}Z`
   }
   const raw = expectString(value, "offset time").trim()
-  if (/^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) {
+  if (isValidOffsetTimeString(raw)) {
     return raw
   }
   throw new Error("Expected an offset-time value")
@@ -164,11 +171,13 @@ const normalizeLocalDateTime = (value: unknown): string => {
     return formatLocalDateTime(value)
   }
   const raw = expectString(value, "local datetime").trim()
-  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw)) {
-    return raw.replace(" ", "T")
+  const canonicalLocalDateTime = raw.replace(" ", "T")
+  if (isValidLocalDateTimeString(canonicalLocalDateTime)) {
+    return canonicalLocalDateTime
   }
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) {
-    const parsed = new Date(raw)
+  const canonicalInstant = raw.replace(" ", "T").replace(/z$/, "Z")
+  if (isValidInstantString(canonicalInstant)) {
+    const parsed = new Date(canonicalInstant)
     if (!Number.isNaN(parsed.getTime())) {
       return formatLocalDateTime(parsed)
     }
@@ -184,7 +193,11 @@ const normalizeInstant = (value: unknown): string => {
   if (!/[zZ]|[+-]\d{2}:\d{2}$/.test(raw)) {
     throw new Error("Instant values require a timezone offset")
   }
-  const parsed = new Date(raw)
+  const canonicalInstant = raw.replace(" ", "T").replace(/z$/, "Z")
+  if (!isValidInstantString(canonicalInstant)) {
+    throw new Error("Expected an ISO instant value")
+  }
+  const parsed = new Date(canonicalInstant)
   if (Number.isNaN(parsed.getTime())) {
     throw new Error("Expected an ISO instant value")
   }

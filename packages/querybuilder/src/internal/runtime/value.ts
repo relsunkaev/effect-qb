@@ -34,9 +34,69 @@ export const isValidLocalDateString = (value: string): boolean => {
   const month = Number(match[2])
   const day = Number(match[3])
   const parsed = new Date(Date.UTC(year, month - 1, day))
+  parsed.setUTCFullYear(year)
   return parsed.getUTCFullYear() === year &&
     parsed.getUTCMonth() === month - 1 &&
     parsed.getUTCDate() === day
+}
+
+export const localTimePattern = /^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/
+
+export const isValidLocalTimeString = (value: string): boolean => {
+  const match = localTimePattern.exec(value)
+  if (match === null) {
+    return false
+  }
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  const second = Number(match[3])
+  return hour >= 0 && hour <= 23 &&
+    minute >= 0 && minute <= 59 &&
+    second >= 0 && second <= 59
+}
+
+const offsetPattern = /^(?:Z|[+-](\d{2}):(\d{2}))$/
+
+const isValidOffset = (value: string): boolean => {
+  const match = offsetPattern.exec(value)
+  if (match === null) {
+    return false
+  }
+  if (value === "Z") {
+    return true
+  }
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  return hour >= 0 && hour <= 23 &&
+    minute >= 0 && minute <= 59
+}
+
+export const offsetTimePattern = /^(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2})$/
+
+export const isValidOffsetTimeString = (value: string): boolean => {
+  const match = offsetTimePattern.exec(value)
+  return match !== null &&
+    isValidLocalTimeString(match[1]!) &&
+    isValidOffset(match[2]!)
+}
+
+export const localDateTimePattern = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/
+
+export const isValidLocalDateTimeString = (value: string): boolean => {
+  const match = localDateTimePattern.exec(value)
+  return match !== null &&
+    isValidLocalDateString(match[1]!) &&
+    isValidLocalTimeString(match[2]!)
+}
+
+export const instantPattern = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2})$/
+
+export const isValidInstantString = (value: string): boolean => {
+  const match = instantPattern.exec(value)
+  return match !== null &&
+    isValidLocalDateString(match[1]!) &&
+    isValidLocalTimeString(match[2]!) &&
+    isValidOffset(match[3]!)
 }
 
 export const LocalDateStringSchema = Schema.String.pipe(
@@ -45,25 +105,29 @@ export const LocalDateStringSchema = Schema.String.pipe(
   Schema.brand("LocalDateString")
 ) as unknown as Schema.Schema<LocalDateString>
 
-export const LocalTimeStringSchema = brandString(
-  /^\d{2}:\d{2}:\d{2}(?:\.\d+)?$/,
-  "LocalTimeString"
-)
+export const LocalTimeStringSchema = Schema.String.pipe(
+  Schema.pattern(localTimePattern),
+  Schema.filter(isValidLocalTimeString),
+  Schema.brand("LocalTimeString")
+) as unknown as Schema.Schema<LocalTimeString>
 
-export const OffsetTimeStringSchema = brandString(
-  /^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/,
-  "OffsetTimeString"
-)
+export const OffsetTimeStringSchema = Schema.String.pipe(
+  Schema.pattern(offsetTimePattern),
+  Schema.filter(isValidOffsetTimeString),
+  Schema.brand("OffsetTimeString")
+) as unknown as Schema.Schema<OffsetTimeString>
 
-export const LocalDateTimeStringSchema = brandString(
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/,
-  "LocalDateTimeString"
-)
+export const LocalDateTimeStringSchema = Schema.String.pipe(
+  Schema.pattern(localDateTimePattern),
+  Schema.filter(isValidLocalDateTimeString),
+  Schema.brand("LocalDateTimeString")
+) as unknown as Schema.Schema<LocalDateTimeString>
 
-export const InstantStringSchema = brandString(
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/,
-  "InstantString"
-)
+export const InstantStringSchema = Schema.String.pipe(
+  Schema.pattern(instantPattern),
+  Schema.filter(isValidInstantString),
+  Schema.brand("InstantString")
+) as unknown as Schema.Schema<InstantString>
 
 export const YearStringSchema = brandString(
   /^\d{4}$/,
