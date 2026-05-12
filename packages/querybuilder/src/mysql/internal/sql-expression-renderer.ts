@@ -942,7 +942,7 @@ const renderTransactionClause = (
     case "releaseSavepoint":
       return `release savepoint ${dialect.quoteIdentifier(clause.name)}`
   }
-  return ""
+  throw new Error("Unsupported transaction statement kind")
 }
 
 const renderSelectionList = (

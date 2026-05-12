@@ -134,6 +134,22 @@ describe("cross-cutting statement behavior", () => {
     ).toThrow("Unsupported transaction isolation level")
   })
 
+  test("rejects invalid rendered transaction kinds", () => {
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+
+    const postgresPlan = Postgres.Query.transaction()
+    ;(postgresPlan as any)[queryAst].transaction.kind = "begin"
+    expect(() =>
+      Postgres.Renderer.make().render(postgresPlan)
+    ).toThrow("Unsupported transaction statement kind")
+
+    const mysqlPlan = Mysql.Query.transaction()
+    ;(mysqlPlan as any)[queryAst].transaction.kind = "begin"
+    expect(() =>
+      Mysql.Renderer.make().render(mysqlPlan)
+    ).toThrow("Unsupported transaction statement kind")
+  })
+
   test("rejects postgres merge statements without actions", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
