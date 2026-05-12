@@ -717,6 +717,24 @@ void badPostgresMergeMysqlTarget
 const badPostgresMergeMysqlSource = Postgres.Query.merge(postgresUsers, mysqlUsers, Postgres.Query.literal(true))
 void badPostgresMergeMysqlSource
 
+// @ts-expect-error postgres values sources cannot use mysql expressions
+const badPostgresValuesMysqlExpression = Postgres.Query.values([
+  { email: Mysql.Query.literal("alice@example.com") }
+] as const)
+void badPostgresValuesMysqlExpression
+
+// @ts-expect-error mysql values sources cannot use postgres expressions
+const badMysqlValuesPostgresExpression = Mysql.Query.values([
+  { email: Postgres.Query.literal("alice@example.com") }
+] as const)
+void badMysqlValuesPostgresExpression
+
+// @ts-expect-error postgres unnest sources cannot use mysql expressions
+const badPostgresUnnestMysqlExpression = Postgres.Query.unnest({
+  email: [Mysql.Query.literal("alice@example.com")] as const
+}, "bad_postgres_unnest_mysql_expression")
+void badPostgresUnnestMysqlExpression
+
 const mysqlDialect: typeof mysqlUsers.id[typeof Expression.TypeId]["dbType"]["dialect"] = "mysql"
 const postgresDialect: typeof postgresUsers.id[typeof Expression.TypeId]["dbType"]["dialect"] = "postgres"
 
