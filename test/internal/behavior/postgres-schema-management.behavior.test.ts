@@ -880,6 +880,55 @@ const users = Table.make("users", {
     }
   })
 
+  test("renders pulled quoted enum arrays with enum helpers", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-pull-enum-array-"))
+    try {
+      const discovered = {
+        declarations: [],
+        bindings: [],
+        model: {
+          dialect: "postgres",
+          enums: [],
+          tables: []
+        }
+      } as const
+      const database: SchemaModel = {
+        dialect: "postgres",
+        enums: [{
+          kind: "enum",
+          schemaName: "AuditSchema",
+          name: "StatusType",
+          values: ["active"]
+        }],
+        tables: [{
+          kind: "table",
+          schemaName: "AuditSchema",
+          name: "users",
+          columns: [{
+            name: "statuses",
+            ddlType: `"AuditSchema"."StatusType"[]`,
+            dbTypeKind: "StatusType[]",
+            typeSchema: "AuditSchema",
+            nullable: false,
+            hasDefault: false,
+            generated: false
+          }],
+          options: []
+        }]
+      }
+
+      const plan = await planPostgresPull(tempDir, { include: ["src/**/*.ts"] }, discovered, database)
+
+      expect(plan.updates).toHaveLength(1)
+      const after = plan.updates[0]?.after ?? ""
+      expect(after).toContain(`const StatusType = AuditSchema.enum("StatusType", ["active"])`)
+      expect(after).toContain(`statuses: StatusType.column().pipe(Column.array())`)
+      expect(after).not.toContain("Column.custom(Schema.Unknown")
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("rejects duplicate discovered table identities across source files", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-"))
     try {
