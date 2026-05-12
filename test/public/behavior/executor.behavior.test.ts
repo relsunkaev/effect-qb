@@ -983,6 +983,42 @@ describe("executor behavior", () => {
     })
   })
 
+  test("normalized driver mode rejects non-canonical bigint strings", () => {
+    const metrics = Table.make("normalized_canonical_bigint_metrics", {
+      counter: C.int8()
+    })
+
+    const plan = Q.select({
+      counter: metrics.counter
+    }).pipe(
+      Q.from(metrics)
+    )
+
+    const result = Effect.runSync(Effect.either(Executor.make({
+      driverMode: "normalized",
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          counter: "0042"
+        }
+      ]))
+    }).execute(plan)))
+
+    expect(result).toMatchObject({
+      _tag: "Left",
+      left: {
+        _tag: "RowDecodeError",
+        stage: "schema",
+        projection: {
+          alias: "counter"
+        },
+        dbType: {
+          dialect: "postgres",
+          kind: "int8"
+        }
+      }
+    })
+  })
+
   test("normalized driver mode rejects non-finite aggregate numbers", () => {
     const users = Table.make("normalized_aggregate_users", {
       id: C.uuid().pipe(C.primaryKey)
