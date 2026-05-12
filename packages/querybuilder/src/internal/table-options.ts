@@ -107,6 +107,9 @@ type TupleFromColumns<Columns> = Columns extends readonly [infer Head extends st
       ? readonly [Columns]
       : never
 
+export type NonEmptyColumnInput<Columns extends string | readonly string[]> =
+  TupleFromColumns<Columns> extends never ? never : Columns
+
 type AssertKnownColumns<Fields extends TableFieldMap, Columns extends readonly string[]> = Exclude<
   Columns[number],
   ColumnNameUnion<Fields>

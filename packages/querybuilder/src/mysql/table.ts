@@ -144,11 +144,15 @@ export const foreignKey = <
   TargetTable extends AnyTable,
   TargetColumns extends string | readonly string[]
 >(
-  columns: LocalColumns,
+  columns: LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
   target: () => TargetTable,
-  referencedColumns: TargetColumns
+  referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
 ): BaseTable.TableOption =>
-  BaseTable.foreignKey(columns, target as () => BaseTable.AnyTable, referencedColumns)
+  BaseTable.foreignKey<LocalColumns, BaseTable.AnyTable, TargetColumns>(
+    columns as LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
+    target as () => BaseTable.AnyTable,
+    referencedColumns as TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
+  )
 
 export const check = BaseTable.check
 

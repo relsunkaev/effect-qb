@@ -12,6 +12,7 @@ import {
   resolvePrimaryKeyColumns,
   type DdlExpressionLike,
   type IndexKeySpec,
+  type NonEmptyColumnInput,
   type NormalizeColumns,
   type ReferentialAction,
   type TableOptionSpec,
@@ -141,7 +142,7 @@ export interface TableSchemaNamespace<SchemaName extends string> {
 }
 
 export type DeclaredTableOptions = readonly TableOptionBuilderLike[]
-export type { DdlExpressionLike, IndexKeySpec, NormalizeColumns, ReferentialAction } from "./table-options.js"
+export type { DdlExpressionLike, IndexKeySpec, NonEmptyColumnInput, NormalizeColumns, ReferentialAction } from "./table-options.js"
 
 export type TableDefinition<
   Name extends string,
@@ -664,7 +665,7 @@ export function Class<
 export const primaryKey = <
   const Columns extends string | readonly string[]
 >(
-  columns: Columns
+  columns: Columns & NonEmptyColumnInput<Columns>
 ): TableOption<{
   readonly kind: "primaryKey"
   readonly columns: NormalizeColumns<Columns>
@@ -677,7 +678,7 @@ export const primaryKey = <
 export const unique = <
   const Columns extends string | readonly string[]
 >(
-  columns: Columns
+  columns: Columns & NonEmptyColumnInput<Columns>
 ): TableOption<{
   readonly kind: "unique"
   readonly columns: NormalizeColumns<Columns>
@@ -690,7 +691,7 @@ export const unique = <
 export const index = <
   const Columns extends string | readonly string[]
 >(
-  columns: Columns
+  columns: Columns & NonEmptyColumnInput<Columns>
 ): TableOption<{
   readonly kind: "index"
   readonly columns: NormalizeColumns<Columns>
@@ -705,9 +706,9 @@ export const foreignKey = <
   TargetTable extends AnyTable,
   const TargetColumns extends string | readonly string[]
 >(
-  columns: LocalColumns,
+  columns: LocalColumns & NonEmptyColumnInput<LocalColumns>,
   target: () => TargetTable,
-  referencedColumns: TargetColumns
+  referencedColumns: TargetColumns & NonEmptyColumnInput<TargetColumns>
 ): TableOption<{
   readonly kind: "foreignKey"
   readonly columns: NormalizeColumns<LocalColumns>

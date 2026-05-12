@@ -125,14 +125,14 @@ export const Class = <Self = never, SchemaName extends string | undefined = "pub
 export const option = BaseTable.option
 
 type RichPrimaryKeyInput<Columns extends string | readonly string[]> = {
-  readonly columns: Columns
+  readonly columns: Columns & BaseTable.NonEmptyColumnInput<Columns>
   readonly name?: string
   readonly deferrable?: boolean
   readonly initiallyDeferred?: boolean
 }
 
 type RichUniqueInput<Columns extends string | readonly string[]> = {
-  readonly columns: Columns
+  readonly columns: Columns & BaseTable.NonEmptyColumnInput<Columns>
   readonly name?: string
   readonly nullsNotDistinct?: boolean
   readonly deferrable?: boolean
@@ -156,7 +156,7 @@ type RichIndexKeyInput =
     }
 
 type RichIndexInput<Columns extends string | readonly string[] = string | readonly string[]> = {
-  readonly columns?: Columns
+  readonly columns?: Columns & BaseTable.NonEmptyColumnInput<Columns>
   readonly keys?: readonly [RichIndexKeyInput, ...RichIndexKeyInput[]]
   readonly name?: string
   readonly unique?: boolean
@@ -170,9 +170,9 @@ type RichForeignKeyInput<
   TargetTable extends AnyTable,
   TargetColumns extends string | readonly string[]
 > = {
-  readonly columns: LocalColumns
+  readonly columns: LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>
   readonly target: () => TargetTable
-  readonly referencedColumns: TargetColumns
+  readonly referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
   readonly name?: string
   readonly onUpdate?: ReferentialAction
   readonly onDelete?: ReferentialAction
@@ -231,7 +231,7 @@ const normalizeIndexKeys = (
 
 export const primaryKey: {
   <const Columns extends string | readonly string[]>(
-    columns: Columns
+    columns: Columns & BaseTable.NonEmptyColumnInput<Columns>
   ): BaseTable.TableOption<{
     readonly kind: "primaryKey"
     readonly columns: BaseTable.NormalizeColumns<Columns>
@@ -252,7 +252,7 @@ export const primaryKey: {
 
 export const unique: {
   <const Columns extends string | readonly string[]>(
-    columns: Columns
+    columns: Columns & BaseTable.NonEmptyColumnInput<Columns>
   ): BaseTable.TableOption<{
     readonly kind: "unique"
     readonly columns: BaseTable.NormalizeColumns<Columns>
@@ -274,7 +274,7 @@ export const unique: {
 
 export const index: {
   <const Columns extends string | readonly string[]>(
-    columns: Columns
+    columns: Columns & BaseTable.NonEmptyColumnInput<Columns>
   ): BaseTable.TableOption<{
     readonly kind: "index"
     readonly columns: BaseTable.NormalizeColumns<Columns>
@@ -333,9 +333,9 @@ export const foreignKey = <
   TargetTable extends AnyTable,
   const TargetColumns extends string | readonly string[]
 >(
-  columnsOrSpec: LocalColumns | RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns>,
+  columnsOrSpec: (LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>) | RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns>,
   target?: () => TargetTable,
-  referencedColumns?: TargetColumns
+  referencedColumns?: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
 ): BaseTable.TableOption =>
   isObject(columnsOrSpec) && "columns" in columnsOrSpec && "target" in columnsOrSpec
     ? (() => {
@@ -358,10 +358,10 @@ export const foreignKey = <
         initiallyDeferred: spec.initiallyDeferred
       })
       })()
-    : BaseTable.foreignKey(
-        columnsOrSpec as LocalColumns,
+    : BaseTable.foreignKey<LocalColumns, BaseTable.AnyTable, TargetColumns>(
+        columnsOrSpec as LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
         target as () => BaseTable.AnyTable,
-        referencedColumns as TargetColumns
+        referencedColumns as TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns>
       )
 
 export const check: {
