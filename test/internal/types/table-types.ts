@@ -709,6 +709,18 @@ const badPostgresMutationMysqlExpression = Postgres.Query.insert(postgresUsers, 
 })
 void badPostgresMutationMysqlExpression
 
+const widenedPostgresInsertMysqlEmail: Postgres.Query.MutationInputOf<Postgres.Table.InsertOf<typeof users>>["email"] =
+  Mysql.Query.literal("alice@example.com")
+
+const widenedPostgresInsertMysqlPlan = Postgres.Query.insert(users, {
+  email: widenedPostgresInsertMysqlEmail
+})
+const widenedPostgresInsertMysqlRendered = Postgres.Renderer.make().render(
+  // @ts-expect-error widened mutation values must still preserve expression dialect
+  widenedPostgresInsertMysqlPlan
+)
+void widenedPostgresInsertMysqlRendered
+
 // @ts-expect-error postgres merge cannot target mysql tables
 const badPostgresMergeMysqlTarget = Postgres.Query.merge(mysqlUsers, postgresUsers, Postgres.Query.literal(true), {
   whenMatched: {
