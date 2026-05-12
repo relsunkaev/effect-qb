@@ -36,6 +36,8 @@ const makeJsonbTable = (table: typeof Postgres) =>
   })
 
 describe("json behavior", () => {
+  const jsonDocId = "11111111-1111-1111-1111-111111111111"
+
   test("postgres renders the shared json surface for json columns", () => {
     const docs = makeJsonTable(Postgres)
 
@@ -851,7 +853,7 @@ describe("json behavior", () => {
     })
 
     const insertPlan = Postgres.Query.insert(docsJson, {
-      id: "doc-1",
+      id: jsonDocId,
       payload: Postgres.Json.json.buildObject({
         profile: {
           city: "Paris"
@@ -875,7 +877,7 @@ describe("json behavior", () => {
       'insert into "public"."docs_json" ("id", "payload") values ($1, json_build_object($2, $3))'
     )
     expect(insert.params).toEqual([
-      "doc-1",
+      jsonDocId,
       "profile",
       {
         city: "Paris"
@@ -901,7 +903,7 @@ describe("json behavior", () => {
     })
 
     const insertPlan = Mysql.Query.insert(docs, {
-      id: "doc-1",
+      id: jsonDocId,
       payload: Mysql.Json.json.buildObject({
         profile: {
           city: "Paris"
@@ -925,7 +927,7 @@ describe("json behavior", () => {
       "insert into `docs` (`id`, `payload`) values (?, json_object(?, ?))"
     )
     expect(insert.params).toEqual([
-      "doc-1",
+      jsonDocId,
       "profile",
       {
         city: "Paris"
