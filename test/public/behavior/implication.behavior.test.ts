@@ -247,6 +247,44 @@ describe("implication behavior", () => {
     ])
   })
 
+  test("predicate facts do not promote split sources for dotted table names", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey)
+    })
+    const dottedTable = Table.make("a.b", {
+      status: C.custom(Schema.Literal("left", "right"), Type.text())
+    })
+    const splitTable = Table.make("a", {
+      "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
+    })
+
+    const plan = Q.select({
+      splitStatus: splitTable["b.status"],
+      dottedStatus: dottedTable.status
+    }).pipe(
+      Q.from(users),
+      Q.leftJoin(splitTable, Q.eq(splitTable["b.status"], "right")),
+      Q.leftJoin(dottedTable, Q.eq(dottedTable.status, "left")),
+      Q.where(Q.isNotNull(dottedTable.status))
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          splitStatus: null,
+          dottedStatus: "left"
+        }
+      ]))
+    }).execute(plan))
+
+    expect(rows).toEqual([
+      {
+        splitStatus: null,
+        dottedStatus: "left"
+      }
+    ])
+  })
+
   test("isNull collapses dependent left joins to always-null projections", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey)
