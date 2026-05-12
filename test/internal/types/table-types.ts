@@ -735,8 +735,8 @@ const badPostgresUnnestMysqlExpression = Postgres.Query.unnest({
 }, "bad_postgres_unnest_mysql_expression")
 void badPostgresUnnestMysqlExpression
 
-// @ts-expect-error postgres table functions cannot use mysql expressions
 const badPostgresGenerateSeriesMysqlExpression = Postgres.Query.generateSeries(
+  // @ts-expect-error postgres table functions cannot use mysql expressions
   Mysql.Query.literal(1),
   3,
   1,

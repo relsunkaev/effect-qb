@@ -699,6 +699,21 @@ type DialectOfDialectNumericInput<
   NullDb extends Expression.DbType.Any
 > = DialectOf<DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
+type NumericExpressionDialectInput<
+  Value extends NumericExpressionInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Exclude<DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, Dialect> extends never
+  ? unknown
+  : {
+      readonly __effect_qb_error__: "effect-qb: numeric expressions cannot mix dialects"
+      readonly __effect_qb_dialect__: DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    }
+
 /** Dependency map carried by a numeric-clause input after coercion. */
 type DependenciesOfDialectNumericInput<
   Value extends NumericExpressionInput,
@@ -5266,9 +5281,9 @@ type AsCurriedResult<
     Step extends NumericExpressionInput | undefined = undefined,
     Alias extends string = "series"
   >(
-    start: Start,
-    stop: Stop,
-    step?: Step,
+    start: Start & NumericExpressionDialectInput<Start, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    stop: Stop & NumericExpressionDialectInput<Stop, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    step?: Step & (Step extends NumericExpressionInput ? NumericExpressionDialectInput<Step, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> : unknown),
     alias?: Alias
   ) => Dialect extends "postgres"
     ? TableFunctionSource<
