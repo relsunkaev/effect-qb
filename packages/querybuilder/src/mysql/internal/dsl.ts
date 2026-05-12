@@ -4410,6 +4410,33 @@ type ValuesRowsShapeInput<Rows extends ValuesRowsInput> =
         readonly __effect_qb_mismatched_columns__: ValuesRowsShapeMismatches<Rows>
       }
 
+type ValuesRowsDialect<
+  Rows extends ValuesRowsInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Rows[number][keyof Rows[number]] extends infer Value extends ExpressionInput
+  ? DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+  : never
+
+type ValuesRowsDialectInput<
+  Rows extends ValuesRowsInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Exclude<ValuesRowsDialect<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, Dialect> extends never
+  ? unknown
+  : {
+      readonly __effect_qb_error__: "effect-qb: values rows cannot mix dialects"
+      readonly __effect_qb_dialect__: ValuesRowsDialect<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    }
+
 type UnnestColumnsInput = Record<string, readonly [ExpressionInput, ...ExpressionInput[]]>
 
 type IsNever<Value> = [Value] extends [never] ? true : false
@@ -4437,6 +4464,33 @@ type UnnestColumnsShapeInput<Columns extends UnnestColumnsInput> =
             readonly __effect_qb_column_lengths__: UnnestColumnLengths<Columns>
           }
         : unknown
+
+type UnnestColumnsDialect<
+  Columns extends UnnestColumnsInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Columns[UnnestColumnKeys<Columns>][number] extends infer Value extends ExpressionInput
+  ? DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+  : never
+
+type UnnestColumnsDialectInput<
+  Columns extends UnnestColumnsInput,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Exclude<UnnestColumnsDialect<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, Dialect> extends never
+  ? unknown
+  : {
+      readonly __effect_qb_error__: "effect-qb: unnest columns cannot mix dialects"
+      readonly __effect_qb_dialect__: UnnestColumnsDialect<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    }
 
 type UnnestRowShape<Shape extends Record<string, readonly unknown[]>> = {
   readonly [K in keyof Shape]: Shape[K] extends readonly (infer Item)[] ? Item : never
@@ -5183,7 +5237,9 @@ type AsCurriedResult<
   export type ValuesApi = <
     Rows extends ValuesRowsInput
   >(
-    rows: Rows & ValuesRowsShapeInput<Rows>
+    rows: Rows
+      & ValuesRowsShapeInput<Rows>
+      & ValuesRowsDialectInput<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   ) => ValuesInput<
     Rows,
     ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -5194,7 +5250,9 @@ type AsCurriedResult<
     Columns extends UnnestColumnsInput,
     Alias extends string
   >(
-    columns: Columns & UnnestColumnsShapeInput<Columns>,
+    columns: Columns
+      & UnnestColumnsShapeInput<Columns>
+      & UnnestColumnsDialectInput<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     alias: Alias
   ) => UnnestSource<
     UnnestOutputShape<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
