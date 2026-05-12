@@ -791,10 +791,7 @@ const renderJsonExpression = (
       }
       if (dialect.name === "sqlite") {
         if (kind === "jsonInsert" && isJsonArrayIndexSegment(segments[segments.length - 1])) {
-          if (insertAfter) {
-            unsupportedJsonFeature(dialect, "jsonInsertAfter")
-          }
-          return `json_insert(${renderExpression(base, state, dialect)}, ${renderSqliteJsonPath(segments, state, dialect)}, ${renderJsonInputExpression(nextValue, state, dialect)})`
+          unsupportedJsonFeature(dialect, insertAfter ? "jsonInsertAfter" : "jsonInsertArrayIndex")
         }
         const functionName = kind === "jsonInsert" ? "json_insert" : createMissing ? "json_set" : "json_replace"
         return `${functionName}(${renderExpression(base, state, dialect)}, ${renderSqliteJsonPath(segments, state, dialect)}, ${renderJsonInputExpression(nextValue, state, dialect)})`

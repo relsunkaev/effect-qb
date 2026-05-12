@@ -345,6 +345,25 @@ describe("sqlite behavior", () => {
     }).pipe(Sqlite.Query.from(docs)))).toThrow("SQLite JSON paths do not support wildcard segments")
   })
 
+  test("rejects sqlite JSON array inserts that SQLite would silently ignore", () => {
+    const docs = Sqlite.Table.make("docs", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+      payload: Sqlite.Column.json(Schema.Unknown)
+    })
+
+    const firstTagPath = Sqlite.Json.json.path(
+      Sqlite.Json.json.key("profile"),
+      Sqlite.Json.json.key("tags"),
+      Sqlite.Json.json.index(1)
+    )
+
+    expect(() => render(Sqlite.Query.select({
+      inserted: Sqlite.Json.json.insert(docs.payload, firstTagPath, "city")
+    }).pipe(Sqlite.Query.from(docs)))).toThrow(
+      "Unsupported JSON feature for sqlite: jsonInsertArrayIndex"
+    )
+  })
+
   test("encodes sqlite JSON string scalar literals as JSON text", () => {
     const docs = Sqlite.Table.make("json_string_docs", {
       id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
