@@ -105,6 +105,23 @@ describe("select sources behavior", () => {
     )
   })
 
+  test("rejects incomplete set operator operands before rendering invalid nested sql", () => {
+    const complete = Postgres.Query.select({
+      id: pgUsers.id
+    }).pipe(Postgres.Query.from(pgUsers))
+    const incomplete = Postgres.Query.select({
+      id: pgUsers.id
+    })
+
+    expect(() => renderPostgres(Postgres.Query.union(complete, unsafeAny(incomplete)))).toThrow(
+      "query references sources that are not yet in scope: users"
+    )
+
+    expect(() => renderPostgres(Postgres.Query.union(unsafeAny(incomplete), complete))).toThrow(
+      "query references sources that are not yet in scope: users"
+    )
+  })
+
   test("renders standalone values, unnest, and generate series sources in postgres", () => {
     const valuesSource = Postgres.Query.values([
       { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") },

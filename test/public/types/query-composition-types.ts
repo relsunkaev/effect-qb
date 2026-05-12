@@ -233,6 +233,15 @@ const unionPlan = Q.union(activeUsers, archivedUsers)
 const intersectPlan = Q.intersect(activeUsers, archivedUsers)
 const exceptPlan = Q.except(activeUsers, archivedUsers)
 
+const incompleteSetOperand = Q.select({
+  email: users.email
+})
+
+// @ts-expect-error set operator operands must be source-complete
+const incompleteSetRight = Q.union(activeUsers, incompleteSetOperand)
+// @ts-expect-error set operator operands must be source-complete
+const incompleteSetLeft = Q.union(incompleteSetOperand, activeUsers)
+
 type UnionRow = Q.ResultRow<typeof unionPlan>
 const unionEmail: UnionRow["email"] = "alice@example.com"
 type UnionStatement = Q.StatementOfPlan<typeof unionPlan>
@@ -244,6 +253,8 @@ void unionStatement
 void unionCapability
 void intersectPlan
 void exceptPlan
+void incompleteSetRight
+void incompleteSetLeft
 
 const mismatchedSetOperand = Q.select({
   postId: posts.id
