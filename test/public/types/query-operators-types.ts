@@ -26,11 +26,9 @@ const predicateSurfaceApplied = Q.where(Q.and(
 ))(predicateSurfacePlan)
 void predicateSurfaceApplied
 
-// @ts-expect-error BUG: empty selections should compile as zero-column selects
 const zeroColumnSelectPlan = Q.select({}).pipe(Q.from(users))
 void zeroColumnSelectPlan
 
-// @ts-expect-error BUG: omitted selections should compile as zero-column selects
 const omittedSelectionPlan = Q.select().pipe(Q.from(users))
 void omittedSelectionPlan
 

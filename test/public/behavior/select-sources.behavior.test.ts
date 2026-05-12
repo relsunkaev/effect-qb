@@ -162,7 +162,7 @@ describe("select sources behavior", () => {
     )
   })
 
-  test.failing("rejects NaN postgres generateSeries arguments", () => {
+  test("rejects NaN postgres generateSeries arguments", () => {
     const renderSeries = (series: ReturnType<typeof Postgres.Query.generateSeries>) =>
       renderPostgres(Postgres.Query.select({
         value: series.value

@@ -5106,7 +5106,15 @@ type SelectFromConstraint<
   CurrentSource extends SourceLike
 > =
   RequireSelectStatement<PlanValue> &
-  (SourceNameOf<CurrentSource> extends OutstandingOfPlan<PlanValue> ? unknown : never) &
+  (
+    SourceNameOf<CurrentSource> extends OutstandingOfPlan<PlanValue>
+      ? unknown
+      : [OutstandingOfPlan<PlanValue>] extends [never]
+        ? [ScopedNamesOfPlan<PlanValue>] extends [never]
+          ? unknown
+          : never
+        : never
+  ) &
   (SourceRequiredOf<CurrentSource> extends never ? unknown : SourceRequirementError<CurrentSource>)
 
 type UpdateFromConstraint<

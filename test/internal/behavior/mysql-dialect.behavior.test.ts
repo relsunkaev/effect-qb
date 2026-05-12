@@ -255,7 +255,7 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual(["%@example.com", 5, 10])
   })
 
-  test.failing("rejects NaN mysql limit values", () => {
+  test("rejects NaN mysql limit values", () => {
     const { users } = makeMysqlSocialGraph()
 
     const plan = Mysql.Query.select({
@@ -268,7 +268,7 @@ describe("mysql dialect behavior", () => {
     expect(() => render(plan)).toThrow("Expected a finite numeric value")
   })
 
-  test.failing("rejects NaN mysql offset values", () => {
+  test("rejects NaN mysql offset values", () => {
     const { users } = makeMysqlSocialGraph()
 
     const plan = Mysql.Query.select({
@@ -350,7 +350,7 @@ describe("mysql dialect behavior", () => {
     ])
   })
 
-  test.failing("rejects empty mysql membership predicates", () => {
+  test("rejects empty mysql membership predicates", () => {
     const { users } = makeMysqlSocialGraph()
 
     expect(() => render(Mysql.Query.select({
@@ -362,7 +362,7 @@ describe("mysql dialect behavior", () => {
     }).pipe(Mysql.Query.from(users)))).toThrow()
   })
 
-  test.failing("rejects empty mysql boolean combinators", () => {
+  test("rejects empty mysql boolean combinators", () => {
     const { users } = makeMysqlSocialGraph()
 
     for (const expression of [
@@ -1062,8 +1062,12 @@ describe("mysql dialect behavior", () => {
     ])
   })
 
-  test.failing("rejects mysql conflict action predicates instead of ignoring them", () => {
-    const { users } = makeMysqlSocialGraph()
+  test("rejects mysql conflict action predicates instead of ignoring them", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text(),
+      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    })
 
     const plan = Mysql.Query.onConflict(["email"] as const, {
       where: Mysql.Query.isNotNull(Mysql.Query.excluded(users.bio))

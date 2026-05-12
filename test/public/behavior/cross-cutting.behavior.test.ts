@@ -97,7 +97,7 @@ describe("cross-cutting statement behavior", () => {
     expect(() => Mysql.Renderer.make().render(mergePlan)).toThrow("Unsupported merge statement for mysql")
   })
 
-  test.failing("rejects invalid postgres transaction isolation levels at runtime", () => {
+  test("rejects invalid postgres transaction isolation levels at runtime", () => {
     expect(() =>
       Postgres.Renderer.make().render(Postgres.Query.transaction({
         isolationLevel: "chaos"
@@ -105,7 +105,7 @@ describe("cross-cutting statement behavior", () => {
     ).toThrow()
   })
 
-  test.failing("rejects invalid mysql transaction isolation levels at runtime", () => {
+  test("rejects invalid mysql transaction isolation levels at runtime", () => {
     expect(() =>
       Mysql.Renderer.make().render(Mysql.Query.transaction({
         isolationLevel: "chaos"

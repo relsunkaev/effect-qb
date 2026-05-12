@@ -1,4 +1,5 @@
 import * as Plan from "./row-set.js"
+import * as Table from "./table.js"
 
 type DslTransactionDdlRuntimeContext = {
   readonly profile: {
@@ -11,8 +12,29 @@ type DslTransactionDdlRuntimeContext = {
 }
 
 export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContext) => {
-  const transaction = (options: { readonly isolationLevel?: any; readonly readOnly?: boolean } = {}) =>
-    ctx.makePlan({
+  const allowedIsolationLevels = new Set(["read committed", "repeatable read", "serializable"])
+
+  const validateIsolationLevel = (isolationLevel: unknown): void => {
+    if (isolationLevel !== undefined && !allowedIsolationLevels.has(String(isolationLevel))) {
+      throw new Error("Unsupported transaction isolation level")
+    }
+  }
+
+  const validateIndexColumns = (target: any, columns: readonly string[]): void => {
+    const fields = target[Table.TypeId]?.fields as Record<string, unknown> | undefined
+    if (fields === undefined) {
+      return
+    }
+    for (const columnName of columns) {
+      if (!(columnName in fields)) {
+        throw new Error(`effect-qb: unknown index column '${columnName}'`)
+      }
+    }
+  }
+
+  const transaction = (options: { readonly isolationLevel?: any; readonly readOnly?: boolean } = {}) => {
+    validateIsolationLevel(options.isolationLevel)
+    return ctx.makePlan({
       selection: {},
       required: [],
       available: {},
@@ -31,6 +53,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       groupBy: [],
       orderBy: []
     }, undefined, "transaction", "transaction")
+  }
 
   const commit = () =>
     ctx.makePlan({
@@ -188,6 +211,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
 
   const createIndex = (target: any, columns: string | readonly string[], options: { readonly name?: string; readonly unique?: boolean; readonly ifNotExists?: boolean } = {}) => {
     const normalizedColumns = ctx.normalizeColumnList(columns)
+    validateIndexColumns(target, normalizedColumns)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
       selection: {},
@@ -220,6 +244,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
 
   const dropIndex = (target: any, columns: string | readonly string[], options: { readonly name?: string; readonly ifExists?: boolean } = {}) => {
     const normalizedColumns = ctx.normalizeColumnList(columns)
+    validateIndexColumns(target, normalizedColumns)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
       selection: {},

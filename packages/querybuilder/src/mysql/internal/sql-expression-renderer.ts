@@ -1550,6 +1550,9 @@ export const renderExpression = (
         ? dialect.quoteIdentifier(ast.columnName)
         : `${dialect.quoteIdentifier(ast.tableName)}.${dialect.quoteIdentifier(ast.columnName)}`
     case "literal":
+      if (typeof ast.value === "number" && !Number.isFinite(ast.value)) {
+        throw new Error("Expected a finite numeric value")
+      }
       return dialect.renderLiteral(ast.value, state, expression[Expression.TypeId])
     case "excluded":
       return dialect.name === "mysql"
@@ -1660,14 +1663,26 @@ export const renderExpression = (
     case "min":
       return `min(${renderExpression(ast.value, state, dialect)})`
     case "and":
+      if (ast.values.length === 0) {
+        throw new Error("and(...) requires at least one predicate")
+      }
       return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" and ")})`
     case "or":
+      if (ast.values.length === 0) {
+        throw new Error("or(...) requires at least one predicate")
+      }
       return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" or ")})`
     case "coalesce":
       return `coalesce(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")})`
     case "in":
+      if (ast.values.length < 2) {
+        throw new Error("in(...) requires at least one candidate value")
+      }
       return `(${renderExpression(ast.values[0]!, state, dialect)} in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
     case "notIn":
+      if (ast.values.length < 2) {
+        throw new Error("notIn(...) requires at least one candidate value")
+      }
       return `(${renderExpression(ast.values[0]!, state, dialect)} not in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
     case "between":
       return `(${renderExpression(ast.values[0]!, state, dialect)} between ${renderExpression(ast.values[1]!, state, dialect)} and ${renderExpression(ast.values[2]!, state, dialect)})`

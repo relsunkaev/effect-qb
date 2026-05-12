@@ -397,7 +397,7 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual(["%@example.com", 5, 10])
   })
 
-  test.failing("rejects NaN postgres limit values", () => {
+  test("rejects NaN postgres limit values", () => {
     const { users } = makePostgresSocialGraph()
 
     const plan = Postgres.Query.select({
@@ -410,7 +410,7 @@ describe("postgres dialect behavior", () => {
     expect(() => render(plan)).toThrow("Expected a finite numeric value")
   })
 
-  test.failing("rejects NaN postgres offset values", () => {
+  test("rejects NaN postgres offset values", () => {
     const { users } = makePostgresSocialGraph()
 
     const plan = Postgres.Query.select({
@@ -513,7 +513,7 @@ describe("postgres dialect behavior", () => {
     ])
   })
 
-  test.failing("rejects empty postgres membership predicates", () => {
+  test("rejects empty postgres membership predicates", () => {
     const { users } = makePostgresSocialGraph()
 
     expect(() => render(Postgres.Query.select({
@@ -525,7 +525,7 @@ describe("postgres dialect behavior", () => {
     }).pipe(Postgres.Query.from(users)))).toThrow()
   })
 
-  test.failing("rejects empty postgres boolean combinators", () => {
+  test("rejects empty postgres boolean combinators", () => {
     const { users } = makePostgresSocialGraph()
 
     for (const expression of [
@@ -1329,8 +1329,12 @@ describe("postgres dialect behavior", () => {
     ])
   })
 
-  test.failing("rejects postgres conflict action predicates without update assignments", () => {
-    const { users } = makePostgresSocialGraph()
+  test("rejects postgres conflict action predicates without update assignments", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text(),
+      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    })
 
     const plan = Postgres.Query.onConflict(["email"] as const, {
       where: Postgres.Query.isNotNull(Postgres.Query.excluded(users.bio))

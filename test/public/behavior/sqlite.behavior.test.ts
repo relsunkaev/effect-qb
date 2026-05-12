@@ -152,6 +152,59 @@ describe("sqlite behavior", () => {
     expect(dropIndex.sql).toBe('drop index if exists "employees_managerId_idx"')
   })
 
+  test("rejects sqlite DDL references to unknown index columns at runtime", () => {
+    const employees = makeSqliteEmployees()
+
+    expect(() =>
+      render(Sqlite.Query.createIndex(employees, ["missing"]))
+    ).toThrow("effect-qb: unknown index column 'missing'")
+
+    expect(() =>
+      render(Sqlite.Query.dropIndex(employees, ["missing"]))
+    ).toThrow("effect-qb: unknown index column 'missing'")
+  })
+
+  test("rejects invalid sqlite transaction isolation levels at runtime", () => {
+    expect(() =>
+      render(Sqlite.Query.transaction({
+        isolationLevel: "chaos"
+      }))
+    ).toThrow("Unsupported transaction isolation level")
+  })
+
+  test("rejects empty sqlite membership predicates", () => {
+    const { users } = makeSqliteSocialGraph()
+
+    expect(() => render(Sqlite.Query.select({
+      ok: Sqlite.Query.in(users.email)
+    }).pipe(Sqlite.Query.from(users)))).toThrow("in(...) requires at least one candidate value")
+
+    expect(() => render(Sqlite.Query.select({
+      ok: Sqlite.Query.notIn(users.email)
+    }).pipe(Sqlite.Query.from(users)))).toThrow("notIn(...) requires at least one candidate value")
+  })
+
+  test("rejects empty sqlite boolean combinators", () => {
+    const { users } = makeSqliteSocialGraph()
+
+    for (const expression of [
+      Sqlite.Query.and(),
+      Sqlite.Query.or(),
+      Sqlite.Query.all(),
+      Sqlite.Query.any()
+    ]) {
+      expect(() => render(Sqlite.Query.select({
+        ok: expression
+      }).pipe(Sqlite.Query.from(users)))).toThrow()
+    }
+  })
+
+  test("rejects non-finite sqlite numeric literals", () => {
+    expect(() => render(Sqlite.Query.select({
+      bad: Sqlite.Query.literal(Number.NaN)
+    }))).toThrow("Expected a finite numeric value")
+  })
+
   test("rejects sqlite plans at postgres executors through dialect branding", () => {
     const { users } = makeSqliteSocialGraph()
     const plan = Sqlite.Query.select({

@@ -55,7 +55,7 @@ describe("ddl rendering behavior", () => {
     )
   })
 
-  test.failing("rejects postgres createIndex with unknown columns at runtime", () => {
+  test("rejects postgres createIndex with unknown columns at runtime", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
       email: Postgres.Column.text()
@@ -66,7 +66,7 @@ describe("ddl rendering behavior", () => {
     ).toThrow()
   })
 
-  test.failing("rejects postgres dropIndex with unknown columns at runtime", () => {
+  test("rejects postgres dropIndex with unknown columns at runtime", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
       email: Postgres.Column.text()
@@ -77,7 +77,7 @@ describe("ddl rendering behavior", () => {
     ).toThrow()
   })
 
-  test.failing("rejects mysql createIndex with unknown columns at runtime", () => {
+  test("rejects mysql createIndex with unknown columns at runtime", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       email: Mysql.Column.text()
@@ -88,7 +88,7 @@ describe("ddl rendering behavior", () => {
     ).toThrow()
   })
 
-  test.failing("rejects mysql dropIndex with unknown columns at runtime", () => {
+  test("rejects mysql dropIndex with unknown columns at runtime", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       email: Mysql.Column.text()
