@@ -14,6 +14,10 @@ const docs = Table.make("docs", {
   id: C.uuid().pipe(C.primaryKey),
   payload: C.json(payloadSchema)
 })
+const scalarDocs = Table.make("scalar_docs", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.json(Schema.String)
+})
 
 const suitePath = J.json.path(
   J.json.key("profile"),
@@ -29,10 +33,15 @@ const tagWildcardPath = J.json.path(
 const setWithoutCreateExpr = J.json.set(docs.payload, suitePath, "12A", {
   createMissing: false
 })
+const scalarLengthExpr = J.json.length(scalarDocs.payload)
 
 type SetWithoutCreate = E.RuntimeOf<typeof setWithoutCreateExpr>
+type ScalarLength = E.RuntimeOf<typeof scalarLengthExpr>
 
+const scalarLength: ScalarLength = 1
 declare const setWithoutCreate: SetWithoutCreate
+
+void scalarLength
 
 // @ts-expect-error createMissing: false should not add a missing object key
 setWithoutCreate.profile.address.suite
@@ -47,3 +56,4 @@ J.json.insert(docs.payload, tagWildcardPath, "featured")
 J.json.delete(docs.payload, tagWildcardPath)
 
 void setWithoutCreateExpr
+void scalarLengthExpr
