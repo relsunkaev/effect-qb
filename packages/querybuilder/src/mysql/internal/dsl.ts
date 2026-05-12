@@ -5522,7 +5522,10 @@ type AsCurriedResult<
     never,
     TrueFormula,
     CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
-    "set"
+    "set",
+    any,
+    "ready",
+    FactsOfPlan<LeftPlanValue>
   >
 
   type SetOperationApi = <
