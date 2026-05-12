@@ -328,7 +328,7 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual(["missing", "draft", "draft", "published"])
   })
 
-  test("renders right, full, and cross joins with mysql syntax", () => {
+  test("renders mysql right and cross joins and rejects unsupported full joins", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
     const rightJoinPlan = Mysql.Query.select({
@@ -358,8 +358,8 @@ describe("mysql dialect behavior", () => {
     expect(Mysql.Renderer.make().render(rightJoinPlan).sql).toBe(
       "select `users`.`id` as `userId`, `posts`.`id` as `postId` from `users` right join `posts` on (`users`.`id` = `posts`.`userId`)"
     )
-    expect(Mysql.Renderer.make().render(fullJoinPlan).sql).toBe(
-      "select `users`.`id` as `userId`, `posts`.`id` as `postId` from `users` full join `posts` on (`users`.`id` = `posts`.`userId`)"
+    expect(() => Mysql.Renderer.make().render(fullJoinPlan)).toThrow(
+      "Unsupported mysql full join"
     )
     expect(Mysql.Renderer.make().render(crossJoinPlan).sql).toBe(
       "select `users`.`id` as `userId`, `posts`.`id` as `postId` from `users` cross join `posts`"
@@ -529,7 +529,7 @@ describe("mysql dialect behavior", () => {
     )
   })
 
-  test("renders mysql data-modifying ctes with returning projections", () => {
+  test("rejects mysql data-modifying ctes with returning projections", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       email: Mysql.Column.text(),
@@ -557,15 +557,9 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.from(insertedUsers)
     )
 
-    const rendered = Mysql.Renderer.make().render(plan)
-
-    expect(rendered.sql).toBe(
-      "with `inserted_users` as (insert into `users` (`id`, `email`, `bio`) values (?, ?, null) returning `users`.`id` as `id`, `users`.`email` as `email`, `users`.`bio` as `bio`) select `inserted_users`.`id` as `id`, `inserted_users`.`email` as `email`, `inserted_users`.`bio` as `bio` from `inserted_users`"
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "Unsupported mysql returning"
     )
-    expect(rendered.params).toEqual([
-      userId,
-      "alice@example.com"
-    ])
   })
 
   test("renders mysql lateral joins with correlated outer references", () => {
@@ -620,7 +614,7 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
-  test("renders mysql upsert statements with duplicate-key updates and returning projections", () => {
+  test("rejects mysql upsert statements with returning projections", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       email: Mysql.Column.text(),
@@ -638,16 +632,9 @@ describe("mysql dialect behavior", () => {
       email: "alice@new.example.com"
     }))
 
-    const rendered = Mysql.Renderer.make().render(upsertPlan)
-
-    expect(rendered.sql).toBe(
-      "insert into `users` (`id`, `email`, `bio`) values (?, ?, null) on duplicate key update `email` = ? returning `users`.`id` as `id`, `users`.`email` as `email`"
+    expect(() => Mysql.Renderer.make().render(upsertPlan)).toThrow(
+      "Unsupported mysql returning"
     )
-    expect(rendered.params).toEqual([
-      userId,
-      "alice@example.com",
-      "alice@new.example.com"
-    ])
   })
 
   test("renders mysql locking clauses at the end of select queries", () => {
@@ -725,7 +712,7 @@ describe("mysql dialect behavior", () => {
     ])
   })
 
-  test("renders mysql insert update and delete mutations with returning projections", () => {
+  test("rejects mysql insert update and delete mutations with returning projections", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       email: Mysql.Column.text(),
@@ -759,35 +746,21 @@ describe("mysql dialect behavior", () => {
       Mysql.Query.delete(users)
     ))
 
-    expect(Mysql.Renderer.make().render(insertPlan).sql).toBe(
-      "insert into `users` (`id`, `email`, `bio`) values (?, ?, null) returning `users`.`id` as `id`, `users`.`email` as `email`, `users`.`bio` as `bio`"
+    expect(() => Mysql.Renderer.make().render(insertPlan)).toThrow(
+      "Unsupported mysql returning"
     )
-    expect(Mysql.Renderer.make().render(insertPlan).params).toEqual([
-      userId,
-      "alice@example.com"
-    ])
-
-    expect(Mysql.Renderer.make().render(updatePlan).sql).toBe(
-      "update `users` set `email` = ?, `bio` = null where (`users`.`id` = ?) returning `users`.`id` as `id`, `users`.`email` as `email`, `users`.`bio` as `bio`"
+    expect(() => Mysql.Renderer.make().render(updatePlan)).toThrow(
+      "Unsupported mysql returning"
     )
-    expect(Mysql.Renderer.make().render(updatePlan).params).toEqual([
-      "updated@example.com",
-      userId
-    ])
-
-    expect(Mysql.Renderer.make().render(deletePlan).sql).toBe(
-      "delete from `users` where (`users`.`id` = ?) returning `users`.`id` as `id`"
+    expect(() => Mysql.Renderer.make().render(deletePlan)).toThrow(
+      "Unsupported mysql returning"
     )
-    expect(Mysql.Renderer.make().render(deletePlan).params).toEqual([userId])
   })
 
   test("renders mysql joined update modifiers order and limit", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
-    const plan = Mysql.Query.returning({
-      id: users.id,
-      email: users.email
-    })(Mysql.Query.limit(2)(
+    const plan = Mysql.Query.limit(2)(
       Mysql.Query.orderBy(posts.id)(
         Mysql.Query.lock("lowPriority")(
           Mysql.Query.where(Mysql.Query.eq(posts.title, "hello"))(
@@ -799,12 +772,12 @@ describe("mysql dialect behavior", () => {
           )
         )
       )
-    ))
+    )
 
     const rendered = Mysql.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      "update low_priority `users` inner join `posts` on (`posts`.`userId` = `users`.`id`) set `email` = ? where (`posts`.`title` = ?) order by `posts`.`id` asc limit 2 returning `users`.`id` as `id`, `users`.`email` as `email`"
+      "update low_priority `users` inner join `posts` on (`posts`.`userId` = `users`.`id`) set `email` = ? where (`posts`.`title` = ?) order by `posts`.`id` asc limit 2"
     )
     expect(rendered.params).toEqual([
       "author@example.com",
@@ -840,9 +813,7 @@ describe("mysql dialect behavior", () => {
   test("renders mysql joined delete modifiers order and limit", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
-    const plan = Mysql.Query.returning({
-      id: users.id
-    })(Mysql.Query.limit(3)(
+    const plan = Mysql.Query.limit(3)(
       Mysql.Query.orderBy(posts.id, "desc")(
         Mysql.Query.lock("quick")(
           Mysql.Query.where(Mysql.Query.eq(posts.title, "hello"))(
@@ -852,12 +823,12 @@ describe("mysql dialect behavior", () => {
           )
         )
       )
-    ))
+    )
 
     const rendered = Mysql.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      "delete quick `users` from `users` inner join `posts` on (`posts`.`userId` = `users`.`id`) where (`posts`.`title` = ?) order by `posts`.`id` desc limit 3 returning `users`.`id` as `id`"
+      "delete quick `users` from `users` inner join `posts` on (`posts`.`userId` = `users`.`id`) where (`posts`.`title` = ?) order by `posts`.`id` desc limit 3"
     )
     expect(rendered.params).toEqual([
       "hello"

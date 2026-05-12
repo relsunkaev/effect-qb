@@ -66,7 +66,8 @@ describe("cross-cutting statement behavior", () => {
       bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
     })
 
-    const truncatePlan = Mysql.Query.truncate(users, {
+    const truncatePlan = Mysql.Query.truncate(users)
+    const unsupportedTruncatePlan = Mysql.Query.truncate(users, {
       restartIdentity: true,
       cascade: true
     })
@@ -79,7 +80,10 @@ describe("cross-cutting statement behavior", () => {
     })
 
     expect(Mysql.Renderer.make().render(truncatePlan).sql).toBe(
-      "truncate table `users` restart identity cascade"
+      "truncate table `users`"
+    )
+    expect(() => Mysql.Renderer.make().render(unsupportedTruncatePlan)).toThrow(
+      "Unsupported mysql truncate options"
     )
     expect(Mysql.Renderer.make().render(Mysql.Query.transaction({
       isolationLevel: "serializable",

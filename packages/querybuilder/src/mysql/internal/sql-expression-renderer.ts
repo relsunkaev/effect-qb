@@ -492,8 +492,9 @@ const renderJsonExpression = (
       }
       if (dialect.name === "mysql") {
         const mode = kind === "jsonHasAllKeys" ? "all" : "one"
+        const modeSql = dialect.renderLiteral(mode, state)
         const paths = keys.map((segment) => renderMySqlJsonPath([segment], state, dialect)).join(", ")
-        return `json_contains_path(${baseSql}, ${dialect.renderLiteral(mode, state)}, ${paths})`
+        return `json_contains_path(${baseSql}, ${modeSql}, ${paths})`
       }
       return undefined
     }
@@ -628,9 +629,7 @@ const renderJsonExpression = (
         return `(${baseSql} #- ${renderPostgresJsonPathArray(segments, state, dialect)})`
       }
       if (dialect.name === "mysql") {
-        return `json_remove(${renderExpression(base, state, dialect)}, ${segments.map((segment) =>
-          renderMySqlJsonPath([segment], state, dialect)
-        ).join(", ")})`
+        return `json_remove(${renderExpression(base, state, dialect)}, ${renderMySqlJsonPath(segments, state, dialect)})`
       }
       return undefined
     }
@@ -838,6 +837,9 @@ export const renderQueryAst = (
         clauses.push(`from ${renderSourceReference(ast.from.source, ast.from.tableName, ast.from.baseTableName, state, dialect)}`)
       }
       for (const join of ast.joins) {
+        if (dialect.name === "mysql" && join.kind === "full") {
+          throw new Error("Unsupported mysql full join")
+        }
         const source = renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)
         clauses.push(
           join.kind === "cross"
@@ -902,6 +904,9 @@ export const renderQueryAst = (
     }
     case "insert": {
       const insertAst = ast as QueryAst.Ast<Record<string, unknown>, any, "insert">
+      if (insertAst.distinct) {
+        throw new Error("distinct(...) is not supported for insert statements")
+      }
       const targetSource = insertAst.into!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       sql = `insert into ${target}`
@@ -976,6 +981,9 @@ export const renderQueryAst = (
         }
       }
       const returning = renderSelectionList(insertAst.select as Record<string, unknown>, state, dialect, false)
+      if (dialect.name === "mysql" && returning.sql.length > 0) {
+        throw new Error("Unsupported mysql returning")
+      }
       projections = returning.projections
       if (returning.sql.length > 0) {
         sql += ` returning ${returning.sql}`
@@ -984,6 +992,9 @@ export const renderQueryAst = (
     }
     case "update": {
       const updateAst = ast as QueryAst.Ast<Record<string, unknown>, any, "update">
+      if (updateAst.distinct) {
+        throw new Error("distinct(...) is not supported for update statements")
+      }
       const targetSource = updateAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       const targets = updateAst.targets ?? [targetSource]
@@ -994,9 +1005,13 @@ export const renderQueryAst = (
         const modifiers = renderMysqlMutationLock(updateAst.lock, "update")
         const extraSources = renderFromSources(fromSources, state, dialect)
         const joinSources = updateAst.joins.map((join) =>
-          join.kind === "cross"
-            ? `cross join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)}`
-            : `${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on!, state, dialect)}`
+          join.kind === "full"
+            ? (() => {
+              throw new Error("Unsupported mysql full join")
+            })()
+            : join.kind === "cross"
+              ? `cross join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)}`
+              : `${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on!, state, dialect)}`
         ).join(" ")
         const targetList = [
           ...targets.map((entry) =>
@@ -1029,6 +1044,9 @@ export const renderQueryAst = (
         sql += ` limit ${renderMysqlMutationLimit(updateAst.limit, state, dialect)}`
       }
       const returning = renderSelectionList(updateAst.select as Record<string, unknown>, state, dialect, false)
+      if (dialect.name === "mysql" && returning.sql.length > 0) {
+        throw new Error("Unsupported mysql returning")
+      }
       projections = returning.projections
       if (returning.sql.length > 0) {
         sql += ` returning ${returning.sql}`
@@ -1037,6 +1055,9 @@ export const renderQueryAst = (
     }
     case "delete": {
       const deleteAst = ast as QueryAst.Ast<Record<string, unknown>, any, "delete">
+      if (deleteAst.distinct) {
+        throw new Error("distinct(...) is not supported for delete statements")
+      }
       const targetSource = deleteAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       const targets = deleteAst.targets ?? [targetSource]
@@ -1048,9 +1069,13 @@ export const renderQueryAst = (
           renderSourceReference(entry.source, entry.tableName, entry.baseTableName, state, dialect)
         ).join(", ")
         const joinSources = deleteAst.joins.map((join) =>
-          join.kind === "cross"
-            ? `cross join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)}`
-            : `${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on!, state, dialect)}`
+          join.kind === "full"
+            ? (() => {
+              throw new Error("Unsupported mysql full join")
+            })()
+            : join.kind === "cross"
+              ? `cross join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)}`
+              : `${join.kind} join ${renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)} on ${renderExpression(join.on!, state, dialect)}`
         ).join(" ")
         sql = hasJoinedSources
           ? `delete${modifiers} ${targetList} from ${fromSources}${joinSources.length > 0 ? ` ${joinSources}` : ""}`
@@ -1075,6 +1100,9 @@ export const renderQueryAst = (
         sql += ` limit ${renderMysqlMutationLimit(deleteAst.limit, state, dialect)}`
       }
       const returning = renderSelectionList(deleteAst.select as Record<string, unknown>, state, dialect, false)
+      if (dialect.name === "mysql" && returning.sql.length > 0) {
+        throw new Error("Unsupported mysql returning")
+      }
       projections = returning.projections
       if (returning.sql.length > 0) {
         sql += ` returning ${returning.sql}`
@@ -1084,6 +1112,12 @@ export const renderQueryAst = (
     case "truncate": {
       const truncateAst = ast as QueryAst.Ast<Record<string, unknown>, any, "truncate">
       const targetSource = truncateAst.target!
+      if (truncateAst.where.length > 0) {
+        throw new Error("where(...) is not supported for truncate statements")
+      }
+      if (dialect.name === "mysql" && (truncateAst.truncate?.restartIdentity || truncateAst.truncate?.cascade)) {
+        throw new Error("Unsupported mysql truncate options")
+      }
       sql = `truncate table ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)}`
       if (truncateAst.truncate?.restartIdentity) {
         sql += " restart identity"
@@ -1101,6 +1135,9 @@ export const renderQueryAst = (
       const targetSource = mergeAst.target!
       const usingSource = mergeAst.using!
       const merge = mergeAst.merge!
+      if (Object.keys(mergeAst.select as Record<string, unknown>).length > 0) {
+        throw new Error("returning(...) is not supported for merge statements")
+      }
       sql = `merge into ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)} using ${renderSourceReference(usingSource.source, usingSource.tableName, usingSource.baseTableName, state, dialect)} on ${renderExpression(merge.on, state, dialect)}`
       if (merge.whenMatched) {
         sql += " when matched"
@@ -1135,6 +1172,9 @@ export const renderQueryAst = (
     }
     case "createTable": {
       const createTableAst = ast as QueryAst.Ast<Record<string, unknown>, any, "createTable">
+      if (createTableAst.where.length > 0) {
+        throw new Error("where(...) is not supported for createTable statements")
+      }
       sql = renderCreateTableSql(createTableAst.target!, state, dialect, createTableAst.ddl?.kind === "createTable" && createTableAst.ddl.ifNotExists)
       break
     }

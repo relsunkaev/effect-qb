@@ -894,6 +894,9 @@ export const renderQueryAst = (
     }
     case "insert": {
       const insertAst = ast as QueryAst.Ast<Record<string, unknown>, any, "insert">
+      if (insertAst.distinct) {
+        throw new Error("distinct(...) is not supported for insert statements")
+      }
       const targetSource = insertAst.into!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       sql = `insert into ${target}`
@@ -976,6 +979,9 @@ export const renderQueryAst = (
     }
     case "update": {
       const updateAst = ast as QueryAst.Ast<Record<string, unknown>, any, "update">
+      if (updateAst.distinct) {
+        throw new Error("distinct(...) is not supported for update statements")
+      }
       const targetSource = updateAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       const targets = updateAst.targets ?? [targetSource]
@@ -1029,6 +1035,9 @@ export const renderQueryAst = (
     }
     case "delete": {
       const deleteAst = ast as QueryAst.Ast<Record<string, unknown>, any, "delete">
+      if (deleteAst.distinct) {
+        throw new Error("distinct(...) is not supported for delete statements")
+      }
       const targetSource = deleteAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       const targets = deleteAst.targets ?? [targetSource]
@@ -1076,6 +1085,9 @@ export const renderQueryAst = (
     case "truncate": {
       const truncateAst = ast as QueryAst.Ast<Record<string, unknown>, any, "truncate">
       const targetSource = truncateAst.target!
+      if (truncateAst.where.length > 0) {
+        throw new Error("where(...) is not supported for truncate statements")
+      }
       sql = `truncate table ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)}`
       if (truncateAst.truncate?.restartIdentity) {
         sql += " restart identity"
@@ -1093,6 +1105,9 @@ export const renderQueryAst = (
       const targetSource = mergeAst.target!
       const usingSource = mergeAst.using!
       const merge = mergeAst.merge!
+      if (Object.keys(mergeAst.select as Record<string, unknown>).length > 0) {
+        throw new Error("returning(...) is not supported for merge statements")
+      }
       sql = `merge into ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)} using ${renderSourceReference(usingSource.source, usingSource.tableName, usingSource.baseTableName, state, dialect)} on ${renderExpression(merge.on, state, dialect)}`
       if (merge.whenMatched) {
         sql += " when matched"
@@ -1127,6 +1142,9 @@ export const renderQueryAst = (
     }
     case "createTable": {
       const createTableAst = ast as QueryAst.Ast<Record<string, unknown>, any, "createTable">
+      if (createTableAst.where.length > 0) {
+        throw new Error("where(...) is not supported for createTable statements")
+      }
       sql = renderCreateTableSql(createTableAst.target!, state, dialect, createTableAst.ddl?.kind === "createTable" && createTableAst.ddl.ifNotExists)
       break
     }

@@ -365,14 +365,14 @@ describe("json behavior", () => {
       "$.profile.address.city",
       "$.profile.address.city",
       "$.profile.tags[*]",
-      "$.profile",
       "one",
       "$.profile",
-      "$.note",
       "one",
       "$.profile",
       "$.note",
       "all",
+      "$.profile",
+      "$.note",
       {
         profile: {
           address: {
@@ -437,16 +437,14 @@ describe("json behavior", () => {
     const rendered = Mysql.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      "select json_extract(`docs`.`payload`, ?) as `cityJson`, json_unquote(json_extract(`docs`.`payload`, ?)) as `cityText`, json_set(`docs`.`payload`, ?, ?) as `setCity`, json_remove(`docs`.`payload`, ?, ?, ?) as `deleteCity` from `docs`"
+      "select json_extract(`docs`.`payload`, ?) as `cityJson`, json_unquote(json_extract(`docs`.`payload`, ?)) as `cityText`, json_set(`docs`.`payload`, ?, ?) as `setCity`, json_remove(`docs`.`payload`, ?) as `deleteCity` from `docs`"
     )
     expect(rendered.params).toEqual([
       "$.profile.address.city",
       "$.profile.address.city",
       "$.profile.address.city",
       "Paris",
-      "$.profile",
-      "$.address",
-      "$.city"
+      "$.profile.address.city"
     ])
   })
 
