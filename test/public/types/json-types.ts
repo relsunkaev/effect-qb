@@ -39,6 +39,13 @@ const metricDocs = Table.make("metric_docs", {
   payload: C.json(metricsSchema)
 })
 
+const nullableObjectDocs = Table.make("nullable_object_docs", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.json(Schema.NullOr(Schema.Struct({
+    a: Schema.String
+  })))
+})
+
 const variantPayloadSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal("option1"),
@@ -136,6 +143,9 @@ const typeNameExpr = J.json.typeOf(docs.payload)
 const lengthExpr = J.json.length(docs.payload)
 const keysExpr = J.json.keys(docs.payload)
 const strippedExpr = J.json.stripNulls(docs.payload)
+const nullableObjectTypeNameExpr = J.json.typeOf(nullableObjectDocs.payload)
+const nullableObjectLengthExpr = J.json.length(nullableObjectDocs.payload)
+const nullableObjectKeysExpr = J.json.keys(nullableObjectDocs.payload)
 const tagsExpr = J.json.get(
   docs.payload,
   J.json.path(J.json.key("profile"), J.json.key("tags"))
@@ -280,6 +290,9 @@ type CurriedMetricCountText = E.RuntimeOf<typeof curriedMetricCountTextExpr>
 type JsonTypeName = E.RuntimeOf<typeof typeNameExpr>
 type JsonLength = E.RuntimeOf<typeof lengthExpr>
 type JsonKeys = E.RuntimeOf<typeof keysExpr>
+type NullableObjectTypeName = E.RuntimeOf<typeof nullableObjectTypeNameExpr>
+type NullableObjectLength = E.RuntimeOf<typeof nullableObjectLengthExpr>
+type NullableObjectKeys = E.RuntimeOf<typeof nullableObjectKeysExpr>
 type TagsKeys = E.RuntimeOf<typeof tagsKeysExpr>
 type JsonStripped = Exclude<E.RuntimeOf<typeof strippedExpr>, null>
 type SharedJsonbCity = E.RuntimeOf<typeof sharedJsonbCityExpr>
@@ -314,6 +327,9 @@ type DottedFlatPayloadRow = Q.ResultRow<typeof dottedFlatPayload>
 type GroupedCityTextRow = Q.ResultRow<typeof groupedCityText>
 type CurriedCityIsExact = Expect<IsExact<CurriedCity, string>>
 type CurriedMetricCountTextIsExact = Expect<IsExact<CurriedMetricCountText, `${number}`>>
+type NullableObjectTypeNameIsExact = Expect<IsExact<NullableObjectTypeName, "object" | "null">>
+type NullableObjectLengthIsExact = Expect<IsExact<NullableObjectLength, number | null>>
+type NullableObjectKeysIsExact = Expect<IsExact<NullableObjectKeys, readonly "a"[] | null>>
 
 const city: City = "Paris"
 const cityText: CityText = "Paris"
@@ -322,6 +338,12 @@ const metricActiveText: MetricActiveText = "true"
 const jsonTypeName: JsonTypeName = "object"
 const jsonLength: JsonLength = 2
 const jsonKeys: JsonKeys = ["profile", "note"]
+const nullableObjectTypeNameObject: NullableObjectTypeName = "object"
+const nullableObjectTypeNameNull: NullableObjectTypeName = "null"
+const nullableObjectLengthNumber: NullableObjectLength = 1
+const nullableObjectLengthNull: NullableObjectLength = null
+const nullableObjectKeysArray: NullableObjectKeys = ["a"]
+const nullableObjectKeysNull: NullableObjectKeys = null
 const tagsKeys: TagsKeys = null
 const strippedNote: JsonStripped["note"] = undefined
 const strippedPostcode: JsonStripped["profile"]["address"]["postcode"] = undefined
@@ -407,6 +429,12 @@ void metricActiveText
 void jsonTypeName
 void jsonLength
 void jsonKeys
+void nullableObjectTypeNameObject
+void nullableObjectTypeNameNull
+void nullableObjectLengthNumber
+void nullableObjectLengthNull
+void nullableObjectKeysArray
+void nullableObjectKeysNull
 void tagsKeys
 void strippedNote
 void strippedPostcode
@@ -464,6 +492,9 @@ void jsonbFirstTagExpr
 void jsonbStrippedSetExpr
 void (undefined as unknown as CurriedCityIsExact)
 void (undefined as unknown as CurriedMetricCountTextIsExact)
+void (undefined as unknown as NullableObjectTypeNameIsExact)
+void (undefined as unknown as NullableObjectLengthIsExact)
+void (undefined as unknown as NullableObjectKeysIsExact)
 
 // @ts-expect-error wildcard paths require the jsonb helper surface
 J.json.path(J.json.key("profile"), J.jsonb.wildcard())
