@@ -260,4 +260,21 @@ describe("cross-cutting statement behavior", () => {
       "from(...) is not supported for transaction statements"
     )
   })
+
+  test("rejects runtime having predicates on mutation statements", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    const havingUpdate = Postgres.Query.update(users, {
+      email: "updated@example.com"
+    }).pipe(
+      Postgres.Query.having(true)
+    )
+
+    expect(() => Postgres.Renderer.make().render(havingUpdate)).toThrow(
+      "having(...) is not supported for update statements"
+    )
+  })
 })
