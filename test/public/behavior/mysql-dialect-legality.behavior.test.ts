@@ -64,4 +64,18 @@ describe("mysql dialect legality", () => {
       "Unsupported mysql truncate options"
     )
   })
+
+  test("rejects generateSeries sources instead of rendering unsupported table-function sql", () => {
+    const series = Mysql.Query.generateSeries(1, 3, 1, "series")
+
+    const plan = Mysql.Query.select({
+      value: series.value
+    }).pipe(
+      Mysql.Query.from(series)
+    )
+
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "Unsupported table function source for SQL rendering"
+    )
+  })
 })
