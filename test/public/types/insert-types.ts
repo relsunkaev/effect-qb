@@ -47,6 +47,15 @@ const insertSelectPlan = Q.insert(users).pipe(Q.from(Q.select({
   Q.from(users)
 )))
 
+const incompleteInsertSelectSource = Q.select({
+  id: users.id,
+  email: users.email,
+  bio: users.bio
+})
+
+// @ts-expect-error insert-select sources must be source-complete
+const incompleteInsertSelectPlan = Q.insert(users).pipe(Q.from(incompleteInsertSelectSource))
+
 const defaultInsertPlan = Q.insert(auditLogs)
 
 const insertConflictPlan = Q.insert(users, {
@@ -83,6 +92,7 @@ void invalidConflictTargetPredicateComplete
 void valuesSource
 void insertUnnestPlan
 void insertSelectPlan
+void incompleteInsertSelectPlan
 void defaultInsertPlan
 void insertConflictPlan
 

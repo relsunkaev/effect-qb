@@ -91,6 +91,27 @@ describe("postgres insert behavior", () => {
     ])
   })
 
+  test("rejects incomplete insert-select sources even when they reference the target table", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text(),
+      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    })
+
+    const source = Postgres.Query.select({
+      id: users.id,
+      email: users.email,
+      bio: users.bio
+    })
+    const plan = Postgres.Query.insert(users).pipe(
+      Postgres.Query.from(unsafeAny(source))
+    )
+
+    expect(() => render(plan)).toThrow(
+      "query references sources that are not yet in scope: users"
+    )
+  })
+
   test("renders postgres default-only inserts and rich conflict clauses", () => {
     const auditLogs = Postgres.Table.make("audit_logs", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey, Postgres.Column.default(Postgres.Query.literal("audit-log-id"))),
