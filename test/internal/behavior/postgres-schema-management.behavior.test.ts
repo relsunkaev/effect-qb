@@ -880,6 +880,50 @@ const users = Table.make("users", {
     }
   })
 
+  test("renders pulled dotted-schema sequence defaults with sequence helpers", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-pull-dotted-sequence-"))
+    try {
+      const discovered = {
+        declarations: [],
+        bindings: [],
+        model: {
+          dialect: "postgres",
+          enums: [],
+          tables: []
+        }
+      } as const
+      const database: SchemaModel = {
+        dialect: "postgres",
+        enums: [],
+        tables: [{
+          kind: "table",
+          schemaName: "tenant.a",
+          name: "users",
+          columns: [{
+            name: "id",
+            ddlType: "int8",
+            dbTypeKind: "int8",
+            nullable: false,
+            hasDefault: true,
+            generated: false,
+            defaultSql: `nextval('"tenant.a"."users_id_seq"'::regclass)`
+          }],
+          options: []
+        }]
+      }
+
+      const plan = await planPostgresPull(tempDir, { include: ["src/**/*.ts"] }, discovered, database)
+
+      expect(plan.updates).toHaveLength(1)
+      const after = plan.updates[0]?.after ?? ""
+      expect(after).toContain(`const tenant_a = Pg.schema("tenant.a")`)
+      expect(after).toContain(`Column.default(Pg.Function.nextVal(tenant_a.sequence("users_id_seq")))`)
+      expect(after).not.toContain(`Pg.schema("tenant").sequence("a.users_id_seq")`)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("renders pulled quoted enum arrays with enum helpers", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-pull-enum-array-"))
     try {
