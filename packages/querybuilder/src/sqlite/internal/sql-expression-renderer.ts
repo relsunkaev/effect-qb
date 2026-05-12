@@ -1053,6 +1053,9 @@ export const renderQueryAst = (
     case "select": {
       validateAggregationSelection(ast.select as SelectionValue, ast.groupBy)
       const rendered = renderSelectionList(ast.select as Record<string, unknown>, state, dialect, false)
+      if (rendered.projections.length === 0) {
+        throw new Error("sqlite select statements require at least one selected expression")
+      }
       projections = rendered.projections
       const clauses = [
         ast.distinctOn && ast.distinctOn.length > 0

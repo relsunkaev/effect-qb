@@ -39,6 +39,18 @@ describe("sqlite behavior", () => {
     expect(rendered.dialect).toBe("sqlite")
   })
 
+  test("rejects empty sqlite selections before emitting invalid SQL", () => {
+    const { users } = makeSqliteSocialGraph()
+
+    expect(() => render(Sqlite.Query.select({}).pipe(
+      Sqlite.Query.from(users)
+    ))).toThrow("sqlite select statements require at least one selected expression")
+
+    expect(() => render(Sqlite.Query.select().pipe(
+      Sqlite.Query.from(users)
+    ))).toThrow("sqlite select statements require at least one selected expression")
+  })
+
   test("rejects sqlite-unsupported read constructs before emitting invalid SQL", () => {
     const { users, posts } = makeSqliteSocialGraph()
     const docs = Sqlite.Table.make("docs", {

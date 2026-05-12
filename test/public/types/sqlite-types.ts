@@ -18,6 +18,12 @@ const posts = Table.make("posts", {
   userId: C.text()
 })
 
+// @ts-expect-error sqlite select statements require at least one selected expression
+Q.select({})
+
+// @ts-expect-error sqlite select statements require at least one selected expression
+Q.select()
+
 const selectUsers = Q.select({
   id: users.id,
   email: users.email,

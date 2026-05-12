@@ -5669,8 +5669,17 @@ type AsCurriedResult<
       >
     : GenerateSeriesUnsupportedError<Dialect>
 
-  export type SelectApi = <Selection extends SelectionShape = {}>(
-    selection?: Selection
+  type SelectSelectionNonEmptyError<Selection> = Selection & {
+    readonly __effect_qb_error__: "effect-qb: sqlite select statements require at least one selected expression"
+  }
+
+  type SelectSelectionNonEmptyConstraint<Selection> =
+    [Extract<keyof Selection, string>] extends [never]
+      ? SelectSelectionNonEmptyError<Selection>
+      : unknown
+
+  export type SelectApi = <Selection extends SelectionShape>(
+    selection: Selection & SelectSelectionNonEmptyConstraint<Selection>
   ) => QueryPlan<
     Selection,
     ExtractRequired<Selection>,
