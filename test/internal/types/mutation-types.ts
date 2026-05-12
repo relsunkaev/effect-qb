@@ -67,29 +67,33 @@ const insertConflictPlan = Q.insert(users, {
   where: Q.isNotNull(Q.excluded(users.bio))
 }))
 
-const badUpsertMysqlInsertValue = Q.upsert(users, {
-  id: "user-id",
-  email: Mysql.Query.literal("alice@example.com")
-}, ["id"] as const, {
-  email: "alice@example.com"
-})
-const badUpsertMysqlInsertValueRendered = Renderer.make().render(
+const badUpsertMysqlInsertValue = Q.upsert(
+  users,
   // @ts-expect-error postgres upsert insert values cannot use mysql expressions
-  badUpsertMysqlInsertValue
+  {
+    id: "user-id",
+    email: Mysql.Query.literal("alice@example.com")
+  },
+  ["id"] as const,
+  {
+    email: "alice@example.com"
+  }
 )
-void badUpsertMysqlInsertValueRendered
+void badUpsertMysqlInsertValue
 
-const badUpsertMysqlUpdateValue = Q.upsert(users, {
-  id: "user-id",
-  email: "alice@example.com"
-}, ["id"] as const, {
-  email: Mysql.Query.literal("alice@example.com")
-})
-const badUpsertMysqlUpdateValueRendered = Renderer.make().render(
+const badUpsertMysqlUpdateValue = Q.upsert(
+  users,
+  {
+    id: "user-id",
+    email: "alice@example.com"
+  },
+  ["id"] as const,
   // @ts-expect-error postgres upsert update values cannot use mysql expressions
-  badUpsertMysqlUpdateValue
+  {
+    email: Mysql.Query.literal("alice@example.com")
+  }
 )
-void badUpsertMysqlUpdateValueRendered
+void badUpsertMysqlUpdateValue
 
 const updatePlan = Q.update(users, {
   email: "updated@example.com",

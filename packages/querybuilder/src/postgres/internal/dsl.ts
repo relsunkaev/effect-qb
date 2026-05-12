@@ -6058,20 +6058,22 @@ type AsCurriedResult<
     Target extends MutationTargetLike,
     Values extends MutationInputOf<Table.InsertOf<Target>>,
     const Columns extends DdlColumnInput,
-    UpdateValues extends MutationInputOf<Table.UpdateOf<Target>>
+    UpdateValues extends MutationInputOf<Table.UpdateOf<Target>> | undefined = undefined
   >(
     target: Target,
-    values: Values,
+    values: Values & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     conflictColumns: ValidateTargetColumns<Target, NormalizeDdlColumns<Columns>>,
-    updateValues?: UpdateValues
+    updateValues?: UpdateValues & MutationValuesDialectConstraint<Exclude<UpdateValues, undefined>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   ) => QueryPlan<
     {},
-    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<UpdateValues>, SourceNameOf<Target>>,
+    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<Exclude<UpdateValues, undefined>>, SourceNameOf<Target>>,
     AddAvailable<{}, SourceNameOf<Target>>,
-    TableDialectOf<Target>,
+    | TableDialectOf<Target>
+    | MutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    | MutationDialectFromValues<Exclude<UpdateValues, undefined>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     never,
     SourceNameOf<Target>,
-    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<UpdateValues>, SourceNameOf<Target>>,
+    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<Exclude<UpdateValues, undefined>>, SourceNameOf<Target>>,
     TrueFormula,
     "write",
     "insert",
@@ -6231,31 +6233,12 @@ type AsCurriedResult<
     values: Record<string, unknown>
   ) => mutationRuntime.update(target, values)) as UpdateApi
 
-  const upsert: UpsertApi = <
-    Target extends MutationTargetLike,
-    Values extends MutationInputOf<Table.InsertOf<Target>>,
-    const Columns extends DdlColumnInput,
-    UpdateValues extends MutationInputOf<Table.UpdateOf<Target>>
-  >(
-    target: Target,
-    values: Values,
-    conflictColumns: ValidateTargetColumns<Target, NormalizeDdlColumns<Columns>>,
-    updateValues?: UpdateValues
-  ): QueryPlan<
-    {},
-    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<UpdateValues>, SourceNameOf<Target>>,
-    AddAvailable<{}, SourceNameOf<Target>>,
-    TableDialectOf<Target>,
-    never,
-    SourceNameOf<Target>,
-    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<UpdateValues>, SourceNameOf<Target>>,
-    TrueFormula,
-    "write",
-    "insert",
-    Target,
-    "ready",
-    EmptyFacts
-  > => mutationRuntime.upsert(target, values, conflictColumns as string | readonly string[], updateValues)
+  const upsert = ((
+    target: MutationTargetLike,
+    values: Record<string, unknown>,
+    conflictColumns: DdlColumnInput,
+    updateValues?: Record<string, unknown>
+  ) => mutationRuntime.upsert(target, values, conflictColumns as string | readonly string[], updateValues)) as UpsertApi
 
   const delete_: DeleteApi = ((
     target: MutationTargetInput
