@@ -5217,7 +5217,10 @@ export type PublicStructuredFromResult<
         Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
         AssumptionsOfPlan<PlanValue>,
         MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentSource>>,
-        StatementOfPlan<PlanValue>
+        StatementOfPlan<PlanValue>,
+        MutationTargetOfPlan<PlanValue>,
+        InsertSourceStateOfPlan<PlanValue>,
+        FactsOfPlan<PlanValue>
       >
     : StatementOfPlan<PlanValue> extends "update"
       ? QueryPlan<
@@ -5230,7 +5233,10 @@ export type PublicStructuredFromResult<
           Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
           AssumptionsOfPlan<PlanValue>,
           MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentSource>>,
-          StatementOfPlan<PlanValue>
+          StatementOfPlan<PlanValue>,
+          MutationTargetOfPlan<PlanValue>,
+          InsertSourceStateOfPlan<PlanValue>,
+          FactsOfPlan<PlanValue>
         >
       : StatementOfPlan<PlanValue> extends "insert"
       ? CurrentSource extends AnyValuesSource | AnyUnnestSource
@@ -5246,7 +5252,8 @@ export type PublicStructuredFromResult<
             CapabilitiesOfPlan<PlanValue>,
             StatementOfPlan<PlanValue>,
             MutationTargetOfPlan<PlanValue>,
-            "ready"
+            "ready",
+            FactsOfPlan<PlanValue>
           >
         : FromPlanResult<PlanValue, CurrentSource, Dialect>
       : FromPlanResult<PlanValue, CurrentSource, Dialect>
