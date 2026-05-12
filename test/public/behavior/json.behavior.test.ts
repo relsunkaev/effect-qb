@@ -664,6 +664,30 @@ describe("json behavior", () => {
     ])
   })
 
+  test("mysql preserves json helper string scalars that look like JSON", () => {
+    const docs = makeJsonTable(Mysql)
+
+    const suitePath = Mysql.Json.json.path(
+      Mysql.Json.json.key("profile"),
+      Mysql.Json.json.key("address"),
+      Mysql.Json.json.key("suite")
+    )
+
+    const plan = Mysql.Query.select({
+      setSuite: Mysql.Json.json.set(docs.payload, suitePath, "42"),
+      builtObject: Mysql.Json.json.buildObject({ code: "42" })
+    }).pipe(Mysql.Query.from(docs))
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.params).toEqual([
+      "$.profile.address.suite",
+      "42",
+      "code",
+      "42"
+    ])
+  })
+
   test("mysql renders array json insert paths with the array insert operator", () => {
     const docs = makeJsonTable(Mysql)
 
