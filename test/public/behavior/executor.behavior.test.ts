@@ -416,6 +416,38 @@ describe("executor behavior", () => {
     expect(rows[1]?.happenedOn.toISOString()).toBe("2026-03-18T00:00:00.000Z")
   })
 
+  test("fromDriver accepts canonical instant outputs with milliseconds", () => {
+    const events = Table.make("events", {
+      happenedAt: C.timestamptz()
+    })
+
+    const plan = Q.select({
+      happenedAt: events.happenedAt
+    }).pipe(
+      Q.from(events)
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          happenedAt: new Date("2026-03-18T10:00:00.000Z")
+        },
+        {
+          happenedAt: "2026-03-18T10:00:00+02:00"
+        }
+      ]))
+    }).execute(plan))
+
+    expect(rows).toEqual([
+      {
+        happenedAt: "2026-03-18T10:00:00.000Z"
+      },
+      {
+        happenedAt: "2026-03-18T08:00:00.000Z"
+      }
+    ])
+  })
+
   test("fromDriver decodes searched case projections over left joins", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey)
