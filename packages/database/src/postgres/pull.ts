@@ -108,7 +108,7 @@ const schemaObjectKey = (
   schemaName: string | undefined,
   name: string
 ): string =>
-  `${schemaName ?? "public"}.${name}`
+  JSON.stringify([schemaName ?? "public", name])
 
 const pairUniqueBySignature = <Source, Db>(
   sourceItems: readonly Source[],
@@ -2350,10 +2350,10 @@ const renderInlineEnumExpression = (
 }
 
 const sequenceReferenceOfKey = (key: string): SequenceReference => {
-  const [resolvedSchemaName, ...nameParts] = key.split(".")
+  const [resolvedSchemaName, name] = JSON.parse(key) as [string, string]
   return {
     schemaName: resolvedSchemaName === "public" ? undefined : resolvedSchemaName,
-    name: nameParts.join(".")
+    name
   }
 }
 
