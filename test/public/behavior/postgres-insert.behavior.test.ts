@@ -170,4 +170,31 @@ describe("postgres insert behavior", () => {
       "alice@example.com"
     ])
   })
+
+  test("canonicalizes insert values using the target column runtime contract", () => {
+    const metrics = Postgres.Table.make("metrics", {
+      total: Postgres.Column.number(),
+      counter: Postgres.Column.int8()
+    })
+
+    const rendered = render(Postgres.Query.insert(metrics, {
+      total: "-0.00",
+      counter: "0042"
+    }))
+
+    expect(rendered.params).toEqual([
+      "0",
+      "42"
+    ])
+  })
+
+  test("rejects invalid insert values before rendering params", () => {
+    const events = Postgres.Table.make("events", {
+      happenedOn: Postgres.Column.date()
+    })
+
+    expect(() => render(Postgres.Query.insert(events, {
+      happenedOn: "2026-02-31"
+    }))).toThrow("Expected a local-date value")
+  })
 })
