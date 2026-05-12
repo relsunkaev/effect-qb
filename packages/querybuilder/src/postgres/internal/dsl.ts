@@ -4854,16 +4854,33 @@ type MergeWhenNotMatched<
   readonly predicate?: Predicate
 }
 
+type MergeMatchedOption<
+  Target extends MutationTargetLike,
+  MatchedValues extends MutationInputOf<Table.UpdateOf<Target>>,
+  MatchedPredicate extends PredicateInput | undefined = undefined
+> = MergeWhenMatchedDelete<MatchedPredicate> | MergeWhenMatchedUpdate<Target, MatchedValues, MatchedPredicate>
+
+type MergeNotMatchedOption<
+  Target extends MutationTargetLike,
+  InsertValues extends MutationInputOf<Table.InsertOf<Target>>,
+  NotMatchedPredicate extends PredicateInput | undefined = undefined
+> = MergeWhenNotMatched<Target, InsertValues, NotMatchedPredicate>
+
 type MergeOptions<
   Target extends MutationTargetLike,
   MatchedValues extends MutationInputOf<Table.UpdateOf<Target>>,
   InsertValues extends MutationInputOf<Table.InsertOf<Target>>,
   MatchedPredicate extends PredicateInput | undefined = undefined,
   NotMatchedPredicate extends PredicateInput | undefined = undefined
-> = {
-  readonly whenMatched?: MergeWhenMatchedDelete<MatchedPredicate> | MergeWhenMatchedUpdate<Target, MatchedValues, MatchedPredicate>
-  readonly whenNotMatched?: MergeWhenNotMatched<Target, InsertValues, NotMatchedPredicate>
-}
+> =
+  | {
+    readonly whenMatched: MergeMatchedOption<Target, MatchedValues, MatchedPredicate>
+    readonly whenNotMatched?: MergeNotMatchedOption<Target, InsertValues, NotMatchedPredicate>
+  }
+  | {
+    readonly whenMatched?: MergeMatchedOption<Target, MatchedValues, MatchedPredicate>
+    readonly whenNotMatched: MergeNotMatchedOption<Target, InsertValues, NotMatchedPredicate>
+  }
 
 type RequireSelectStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   StatementOfPlan<PlanValue> extends "select" ? unknown : never
@@ -6099,7 +6116,7 @@ type AsCurriedResult<
       SourceRequiredOf<Source> extends never ? unknown : SourceRequirementError<Source>
     ),
     on: On,
-    options?: MergeOptions<Target, MatchedValues, InsertValues, MatchedPredicate, NotMatchedPredicate>
+    options: MergeOptions<Target, MatchedValues, InsertValues, MatchedPredicate, NotMatchedPredicate>
   ) => QueryPlan<
     {},
     Exclude<
@@ -6245,7 +6262,7 @@ type AsCurriedResult<
       SourceRequiredOf<Source> extends never ? unknown : SourceRequirementError<Source>
     ),
     on: On,
-    options: MergeOptions<Target, MatchedValues, InsertValues, MatchedPredicate, NotMatchedPredicate> = {}
+    options: MergeOptions<Target, MatchedValues, InsertValues, MatchedPredicate, NotMatchedPredicate>
   ): QueryPlan<
     {},
     Exclude<

@@ -55,6 +55,11 @@ const badMergeMysqlPredicate = Q.merge(
   users,
   incomingUsers,
   Mysql.Query.literal(true),
+  {
+    whenMatched: {
+      delete: true,
+    },
+  },
 );
 
 const badMergeMysqlPredicateRendered = Postgres.Renderer.make().render(
