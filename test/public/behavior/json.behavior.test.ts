@@ -598,6 +598,32 @@ describe("json behavior", () => {
     ])
   })
 
+  test("mysql renders json set without creating missing keys", () => {
+    const docs = makeJsonTable(Mysql)
+
+    const suitePath = Mysql.Json.json.path(
+      Mysql.Json.json.key("profile"),
+      Mysql.Json.json.key("address"),
+      Mysql.Json.json.key("suite")
+    )
+
+    const plan = Mysql.Query.select({
+      setSuite: Mysql.Json.json.set(docs.payload, suitePath, "12A", {
+        createMissing: false
+      })
+    }).pipe(Mysql.Query.from(docs))
+
+    const rendered = Mysql.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      "select json_replace(`docs`.`payload`, ?, ?) as `setSuite` from `docs`"
+    )
+    expect(rendered.params).toEqual([
+      "$.profile.address.suite",
+      "12A"
+    ])
+  })
+
   test("mysql preserves nested json delete paths as one path argument", () => {
     const docs = makeJsonTable(Mysql)
     const cityPath = Mysql.Json.json.path(
