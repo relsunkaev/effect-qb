@@ -134,15 +134,57 @@ export const YearStringSchema = brandString(
   "YearString"
 )
 
-export const BigIntStringSchema = brandString(
-  /^-?\d+$/,
-  "BigIntString"
-)
+export const canonicalizeBigIntString = (input: string): string => {
+  const trimmed = input.trim()
+  if (!/^-?\d+$/.test(trimmed)) {
+    throw new Error("Expected an integer-like bigint value")
+  }
+  return BigInt(trimmed).toString()
+}
 
-export const DecimalStringSchema = brandString(
-  /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/,
-  "DecimalString"
-)
+export const isCanonicalBigIntString = (value: string): boolean => {
+  try {
+    return canonicalizeBigIntString(value) === value
+  } catch {
+    return false
+  }
+}
+
+export const canonicalizeDecimalString = (input: string): string => {
+  const trimmed = input.trim()
+  const match = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(trimmed)
+  if (match === null) {
+    throw new Error("Expected a decimal string")
+  }
+  const sign = match[1] === "-" ? "-" : ""
+  const integer = match[2]!.replace(/^0+(?=\d)/, "") || "0"
+  const fraction = (match[3] ?? "").replace(/0+$/, "")
+  if (fraction.length === 0) {
+    if (integer === "0") {
+      return "0"
+    }
+    return `${sign}${integer}`
+  }
+  return `${sign}${integer}.${fraction}`
+}
+
+export const isCanonicalDecimalString = (value: string): boolean => {
+  try {
+    return canonicalizeDecimalString(value) === value
+  } catch {
+    return false
+  }
+}
+
+export const BigIntStringSchema = Schema.String.pipe(
+  Schema.filter(isCanonicalBigIntString),
+  Schema.brand("BigIntString")
+) as unknown as Schema.Schema<BigIntString>
+
+export const DecimalStringSchema = Schema.String.pipe(
+  Schema.filter(isCanonicalDecimalString),
+  Schema.brand("DecimalString")
+) as unknown as Schema.Schema<DecimalString>
 
 export const JsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
   Schema.Union(

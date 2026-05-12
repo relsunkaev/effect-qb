@@ -1,6 +1,8 @@
 import type * as Expression from "../scalar.js"
 import type { RuntimeTag } from "../datatypes/shape.js"
 import {
+  canonicalizeBigIntString,
+  canonicalizeDecimalString,
   isValidInstantString,
   isValidLocalDateString,
   isValidLocalDateTimeString,
@@ -89,28 +91,10 @@ const normalizeBigIntString = (value: unknown): string => {
   if (typeof value === "number" && Number.isSafeInteger(value)) {
     return BigInt(value).toString()
   }
-  if (typeof value === "string" && /^-?\d+$/.test(value.trim())) {
-    return BigInt(value.trim()).toString()
+  if (typeof value === "string") {
+    return canonicalizeBigIntString(value)
   }
   throw new Error("Expected an integer-like bigint value")
-}
-
-const canonicalizeDecimalString = (input: string): string => {
-  const trimmed = input.trim()
-  const match = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(trimmed)
-  if (match === null) {
-    throw new Error("Expected a decimal string")
-  }
-  const sign = match[1] === "-" ? "-" : ""
-  const integer = match[2]!.replace(/^0+(?=\d)/, "") || "0"
-  const fraction = (match[3] ?? "").replace(/0+$/, "")
-  if (fraction.length === 0) {
-    if (integer === "0") {
-      return "0"
-    }
-    return `${sign}${integer}`
-  }
-  return `${sign}${integer}.${fraction}`
 }
 
 const normalizeDecimalString = (value: unknown): string => {
