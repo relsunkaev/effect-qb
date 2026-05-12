@@ -303,6 +303,69 @@ test("sqlite set operations execute as compound selects", async () => {
   ])
 })
 
+test("sqlite right and full joins execute against joined sources", async () => {
+  const users = Table.make("join_users", {
+    id: C.text().pipe(C.primaryKey),
+    email: C.text()
+  })
+  const posts = Table.make("join_posts", {
+    id: C.text().pipe(C.primaryKey),
+    userId: C.text(),
+    title: C.text()
+  })
+
+  const result = await runSqlite(Effect.gen(function*() {
+    const executor = Executor.make()
+
+    yield* executor.execute(Q.createTable(users))
+    yield* executor.execute(Q.createTable(posts))
+    yield* executor.execute(Q.insert(users, {
+      id: "user-1",
+      email: "alice@example.com"
+    }))
+    yield* executor.execute(Q.insert(posts, {
+      id: "post-1",
+      userId: "missing-user",
+      title: "orphan"
+    }))
+
+    const selectJoined = Q.select({
+      userId: users.id,
+      postId: posts.id
+    }).pipe(Q.from(users))
+
+    const rightRows = yield* executor.execute(selectJoined.pipe(
+      Q.rightJoin(posts, Q.eq(users.id, posts.userId))
+    ))
+    const fullRows = yield* executor.execute(selectJoined.pipe(
+      Q.fullJoin(posts, Q.eq(users.id, posts.userId))
+    ))
+
+    return {
+      rightRows,
+      fullRows: [...fullRows].sort((left, right) =>
+        String(left.userId ?? "").localeCompare(String(right.userId ?? "")))
+    }
+  }))
+
+  expect(result.rightRows).toEqual([
+    {
+      userId: null,
+      postId: "post-1"
+    }
+  ])
+  expect(result.fullRows).toEqual([
+    {
+      userId: null,
+      postId: "post-1"
+    },
+    {
+      userId: "user-1",
+      postId: null
+    }
+  ])
+})
+
 test("sqlite update returning and update-from execute against joined sources", async () => {
   const users = Table.make("update_users", {
     id: C.text().pipe(C.primaryKey),
