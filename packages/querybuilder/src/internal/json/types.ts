@@ -63,6 +63,23 @@ type TupleIndex<
     : TupleIndex<Tail, Index, [...Count, unknown]>
   : never
 
+type TupleIndexFromEnd<
+  Values extends readonly unknown[],
+  Distance extends number,
+  Count extends readonly unknown[] = [unknown]
+> = Values extends readonly [...infer Rest, infer Last]
+  ? Count["length"] extends Distance
+    ? Last
+    : TupleIndexFromEnd<Rest, Distance, [...Count, unknown]>
+  : never
+
+type TupleIndexAt<
+  Values extends readonly unknown[],
+  Index extends number
+> = `${Index}` extends `-${infer Distance extends number}`
+  ? TupleIndexFromEnd<Values, Distance>
+  : TupleIndex<Values, Index>
+
 type DropTupleIndex<
   Values extends readonly unknown[],
   Index extends number,
@@ -72,6 +89,23 @@ type DropTupleIndex<
     ? readonly [...Tail]
     : readonly [Head, ...DropTupleIndex<Tail, Index, [...Count, unknown]>]
   : readonly []
+
+type DropTupleIndexFromEnd<
+  Values extends readonly unknown[],
+  Distance extends number,
+  Count extends readonly unknown[] = [unknown]
+> = Values extends readonly [...infer Rest, infer Last]
+  ? Count["length"] extends Distance
+    ? readonly [...Rest]
+    : readonly [...DropTupleIndexFromEnd<Rest, Distance, [...Count, unknown]>, Last]
+  : readonly []
+
+type DropTupleIndexAt<
+  Values extends readonly unknown[],
+  Index extends number
+> = `${Index}` extends `-${infer Distance extends number}`
+  ? DropTupleIndexFromEnd<Values, Distance>
+  : DropTupleIndex<Values, Index>
 
 type SetTupleIndex<
   Values extends readonly unknown[],
@@ -83,6 +117,25 @@ type SetTupleIndex<
     ? readonly [Next, ...Tail]
     : readonly [Head, ...SetTupleIndex<Tail, Index, Next, [...Count, unknown]>]
   : readonly NormalizeJsonLiteral<Next>[]
+
+type SetTupleIndexFromEnd<
+  Values extends readonly unknown[],
+  Distance extends number,
+  Next,
+  Count extends readonly unknown[] = [unknown]
+> = Values extends readonly [...infer Rest, infer Last]
+  ? Count["length"] extends Distance
+    ? readonly [...Rest, NormalizeJsonLiteral<Next>]
+    : readonly [...SetTupleIndexFromEnd<Rest, Distance, Next, [...Count, unknown]>, Last]
+  : readonly NormalizeJsonLiteral<Next>[]
+
+type SetTupleIndexAt<
+  Values extends readonly unknown[],
+  Index extends number,
+  Next
+> = `${Index}` extends `-${infer Distance extends number}`
+  ? SetTupleIndexFromEnd<Values, Distance, Next>
+  : SetTupleIndex<Values, Index, Next>
 
 type InsertTupleIndex<
   Values extends readonly unknown[],
@@ -98,6 +151,29 @@ type InsertTupleIndex<
     : readonly [Head, ...InsertTupleIndex<Tail, Index, Next, After, [...Count, unknown]>]
   : readonly NormalizeJsonLiteral<Next>[]
 
+type InsertTupleIndexFromEnd<
+  Values extends readonly unknown[],
+  Distance extends number,
+  Next,
+  After extends boolean,
+  Count extends readonly unknown[] = [unknown]
+> = Values extends readonly [...infer Rest, infer Last]
+  ? Count["length"] extends Distance
+    ? After extends true
+      ? readonly [...Rest, Last, NormalizeJsonLiteral<Next>]
+      : readonly [...Rest, NormalizeJsonLiteral<Next>, Last]
+    : readonly [...InsertTupleIndexFromEnd<Rest, Distance, Next, After, [...Count, unknown]>, Last]
+  : readonly NormalizeJsonLiteral<Next>[]
+
+type InsertTupleIndexAt<
+  Values extends readonly unknown[],
+  Index extends number,
+  Next,
+  After extends boolean
+> = `${Index}` extends `-${infer Distance extends number}`
+  ? InsertTupleIndexFromEnd<Values, Distance, Next, After>
+  : InsertTupleIndex<Values, Index, Next, After>
+
 type IndexStep<
   Root,
   Index extends number,
@@ -105,7 +181,7 @@ type IndexStep<
 > = Root extends readonly unknown[]
   ? number extends Root["length"]
     ? NormalizeJsonLiteral<Root[number]> | null
-    : NormalizeJsonLiteral<TupleIndex<Root, Index>> | (TupleIndex<Root, Index> extends never ? null : never)
+    : NormalizeJsonLiteral<TupleIndexAt<Root, Index>> | (TupleIndexAt<Root, Index> extends never ? null : never)
   : JsonPathUsageError<Operation, Root, JsonPath.IndexSegment<Index>, "index segments require an array-like json value">
 
 type NonExactStep<
@@ -146,7 +222,7 @@ type StepSet<
     ? Root extends readonly unknown[]
       ? number extends Root["length"]
         ? readonly (NormalizeJsonLiteral<Root[number]> | NormalizeJsonLiteral<Next>)[]
-        : SetTupleIndex<Root, Index, Next>
+        : SetTupleIndexAt<Root, Index, Next>
       : JsonPathUsageError<Operation, Root, Segment, "index segments require an array-like json value">
     : JsonPathUsageError<Operation, Root, Segment, "mutation paths require exact key/index segments">
 
@@ -164,7 +240,7 @@ type StepDelete<
     ? Root extends readonly unknown[]
       ? number extends Root["length"]
         ? Root
-        : DropTupleIndex<Root, Index>
+        : DropTupleIndexAt<Root, Index>
       : JsonPathUsageError<Operation, Root, Segment, "index segments require an array-like json value">
     : JsonPathUsageError<Operation, Root, Segment, "mutation paths require exact key/index segments">
 
@@ -178,7 +254,7 @@ type StepInsert<
   ? Root extends readonly unknown[]
     ? number extends Root["length"]
       ? readonly (NormalizeJsonLiteral<Root[number]> | NormalizeJsonLiteral<Next>)[]
-      : InsertTupleIndex<Root, Index, Next, After>
+      : InsertTupleIndexAt<Root, Index, Next, After>
     : JsonPathUsageError<Operation, Root, Segment, "index segments require an array-like json value">
   : Segment extends JsonPath.KeySegment<infer Key extends string>
     ? Root extends readonly unknown[]
