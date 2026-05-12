@@ -19,6 +19,26 @@ const docs = Table.make("docs", {
   payloadJsonb: C.jsonb(payloadSchema)
 })
 
+const variantPayloadSchema = Schema.Union(
+  Schema.Struct({
+    kind: Schema.Literal("option1"),
+    option1Value: Schema.String
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("option2"),
+    option2Value: Schema.String
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("option3"),
+    option3Value: Schema.String
+  })
+)
+
+const variantDocs = Table.make("variant_docs", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.jsonb(variantPayloadSchema)
+})
+
 const cityPath = J.json.path(
   J.json.key("profile"),
   J.json.key("address"),
@@ -75,6 +95,22 @@ const jsonbPathExistsExpr = J.jsonb.pathExists(docs.payloadJsonb, wildcardPath)
 const jsonbPathMatchExpr = J.jsonb.pathMatch(docs.payloadJsonb, '$.profile.tags[*] ? (@ == "x")')
 const jsonbStrippedExpr = J.jsonb.stripNulls(docs.payloadJsonb)
 const jsonbStrippedSetExpr = J.jsonb.set(sharedJsonbStrippedExpr, postcodePath, "1000")
+const variantKindExpr = J.jsonb.text(variantDocs.payload, J.jsonb.key("kind"))
+
+const option3Payload = Q.select({
+  payload: variantDocs.payload
+}).pipe(
+  Q.from(variantDocs),
+  Q.where(Q.eq(variantKindExpr, "option3"))
+)
+
+const option2Or3Payload = Q.select({
+  payload: variantDocs.payload
+}).pipe(
+  Q.from(variantDocs),
+  Q.where(Q.in(variantKindExpr, "option2", "option3"))
+)
+
 
 type City = E.RuntimeOf<typeof cityExpr>
 type CityText = E.RuntimeOf<typeof cityTextExpr>
@@ -102,6 +138,9 @@ type JsonbKeys = E.RuntimeOf<typeof jsonbKeysExpr>
 type JsonbPathExists = E.RuntimeOf<typeof jsonbPathExistsExpr>
 type JsonbPathMatch = E.RuntimeOf<typeof jsonbPathMatchExpr>
 type JsonbStripped = Exclude<E.RuntimeOf<typeof jsonbStrippedExpr>, null>
+type Option3PayloadRow = Q.ResultRow<typeof option3Payload>
+type Option3PayloadRuntimeRow = Q.RuntimeResultRow<typeof option3Payload>
+type Option2Or3PayloadRow = Q.ResultRow<typeof option2Or3Payload>
 
 const city: City = "Paris"
 const cityText: CityText = "Paris"
@@ -139,6 +178,17 @@ const jsonbPathExists: JsonbPathExists = true
 const jsonbPathMatch: JsonbPathMatch = true
 const jsonbStrippedNote: JsonbStripped["note"] = undefined
 const jsonbStrippedPostcode: JsonbStripped["profile"]["address"]["postcode"] = undefined
+declare const option3PayloadRow: Option3PayloadRow
+declare const option3PayloadRuntimeRow: Option3PayloadRuntimeRow
+declare const option2Or3PayloadRow: Option2Or3PayloadRow
+const option3PayloadKind: "option3" = option3PayloadRow.payload.kind
+const option3PayloadValue: string = option3PayloadRow.payload.option3Value
+const conservativeOption3RuntimeKind: "option1" | "option2" | "option3" = option3PayloadRuntimeRow.payload.kind
+const option2Or3PayloadKind: "option2" | "option3" = option2Or3PayloadRow.payload.kind
+// @ts-expect-error discriminator equality should remove unrelated jsonb union members
+option3PayloadRow.payload.option1Value
+// @ts-expect-error discriminator IN should remove excluded jsonb union members
+option2Or3PayloadRow.payload.option1Value
 void city
 void cityText
 void jsonTypeName
@@ -175,6 +225,10 @@ void jsonbPathExists
 void jsonbPathMatch
 void jsonbStrippedNote
 void jsonbStrippedPostcode
+void option3PayloadKind
+void option3PayloadValue
+void conservativeOption3RuntimeKind
+void option2Or3PayloadKind
 void jsonbSetExpr
 void jsonbInsertExpr
 void jsonbDeleteExpr

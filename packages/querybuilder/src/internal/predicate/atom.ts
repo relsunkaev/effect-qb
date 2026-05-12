@@ -20,6 +20,12 @@ export interface NeqLiteralAtom<Key extends string, Value extends string> {
   readonly value: Value
 }
 
+export interface LiteralSetAtom<Key extends string, Values extends string> {
+  readonly kind: "literal-set"
+  readonly key: Key
+  readonly values: readonly Values[]
+}
+
 export interface EqColumnAtom<
   LeftKey extends string,
   RightKey extends string
@@ -39,5 +45,6 @@ export type PredicateAtom =
   | NonNullAtom<string>
   | EqLiteralAtom<string, string>
   | NeqLiteralAtom<string, string>
+  | LiteralSetAtom<string, string>
   | EqColumnAtom<string, string>
   | UnknownAtom<string>

@@ -960,6 +960,16 @@ type JsonPathInput = JsonPath.Path<any> | JsonPath.CanonicalSegment
 
 type JsonQueryInput = JsonPath.Path<any> | StringExpressionInput
 
+type JsonPathSegmentsOf<Target extends JsonPathInput> =
+  Target extends JsonPath.Path<any>
+    ? JsonPath.SegmentsOf<Target>
+    : readonly [Target]
+
+type JsonTextAccessKind<Target extends JsonPathInput> =
+  Target extends JsonPath.Path<any>
+    ? JsonPath.IsExactPath<Target> extends true ? "jsonPathText" : "jsonTraverseText"
+    : Target extends JsonPath.ExactSegment ? "jsonGetText" : "jsonAccessText"
+
 type JsonPathOutputOf<
   Root,
   Target extends JsonPathInput,
@@ -2273,7 +2283,7 @@ type BinaryPredicateExpression<
     DialectOf<Base>,
     KindOf<Base>,
     DependenciesOf<Base>,
-    JsonNode
+    ExpressionAst.JsonAccessNode<JsonTextAccessKind<Target>, Base, JsonPathSegmentsOf<Target>>
   > => {
     const segments = normalizeJsonPathInput(target)
     const kind = isJsonPathValue(target)
@@ -2300,7 +2310,7 @@ type BinaryPredicateExpression<
       DialectOf<Base>,
       KindOf<Base>,
       DependenciesOf<Base>,
-      JsonNode
+      ExpressionAst.JsonAccessNode<JsonTextAccessKind<Target>, Base, JsonPathSegmentsOf<Target>>
     >
   }
 

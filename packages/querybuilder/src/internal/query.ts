@@ -10,7 +10,7 @@ import type { JsonNode } from "./json/ast.js"
 import type * as JsonPath from "./json/path.js"
 import type { QueryCapability } from "./query-requirements.js"
 import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./case-analysis.js"
-import type { ContradictsFormula, GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate/analysis.js"
+import type { ContradictsFormula, GuaranteedLiteralSet, GuaranteedNonNullKeys, GuaranteedNullKeys, GuaranteedSourceNames } from "./predicate/analysis.js"
 import type { ColumnKeyOfExpression } from "./predicate/key.js"
 import type { PredicateFormula, TrueFormula } from "./predicate/formula.js"
 import { trueFormula } from "./predicate/runtime.js"
@@ -1585,6 +1585,53 @@ export type EffectiveNullability<
     ? EffectiveNullabilityOfAst<Value, Ast, Available, Assumptions>
     : BaseEffectiveNullability<Value, Available, Assumptions>
 
+type LiteralKeyValue<Value extends string> =
+  Value extends `string:${infer Literal}` ? Literal :
+    Value extends `number:${infer Literal extends number}` ? Literal :
+      Value extends "boolean:true" ? true :
+        Value extends "boolean:false" ? false :
+          never
+
+type LiteralSetRuntime<Values> =
+  Values extends readonly (infer Value)[] ? LiteralSetRuntime<Value> :
+    Values extends string ? LiteralKeyValue<Values> :
+      never
+
+type JsonConstraintFailures<
+  Member,
+  ColumnKey extends string,
+  Assumptions extends PredicateFormula
+> = {
+  readonly [Key in keyof Member & string]:
+    GuaranteedLiteralSet<Assumptions, `${ColumnKey}#json:${Key}`> extends infer Values
+      ? [Values] extends [never]
+        ? never
+        : string extends Member[Key]
+          ? never
+        : string extends Values
+          ? never
+          : Extract<Member[Key], LiteralSetRuntime<Values>> extends never ? Key : never
+      : never
+}[keyof Member & string]
+
+type RefineJsonRuntimeForColumn<
+  Runtime,
+  ColumnKey extends string,
+  Assumptions extends PredicateFormula
+> = Runtime extends object
+  ? Runtime extends unknown
+    ? [JsonConstraintFailures<Runtime, ColumnKey, Assumptions>] extends [never] ? Runtime : never
+    : never
+  : Runtime
+
+type AssumptionRefinedRuntime<
+  Value extends Expression.Any,
+  Runtime,
+  Assumptions extends PredicateFormula
+> = [ColumnKeyOfExpression<Value>] extends [infer ColumnKey extends string]
+  ? RefineJsonRuntimeForColumn<Runtime, ColumnKey, Assumptions>
+  : Runtime
+
 /** Result runtime type of an expression after effective nullability is resolved. */
 export type ExpressionOutput<
   Value extends Expression.Any,
@@ -1596,13 +1643,15 @@ export type ExpressionOutput<
     : EffectiveNullabilityOfAst<Value, Ast, Available, Assumptions> extends infer Nullability
       ? Expression.NullabilityOf<Value> extends infer BaseNullability
         ? Expression.RuntimeOf<Value> extends infer Runtime
-          ? Nullability extends "never"
-            ? BaseNullability extends "never"
-              ? Runtime
-              : NonNullable<Runtime>
-            : Nullability extends "always"
-              ? null
-              : Runtime | null
+          ? AssumptionRefinedRuntime<Value, Runtime, Assumptions> extends infer RefinedRuntime
+            ? Nullability extends "never"
+              ? BaseNullability extends "never"
+                ? RefinedRuntime
+                : NonNullable<RefinedRuntime>
+              : Nullability extends "always"
+                ? null
+                : RefinedRuntime | null
+            : never
           : never
         : never
       : never

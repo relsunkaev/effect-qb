@@ -23,6 +23,17 @@ export type GuaranteedEqLiteral<
   ? ContextOf<Assumptions>["eqLiterals"][Key]
   : never
 
+export type GuaranteedLiteralSets<
+  Assumptions extends PredicateFormula
+> = ContextOf<Assumptions>["literalSets"]
+
+export type GuaranteedLiteralSet<
+  Assumptions extends PredicateFormula,
+  Key extends string
+> = Key extends keyof ContextOf<Assumptions>["literalSets"]
+  ? ContextOf<Assumptions>["literalSets"][Key]
+  : never
+
 type IsContradiction<Formula extends PredicateFormula> =
   ContextOf<Formula>["contradiction"] extends true ? true : false
 

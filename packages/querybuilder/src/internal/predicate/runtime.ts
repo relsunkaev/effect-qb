@@ -4,6 +4,7 @@ import type { PredicateAtom } from "./atom.js"
 import type {
   EqColumnAtom,
   EqLiteralAtom,
+  LiteralSetAtom,
   NeqLiteralAtom,
   NonNullAtom,
   NullAtom,
@@ -24,6 +25,7 @@ export interface RuntimeContext {
   readonly nullKeys: ReadonlySet<string>
   readonly eqLiterals: ReadonlyMap<string, string>
   readonly neqLiterals: ReadonlyMap<string, ReadonlySet<string>>
+  readonly literalSets: ReadonlyMap<string, ReadonlySet<string>>
   readonly sourceNames: ReadonlySet<string>
   readonly contradiction: boolean
   readonly unknown: boolean
@@ -34,6 +36,7 @@ type MutableContext = {
   nullKeys: Set<string>
   eqLiterals: Map<string, string>
   neqLiterals: Map<string, Set<string>>
+  literalSets: Map<string, Set<string>>
   sourceNames: Set<string>
   contradiction: boolean
   unknown: boolean
@@ -72,6 +75,7 @@ const emptyContext = (): MutableContext => ({
   nullKeys: new Set(),
   eqLiterals: new Map(),
   neqLiterals: new Map(),
+  literalSets: new Map(),
   sourceNames: new Set(),
   contradiction: false,
   unknown: false
@@ -83,6 +87,9 @@ const cloneContext = (context: MutableContext): MutableContext => ({
   eqLiterals: new Map(context.eqLiterals),
   neqLiterals: new Map(
     Array.from(context.neqLiterals.entries(), ([key, values]) => [key, new Set(values)])
+  ),
+  literalSets: new Map(
+    Array.from(context.literalSets.entries(), ([key, values]) => [key, new Set(values)])
   ),
   sourceNames: new Set(context.sourceNames),
   contradiction: context.contradiction,
@@ -123,7 +130,12 @@ const addEqLiteral = (context: MutableContext, key: string, value: string): void
   if (neqValues?.has(value)) {
     context.contradiction = true
   }
+  const existingSet = context.literalSets.get(key)
+  if (existingSet !== undefined && !existingSet.has(value)) {
+    context.contradiction = true
+  }
   context.eqLiterals.set(key, value)
+  context.literalSets.set(key, new Set([value]))
 }
 
 const addNeqLiteral = (context: MutableContext, key: string, value: string): void => {
@@ -134,6 +146,24 @@ const addNeqLiteral = (context: MutableContext, key: string, value: string): voi
   const values = context.neqLiterals.get(key) ?? new Set<string>()
   values.add(value)
   context.neqLiterals.set(key, values)
+}
+
+const addLiteralSet = (context: MutableContext, key: string, values: ReadonlySet<string>): void => {
+  addNonNull(context, key)
+  const existingEq = context.eqLiterals.get(key)
+  if (existingEq !== undefined && !values.has(existingEq)) {
+    context.contradiction = true
+  }
+  const existing = context.literalSets.get(key)
+  context.literalSets.set(
+    key,
+    existing === undefined
+      ? new Set(values)
+      : new Set(Array.from(existing).filter((value) => values.has(value)))
+  )
+  if (context.literalSets.get(key)?.size === 0) {
+    context.contradiction = true
+  }
 }
 
 const applyEqColumn = (context: MutableContext, left: string, right: string): void => {
@@ -176,6 +206,9 @@ const applyAtom = (context: MutableContext, atom: PredicateAtom): void => {
     case "neq-literal":
       addNeqLiteral(context, atom.key, atom.value)
       return
+    case "literal-set":
+      addLiteralSet(context, atom.key, new Set(atom.values))
+      return
     case "eq-column":
       applyEqColumn(context, atom.left, atom.right)
       return
@@ -198,6 +231,9 @@ const applyNegativeAtom = (context: MutableContext, atom: PredicateAtom): void =
       return
     case "neq-literal":
       addEqLiteral(context, atom.key, atom.value)
+      return
+    case "literal-set":
+      addNonNull(context, atom.key)
       return
     case "eq-column":
       addNonNull(context, atom.left)
@@ -240,6 +276,21 @@ const intersectNeqLiterals = (
   return result
 }
 
+const unionLiteralSets = (
+  left: ReadonlyMap<string, ReadonlySet<string>>,
+  right: ReadonlyMap<string, ReadonlySet<string>>
+): Map<string, Set<string>> => {
+  const result = new Map<string, Set<string>>()
+  for (const [key, leftValues] of left) {
+    const rightValues = right.get(key)
+    if (rightValues === undefined) {
+      continue
+    }
+    result.set(key, new Set([...leftValues, ...rightValues]))
+  }
+  return result
+}
+
 const intersectContexts = (left: MutableContext, right: MutableContext): MutableContext => {
   if (left.contradiction) {
     return cloneContext(right)
@@ -252,6 +303,7 @@ const intersectContexts = (left: MutableContext, right: MutableContext): Mutable
     nullKeys: new Set(Array.from(left.nullKeys).filter((key) => right.nullKeys.has(key))),
     eqLiterals: intersectEqLiterals(left.eqLiterals, right.eqLiterals),
     neqLiterals: intersectNeqLiterals(left.neqLiterals, right.neqLiterals),
+    literalSets: unionLiteralSets(left.literalSets, right.literalSets),
     sourceNames: new Set(Array.from(left.sourceNames).filter((name) => right.sourceNames.has(name))),
     contradiction: false,
     unknown: left.unknown || right.unknown
@@ -337,6 +389,30 @@ const columnKeyOfExpression = (value: Expression.Any): string | undefined => {
   return ast.kind === "column" ? `${ast.tableName}.${ast.columnName}` : undefined
 }
 
+const jsonPathPredicateKeyOfExpression = (value: Expression.Any): string | undefined => {
+  const ast = astOf(value)
+  switch (ast.kind) {
+    case "jsonGetText":
+    case "jsonPathText":
+    case "jsonAccessText":
+    case "jsonTraverseText": {
+      const jsonAst = ast as ExpressionAst.JsonAccessNode
+      const segments = jsonAst.segments
+      const [segment] = segments
+      if (segments.length !== 1 || typeof segment !== "object" || segment === null || segment.kind !== "key") {
+        return undefined
+      }
+      const baseKey = columnKeyOfExpression(jsonAst.base)
+      return baseKey === undefined ? undefined : `${baseKey}#json:${segment.key}`
+    }
+    default:
+      return undefined
+  }
+}
+
+const predicateKeyOfExpression = (value: Expression.Any): string | undefined =>
+  columnKeyOfExpression(value) ?? jsonPathPredicateKeyOfExpression(value)
+
 const valueKeyOfLiteral = (value: unknown): string => {
   if (typeof value === "string") {
     return `string:${value}`
@@ -357,7 +433,7 @@ const valueKeyOfLiteral = (value: unknown): string => {
 }
 
 const nonNullFactsOfExpression = (value: Expression.Any): PredicateFormula | undefined => {
-  const key = columnKeyOfExpression(value)
+  const key = predicateKeyOfExpression(value)
   return key === undefined ? undefined : atomFormula<NonNullAtom<string>>({ kind: "is-not-null", key })
 }
 
@@ -375,8 +451,8 @@ const combineFacts = (
 }
 
 const formulaOfEq = (left: Expression.Any, right: Expression.Any): PredicateFormula => {
-  const leftKey = columnKeyOfExpression(left)
-  const rightKey = columnKeyOfExpression(right)
+  const leftKey = predicateKeyOfExpression(left)
+  const rightKey = predicateKeyOfExpression(right)
   const leftAst = astOf(left)
   const rightAst = astOf(right)
   const leftLiteral = leftAst.kind === "literal" ? leftAst.value : undefined
@@ -428,8 +504,8 @@ const formulaOfEq = (left: Expression.Any, right: Expression.Any): PredicateForm
 }
 
 const formulaOfNeq = (left: Expression.Any, right: Expression.Any): PredicateFormula => {
-  const leftKey = columnKeyOfExpression(left)
-  const rightKey = columnKeyOfExpression(right)
+  const leftKey = predicateKeyOfExpression(left)
+  const rightKey = predicateKeyOfExpression(right)
   const leftAst = astOf(left)
   const rightAst = astOf(right)
   const leftLiteral = leftAst.kind === "literal" ? leftAst.value : undefined
@@ -477,8 +553,8 @@ const formulaOfNeq = (left: Expression.Any, right: Expression.Any): PredicateFor
 }
 
 const formulaOfIsNotDistinctFrom = (left: Expression.Any, right: Expression.Any): PredicateFormula => {
-  const leftKey = columnKeyOfExpression(left)
-  const rightKey = columnKeyOfExpression(right)
+  const leftKey = predicateKeyOfExpression(left)
+  const rightKey = predicateKeyOfExpression(right)
   const leftAst = astOf(left)
   const rightAst = astOf(right)
   const leftLiteral = leftAst.kind === "literal" ? leftAst.value : undefined
@@ -587,13 +663,13 @@ export const formulaOfExpression = (value: Expression.Any): PredicateFormula => 
       }
       return unknownTag("literal:non-boolean")
     case "isNull": {
-      const key = columnKeyOfExpression(ast.value)
+      const key = predicateKeyOfExpression(ast.value)
       return key === undefined
         ? unknownTag("isNull:unsupported")
         : atomFormula<NullAtom<string>>({ kind: "is-null", key })
     }
     case "isNotNull": {
-      const key = columnKeyOfExpression(ast.value)
+      const key = predicateKeyOfExpression(ast.value)
       return key === undefined
         ? unknownTag("isNotNull:unsupported")
         : atomFormula<NonNullAtom<string>>({ kind: "is-not-null", key })
@@ -614,8 +690,16 @@ export const formulaOfExpression = (value: Expression.Any): PredicateFormula => 
       return anyFormula(ast.values.map((value: Expression.Any) => formulaOfExpression(value)))
     case "in": {
       const [left, ...rest] = ast.values
-      return left === undefined
-        ? falseFormula()
+      if (left === undefined) {
+        return falseFormula()
+      }
+      const key = predicateKeyOfExpression(left)
+      const literalValues = rest.map((entry: Expression.Any) => {
+        const entryAst = astOf(entry)
+        return entryAst.kind === "literal" && entryAst.value !== null ? valueKeyOfLiteral(entryAst.value) : undefined
+      })
+      return key !== undefined && literalValues.every((entry): entry is string => entry !== undefined)
+        ? atomFormula<LiteralSetAtom<string, string>>({ kind: "literal-set", key, values: literalValues })
         : anyFormula(rest.map((value: Expression.Any) => formulaOfEq(left, value)))
     }
     case "notIn": {

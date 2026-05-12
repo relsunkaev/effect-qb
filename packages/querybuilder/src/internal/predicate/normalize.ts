@@ -1,8 +1,8 @@
 import type * as Expression from "../scalar.js"
 import type * as ExpressionAst from "../expression-ast.js"
-import type { ColumnKeyOfExpression, ValueKey } from "./key.js"
+import type { PredicateKeyOfExpression, ValueKey } from "./key.js"
 import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./formula.js"
-import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, UnknownAtom } from "./atom.js"
+import type { EqColumnAtom, EqLiteralAtom, LiteralSetAtom, NeqLiteralAtom, NonNullAtom, NullAtom, UnknownAtom } from "./atom.js"
 
 type AstOf<Value extends Expression.Any> = Value extends {
   readonly [ExpressionAst.TypeId]: infer Ast extends ExpressionAst.Any
@@ -20,9 +20,9 @@ type AtomOf<Atom extends import("./atom.js").PredicateAtom> = AtomFormula<Atom>
 type FactOf<Atom extends import("./atom.js").PredicateAtom> = AtomFormula<Atom>
 
 type NonNullFactsOfExpression<Value extends Expression.Any> =
-  [ColumnKeyOfExpression<Value>] extends [never]
+  [PredicateKeyOfExpression<Value>] extends [never]
     ? never
-    : FactOf<NonNullAtom<ColumnKeyOfExpression<Value>>>
+    : FactOf<NonNullAtom<PredicateKeyOfExpression<Value>>>
 
 type CombineFacts<
   Left extends PredicateFormula,
@@ -45,8 +45,8 @@ type FormulaOfEq<
   Left extends Expression.Any,
   Right extends Expression.Any
 > =
-  [ColumnKeyOfExpression<Left>] extends [never]
-    ? [ColumnKeyOfExpression<Right>] extends [never]
+  [PredicateKeyOfExpression<Left>] extends [never]
+    ? [PredicateKeyOfExpression<Right>] extends [never]
       ? LiteralValueOfExpression<Left> extends infer LeftLiteral
         ? LiteralValueOfExpression<Right> extends infer RightLiteral
           ? [LeftLiteral] extends [never]
@@ -67,24 +67,24 @@ type FormulaOfEq<
           ? UnknownTag<"eq:unsupported">
           : LeftLiteral extends null
             ? False
-            : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
+            : AtomOf<EqLiteralAtom<PredicateKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
         : UnknownTag<"eq:unsupported">
-    : [ColumnKeyOfExpression<Right>] extends [never]
+    : [PredicateKeyOfExpression<Right>] extends [never]
       ? LiteralValueOfExpression<Right> extends infer RightLiteral
         ? [RightLiteral] extends [never]
           ? UnknownTag<"eq:unsupported">
           : RightLiteral extends null
             ? False
-            : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Left>, ValueKey<RightLiteral>>>
+            : AtomOf<EqLiteralAtom<PredicateKeyOfExpression<Left>, ValueKey<RightLiteral>>>
         : UnknownTag<"eq:unsupported">
-      : AtomOf<import("./atom.js").EqColumnAtom<ColumnKeyOfExpression<Left>, ColumnKeyOfExpression<Right>>>
+      : AtomOf<import("./atom.js").EqColumnAtom<PredicateKeyOfExpression<Left>, PredicateKeyOfExpression<Right>>>
 
 type FormulaOfNeq<
   Left extends Expression.Any,
   Right extends Expression.Any
 > =
-  [ColumnKeyOfExpression<Left>] extends [never]
-    ? [ColumnKeyOfExpression<Right>] extends [never]
+  [PredicateKeyOfExpression<Left>] extends [never]
+    ? [PredicateKeyOfExpression<Right>] extends [never]
       ? LiteralValueOfExpression<Left> extends infer LeftLiteral
         ? LiteralValueOfExpression<Right> extends infer RightLiteral
           ? [LeftLiteral] extends [never]
@@ -105,15 +105,15 @@ type FormulaOfNeq<
           ? UnknownTag<"neq:unsupported">
           : LeftLiteral extends null
             ? False
-            : AtomOf<NeqLiteralAtom<ColumnKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
+            : AtomOf<NeqLiteralAtom<PredicateKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
         : UnknownTag<"neq:unsupported">
-    : [ColumnKeyOfExpression<Right>] extends [never]
+    : [PredicateKeyOfExpression<Right>] extends [never]
       ? LiteralValueOfExpression<Right> extends infer RightLiteral
         ? [RightLiteral] extends [never]
           ? UnknownTag<"neq:unsupported">
           : RightLiteral extends null
             ? False
-            : AtomOf<NeqLiteralAtom<ColumnKeyOfExpression<Left>, ValueKey<RightLiteral>>>
+            : AtomOf<NeqLiteralAtom<PredicateKeyOfExpression<Left>, ValueKey<RightLiteral>>>
         : UnknownTag<"neq:unsupported">
       : CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
 
@@ -127,23 +127,23 @@ type FormulaOfIsNotDistinctFrom<
         ? [RightLiteral] extends [never]
           ? UnknownTag<"isNotDistinctFrom:unsupported">
           : RightLiteral extends null
-            ? [ColumnKeyOfExpression<Left>] extends [never]
+            ? [PredicateKeyOfExpression<Left>] extends [never]
               ? UnknownTag<"isNotDistinctFrom:unsupported">
-              : AtomOf<NullAtom<ColumnKeyOfExpression<Left>>>
+              : AtomOf<NullAtom<PredicateKeyOfExpression<Left>>>
             : UnknownTag<"isNotDistinctFrom:unsupported">
         : LeftLiteral extends null
-          ? [ColumnKeyOfExpression<Right>] extends [never]
+          ? [PredicateKeyOfExpression<Right>] extends [never]
             ? UnknownTag<"isNotDistinctFrom:unsupported">
-            : AtomOf<NullAtom<ColumnKeyOfExpression<Right>>>
+            : AtomOf<NullAtom<PredicateKeyOfExpression<Right>>>
           : RightLiteral extends null
-            ? [ColumnKeyOfExpression<Left>] extends [never]
+            ? [PredicateKeyOfExpression<Left>] extends [never]
               ? UnknownTag<"isNotDistinctFrom:unsupported">
-              : AtomOf<NullAtom<ColumnKeyOfExpression<Left>>>
-            : [ColumnKeyOfExpression<Left>] extends [never]
-              ? [ColumnKeyOfExpression<Right>] extends [never]
+              : AtomOf<NullAtom<PredicateKeyOfExpression<Left>>>
+            : [PredicateKeyOfExpression<Left>] extends [never]
+              ? [PredicateKeyOfExpression<Right>] extends [never]
                 ? CombineFacts<NonNullFactsOfExpression<Left>, NonNullFactsOfExpression<Right>>
-                : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
-              : AtomOf<EqLiteralAtom<ColumnKeyOfExpression<Left>, ValueKey<RightLiteral>>>
+                : AtomOf<EqLiteralAtom<PredicateKeyOfExpression<Right>, ValueKey<LeftLiteral>>>
+              : AtomOf<EqLiteralAtom<PredicateKeyOfExpression<Left>, ValueKey<RightLiteral>>>
       : UnknownTag<"isNotDistinctFrom:unsupported">
     : UnknownTag<"isNotDistinctFrom:unsupported">
 
@@ -180,6 +180,33 @@ type FormulaOfInValues<
   ? FormulaOfInValues<Left, Tail, [...Current, FormulaOfEq<Left, Head>]>
   : Current
 
+type LiteralSetValuesOf<
+  Values extends readonly Expression.Any[],
+  Current extends string = never
+> = Values extends readonly [
+  infer Head extends Expression.Any,
+  ...infer Tail extends readonly Expression.Any[]
+]
+  ? LiteralValueOfExpression<Head> extends infer Literal
+    ? [Literal] extends [never]
+      ? never
+      : Literal extends null
+        ? never
+        : LiteralSetValuesOf<Tail, Current | ValueKey<Literal>>
+    : never
+  : Current
+
+type FormulaOfIn<
+  Left extends Expression.Any,
+  Values extends readonly Expression.Any[]
+> = [PredicateKeyOfExpression<Left>] extends [never]
+  ? OrFormulas<FormulaOfInValues<Left, Values>>
+  : LiteralSetValuesOf<Values> extends infer ValueSet extends string
+    ? [ValueSet] extends [never]
+      ? OrFormulas<FormulaOfInValues<Left, Values>>
+      : AtomOf<LiteralSetAtom<PredicateKeyOfExpression<Left>, ValueSet>>
+    : OrFormulas<FormulaOfInValues<Left, Values>>
+
 type FormulaOfNotInValues<
   Left extends Expression.Any,
   Values extends readonly Expression.Any[],
@@ -200,7 +227,7 @@ type FormulaOfVariadic<
     ? AnyFormulaOfValues<Values>
     : Kind extends "in"
       ? Values extends readonly [infer Left extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
-        ? OrFormulas<FormulaOfInValues<Left, Tail>>
+        ? FormulaOfIn<Left, Tail>
         : False
   : Kind extends "notIn"
     ? Values extends readonly [infer Left extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
@@ -218,13 +245,13 @@ type FormulaOfUnary<
   Kind extends ExpressionAst.UnaryKind,
   Inner extends Expression.Any
 > = Kind extends "isNull"
-  ? [ColumnKeyOfExpression<Inner>] extends [never]
+  ? [PredicateKeyOfExpression<Inner>] extends [never]
     ? UnknownTag<"isNull:unsupported">
-    : AtomOf<NullAtom<ColumnKeyOfExpression<Inner>>>
+    : AtomOf<NullAtom<PredicateKeyOfExpression<Inner>>>
   : Kind extends "isNotNull"
-    ? [ColumnKeyOfExpression<Inner>] extends [never]
+    ? [PredicateKeyOfExpression<Inner>] extends [never]
       ? UnknownTag<"isNotNull:unsupported">
-      : AtomOf<NonNullAtom<ColumnKeyOfExpression<Inner>>>
+      : AtomOf<NonNullAtom<PredicateKeyOfExpression<Inner>>>
     : Kind extends "not"
       ? import("./formula.js").Not<FormulaOfExpression<Inner>>
       : UnknownTag<`unary:${Kind}`>

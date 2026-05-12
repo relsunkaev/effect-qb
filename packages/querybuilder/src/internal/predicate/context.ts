@@ -1,4 +1,4 @@
-import type { EqColumnAtom, EqLiteralAtom, NeqLiteralAtom, NonNullAtom, NullAtom, PredicateAtom, UnknownAtom } from "./atom.js"
+import type { EqColumnAtom, EqLiteralAtom, LiteralSetAtom, NeqLiteralAtom, NonNullAtom, NullAtom, PredicateAtom, UnknownAtom } from "./atom.js"
 import type { AllFormula, AnyFormula, AtomFormula, FalseFormula, NotFormula, PredicateFormula, TrueFormula } from "./formula.js"
 
 type Polarity = "positive" | "negative"
@@ -8,6 +8,7 @@ export interface Context<
   NullKeys extends string = never,
   EqLiterals = {},
   NeqLiterals = {},
+  LiteralSets = {},
   SourceNames extends string = never,
   Contradiction extends boolean = false,
   Unknown extends boolean = false
@@ -16,6 +17,7 @@ export interface Context<
   readonly nullKeys: NullKeys
   readonly eqLiterals: EqLiterals
   readonly neqLiterals: NeqLiterals
+  readonly literalSets: LiteralSets
   readonly sourceNames: SourceNames
   readonly contradiction: Contradiction
   readonly unknown: Unknown
@@ -25,6 +27,7 @@ export type EmptyContext = Context
 type AnyContext = Context<
   string,
   string,
+  Record<string, string>,
   Record<string, string>,
   Record<string, string>,
   string,
@@ -84,6 +87,17 @@ type MergeNeqLiteralMaps<Left, Right> = {
         : never
 }
 
+type MergeLiteralSetMaps<Left, Right> = {
+  readonly [K in Extract<keyof Left | keyof Right, string>]:
+    K extends keyof Left
+      ? K extends keyof Right
+        ? Extract<Left[K], Right[K]>
+        : Left[K]
+      : K extends keyof Right
+        ? Right[K]
+        : never
+}
+
 type FilterNeverValues<Map> = {
   readonly [K in keyof Map as Map[K] extends never ? never : K]: Map[K]
 }
@@ -93,6 +107,7 @@ type MarkContradiction<Ctx extends AnyContext> = Context<
   Ctx["nullKeys"],
   Ctx["eqLiterals"],
   Ctx["neqLiterals"],
+  Ctx["literalSets"],
   Ctx["sourceNames"],
   true,
   Ctx["unknown"]
@@ -103,6 +118,7 @@ type MarkUnknown<Ctx extends AnyContext> = Context<
   Ctx["nullKeys"],
   Ctx["eqLiterals"],
   Ctx["neqLiterals"],
+  Ctx["literalSets"],
   Ctx["sourceNames"],
   Ctx["contradiction"],
   true
@@ -116,6 +132,7 @@ type AddNonNull<
   Ctx["nullKeys"],
   Ctx["eqLiterals"],
   Ctx["neqLiterals"],
+  Ctx["literalSets"],
   Ctx["sourceNames"] | SourceNameOfKey<Key>,
   Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"],
   Ctx["unknown"]
@@ -129,8 +146,30 @@ type AddNull<
   Ctx["nullKeys"] | Key,
   Ctx["eqLiterals"],
   Ctx["neqLiterals"],
+  Ctx["literalSets"],
   Ctx["sourceNames"] | SourceNameOfKey<Key>,
   Key extends Ctx["nonNullKeys"] ? true : Ctx["contradiction"],
+  Ctx["unknown"]
+>
+
+type AddLiteralSet<
+  Ctx extends AnyContext,
+  Key extends string,
+  Values extends string
+> = Context<
+  Ctx["nonNullKeys"] | Key,
+  Ctx["nullKeys"],
+  Ctx["eqLiterals"],
+  Ctx["neqLiterals"],
+  FilterNeverValues<MergeLiteralSetMaps<Ctx["literalSets"], { readonly [K in Key]: Values }>>,
+  Ctx["sourceNames"] | SourceNameOfKey<Key>,
+  EqLiteralValueOf<Ctx["eqLiterals"], Key> extends infer EqValue
+    ? [EqValue] extends [never]
+      ? Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"]
+      : EqValue extends Values
+        ? Key extends Ctx["nullKeys"] ? true : Ctx["contradiction"]
+        : true
+    : true,
   Ctx["unknown"]
 >
 
@@ -143,6 +182,7 @@ type AddEqLiteral<
   Ctx["nullKeys"],
   FilterNeverValues<MergeEqLiteralMaps<Ctx["eqLiterals"], { readonly [K in Key]: Value }>>,
   Ctx["neqLiterals"],
+  FilterNeverValues<MergeLiteralSetMaps<Ctx["literalSets"], { readonly [K in Key]: Value }>>,
   Ctx["sourceNames"] | SourceNameOfKey<Key>,
   EqLiteralValueOf<Ctx["eqLiterals"], Key> extends never
     ? NeqLiteralValuesOf<Ctx["neqLiterals"], Key> extends infer NeqValues
@@ -169,6 +209,7 @@ type AddNeqLiteral<
   Ctx["nullKeys"],
   Ctx["eqLiterals"],
   FilterNeverValues<MergeNeqLiteralMaps<Ctx["neqLiterals"], { readonly [K in Key]: Value }>>,
+  Ctx["literalSets"],
   Ctx["sourceNames"] | SourceNameOfKey<Key>,
   EqLiteralValueOf<Ctx["eqLiterals"], Key> extends infer EqValue
     ? [EqValue] extends [never]
@@ -219,11 +260,13 @@ type ApplyAtom<
         ? AddEqLiteral<Ctx, Key, Value>
         : Atom extends NeqLiteralAtom<infer Key extends string, infer Value extends string>
           ? AddNeqLiteral<Ctx, Key, Value>
-          : Atom extends EqColumnAtom<infer Left extends string, infer Right extends string>
-            ? ApplyEqColumn<Ctx, Left, Right>
-            : Atom extends UnknownAtom<any>
-              ? MarkUnknown<Ctx>
-              : Ctx
+          : Atom extends LiteralSetAtom<infer Key extends string, infer Values extends string>
+            ? AddLiteralSet<Ctx, Key, Values>
+            : Atom extends EqColumnAtom<infer Left extends string, infer Right extends string>
+              ? ApplyEqColumn<Ctx, Left, Right>
+              : Atom extends UnknownAtom<any>
+                ? MarkUnknown<Ctx>
+                : Ctx
 
 type ApplyNegativeAtom<
   Ctx extends AnyContext,
@@ -237,11 +280,13 @@ type ApplyNegativeAtom<
         ? AddNeqLiteral<Ctx, Key, Value>
         : Atom extends NeqLiteralAtom<infer Key extends string, infer Value extends string>
           ? AddEqLiteral<Ctx, Key, Value>
-          : Atom extends EqColumnAtom<infer Left extends string, infer Right extends string>
-            ? AddNonNull<AddNonNull<Ctx, Left>, Right>
-            : Atom extends UnknownAtom<any>
-              ? MarkUnknown<Ctx>
-              : Ctx
+          : Atom extends LiteralSetAtom<infer Key extends string, any>
+            ? AddNonNull<Ctx, Key>
+            : Atom extends EqColumnAtom<infer Left extends string, infer Right extends string>
+              ? AddNonNull<AddNonNull<Ctx, Left>, Right>
+              : Atom extends UnknownAtom<any>
+                ? MarkUnknown<Ctx>
+                : Ctx
 
 type FramesFromItems<
   Items extends readonly PredicateFormula[],
@@ -268,6 +313,13 @@ type IntersectNeqLiteralMaps<
     Extract<Left[K], Right[K]> extends never ? never : Extract<Left[K], Right[K]>
 }>
 
+type UnionLiteralSetMaps<
+  Left,
+  Right
+> = FilterNeverValues<{
+  readonly [K in Extract<keyof Left, keyof Right>]: Left[K] | Right[K]
+}>
+
 type IntersectContexts<
   Left extends AnyContext,
   Right extends AnyContext
@@ -276,6 +328,7 @@ type IntersectContexts<
   Extract<Left["nullKeys"], Right["nullKeys"]>,
   IntersectEqLiteralMaps<Left["eqLiterals"], Right["eqLiterals"]>,
   IntersectNeqLiteralMaps<Left["neqLiterals"], Right["neqLiterals"]>,
+  UnionLiteralSetMaps<Left["literalSets"], Right["literalSets"]>,
   Extract<Left["sourceNames"], Right["sourceNames"]>,
   Left["contradiction"] extends true
     ? Right["contradiction"]
