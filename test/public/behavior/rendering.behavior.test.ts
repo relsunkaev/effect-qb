@@ -72,6 +72,21 @@ describe("rendering behavior", () => {
     ])
   })
 
+  test("rejects incomplete plans that still require sources", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey),
+      email: C.text()
+    })
+
+    const incomplete = Q.select({
+      id: users.id
+    })
+
+    expect(() => Renderer.make().render(incomplete)).toThrow(
+      "query references sources that are not yet in scope"
+    )
+  })
+
   test("keeps projection metadata deterministic across repeated renders", () => {
     const users = Table.make("users", {
       id: C.uuid().pipe(C.primaryKey),
