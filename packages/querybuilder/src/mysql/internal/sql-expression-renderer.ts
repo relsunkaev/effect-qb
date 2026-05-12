@@ -247,10 +247,26 @@ const renderJsonPathSegment = (segment: JsonPath.AnySegment | string | number): 
   }
 }
 
-const renderJsonPathStringLiteral = (segments: ReadonlyArray<JsonPath.AnySegment | string | number>): string => {
+const renderMySqlJsonIndex = (index: number): string =>
+  index >= 0 ? String(index) : index === -1 ? "last" : `last-${Math.abs(index) - 1}`
+
+const renderMySqlJsonPathSegment = (segment: JsonPath.AnySegment | string | number): string => {
+  if (typeof segment === "number") {
+    return `[${renderMySqlJsonIndex(segment)}]`
+  }
+  if (typeof segment === "object" && segment !== null && segment.kind === "index") {
+    return `[${renderMySqlJsonIndex(segment.index)}]`
+  }
+  return renderJsonPathSegment(segment)
+}
+
+const renderJsonPathStringLiteral = (
+  segments: ReadonlyArray<JsonPath.AnySegment | string | number>,
+  renderSegment: (segment: JsonPath.AnySegment | string | number) => string = renderJsonPathSegment
+): string => {
   let path = "$"
   for (const segment of segments) {
-    path += renderJsonPathSegment(segment)
+    path += renderSegment(segment)
   }
   return path
 }
@@ -259,7 +275,7 @@ const renderMySqlJsonPath = (
   segments: ReadonlyArray<JsonPath.AnySegment | string | number>,
   state: RenderState,
   dialect: SqlDialect
-): string => dialect.renderLiteral(renderJsonPathStringLiteral(segments), state)
+): string => dialect.renderLiteral(renderJsonPathStringLiteral(segments, renderMySqlJsonPathSegment), state)
 
 const isJsonArrayIndexSegment = (segment: JsonPath.AnySegment | string | number | undefined): boolean =>
   typeof segment === "number" || (typeof segment === "object" && segment !== null && segment.kind === "index")
