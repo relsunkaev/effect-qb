@@ -12,6 +12,19 @@ export type ColumnKeyOfAst<Ast extends ExpressionAst.Any> =
     ? ColumnKey<TableName, ColumnName>
     : never
 
+type EscapeJsonPathBackslashes<Value extends string> =
+  Value extends `${infer Head}\\${infer Tail}`
+    ? `${Head}\\\\${EscapeJsonPathBackslashes<Tail>}`
+    : Value
+
+type EscapeJsonPathDots<Value extends string> =
+  Value extends `${infer Head}.${infer Tail}`
+    ? `${Head}\\.${EscapeJsonPathDots<Tail>}`
+    : Value
+
+type EscapeJsonPathSegment<Value extends string> =
+  EscapeJsonPathDots<EscapeJsonPathBackslashes<Value>>
+
 type JsonPathKey<
   Segments extends ExpressionAst.JsonSegmentTuple,
   Current extends string = never,
@@ -25,7 +38,7 @@ type JsonPathKey<
     ? Segment extends JsonPath.KeySegment<infer Key extends string>
       ? JsonPathKey<
           Tail,
-          [Current] extends [never] ? Key : `${Current}.${Key}`,
+          [Current] extends [never] ? EscapeJsonPathSegment<Key> : `${Current}.${EscapeJsonPathSegment<Key>}`,
           readonly [...Seen, unknown]
         >
       : never

@@ -392,6 +392,9 @@ const columnKeyOfExpression = (value: Expression.Any): string | undefined => {
 const sameDbType = (left: Expression.DbType.Any, right: Expression.DbType.Any): boolean =>
   left.dialect === right.dialect && left.kind === right.kind
 
+const escapeJsonPathPredicateKeySegment = (value: string): string =>
+  value.replaceAll("\\", "\\\\").replaceAll(".", "\\.")
+
 const jsonPathPredicateKeyOfExpression = (value: Expression.Any): string | undefined => {
   const ast = astOf(value)
   switch (ast.kind) {
@@ -415,7 +418,9 @@ const jsonPathPredicateKeyOfExpression = (value: Expression.Any): string | undef
         return undefined
       }
       const baseKey = columnKeyOfExpression(jsonAst.base)
-      return baseKey === undefined ? undefined : `${baseKey}#json:${path.join(".")}`
+      return baseKey === undefined
+        ? undefined
+        : `${baseKey}#json:${path.map(escapeJsonPathPredicateKeySegment).join(".")}`
     }
     default:
       return undefined

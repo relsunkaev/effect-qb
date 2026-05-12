@@ -1744,30 +1744,45 @@ type JsonLiteralSetsForColumn<
   ? Paths
   : {}
 
+type JsonPathHead<
+  Path extends string,
+  Current extends string = ""
+> = Path extends `\\.${infer Rest}`
+  ? JsonPathHead<Rest, `${Current}.`>
+  : Path extends `\\\\${infer Rest}`
+    ? JsonPathHead<Rest, `${Current}\\`>
+    : Path extends `.${infer Tail}`
+      ? readonly [Current, Tail]
+      : Path extends `${infer Character}${infer Rest}`
+        ? JsonPathHead<Rest, `${Current}${Character}`>
+        : readonly [Current, ""]
+
 type RefineJsonRuntimeAtPath<
   Runtime,
   Path extends string,
   Values
 > = Runtime extends unknown
-  ? Path extends `${infer Head}.${infer Tail}`
-    ? Runtime extends object
-      ? Head extends keyof Runtime
-        ? RefineJsonRuntimeAtPath<NonNullable<Runtime[Head]>, Tail, Values> extends infer Refined
-          ? [Refined] extends [never]
-            ? never
-            : Omit<Runtime, Head> & { readonly [K in Head]: Refined }
+  ? JsonPathHead<Path> extends readonly [infer Head extends string, infer Tail extends string]
+    ? Tail extends ""
+      ? Runtime extends object
+        ? Head extends keyof Runtime
+          ? RefineRuntimeByAllowedLiterals<NonNullable<Runtime[Head]>, Values> extends infer Refined
+            ? [Refined] extends [never]
+              ? never
+              : Omit<Runtime, Head> & { readonly [K in Head]: Refined }
+            : never
+          : never
+        : RefineRuntimeByAllowedLiterals<NonNullable<Runtime>, Values>
+      : Runtime extends object
+        ? Head extends keyof Runtime
+          ? RefineJsonRuntimeAtPath<NonNullable<Runtime[Head]>, Tail, Values> extends infer Refined
+            ? [Refined] extends [never]
+              ? never
+              : Omit<Runtime, Head> & { readonly [K in Head]: Refined }
+            : never
           : never
         : never
-      : never
-    : Runtime extends object
-      ? Path extends keyof Runtime
-        ? RefineRuntimeByAllowedLiterals<NonNullable<Runtime[Path]>, Values> extends infer Refined
-          ? [Refined] extends [never]
-            ? never
-            : Omit<Runtime, Path> & { readonly [K in Path]: Refined }
-          : never
-        : never
-      : RefineRuntimeByAllowedLiterals<NonNullable<Runtime>, Values>
+    : never
   : never
 
 type RefineJsonRuntimeWithConstraints<
