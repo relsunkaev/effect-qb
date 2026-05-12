@@ -164,6 +164,58 @@ test("sqlite executor supports returning upserts, JSON1 queries, and savepoint r
   ])
 })
 
+test("sqlite upserts execute against partial conflict targets", async () => {
+  const users = Table.make("partial_conflict_users", {
+    id: C.text().pipe(C.primaryKey),
+    email: C.text().pipe(C.nullable),
+    visits: C.int()
+  })
+
+  const result = await runSqlite(Effect.gen(function*() {
+    const executor = Executor.make()
+    const sql = yield* SqlClient.SqlClient
+
+    yield* executor.execute(Q.createTable(users))
+    yield* sql.unsafe(
+      "create unique index partial_conflict_users_email_idx on partial_conflict_users (email) where email is not null",
+      []
+    )
+    yield* executor.execute(Q.insert(users, {
+      id: "user-1",
+      email: "alice@example.com",
+      visits: 1
+    }))
+    yield* executor.execute(Q.insert(users, {
+      id: "user-2",
+      email: "alice@example.com",
+      visits: 2
+    }).pipe(
+      Q.onConflict({
+        columns: ["email"] as const,
+        where: Q.isNotNull(users.email)
+      }, {
+        update: {
+          visits: Q.excluded(users.visits)
+        }
+      })
+    ))
+
+    return yield* executor.execute(Q.select({
+      id: users.id,
+      email: users.email,
+      visits: users.visits
+    }).pipe(Q.from(users)))
+  }))
+
+  expect(result).toEqual([
+    {
+      id: "user-1",
+      email: "alice@example.com",
+      visits: 2
+    }
+  ])
+})
+
 test("sqlite createTable renders literal defaults executable by SQLite", async () => {
   const users = Table.make("default_users", {
     id: C.text().pipe(C.primaryKey),
