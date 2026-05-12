@@ -362,6 +362,32 @@ describe("executor behavior", () => {
     ])
   })
 
+  test("fromDriver normalizes byte and array outputs", () => {
+    const files = Table.make("files", {
+      payload: C.bytea(),
+      tags: C.text().pipe(C.array())
+    })
+
+    const plan = Q.select({
+      payload: files.payload,
+      tags: files.tags
+    }).pipe(
+      Q.from(files)
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          payload: Buffer.from([1, 2, 3]),
+          tags: ["alpha", "beta"]
+        }
+      ]))
+    }).execute(plan))
+
+    expect(Array.from(rows[0]!.payload)).toEqual([1, 2, 3])
+    expect(rows[0]!.tags).toEqual(["alpha", "beta"])
+  })
+
   test("fromDriver applies schema pipes after canonical date normalization", () => {
     const events = Table.make("events", {
       happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
