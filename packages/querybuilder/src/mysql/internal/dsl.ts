@@ -5003,6 +5003,15 @@ type SourceDialectConstraint<
     ? never
     : unknown
 
+type SourceRequirementConstraint<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  CurrentSource extends SourceLike
+> = [SourceRequiredOf<CurrentSource>] extends [never]
+  ? unknown
+  : Exclude<SourceRequiredOf<CurrentSource>, ScopedNamesOfPlan<PlanValue>> extends never
+    ? unknown
+    : SourceRequirementError<CurrentSource>
+
 type SelectFromConstraint<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   CurrentSource extends SourceLike
@@ -5560,10 +5569,10 @@ type AsCurriedResult<
         keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
         SourceNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
-      ) & SourceDialectConstraint<CurrentTable, Dialect>
+      ) & SourceRequirementConstraint<PlanValue, CurrentTable> & SourceDialectConstraint<CurrentTable, Dialect>
     ) => QueryPlan<
       SelectionOfPlan<PlanValue>,
-      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross">,
+      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross", SourceRequiredOf<CurrentTable>>,
       AddAvailable<
         AvailableOfPlan<PlanValue>,
         SourceNameOf<CurrentTable>,
@@ -5574,7 +5583,7 @@ type AsCurriedResult<
       PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
-      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross">,
+      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross", SourceRequiredOf<CurrentTable>>,
       AssumptionsOfPlan<PlanValue>,
       MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
       StatementOfPlan<PlanValue>
@@ -5594,10 +5603,10 @@ type AsCurriedResult<
         keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
         SourceNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
-      ) & SourceDialectConstraint<CurrentTable, Dialect>
+      ) & SourceRequirementConstraint<PlanValue, CurrentTable> & SourceDialectConstraint<CurrentTable, Dialect>
     ) => QueryPlan<
       SelectionOfPlan<PlanValue>,
-      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
+      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind, SourceRequiredOf<CurrentTable>>,
       AvailableAfterJoin<
         AvailableOfPlan<PlanValue>,
         SourceNameOf<CurrentTable>,
@@ -5608,7 +5617,7 @@ type AsCurriedResult<
       PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
-      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
+      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind, SourceRequiredOf<CurrentTable>>,
       PlanAssumptionsAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
       StatementOfPlan<PlanValue>,
@@ -5629,10 +5638,10 @@ type AsCurriedResult<
         keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
         SourceNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
-      ) & SourceDialectConstraint<CurrentTable, Dialect>
+      ) & SourceRequirementConstraint<PlanValue, CurrentTable> & SourceDialectConstraint<CurrentTable, Dialect>
     ) => QueryPlan<
       SelectionOfPlan<PlanValue>,
-      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
+      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind, SourceRequiredOf<CurrentTable>>,
       AvailableAfterJoin<
         AvailableOfPlan<PlanValue>,
         SourceNameOf<CurrentTable>,
@@ -5643,7 +5652,7 @@ type AsCurriedResult<
       PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
-      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind>,
+      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind, SourceRequiredOf<CurrentTable>>,
       PlanAssumptionsAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
       StatementOfPlan<PlanValue>,

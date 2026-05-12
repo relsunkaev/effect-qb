@@ -23,6 +23,11 @@ type DslPlanRuntimeContext = {
 }
 
 export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
+  const sourceRequiredList = (source: any): readonly string[] =>
+    typeof source === "object" && source !== null && "required" in source
+      ? ctx.currentRequiredList(source.required)
+      : []
+
   const buildSetOperation = (kind: string, all: boolean, left: any, right: any) => {
     const leftState = left[Plan.TypeId]
     const leftAst = ctx.getAst(left)
@@ -104,20 +109,23 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       const sourceLike = source
       const { sourceName, sourceBaseName } = ctx.sourceDetails(sourceLike)
       const presenceWitnesses = ctx.presenceWitnessesOfSourceLike(sourceLike)
+      const sourceRequired = sourceRequiredList(sourceLike)
 
       if (currentQuery.statement === "select") {
+        const nextAvailable = {
+          [sourceName]: {
+            name: sourceName,
+            mode: "required",
+            baseName: sourceBaseName,
+            _presentFormula: ctx.trueFormula(),
+            _presenceWitnesses: presenceWitnesses
+          }
+        }
         return ctx.makePlan({
           selection: current.selection,
-          required: ctx.currentRequiredList(current.required).filter((name) => name !== sourceName),
-          available: {
-            [sourceName]: {
-              name: sourceName,
-              mode: "required",
-              baseName: sourceBaseName,
-              _presentFormula: ctx.trueFormula(),
-              _presenceWitnesses: presenceWitnesses
-            }
-          },
+          required: [...ctx.currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
+            !(name in nextAvailable) && values.indexOf(name) === index),
+          available: nextAvailable,
           dialect: current.dialect
         }, {
           ...currentAst,
@@ -143,7 +151,8 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
         }
         return ctx.makePlan({
           selection: current.selection,
-          required: ctx.currentRequiredList(current.required).filter((name) => !(name in nextAvailable)),
+          required: [...ctx.currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
+            !(name in nextAvailable) && values.indexOf(name) === index),
           available: nextAvailable,
           dialect: current.dialect
         }, {
@@ -195,6 +204,7 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       const currentQuery = ctx.getQueryState(plan)
       const { sourceName, sourceBaseName } = ctx.sourceDetails(table)
       const presenceWitnesses = ctx.presenceWitnessesOfSourceLike(table)
+      const sourceRequired = sourceRequiredList(table)
       const nextAvailable = {
         ...current.available,
         [sourceName]: {
@@ -207,7 +217,8 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       }
       return ctx.makePlan({
         selection: current.selection,
-        required: ctx.currentRequiredList(current.required).filter((name) => !(name in nextAvailable)),
+        required: [...ctx.currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
+          !(name in nextAvailable) && values.indexOf(name) === index),
         available: nextAvailable,
         dialect: current.dialect ?? table[Plan.TypeId]?.dialect ?? table.dialect
       }, {
@@ -230,6 +241,7 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       const onFormula = ctx.formulaOfExpressionRuntime(onExpression)
       const { sourceName, sourceBaseName } = ctx.sourceDetails(table)
       const presenceWitnesses = ctx.presenceWitnessesOfSourceLike(table)
+      const sourceRequired = sourceRequiredList(table)
       const baseAvailable = (kind === "right" || kind === "full"
         ? Object.fromEntries(
           Object.entries(current.available as Record<string, any>).map(([name, source]) => [name, {
@@ -253,7 +265,7 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       }
       return ctx.makePlan({
         selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...ctx.extractRequiredFromDialectInputRuntime(on)].filter((name, index, values) =>
+        required: [...ctx.currentRequiredList(current.required), ...sourceRequired, ...ctx.extractRequiredFromDialectInputRuntime(on)].filter((name, index, values) =>
           !(name in nextAvailable) && values.indexOf(name) === index),
         available: nextAvailable,
         dialect: current.dialect ?? table.dialect ?? onExpression[Expression.TypeId].dialect

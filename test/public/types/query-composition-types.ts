@@ -170,6 +170,17 @@ Q.select({
   Q.innerJoin(lateralPosts, Q.eq(lateralPosts.userId, posts.userId))
 )
 
+const lateralJoinPlan = Q.select({
+  userId: users.id,
+  postId: lateralPosts.postId
+}).pipe(
+  Q.from(users),
+  Q.innerJoin(lateralPosts, Q.eq(lateralPosts.userId, users.id))
+)
+type LateralJoinRow = Q.ResultRow<typeof lateralJoinPlan>
+const lateralJoinUserId: LateralJoinRow["userId"] = "00000000-0000-0000-0000-000000000000"
+void lateralJoinUserId
+
 const lockPlan = Q.select({
   userId: users.id
 }).pipe(

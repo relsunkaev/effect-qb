@@ -1385,9 +1385,10 @@ export type AddJoinRequired<
   Available extends Record<string, RowSet.AnySource>,
   JoinedName extends string,
   Predicate extends PredicateInput | never,
-  Kind extends QueryAst.JoinKind = "inner"
+  Kind extends QueryAst.JoinKind = "inner",
+  SourceRequired extends string = never
 > = Exclude<
-  Required | (Predicate extends never ? never : RequiredFromInput<Predicate>),
+  Required | SourceRequired | (Predicate extends never ? never : RequiredFromInput<Predicate>),
   AvailableNames<AvailableAfterJoin<Available, JoinedName, Kind>>
 >
 

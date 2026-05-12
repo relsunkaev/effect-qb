@@ -162,7 +162,7 @@ export const makeLateralSource = <
   lateral.baseName = alias
   lateral.dialect = plan[Plan.TypeId].dialect
   lateral.plan = plan
-  lateral.required = undefined as never
+  lateral.required = currentRequiredList(plan[Plan.TypeId].required) as never
   lateral.columns = columns
   return lateral as unknown as LateralSource<PlanValue, Alias>
 }

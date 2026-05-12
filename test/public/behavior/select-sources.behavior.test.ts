@@ -340,6 +340,29 @@ describe("select sources behavior", () => {
     )
   })
 
+  test("renders lateral joins after their required outer sources are in scope", () => {
+    const lateralPosts = Postgres.Query.select({
+      postId: pgPosts.id,
+      userId: pgPosts.userId
+    }).pipe(
+      Postgres.Query.from(pgPosts),
+      Postgres.Query.where(Postgres.Query.eq(pgPosts.userId, pgUsers.id)),
+      Postgres.Query.lateral("user_posts")
+    )
+
+    const plan = Postgres.Query.select({
+      email: pgUsers.email,
+      postId: lateralPosts.postId
+    }).pipe(
+      Postgres.Query.from(pgUsers),
+      Postgres.Query.innerJoin(lateralPosts, Postgres.Query.eq(lateralPosts.userId, pgUsers.id))
+    )
+
+    expect(renderPostgres(plan).sql).toBe(
+      'select "users"."email" as "email", "user_posts"."postId" as "postId" from "public"."users" inner join lateral (select "posts"."id" as "postId", "posts"."userId" as "userId" from "public"."posts" where ("posts"."userId" = "users"."id")) as "user_posts" on ("user_posts"."userId" = "users"."id")'
+    )
+  })
+
   test("renders scalar and quantified subqueries in mysql", () => {
     const postIds = Mysql.Query.select({
       value: mysqlPosts.id
