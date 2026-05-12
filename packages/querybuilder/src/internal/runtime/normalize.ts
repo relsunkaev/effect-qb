@@ -13,6 +13,14 @@ import {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+const isPlainRecord = (value: unknown): value is Record<string, unknown> => {
+  if (!isRecord(value)) {
+    return false
+  }
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
 const pad = (value: number, width = 2): string => value.toString().padStart(width, "0")
 
 const formatLocalDate = (value: Date): string =>
@@ -231,7 +239,7 @@ export const isJsonValue = (value: unknown): boolean => {
       if (Array.isArray(value)) {
         return value.every(isJsonValue)
       }
-      return isRecord(value) && Object.values(value).every(isJsonValue)
+      return isPlainRecord(value) && Object.values(value).every(isJsonValue)
     default:
       return false
   }
