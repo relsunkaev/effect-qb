@@ -189,6 +189,34 @@ void filteredNullPostId
 void filteredNullPostTitle
 void filteredNullUpperPostTitle
 
+const filteredThenCrossJoined = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  postTitle: posts.title,
+  commentId: comments.id
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
+  Q.where(Q.isNotNull(posts.title)),
+  Q.crossJoin(comments)
+)
+
+type FilteredThenCrossJoinedRow = Q.ResultRow<typeof filteredThenCrossJoined>
+const filteredCrossUserId: FilteredThenCrossJoinedRow["userId"] = "user-id"
+const filteredCrossPostId: FilteredThenCrossJoinedRow["postId"] = "post-id"
+const filteredCrossPostTitle: FilteredThenCrossJoinedRow["postTitle"] = "hello"
+const filteredCrossCommentId: FilteredThenCrossJoinedRow["commentId"] = "comment-id"
+// @ts-expect-error cross joins should preserve earlier non-null source promotion
+const filteredCrossNullPostId: FilteredThenCrossJoinedRow["postId"] = null
+// @ts-expect-error cross joins should preserve earlier non-null column facts
+const filteredCrossNullPostTitle: FilteredThenCrossJoinedRow["postTitle"] = null
+void filteredCrossUserId
+void filteredCrossPostId
+void filteredCrossPostTitle
+void filteredCrossCommentId
+void filteredCrossNullPostId
+void filteredCrossNullPostTitle
+
 const absentAcrossDependentLeftJoins = Q.select({
   userId: users.id,
   postId: posts.id,
