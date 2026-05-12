@@ -171,6 +171,22 @@ describe("postgres insert behavior", () => {
     ])
   })
 
+  test("rejects postgres conflict targets with unknown columns at runtime", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    expect(() => Postgres.Query.onConflict(unsafeAny(["missing"]), {
+      update: {
+        email: Postgres.Query.excluded(users.email)
+      }
+    })(Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))).toThrow("effect-qb: unknown conflict target column")
+  })
+
   test("canonicalizes insert values using the target column runtime contract", () => {
     const metrics = Postgres.Table.make("metrics", {
       total: Postgres.Column.number(),

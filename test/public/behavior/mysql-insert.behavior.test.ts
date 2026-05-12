@@ -188,4 +188,20 @@ describe("mysql insert behavior", () => {
       "writer"
     ])
   })
+
+  test("rejects mysql conflict targets with unknown columns at runtime", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text()
+    })
+
+    expect(() => Mysql.Query.onConflict(unsafeAny(["missing"]), {
+      update: {
+        email: Mysql.Query.excluded(users.email)
+      }
+    })(Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))).toThrow("effect-qb: unknown conflict target column")
+  })
 })

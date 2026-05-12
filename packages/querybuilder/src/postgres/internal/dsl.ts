@@ -4386,6 +4386,18 @@ type BinaryPredicateExpression<
     }
   }
 
+  const normalizeConflictColumns = <Target extends MutationTargetLike>(
+    target: Target,
+    columnsInput: string | readonly string[]
+  ): readonly [string, ...string[]] => {
+    const columns = normalizeColumnList(columnsInput) as readonly [string, ...string[]]
+    const knownColumns = new Set(Object.keys(target[Table.TypeId].fields))
+    if (columns.some((columnName) => !knownColumns.has(columnName))) {
+      throw new Error("effect-qb: unknown conflict target column")
+    }
+    return columns
+  }
+
   const buildConflictTarget = <Target extends MutationTargetLike>(
     target: Target,
     input: readonly string[] | { readonly columns: readonly string[]; readonly where?: PredicateInput } | { readonly constraint: string }
@@ -4393,7 +4405,7 @@ type BinaryPredicateExpression<
     if (Array.isArray(input)) {
       return {
         kind: "columns",
-        columns: normalizeColumnList(input) as readonly [string, ...string[]]
+        columns: normalizeConflictColumns(target, input)
       }
     }
     if (!Array.isArray(input) && "constraint" in input) {
@@ -4408,7 +4420,7 @@ type BinaryPredicateExpression<
     }
     return {
       kind: "columns",
-      columns: normalizeColumnList(columnTarget.columns) as readonly [string, ...string[]],
+      columns: normalizeConflictColumns(target, columnTarget.columns),
       where: columnTarget.where === undefined ? undefined : toDialectExpression(columnTarget.where)
     }
   }
