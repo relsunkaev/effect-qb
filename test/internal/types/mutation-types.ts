@@ -320,16 +320,13 @@ void badMysqlMultiUpdatePostgresTarget
 const badMysqlMultiDeletePostgresTarget = Mysql.Query.delete([mysqlMutationUsers, pgPosts])
 void badMysqlMultiDeletePostgresTarget
 
+// @ts-expect-error mysql multi-target update values cannot use postgres expressions
 const badMysqlMultiUpdatePostgresValue = Mysql.Query.update([mysqlMutationUsers, mysqlMutationPosts], {
   users: {
     email: Postgres.Query.literal("bad@example.com")
   }
 })
-const badMysqlMultiUpdatePostgresValueRendered = Mysql.Renderer.make().render(
-  // @ts-expect-error mysql multi-target update values cannot use postgres expressions
-  badMysqlMultiUpdatePostgresValue
-)
-void badMysqlMultiUpdatePostgresValueRendered
+void badMysqlMultiUpdatePostgresValue
 
 type PostgresJoinedUpdateStatement = Q.StatementOfPlan<typeof postgresJoinedUpdate>
 type PostgresJoinedDeleteStatement = Q.StatementOfPlan<typeof postgresJoinedDelete>

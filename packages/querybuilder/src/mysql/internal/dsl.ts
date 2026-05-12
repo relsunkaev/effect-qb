@@ -4889,6 +4889,35 @@ type NestedMutationRequiredFromValues<Values> =
         }[keyof Values]
       : never
 
+type NestedMutationDialectFromValues<
+  Values,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> =
+  Values extends ExpressionInput
+    ? DialectOfDialectInput<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    : Values extends Record<string, unknown>
+      ? {
+          [K in keyof Values]: NestedMutationDialectFromValues<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+        }[keyof Values]
+      : never
+
+type MutationValuesDialectConstraint<
+  Values,
+  Dialect extends string,
+  TextDb extends Expression.DbType.Any,
+  NumericDb extends Expression.DbType.Any,
+  BoolDb extends Expression.DbType.Any,
+  TimestampDb extends Expression.DbType.Any,
+  NullDb extends Expression.DbType.Any
+> = Exclude<NestedMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, Dialect> extends never
+  ? unknown
+  : never
+
 type MutationAssignments<Shape extends Record<string, unknown>> = {
   readonly [K in keyof Shape]: QueryAst.AssignmentClause
 }
@@ -5905,12 +5934,12 @@ type AsCurriedResult<
   interface UpdateApi {
     <Targets extends MutationTargetTuple, Values extends UpdateInputOfTarget<Targets>>(
       target: Dialect extends "mysql" ? Targets & MutationTargetTupleDialectConstraint<Targets, Dialect> : never,
-      values: Values
+      values: Values & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     ): QueryPlan<
       {},
       Exclude<NestedMutationRequiredFromValues<Values>, MutationTargetNamesOf<Targets>>,
       AddAvailableMany<{}, MutationTargetNamesOf<Targets>>,
-      TableDialectOf<Targets[0]>,
+      TableDialectOf<Targets[0]> | NestedMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       never,
       MutationTargetNamesOf<Targets>,
       Exclude<NestedMutationRequiredFromValues<Values>, MutationTargetNamesOf<Targets>>,
