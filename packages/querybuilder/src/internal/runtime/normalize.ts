@@ -97,6 +97,9 @@ const canonicalizeDecimalString = (input: string): string => {
   const integer = match[2]!.replace(/^0+(?=\d)/, "") || "0"
   const fraction = (match[3] ?? "").replace(/0+$/, "")
   if (fraction.length === 0) {
+    if (integer === "0") {
+      return "0"
+    }
     return `${sign}${integer}`
   }
   return `${sign}${integer}.${fraction}`
