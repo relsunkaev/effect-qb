@@ -1124,6 +1124,15 @@ type JsonInsertOutputOf<
 type MySqlJsonLengthResult<Value> =
   JsonLengthResult<Value> extends null ? number : JsonLengthResult<Value>
 
+type MySqlJsonTypeName<Value> =
+  JsonTypeName<Value> extends "object" ? "OBJECT" :
+    JsonTypeName<Value> extends "array" ? "ARRAY" :
+      JsonTypeName<Value> extends "string" ? "STRING" :
+        JsonTypeName<Value> extends "number" ? "INTEGER" | "DOUBLE" | "DECIMAL" :
+          JsonTypeName<Value> extends "boolean" ? "BOOLEAN" :
+            JsonTypeName<Value> extends "null" ? "NULL" :
+              JsonTypeName<Value>
+
 type JsonPathGuard<
   Root,
   Target extends JsonPathInput,
@@ -2968,7 +2977,7 @@ type BinaryPredicateExpression<
   ) => buildJsonNodeExpression(
     [base],
     {
-      runtime: undefined as unknown as JsonTypeName<Expression.RuntimeOf<Base>>,
+      runtime: undefined as unknown as MySqlJsonTypeName<Expression.RuntimeOf<Base>>,
       dbType: profile.textDb as TextDb,
       nullability: base[Expression.TypeId].nullability
     },
