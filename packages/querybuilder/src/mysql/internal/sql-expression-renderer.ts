@@ -826,8 +826,8 @@ const assertMatchingSetProjections = (
   left: readonly Projection[],
   right: readonly Projection[]
 ): void => {
-  const leftKeys = left.map((projection) => projection.path.join("."))
-  const rightKeys = right.map((projection) => projection.path.join("."))
+  const leftKeys = left.map((projection) => JSON.stringify(projection.path))
+  const rightKeys = right.map((projection) => JSON.stringify(projection.path))
   if (leftKeys.length !== rightKeys.length || leftKeys.some((key, index) => key !== rightKeys[index])) {
     throw new Error("set operator operands must have matching result rows")
   }
