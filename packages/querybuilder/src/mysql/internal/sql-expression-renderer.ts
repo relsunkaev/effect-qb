@@ -261,6 +261,29 @@ const renderMySqlJsonPath = (
   dialect: SqlDialect
 ): string => dialect.renderLiteral(renderJsonPathStringLiteral(segments), state)
 
+const isJsonArrayIndexSegment = (segment: JsonPath.AnySegment | string | number | undefined): boolean =>
+  typeof segment === "number" || (typeof segment === "object" && segment !== null && segment.kind === "index")
+
+const renderMySqlJsonInsertPath = (
+  segments: ReadonlyArray<JsonPath.AnySegment | string | number>,
+  insertAfter: boolean,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  if (!insertAfter || segments.length === 0) {
+    return renderMySqlJsonPath(segments, state, dialect)
+  }
+  const last = segments[segments.length - 1]
+  const nextSegments = segments.slice(0, -1)
+  if (typeof last === "number") {
+    return renderMySqlJsonPath([...nextSegments, last + 1], state, dialect)
+  }
+  if (typeof last === "object" && last !== null && last.kind === "index") {
+    return renderMySqlJsonPath([...nextSegments, { ...last, index: last.index + 1 }], state, dialect)
+  }
+  return renderMySqlJsonPath(segments, state, dialect)
+}
+
 const renderPostgresJsonPathArray = (
   segments: ReadonlyArray<JsonPath.AnySegment | string | number>,
   state: RenderState,
@@ -653,6 +676,9 @@ const renderJsonExpression = (
         return `${functionName}(${renderPostgresJsonValue(base, state, dialect)}, ${renderPostgresJsonPathArray(segments, state, dialect)}, ${renderPostgresJsonValue(nextValue, state, dialect)}${extra})`
       }
       if (dialect.name === "mysql") {
+        if (kind === "jsonInsert" && isJsonArrayIndexSegment(segments[segments.length - 1])) {
+          return `json_array_insert(${renderExpression(base, state, dialect)}, ${renderMySqlJsonInsertPath(segments, insertAfter, state, dialect)}, ${renderExpression(nextValue, state, dialect)})`
+        }
         const functionName = kind === "jsonInsert" ? "json_insert" : createMissing ? "json_set" : "json_replace"
         return `${functionName}(${renderExpression(base, state, dialect)}, ${renderMySqlJsonPath(segments, state, dialect)}, ${renderExpression(nextValue, state, dialect)})`
       }
