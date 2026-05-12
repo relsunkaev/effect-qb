@@ -197,6 +197,27 @@ describe("select sources behavior", () => {
     )
   })
 
+  test("groups by quantified subquery expressions in postgres", () => {
+    const postIds = Postgres.Query.select({
+      value: pgPosts.id
+    }).pipe(
+      Postgres.Query.from(pgPosts)
+    )
+    const matchesAny = Postgres.Query.inSubquery(pgUsers.id, postIds)
+
+    const plan = Postgres.Query.select({
+      matchesAny,
+      userCount: Postgres.Function.count(pgUsers.id)
+    }).pipe(
+      Postgres.Query.from(pgUsers),
+      Postgres.Query.groupBy(matchesAny)
+    )
+
+    expect(renderPostgres(plan).sql).toBe(
+      'select ("users"."id" in (select "posts"."id" as "value" from "public"."posts")) as "matchesAny", count("users"."id") as "userCount" from "public"."users" group by ("users"."id" in (select "posts"."id" as "value" from "public"."posts"))'
+    )
+  })
+
   test("renders scalar and quantified subqueries in mysql", () => {
     const postIds = Mysql.Query.select({
       value: mysqlPosts.id

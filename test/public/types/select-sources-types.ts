@@ -136,6 +136,24 @@ void scalarValue
 void scalarNull
 void scalarInValue
 
+const groupedSubqueryIds = Postgres.Query.select({
+  value: users.id
+}).pipe(
+  Postgres.Query.from(users)
+)
+const groupedInSubqueryValue = Postgres.Query.inSubquery(users.id, groupedSubqueryIds)
+const groupedInSubqueryPlan = Postgres.Query.select({
+  matchesAny: groupedInSubqueryValue,
+  rowCount: Postgres.Function.count(users.id)
+}).pipe(
+  Postgres.Query.from(users),
+  Postgres.Query.groupBy(groupedInSubqueryValue)
+)
+
+const completeGroupedInSubqueryPlan: Postgres.Query.CompletePlan<typeof groupedInSubqueryPlan> =
+  groupedInSubqueryPlan
+void completeGroupedInSubqueryPlan
+
 const mysqlValuesSource = Mysql.Query.values([
   { id: Mysql.Query.literal(1), email: Mysql.Query.literal("alice@example.com") },
   { id: Mysql.Query.literal(2), email: Mysql.Query.literal("bob@example.com") }
