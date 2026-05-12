@@ -4572,18 +4572,18 @@ type ReturningUnsupportedError<Dialect extends string> = {
 }
 
 type DistinctOnApi<Dialect extends string> = Dialect extends "postgres"
-  ? <Values extends readonly ExpressionInput[]>(
+  ? <Values extends readonly [ExpressionInput, ...ExpressionInput[]]>(
       ...values: Values
     ) => <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ) => QueryPlan<
       SelectionOfPlan<PlanValue>,
-      RequiredOfPlan<PlanValue>,
+      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
       AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue>,
+      PlanDialectOf<PlanValue> | DialectOfDialectInput<Values[number], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue>,
-      OutstandingOfPlan<PlanValue>,
+      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
       AssumptionsOfPlan<PlanValue>,
       CapabilitiesOfPlan<PlanValue>,
       StatementOfPlan<PlanValue>

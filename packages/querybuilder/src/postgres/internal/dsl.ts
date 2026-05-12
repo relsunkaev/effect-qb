@@ -4610,18 +4610,18 @@ type DistinctOnUnsupportedError<Dialect extends string> = {
 }
 
 type DistinctOnApi<Dialect extends string> = Dialect extends "postgres"
-  ? <Values extends readonly ExpressionInput[]>(
+  ? <Values extends readonly [ExpressionInput, ...ExpressionInput[]]>(
       ...values: Values
     ) => <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ) => QueryPlan<
       SelectionOfPlan<PlanValue>,
-      RequiredOfPlan<PlanValue>,
+      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
       AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue>,
+      PlanDialectOf<PlanValue> | DialectOfDialectInput<Values[number], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue>,
-      OutstandingOfPlan<PlanValue>,
+      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
       AssumptionsOfPlan<PlanValue>,
       CapabilitiesOfPlan<PlanValue>,
       StatementOfPlan<PlanValue>,
@@ -5773,18 +5773,18 @@ type AsCurriedResult<
 
   const fullJoin = ((table, on) => (join as any)("full", table, on)) as BinaryJoinApi<"full">
 
-  const distinctOn = ((...values: readonly ExpressionInput[]) => {
+  const distinctOn = (<Values extends readonly [ExpressionInput, ...ExpressionInput[]]>(...values: Values) => {
     const expressions = values.map((value) => toDialectExpression(value)) as Expression.Any[]
     return <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ): QueryPlan<
       SelectionOfPlan<PlanValue>,
-      RequiredOfPlan<PlanValue>,
+      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
       AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue>,
+      PlanDialectOf<PlanValue> | DialectOfDialectInput<Values[number], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       GroupedOfPlan<PlanValue>,
       ScopedNamesOfPlan<PlanValue>,
-      OutstandingOfPlan<PlanValue>,
+      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
       AssumptionsOfPlan<PlanValue>,
       CapabilitiesOfPlan<PlanValue>,
       StatementOfPlan<PlanValue>
@@ -5792,11 +5792,13 @@ type AsCurriedResult<
       const current = plan[Plan.TypeId]
       const currentAst = getAst(plan)
       const currentQuery = getQueryState(plan)
+      const required = values.flatMap((value) => extractRequiredFromDialectInputRuntime(value))
       return makePlan({
         selection: current.selection,
-        required: current.required as RequiredOfPlan<PlanValue>,
+        required: [...currentRequiredList(current.required), ...required].filter((name, index, list) =>
+          !(name in current.available) && list.indexOf(name) === index) as AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
         available: current.available,
-        dialect: current.dialect as PlanDialectOf<PlanValue>
+        dialect: current.dialect as PlanDialectOf<PlanValue> | DialectOfDialectInput<Values[number], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
       }, {
         ...currentAst,
         distinct: true,
