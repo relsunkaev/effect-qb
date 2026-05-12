@@ -141,6 +141,28 @@ const mixedDialectPlan = Postgres.Query.select({
 const mixedDialectRendered = Postgres.Renderer.make().render(mixedDialectPlan)
 void mixedDialectRendered
 
+const mixedDialectLimitPlan = Postgres.Query.select({
+  id: pgUsers.id
+}).pipe(
+  Postgres.Query.from(pgUsers),
+  Postgres.Query.limit(Mysql.Query.literal(1))
+)
+
+// @ts-expect-error mixed-dialect limit plans are not accepted by the postgres renderer
+const mixedDialectLimitRendered = Postgres.Renderer.make().render(mixedDialectLimitPlan)
+void mixedDialectLimitRendered
+
+const mixedDialectOffsetPlan = Postgres.Query.select({
+  id: pgUsers.id
+}).pipe(
+  Postgres.Query.from(pgUsers),
+  Postgres.Query.offset(Mysql.Query.literal(1))
+)
+
+// @ts-expect-error mixed-dialect offset plans are not accepted by the postgres renderer
+const mixedDialectOffsetRendered = Postgres.Renderer.make().render(mixedDialectOffsetPlan)
+void mixedDialectOffsetRendered
+
 const pgRendered = Postgres.Renderer.make().render(pgPlan)
 const myRendered = Mysql.Renderer.make().render(myPlan)
 type PgRow = Renderer.RowOf<typeof pgRendered>
