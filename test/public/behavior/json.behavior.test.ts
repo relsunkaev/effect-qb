@@ -176,6 +176,38 @@ describe("json behavior", () => {
     ])
   })
 
+  test("postgres groups by jsonb text expressions", () => {
+    const docs = makeJsonbTable(Postgres)
+    const cityPath = Postgres.Json.jsonb.path(
+      Postgres.Json.jsonb.key("profile"),
+      Postgres.Json.jsonb.key("address"),
+      Postgres.Json.jsonb.key("city")
+    )
+    const city = Postgres.Json.jsonb.text(docs.payload, cityPath)
+
+    const plan = Postgres.Query.select({
+      city,
+      count: Postgres.Function.count(docs.id)
+    }).pipe(
+      Postgres.Query.from(docs),
+      Postgres.Query.groupBy(city)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select ("docs"."payload" #>> array[$1, $2, $3]) as "city", count("docs"."id") as "count" from "public"."docs" group by ("docs"."payload" #>> array[$4, $5, $6])'
+    )
+    expect(rendered.params).toEqual([
+      "profile",
+      "address",
+      "city",
+      "profile",
+      "address",
+      "city"
+    ])
+  })
+
   test("postgres renders the jsonb-only expression surface", () => {
     const docs = makeJsonbTable(Postgres)
 
