@@ -9,6 +9,7 @@ import * as Table from "../../internal/table.js"
 import type { CastTargetError, OperandCompatibilityError } from "../../internal/coercion/errors.js"
 import type { RuntimeOfDbType } from "../../internal/coercion/analysis.js"
 import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "../../internal/coercion/rules.js"
+import { normalizeDbValue } from "../../internal/runtime/normalize.js"
 import {
   currentRequiredList,
   extractRequiredRuntime,
@@ -4045,19 +4046,27 @@ type BinaryPredicateExpression<
     if (value !== null && typeof value === "object" && Expression.TypeId in value) {
       return retargetLiteralExpression(value as unknown as Expression.Any, column)
     }
+    const columnState = column[Expression.TypeId]
+    const runtimeSchemaAccepts = columnState.runtimeSchema !== undefined &&
+      (Schema.is(columnState.runtimeSchema) as (candidate: unknown) => boolean)(value)
+    const normalizedValue = value === null
+      ? value
+      : runtimeSchemaAccepts
+        ? value
+        : normalizeDbValue(columnState.dbType, value)
     return makeExpression({
-      runtime: value as Value,
-      dbType: column[Expression.TypeId].dbType,
-      runtimeSchema: column[Expression.TypeId].runtimeSchema,
-      driverValueMapping: column[Expression.TypeId].driverValueMapping,
-      nullability: value === null ? "always" : "never",
-      dialect: column[Expression.TypeId].dialect,
+      runtime: normalizedValue as Value,
+      dbType: columnState.dbType,
+      runtimeSchema: columnState.runtimeSchema,
+      driverValueMapping: columnState.driverValueMapping,
+      nullability: normalizedValue === null ? "always" : "never",
+      dialect: columnState.dialect,
       kind: "scalar",
 
       dependencies: {}
     }, {
       kind: "literal",
-      value
+      value: normalizedValue
     })
   }
 
