@@ -11,6 +11,7 @@ import {
   type QueryPlan,
   getAst,
   makeExpression,
+  currentRequiredList,
   type SelectionOfPlan
 } from "./query.js"
 import * as ExpressionAst from "./expression-ast.js"
@@ -54,6 +55,15 @@ const setPath = (
 }
 
 const pathAlias = (path: readonly string[]): string => path.join("__")
+
+const assertSourceComplete = (
+  plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
+): void => {
+  const required = currentRequiredList(plan[Plan.TypeId].required)
+  if (required.length > 0) {
+    throw new Error(`query references sources that are not yet in scope: ${required.join(", ")}`)
+  }
+}
 
 const reboundedColumns = <
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
@@ -100,6 +110,7 @@ export const makeDerivedSource = <
   plan: CompletePlan<PlanValue>,
   alias: Alias
 ): DerivedSource<PlanValue, Alias> => {
+  assertSourceComplete(plan)
   const columns = reboundedColumns(plan, alias)
   const derived = attachPipe(Object.create(DerivedProto)) as Record<string, unknown>
   Object.assign(derived, columns)
@@ -121,6 +132,7 @@ export const makeCteSource = <
   alias: Alias,
   recursive = false
 ): CteSource<PlanValue, Alias> => {
+  assertSourceComplete(plan)
   const columns = reboundedColumns(plan, alias)
   const cte = attachPipe(Object.create(DerivedProto)) as Record<string, unknown>
   Object.assign(cte, columns)
