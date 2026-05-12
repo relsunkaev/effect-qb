@@ -317,8 +317,8 @@ export const makeRowDecoder = (
   const projections = flattenSelection(
     Query.getAst(plan).select as Record<string, unknown>
   )
-  const byAlias = new Map(
-    projections.map((projection) => [projection.alias, projection.expression] as const)
+  const byPath = new Map(
+    projections.map((projection) => [JSON.stringify(projection.path), projection.expression] as const)
   )
   const driverMode = options.driverMode ?? "raw"
   const valueMappings = options.valueMappings ?? rendered.valueMappings
@@ -326,9 +326,9 @@ export const makeRowDecoder = (
   return (row) => {
     const decoded: Record<string, unknown> = {}
     for (const projection of rendered.projections) {
-      const expression = byAlias.get(projection.alias)
+      const expression = byPath.get(JSON.stringify(projection.path))
       if (expression === undefined) {
-        continue
+        throw new Error(`Rendered projection path '${projection.path.join(".")}' does not exist in the query selection`)
       }
       if (!(projection.alias in row)) {
         throw makeRowDecodeError(
