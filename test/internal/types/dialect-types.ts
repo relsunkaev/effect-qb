@@ -113,6 +113,17 @@ type _AssertPgSeriesRequired = Assert<IsExact<PgSeriesRequired, never>>
 type _AssertPgSeriesAvailableKeys = Assert<IsExact<keyof PgSeriesAvailable, "series">>
 type _AssertPgSeriesDialect = Assert<IsExact<PgSeriesDialect, "postgres">>
 
+const mixedDialectPlan = Postgres.Query.select({
+  id: pgUsers.id
+}).pipe(
+  Postgres.Query.from(pgUsers),
+  Postgres.Query.orderBy(Mysql.Query.literal(1))
+)
+
+// @ts-expect-error mixed-dialect plans are not accepted by the postgres renderer
+const mixedDialectRendered = Postgres.Renderer.make().render(mixedDialectPlan)
+void mixedDialectRendered
+
 const pgRendered = Postgres.Renderer.make().render(pgPlan)
 const myRendered = Mysql.Renderer.make().render(myPlan)
 type PgRow = Renderer.RowOf<typeof pgRendered>
