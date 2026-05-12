@@ -6,6 +6,7 @@ import type {
   JsonDeleteAtPath,
   JsonInsertAtPath,
   JsonSetAtPath,
+  JsonTextResult,
   JsonValueAtPath
 } from "../internal/json/types.js"
 import { json as postgresJson, jsonb as postgresJsonb } from "./internal/dsl.js"
@@ -208,7 +209,7 @@ type JsonTextRuntime<
   Base extends PostgresJsonExpression<any>,
   Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment
 > =
-  Extract<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, string> |
+  JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
   (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never)
 
 type JsonTextResultExpression<
