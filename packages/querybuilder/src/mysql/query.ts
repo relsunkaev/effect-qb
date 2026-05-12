@@ -16,7 +16,6 @@ import {
   type HavingPredicateInput,
   type OrderDirection,
   type OutputOfSelection,
-  type MutationInputOf,
   type MutationTargetLike,
   type NumericExpressionInput,
   type PredicateInput,
@@ -136,7 +135,16 @@ export {
   orderBy,
   groupBy
 } from "./internal/dsl.js"
+import type * as Expression from "../internal/scalar.js"
 export { mysqlType as type }
+
+type MysqlMutationValueInput<Value> =
+  | Value
+  | Expression.Scalar<Value, Expression.DbType.Any, Expression.Nullability, "mysql", Expression.ScalarKind, Expression.BindingId>
+
+export type MutationInputOf<Shape> = {
+  readonly [K in keyof Shape]: MysqlMutationValueInput<Shape[K]>
+}
 
 type StructuredSource = AnyValuesSource | AnyUnnestSource | AnyTableFunctionSource
 
@@ -163,7 +171,6 @@ export type {
   HavingPredicateInput,
   OrderDirection,
   OutputOfSelection,
-  MutationInputOf,
   MutationTargetLike,
   NumericExpressionInput,
   PredicateInput,

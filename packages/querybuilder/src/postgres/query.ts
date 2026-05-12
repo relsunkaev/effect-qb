@@ -16,7 +16,6 @@ import {
   type HavingPredicateInput,
   type OrderDirection,
   type OutputOfSelection,
-  type MutationInputOf,
   type MutationTargetLike,
   type NumericExpressionInput,
   type PredicateInput,
@@ -137,8 +136,17 @@ export {
   orderBy,
   groupBy
 } from "./internal/dsl.js"
+import type * as Expression from "../internal/scalar.js"
 export { postgresType as type }
 export const generateSeries: PublicGenerateSeriesApi = dslGenerateSeries as PublicGenerateSeriesApi
+
+type PostgresMutationValueInput<Value> =
+  | Value
+  | Expression.Scalar<Value, Expression.DbType.Any, Expression.Nullability, "postgres", Expression.ScalarKind, Expression.BindingId>
+
+export type MutationInputOf<Shape> = {
+  readonly [K in keyof Shape]: PostgresMutationValueInput<Shape[K]>
+}
 
 type StructuredSource = AnyValuesSource | AnyUnnestSource | AnyTableFunctionSource
 
@@ -165,7 +173,6 @@ export type {
   HavingPredicateInput,
   OrderDirection,
   OutputOfSelection,
-  MutationInputOf,
   MutationTargetLike,
   NumericExpressionInput,
   PredicateInput,
