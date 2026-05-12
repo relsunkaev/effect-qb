@@ -303,6 +303,20 @@ describe("select sources behavior", () => {
     )
   })
 
+  test("rejects incomplete derived and cte sources before rendering invalid nested sql", () => {
+    const subquery = Postgres.Query.select({
+      id: pgUsers.id
+    })
+
+    expect(() => Postgres.Query.as(unsafeAny(subquery), "missing_users")).toThrow(
+      "query references sources that are not yet in scope: users"
+    )
+
+    expect(() => Postgres.Query.with("missing_users")(unsafeAny(subquery))).toThrow(
+      "query references sources that are not yet in scope: users"
+    )
+  })
+
   test("renders scalar and quantified subqueries in mysql", () => {
     const postIds = Mysql.Query.select({
       value: mysqlPosts.id

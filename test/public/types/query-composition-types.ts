@@ -538,6 +538,14 @@ void incompletePlanHint
 const incompleteRendered = Renderer.make().render(incomplete)
 void incompleteRendered
 
+// @ts-expect-error derived subqueries must be source-complete
+const incompleteDerivedSource = Q.as(incomplete, "missing_users")
+void incompleteDerivedSource
+
+// @ts-expect-error cte subqueries must be source-complete
+const incompleteCteSource = Q.with("missing_users")(incomplete)
+void incompleteCteSource
+
 const rendered = Renderer.make().render(windowPlan)
 type RenderedRow = Renderer.RowOf<typeof rendered>
 const renderedRow: RenderedRow = {
