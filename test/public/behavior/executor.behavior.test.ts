@@ -1021,6 +1021,41 @@ describe("executor behavior", () => {
     })
   })
 
+  test("fromDriver rejects non-decimal numeric strings", () => {
+    const metrics = Table.make("non_decimal_numeric_metrics", {
+      total: C.float8()
+    })
+
+    const plan = Q.select({
+      total: metrics.total
+    }).pipe(
+      Q.from(metrics)
+    )
+
+    const result = Effect.runSync(Effect.either(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          total: "0x10"
+        }
+      ]))
+    }).execute(plan)))
+
+    expect(result).toMatchObject({
+      _tag: "Left",
+      left: {
+        _tag: "RowDecodeError",
+        stage: "normalize",
+        projection: {
+          alias: "total"
+        },
+        dbType: {
+          dialect: "postgres",
+          kind: "float8"
+        }
+      }
+    })
+  })
+
   test("normalized driver mode rejects non-canonical numeric strings", () => {
     const metrics = Table.make("normalized_canonical_metrics", {
       total: C.number(),
