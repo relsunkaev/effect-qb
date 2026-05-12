@@ -59,6 +59,8 @@ const boundedString = (length?: number): Schema.Schema<string> =>
     ? Schema.String
     : Schema.String.pipe(Schema.maxLength(length))
 
+const finiteNumber = Schema.Number.pipe(Schema.finite())
+
 export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expression.DbType.Any>(
   schema: SchemaType,
   dbType: Db
@@ -92,8 +94,8 @@ export const number = (options?: BaseColumn.NumericOptions) =>
     ddlType: renderNumericDdlType("numeric", options),
     identity: undefined
   })
-export const float4 = () => primitive(Schema.Number, postgresDatatypes.float4())
-export const float8 = () => primitive(Schema.Number, postgresDatatypes.float8())
+export const float4 = () => primitive(finiteNumber, postgresDatatypes.float4())
+export const float8 = () => primitive(finiteNumber, postgresDatatypes.float8())
 export const boolean = () => primitive(Schema.Boolean, postgresDatatypes.boolean())
 export const date = () => primitive(LocalDateStringSchema, postgresDatatypes.date())
 export const timestamp = () => primitive(LocalDateTimeStringSchema, postgresDatatypes.timestamp())

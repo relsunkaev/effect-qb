@@ -66,7 +66,7 @@ export const DecimalStringSchema = brandString(
 export const JsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
   Schema.Union(
     Schema.String,
-    Schema.Number,
+    Schema.Number.pipe(Schema.finite()),
     Schema.Boolean,
     Schema.Null,
     Schema.Array(JsonValueSchema),

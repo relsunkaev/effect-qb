@@ -43,7 +43,7 @@ const runtimeSchemaForTag = (tag: RuntimeTag): RuntimeSchema | undefined => {
     case "string":
       return Schema.String
     case "number":
-      return Schema.Number
+      return Schema.Number.pipe(Schema.finite())
     case "bigintString":
       return BigIntStringSchema
     case "boolean":
