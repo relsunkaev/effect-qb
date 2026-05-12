@@ -12,33 +12,66 @@ const normalizeTables = (filter?: FilterConfig): ReadonlySet<string> | undefined
     ? new Set(filter.tables)
     : undefined
 
-const inferSchemaFromDdlType = (ddlType: string): string | undefined => {
-  const withoutParams = ddlType.trim().replace(/\(.+\)$/, "").replace(/\[\]$/, "")
-  const match = /^(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*))\.(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*))$/.exec(withoutParams)
-  if (match === null) {
+const stripTypeDecorations = (ddlType: string): string =>
+  ddlType.trim().replace(/\(.+\)$/, "").replace(/\[\]$/, "")
+
+const parseIdentifierPart = (
+  input: string,
+  start: number
+): { readonly value: string; readonly next: number } | undefined => {
+  if (input[start] === "\"") {
+    let value = ""
+    for (let index = start + 1; index < input.length; index++) {
+      if (input[index] !== "\"") {
+        value += input[index]
+        continue
+      }
+      if (input[index + 1] === "\"") {
+        value += "\""
+        index++
+        continue
+      }
+      return {
+        value,
+        next: index + 1
+      }
+    }
     return undefined
   }
-  return match[1] ?? match[2]
+  const match = /^[A-Za-z_][A-Za-z0-9_$]*/.exec(input.slice(start))
+  return match === null
+    ? undefined
+    : {
+        value: match[0],
+        next: start + match[0].length
+      }
 }
 
-const inferNameFromDdlType = (ddlType: string): string | undefined => {
-  const withoutParams = ddlType.trim().replace(/\(.+\)$/, "").replace(/\[\]$/, "")
-  const match = /^(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*))\.(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*))$/.exec(withoutParams)
-  if (match === null) {
+const parseQualifiedDdlType = (
+  ddlType: string
+): { readonly schemaName: string; readonly name: string } | undefined => {
+  const input = stripTypeDecorations(ddlType)
+  const schema = parseIdentifierPart(input, 0)
+  if (schema === undefined || input[schema.next] !== ".") {
     return undefined
   }
-  return match[3] ?? match[4]
+  const name = parseIdentifierPart(input, schema.next + 1)
+  return name !== undefined && name.next === input.length
+    ? {
+        schemaName: schema.value,
+        name: name.value
+      }
+    : undefined
 }
 
 const enumCandidatesForColumn = (
   column: ColumnModel,
   tableSchemaName: string | undefined
 ): readonly string[] => {
-  const schemaFromDdl = inferSchemaFromDdlType(column.ddlType)
-  const nameFromDdl = inferNameFromDdlType(column.ddlType)
+  const qualifiedDdlType = parseQualifiedDdlType(column.ddlType)
   return [
     enumKey(column.typeSchema, column.dbTypeKind),
-    enumKey(schemaFromDdl, nameFromDdl ?? column.dbTypeKind),
+    enumKey(qualifiedDdlType?.schemaName, qualifiedDdlType?.name ?? column.dbTypeKind),
     enumKey(tableSchemaName, column.dbTypeKind)
   ]
 }
