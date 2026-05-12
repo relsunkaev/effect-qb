@@ -119,6 +119,18 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual(["a", "b", "c", "done", "x", "mix", "MIX"])
   })
 
+  test("renders nextval sequence definitions with quoted regclass names", () => {
+    const sequence = Postgres.schema("Audit\"Schema").sequence("User\"ID_seq")
+    const plan = Postgres.Query.select({
+      id: Postgres.Function.nextVal(sequence)
+    })
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe('select nextval(cast($1 as regclass)) as "id"')
+    expect(rendered.params).toEqual(['"Audit""Schema"."User""ID_seq"'])
+  })
+
   test("renders explicit collations with postgres syntax", () => {
     const plan = Postgres.Query.select({
       cEmail: Postgres.Query.collate(Postgres.Query.literal("alice@example.com"), "C"),
