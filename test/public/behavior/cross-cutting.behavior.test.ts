@@ -417,6 +417,53 @@ describe("cross-cutting statement behavior", () => {
     )
   })
 
+  test("rejects invalid rendered row lock modes", () => {
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+    const postgresUsers = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    })
+    const mysqlUsers = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text()
+    })
+
+    const postgresSelect = Postgres.Query.select({
+      id: postgresUsers.id
+    }).pipe(
+      Postgres.Query.from(postgresUsers),
+      Postgres.Query.lock("update")
+    )
+    ;(postgresSelect as any)[queryAst].lock.mode = "exclusive"
+    expect(() =>
+      Postgres.Renderer.make().render(postgresSelect)
+    ).toThrow("lock(...) mode must be update or share for select statements")
+
+    const mysqlSelect = Mysql.Query.select({
+      id: mysqlUsers.id
+    }).pipe(
+      Mysql.Query.from(mysqlUsers),
+      Mysql.Query.lock("update")
+    )
+    ;(mysqlSelect as any)[queryAst].lock.mode = "exclusive"
+    expect(() =>
+      Mysql.Renderer.make().render(mysqlSelect)
+    ).toThrow("lock(...) mode must be update or share for select statements")
+
+    const mysqlUpdate = Mysql.Query.update(mysqlUsers, {
+      email: "next@example.com"
+    }).pipe(Mysql.Query.lock("lowPriority"))
+    ;(mysqlUpdate as any)[queryAst].lock.mode = "quick"
+    expect(() =>
+      Mysql.Renderer.make().render(mysqlUpdate)
+    ).toThrow("lock(...) mode must be lowPriority or ignore for update statements")
+
+    const mysqlDelete = Mysql.Query.delete(mysqlUsers).pipe(Mysql.Query.lock("lowPriority"))
+    ;(mysqlDelete as any)[queryAst].lock.mode = "exclusive"
+    expect(() =>
+      Mysql.Renderer.make().render(mysqlDelete)
+    ).toThrow("lock(...) mode must be lowPriority, quick, or ignore for delete statements")
+  })
+
   test("rejects runtime returning projections on ddl statements", () => {
     const users = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),

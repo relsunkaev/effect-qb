@@ -7,6 +7,7 @@ import * as QueryAst from "../../internal/query-ast.js"
 import type { RenderState, RenderValueContext, SqlDialect } from "../../internal/dialect.js"
 import * as ExpressionAst from "../../internal/expression-ast.js"
 import * as JsonPath from "../../internal/json/path.js"
+import { renderSelectLockMode } from "../../internal/dsl-plan-runtime.js"
 import { renderTransactionIsolationLevel } from "../../internal/dsl-transaction-ddl-runtime.js"
 import {
   renderJsonSelectSql,
@@ -1073,7 +1074,7 @@ export const renderQueryAst = (
           throw new Error("lock(...) cannot specify both nowait and skipLocked")
         }
         clauses.push(
-          `${ast.lock.mode === "update" ? "for update" : "for share"}${ast.lock.nowait ? " nowait" : ""}${ast.lock.skipLocked ? " skip locked" : ""}`
+          `${renderSelectLockMode(ast.lock.mode)}${ast.lock.nowait ? " nowait" : ""}${ast.lock.skipLocked ? " skip locked" : ""}`
         )
       }
       sql = clauses.join(" ")

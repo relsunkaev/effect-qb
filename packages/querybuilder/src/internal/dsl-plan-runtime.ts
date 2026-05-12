@@ -22,6 +22,38 @@ type DslPlanRuntimeContext = {
   readonly attachInsertSource: (plan: any, source: any) => any
 }
 
+export const renderSelectLockMode = (mode: unknown): string => {
+  switch (mode) {
+    case "update":
+      return "for update"
+    case "share":
+      return "for share"
+  }
+  throw new Error("lock(...) mode must be update or share for select statements")
+}
+
+export const renderMysqlMutationLockMode = (
+  mode: unknown,
+  statement: "update" | "delete"
+): string => {
+  switch (mode) {
+    case "lowPriority":
+      return " low_priority"
+    case "ignore":
+      return " ignore"
+    case "quick":
+      if (statement === "delete") {
+        return " quick"
+      }
+      break
+  }
+  throw new Error(
+    statement === "update"
+      ? "lock(...) mode must be lowPriority or ignore for update statements"
+      : "lock(...) mode must be lowPriority, quick, or ignore for delete statements"
+  )
+}
+
 export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const sourceRequiredList = (source: any): readonly string[] =>
     typeof source === "object" && source !== null && "required" in source
@@ -325,25 +357,14 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       const current = plan[Plan.TypeId]
       const currentAst = ctx.getAst(plan)
       const currentQuery = ctx.getQueryState(plan)
-      if (currentQuery.statement === "select" && mode !== "update" && mode !== "share") {
-        throw new Error("lock(...) mode must be update or share for select statements")
+      if (currentQuery.statement === "select") {
+        renderSelectLockMode(mode)
       }
-      if (
-        ctx.profile.dialect === "mysql" &&
-        currentQuery.statement === "update" &&
-        mode !== "lowPriority" &&
-        mode !== "ignore"
-      ) {
-        throw new Error("lock(...) mode must be lowPriority or ignore for update statements")
+      if (ctx.profile.dialect === "mysql" && currentQuery.statement === "update") {
+        renderMysqlMutationLockMode(mode, "update")
       }
-      if (
-        ctx.profile.dialect === "mysql" &&
-        currentQuery.statement === "delete" &&
-        mode !== "lowPriority" &&
-        mode !== "quick" &&
-        mode !== "ignore"
-      ) {
-        throw new Error("lock(...) mode must be lowPriority, quick, or ignore for delete statements")
+      if (ctx.profile.dialect === "mysql" && currentQuery.statement === "delete") {
+        renderMysqlMutationLockMode(mode, "delete")
       }
       return ctx.makePlan({
         selection: current.selection,
