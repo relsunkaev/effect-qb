@@ -386,7 +386,7 @@ const renderPostgresJsonAccessStep = (
     case "key":
       return `${textMode ? "->>" : "->"} ${dialect.renderLiteral(segment.key, state)}`
     case "index":
-      return `${textMode ? "->>" : "->"} ${dialect.renderLiteral(String(segment.index), state)}`
+      return `${textMode ? "->>" : "->"} ${dialect.renderLiteral(segment.index, state)}`
     default:
       throw new Error("Postgres exact JSON access requires key/index segments")
   }
@@ -729,7 +729,7 @@ const renderJsonExpression = (
           const segment = segments[0]!
           return `(${baseSql} - ${segment.kind === "key"
             ? dialect.renderLiteral(segment.key, state)
-            : dialect.renderLiteral(String(segment.index), state)})`
+            : dialect.renderLiteral(segment.index, state)})`
         }
         return `(${baseSql} #- ${renderPostgresJsonPathArray(segments, state, dialect)})`
       }

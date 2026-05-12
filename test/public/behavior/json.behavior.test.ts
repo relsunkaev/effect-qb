@@ -210,6 +210,30 @@ describe("json behavior", () => {
     ])
   })
 
+  test("postgres binds direct json array indexes as numbers", () => {
+    const docs = Postgres.Table.make("docs", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      payload: Postgres.Column.jsonb(Schema.Array(Schema.String))
+    })
+
+    const plan = Postgres.Query.select({
+      firstJson: Postgres.Json.jsonb.get(docs.payload, Postgres.Json.jsonb.index(0)),
+      secondText: Postgres.Json.jsonb.text(docs.payload, Postgres.Json.jsonb.index(1)),
+      withoutFirst: Postgres.Json.jsonb.delete(docs.payload, Postgres.Json.jsonb.index(0))
+    }).pipe(Postgres.Query.from(docs))
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select ("docs"."payload" -> $1) as "firstJson", ("docs"."payload" ->> $2) as "secondText", ("docs"."payload" - $3) as "withoutFirst" from "public"."docs"'
+    )
+    expect(rendered.params).toEqual([
+      0,
+      1,
+      0
+    ])
+  })
+
   test("postgres renders json keys as json values", () => {
     const docs = makeJsonTable(Postgres)
 
