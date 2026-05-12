@@ -208,6 +208,21 @@ describe("json behavior", () => {
     ])
   })
 
+  test("postgres renders json keys as json values", () => {
+    const docs = makeJsonTable(Postgres)
+
+    const plan = Postgres.Query.select({
+      keys: Postgres.Json.json.keys(docs.payload)
+    }).pipe(Postgres.Query.from(docs))
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select (case when json_typeof("docs"."payload") = \'object\' then to_json(array(select json_object_keys("docs"."payload"))) else null end) as "keys" from "public"."docs"'
+    )
+    expect(rendered.params).toEqual([])
+  })
+
   test("runtime grouped validation keeps json path segment boundaries distinct", () => {
     const docs = Postgres.Table.make("docs", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
