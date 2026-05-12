@@ -38,4 +38,20 @@ describe("ddl rendering behavior", () => {
     )
     expect(rendered.params).toEqual([""])
   })
+
+  test("postgres drop index qualifies indexes for schema-scoped tables", () => {
+    const analytics = Postgres.schema("analytics")
+    const events = analytics.table("events", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      userId: Postgres.Column.uuid()
+    })
+
+    const rendered = Postgres.Renderer.make().render(Postgres.Query.dropIndex(events, ["userId"], {
+      ifExists: true
+    }))
+
+    expect(rendered.sql).toBe(
+      'drop index if exists "analytics"."events_userId_idx"'
+    )
+  })
 })
