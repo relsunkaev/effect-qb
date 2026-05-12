@@ -4390,20 +4390,7 @@ type BinaryPredicateExpression<
         columns: normalizeConflictColumns(target, input)
       }
     }
-    if (!Array.isArray(input) && "constraint" in input) {
-      throw new Error("Unsupported mysql conflict target")
-    }
-    const columnTarget = input as {
-      readonly columns: readonly string[]
-      readonly where?: PredicateInput
-    }
-    if (columnTarget.where !== undefined) {
-      throw new Error("Unsupported mysql conflict target")
-    }
-    return {
-      kind: "columns",
-      columns: normalizeConflictColumns(target, columnTarget.columns)
-    }
+    throw new Error("Unsupported mysql conflict target")
   }
 
   const defaultIndexName = (

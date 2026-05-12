@@ -205,11 +205,22 @@ describe("mysql insert behavior", () => {
     }))).toThrow("effect-qb: unknown conflict target column")
   })
 
-  test("rejects mysql named and predicate-scoped conflict targets at runtime", () => {
+  test("rejects mysql object-shaped conflict targets at runtime", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
       email: Mysql.Column.text()
     })
+
+    expect(() => Mysql.Query.onConflict(unsafeAny({
+      columns: ["email"]
+    }), {
+      update: {
+        email: Mysql.Query.excluded(users.email)
+      }
+    })(Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))).toThrow("Unsupported mysql conflict target")
 
     expect(() => Mysql.Query.onConflict(unsafeAny({
       constraint: "users_email_key"
