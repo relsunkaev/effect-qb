@@ -61,13 +61,22 @@ const valuesPlan = Postgres.Query.select({
 type ValuesRow = Q.ResultRow<typeof valuesPlan>
 type ValuesStatement = Q.StatementOfPlan<typeof valuesPlan>
 const valuesId: ValuesRow["id"] = 1
+const valuesIdSecondRow: ValuesRow["id"] = 2
 const valuesEmail: ValuesRow["email"] = "alice@example.com"
 type _AssertValuesStatement = Assert<IsExact<ValuesStatement, "select">>
 // @ts-expect-error values row ids stay numeric literals
 const badValuesId: ValuesRow["id"] = "wrong"
 void badValuesId
 void valuesId
+void valuesIdSecondRow
 void valuesEmail
+
+// @ts-expect-error values rows must project the same columns
+const invalidValuesRows = Postgres.Query.values([
+  { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") },
+  { id: Postgres.Query.literal(2), name: Postgres.Query.literal("Bob") }
+] as const)
+void invalidValuesRows
 
 const unnestSource = Postgres.Query.unnest({
   id: [Postgres.Query.literal(1), Postgres.Query.literal(2)] as const,
@@ -204,13 +213,22 @@ const mysqlValuesPlan = Mysql.Query.select({
 type MysqlValuesRow = Mysql.Query.ResultRow<typeof mysqlValuesPlan>
 type MysqlValuesStatement = Mysql.Query.StatementOfPlan<typeof mysqlValuesPlan>
 const mysqlValuesId: MysqlValuesRow["id"] = 1
+const mysqlValuesIdSecondRow: MysqlValuesRow["id"] = 2
 const mysqlValuesEmail: MysqlValuesRow["email"] = "alice@example.com"
 type _AssertMysqlValuesStatement = Assert<IsExact<MysqlValuesStatement, "select">>
 // @ts-expect-error mysql values row ids stay numeric literals
 const badMysqlValuesId: MysqlValuesRow["id"] = "wrong"
 void badMysqlValuesId
 void mysqlValuesId
+void mysqlValuesIdSecondRow
 void mysqlValuesEmail
+
+// @ts-expect-error mysql values rows must project the same columns
+const invalidMysqlValuesRows = Mysql.Query.values([
+  { id: Mysql.Query.literal(1), email: Mysql.Query.literal("alice@example.com") },
+  { id: Mysql.Query.literal(2), name: Mysql.Query.literal("Bob") }
+] as const)
+void invalidMysqlValuesRows
 
 const mysqlUnnestSource = Mysql.Query.unnest({
   id: [Mysql.Query.literal(1), Mysql.Query.literal(2)] as const,
