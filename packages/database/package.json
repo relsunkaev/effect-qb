@@ -26,6 +26,7 @@
   "imports": {
     "#postgres": "../querybuilder/src/postgres.ts",
     "#mysql": "../querybuilder/src/mysql.ts",
+    "#sqlite": "../querybuilder/src/sqlite.ts",
     "#internal/*": "../querybuilder/src/internal/*"
   },
   "exports": {

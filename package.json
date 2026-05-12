@@ -9,6 +9,7 @@
   "imports": {
     "#postgres": "./packages/querybuilder/src/postgres.ts",
     "#mysql": "./packages/querybuilder/src/mysql.ts",
+    "#sqlite": "./packages/querybuilder/src/sqlite.ts",
     "#internal/*": "./packages/querybuilder/src/internal/*"
   },
   "scripts": {
@@ -28,6 +29,7 @@
     "@effect/sql": "^0.48.0",
     "@effect/sql-mysql2": "0.48.0",
     "@effect/sql-pg": "0.48.0",
+    "@effect/sql-sqlite-bun": "0.48.0",
     "@types/bun": "latest",
     "@typescript/native-preview": "beta",
     "effect": "^3.19.3",

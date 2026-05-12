@@ -33,11 +33,16 @@
       "types": "./src/mysql.ts",
       "import": "./dist/mysql.js"
     },
+    "./sqlite": {
+      "types": "./src/sqlite.ts",
+      "import": "./dist/sqlite.js"
+    },
     "./package.json": "./package.json"
   },
   "imports": {
     "#postgres": "./src/postgres.ts",
     "#mysql": "./src/mysql.ts",
+    "#sqlite": "./src/sqlite.ts",
     "#internal/*": "./src/internal/*"
   },
   "publishConfig": {

@@ -23,7 +23,8 @@ const main = async () => {
     "src",
     "src/postgres.ts",
     "src/postgres/metadata.ts",
-    "src/mysql.ts"
+    "src/mysql.ts",
+    "src/sqlite.ts"
   ], {
     cwd,
     stdout: "inherit",

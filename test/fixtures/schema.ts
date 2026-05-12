@@ -1,5 +1,6 @@
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
+import * as Sqlite from "#sqlite"
 import { Column as C, Table } from "#postgres"
 
 export const makeRootSocialGraph = () => {
@@ -77,6 +78,31 @@ export const makeMysqlSocialGraph = () => {
   }
 }
 
+export const makeSqliteSocialGraph = () => {
+  const users = Sqlite.Table.make("users", {
+    id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+    email: Sqlite.Column.text()
+  })
+
+  const posts = Sqlite.Table.make("posts", {
+    id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+    userId: Sqlite.Column.text(),
+    title: Sqlite.Column.text().pipe(Sqlite.Column.nullable)
+  })
+
+  const comments = Sqlite.Table.make("comments", {
+    id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+    postId: Sqlite.Column.text(),
+    body: Sqlite.Column.text()
+  })
+
+  return {
+    users,
+    posts,
+    comments
+  }
+}
+
 export const makeRootEmployees = () =>
   Table.make("employees", {
     id: C.uuid().pipe(C.primaryKey),
@@ -96,4 +122,11 @@ export const makeMysqlEmployees = () =>
     id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
     managerId: Mysql.Column.uuid().pipe(Mysql.Column.nullable),
     name: Mysql.Column.text()
+  })
+
+export const makeSqliteEmployees = () =>
+  Sqlite.Table.make("employees", {
+    id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+    managerId: Sqlite.Column.text().pipe(Sqlite.Column.nullable),
+    name: Sqlite.Column.text()
   })

@@ -12,6 +12,7 @@
         "@effect/sql": "^0.48.0",
         "@effect/sql-mysql2": "0.48.0",
         "@effect/sql-pg": "0.48.0",
+        "@effect/sql-sqlite-bun": "0.48.0",
         "@types/bun": "latest",
         "@typescript/native-preview": "beta",
         "effect": "^3.19.3",
@@ -23,7 +24,7 @@
     },
     "packages/database": {
       "name": "effect-db",
-      "version": "0.15.0",
+      "version": "0.16.0",
       "bin": {
         "effect-db": "./dist/cli.js",
       },
@@ -40,7 +41,7 @@
     },
     "packages/querybuilder": {
       "name": "effect-qb",
-      "version": "0.15.0",
+      "version": "0.16.0",
       "dependencies": {
         "@effect/experimental": "^0.57.0",
         "@effect/sql": "^0.48.0",
@@ -77,6 +78,8 @@
     "@effect/sql-mysql2": ["@effect/sql-mysql2@0.48.0", "", { "dependencies": { "mysql2": "^3.11.0" }, "peerDependencies": { "@effect/experimental": "^0.57.0", "@effect/platform": "^0.93.0", "@effect/sql": "^0.47.0", "effect": "^3.19.0" } }, "sha512-yW30pn/ukvVSoMqfyc5H8xayMQhdaSh63JmOCKTfHt3BoEjXdSsWnzeCliPiAlKZbJx1j8/a4/CNUxQZTM4KiQ=="],
 
     "@effect/sql-pg": ["@effect/sql-pg@0.48.0", "", { "dependencies": { "pg": "^8.16.3", "pg-cursor": "^2.15.3" }, "peerDependencies": { "@effect/experimental": "^0.57.0", "@effect/platform": "^0.93.0", "@effect/sql": "^0.47.0", "effect": "^3.19.0" } }, "sha512-a5V15dpwGO86aGcC/OUjRGa3g6h//5+szuYNDVsTZoNldecPqSfgBpYgdQe2/rMatPQP6MgIX6KV/34xxKSBUQ=="],
+
+    "@effect/sql-sqlite-bun": ["@effect/sql-sqlite-bun@0.48.0", "", { "peerDependencies": { "@effect/experimental": "^0.57.0", "@effect/platform": "^0.93.0", "@effect/sql": "^0.47.0", "effect": "^3.19.0" } }, "sha512-m1EpkIEMasTEvgXciU6MxbRlVBk0Wn4TRn7098Itn5shkRjjoVpvojGQcOqk3+N913Ny+UqQ+iOGnTyQ4rLlQQ=="],
 
     "@effect/typeclass": ["@effect/typeclass@0.40.0", "", { "peerDependencies": { "effect": "^3.21.0" } }, "sha512-L/2o2ImeqbemFlqH0b3y2PqQTFc+E0/DUnffCU8bkJUGh0yUZmh2RXuXhR8QOpfNCe718JQjI+mLnpVF2MMmaQ=="],
 

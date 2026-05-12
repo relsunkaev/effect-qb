@@ -101,6 +101,10 @@ export function make<Dialect extends string>(
       if (required.length > 0) {
         throw new Error(`query references sources that are not yet in scope: ${required.join(", ")}`)
       }
+      const planDialect = plan[Plan.TypeId].dialect
+      if (planDialect !== dialect) {
+        throw new Error("effect-qb: plan dialect is not compatible with the target renderer or executor")
+      }
       const rendered = render(plan)
       const projections = rendered.projections ?? []
       validateProjections(projections)
