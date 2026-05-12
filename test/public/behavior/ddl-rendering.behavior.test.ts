@@ -127,6 +127,41 @@ describe("ddl rendering behavior", () => {
     ).toThrow("Foreign key action must be noAction, restrict, cascade, setNull, or setDefault")
   })
 
+  test("rejects unknown table option kinds at render time", () => {
+    const postgresUsers = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    })
+    ;(postgresUsers as any)[Postgres.Table.OptionsSymbol] = [
+      ...(postgresUsers as any)[Postgres.Table.OptionsSymbol],
+      { kind: "partition", columns: ["id"] }
+    ]
+    expect(() =>
+      Postgres.Renderer.make().render(Postgres.Query.createTable(postgresUsers))
+    ).toThrow("Unsupported table option kind")
+
+    const mysqlUsers = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    })
+    ;(mysqlUsers as any)[Mysql.Table.OptionsSymbol] = [
+      ...(mysqlUsers as any)[Mysql.Table.OptionsSymbol],
+      { kind: "partition", columns: ["id"] }
+    ]
+    expect(() =>
+      Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlUsers))
+    ).toThrow("Unsupported table option kind")
+
+    const sqliteUsers = Sqlite.Table.make("users", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey)
+    })
+    ;(sqliteUsers as any)[Sqlite.Table.OptionsSymbol] = [
+      ...(sqliteUsers as any)[Sqlite.Table.OptionsSymbol],
+      { kind: "partition", columns: ["id"] }
+    ]
+    expect(() =>
+      Sqlite.Renderer.make().render(Sqlite.Query.createTable(sqliteUsers))
+    ).toThrow("Unsupported table option kind")
+  })
+
   test("rejects mysql unique constraints with unsupported postgres-only options", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),

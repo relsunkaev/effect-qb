@@ -166,6 +166,8 @@ const renderCreateTableSql = (
         break
       case "index":
         break
+      default:
+        throw new Error("Unsupported table option kind")
     }
   }
   return `create table${ifNotExists ? " if not exists" : ""} ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)} (${definitions.join(", ")})`
