@@ -117,6 +117,9 @@ const renderCreateTableSql = (
         definitions.push(`${option.name ? `constraint ${dialect.quoteIdentifier(option.name)} ` : ""}primary key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`)
         break
       case "unique":
+        if (option.nullsNotDistinct || option.deferrable || option.initiallyDeferred) {
+          throw new Error("Unsupported mysql unique constraint options")
+        }
         definitions.push(`${option.name ? `constraint ${dialect.quoteIdentifier(option.name)} ` : ""}unique${option.nullsNotDistinct ? " nulls not distinct" : ""} (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`)
         break
       case "foreignKey": {

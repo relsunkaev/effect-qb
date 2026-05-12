@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
+import * as Sqlite from "#sqlite"
 
 describe("ddl rendering behavior", () => {
   test("postgres check constraints render row-local column references", () => {
@@ -37,6 +38,33 @@ describe("ddl rendering behavior", () => {
       "create table `users` (`id` char(36) not null, `email` text not null, primary key (`id`), constraint `email_not_empty` check ((`email` <> ?)))"
     )
     expect(rendered.params).toEqual([""])
+  })
+
+  test("rejects mysql unique constraints with unsupported postgres-only options", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text().pipe(Mysql.Column.unique.options({
+        nullsNotDistinct: true
+      }))
+    })
+
+    expect(() =>
+      Mysql.Renderer.make().render(Mysql.Query.createTable(users))
+    ).toThrow("Unsupported mysql unique constraint options")
+  })
+
+  test("rejects sqlite unique constraints with unsupported postgres-only options", () => {
+    const users = Sqlite.Table.make("users", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+      email: Sqlite.Column.text().pipe(Sqlite.Column.unique.options({
+        deferrable: true,
+        initiallyDeferred: true
+      }))
+    })
+
+    expect(() =>
+      Sqlite.Renderer.make().render(Sqlite.Query.createTable(users))
+    ).toThrow("Unsupported sqlite unique constraint options")
   })
 
   test("postgres drop index qualifies indexes for schema-scoped tables", () => {
