@@ -83,6 +83,13 @@ Q.update(users, {})
 // @ts-expect-error MySQL multi-table update statements require at least one assignment.
 Q.update([users, posts] as const, { users: {} })
 
+Q.upsert(users, {
+  id: "user-id",
+  email: "alice@example.com"
+}, ["id"] as const,
+  // @ts-expect-error MySQL upsert update values require at least one assignment.
+  {})
+
 const insertCtePlan = Q.insert(users, {
   id: "user-id",
   email: "alice@example.com"

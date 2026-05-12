@@ -212,6 +212,18 @@ describe("sqlite behavior", () => {
     }))).toThrow("conflict update assignments require at least one assignment")
   })
 
+  test("rejects sqlite upsert update actions without assignments", () => {
+    const users = Sqlite.Table.make("users", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+      email: Sqlite.Column.text()
+    })
+
+    expect(() => Sqlite.Query.upsert(users, {
+      id: "user-1",
+      email: "alice@example.com"
+    }, ["email"] as const, {})).toThrow("upsert update assignments require at least one assignment")
+  })
+
   test("rejects sqlite conflict targets with unknown columns at runtime", () => {
     const users = Sqlite.Table.make("users", {
       id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),

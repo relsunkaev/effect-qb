@@ -191,6 +191,9 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     const assignments = ctx.buildMutationAssignments(target, values)
     const updateAssignments = updateValues ? ctx.buildMutationAssignments(target, updateValues) : []
+    if (updateValues !== undefined && updateAssignments.length === 0) {
+      throw new Error("upsert update assignments require at least one assignment")
+    }
     const required = [
       ...assignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies)),
       ...updateAssignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies))

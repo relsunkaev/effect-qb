@@ -201,6 +201,18 @@ describe("postgres insert behavior", () => {
     }))).toThrow("conflict update assignments require at least one assignment")
   })
 
+  test("rejects postgres upsert update actions without assignments", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    expect(() => Postgres.Query.upsert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }, ["email"] as const, {})).toThrow("upsert update assignments require at least one assignment")
+  })
+
   test("canonicalizes insert values using the target column runtime contract", () => {
     const metrics = Postgres.Table.make("metrics", {
       total: Postgres.Column.number(),

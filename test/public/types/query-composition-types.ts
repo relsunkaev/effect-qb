@@ -226,6 +226,13 @@ void upsertCapability
 Q.upsert(users, {
   id: "user-1",
   email: "alice@example.com"
+}, ["id"] as const,
+  // @ts-expect-error upsert update values require at least one assignment
+  {})
+
+Q.upsert(users, {
+  id: "user-1",
+  email: "alice@example.com"
 }, 
 // @ts-expect-error upsert conflict columns must exist on the target table
 ["missing"] as const, {

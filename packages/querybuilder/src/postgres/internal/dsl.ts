@@ -6254,7 +6254,7 @@ type AsCurriedResult<
     target: Target,
     values: Values & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     conflictColumns: ValidateTargetColumns<Target, NormalizeDdlColumns<Columns>>,
-    updateValues?: UpdateValues & MutationValuesDialectConstraint<Exclude<UpdateValues, undefined>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    updateValues?: UpdateValues & UpdateValuesNonEmptyConstraint<Exclude<UpdateValues, undefined>> & MutationValuesDialectConstraint<Exclude<UpdateValues, undefined>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   ) => QueryPlan<
     {},
     Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<Exclude<UpdateValues, undefined>>, SourceNameOf<Target>>,

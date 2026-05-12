@@ -203,6 +203,18 @@ describe("mysql insert behavior", () => {
     }))).toThrow("conflict update assignments require at least one assignment")
   })
 
+  test("rejects mysql upsert update actions without assignments", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text()
+    })
+
+    expect(() => Mysql.Query.upsert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }, ["email"] as const, {})).toThrow("upsert update assignments require at least one assignment")
+  })
+
   test("rejects mysql conflict targets with unknown columns at runtime", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
