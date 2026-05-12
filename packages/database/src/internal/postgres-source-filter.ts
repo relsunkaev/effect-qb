@@ -1,5 +1,5 @@
 import type { FilterConfig } from "./postgres-config.js"
-import { enumKey, tableKey, type ColumnModel } from "effect-qb/postgres/metadata"
+import type { ColumnModel } from "effect-qb/postgres/metadata"
 import type { DiscoveredSourceSchema } from "./postgres-source-discovery.js"
 
 const normalizeSchemas = (filter?: FilterConfig): ReadonlySet<string> | undefined =>
@@ -14,6 +14,9 @@ const normalizeTables = (filter?: FilterConfig): ReadonlySet<string> | undefined
 
 const stripTypeDecorations = (ddlType: string): string =>
   ddlType.trim().replace(/\(.+\)$/, "").replace(/\[\]$/, "")
+
+const sourceIdentityKey = (schemaName: string | undefined, name: string): string =>
+  JSON.stringify([schemaName ?? "public", name])
 
 const parseIdentifierPart = (
   input: string,
@@ -70,9 +73,9 @@ const enumCandidatesForColumn = (
 ): readonly string[] => {
   const qualifiedDdlType = parseQualifiedDdlType(column.ddlType)
   return [
-    enumKey(column.typeSchema, column.dbTypeKind),
-    enumKey(qualifiedDdlType?.schemaName, qualifiedDdlType?.name ?? column.dbTypeKind),
-    enumKey(tableSchemaName, column.dbTypeKind)
+    sourceIdentityKey(column.typeSchema, column.dbTypeKind),
+    sourceIdentityKey(qualifiedDdlType?.schemaName, qualifiedDdlType?.name ?? column.dbTypeKind),
+    sourceIdentityKey(tableSchemaName, column.dbTypeKind)
   ]
 }
 
@@ -98,9 +101,9 @@ export const filterDiscoveredSourceSchema = (
   const filteredTables = discovered.model.tables.filter((table) =>
     matchesTableFilter(table.schemaName, table.name, allowedSchemas, allowedTables)
   )
-  const filteredTableKeys = new Set(filteredTables.map((table) => tableKey(table.schemaName, table.name)))
+  const filteredTableKeys = new Set(filteredTables.map((table) => sourceIdentityKey(table.schemaName, table.name)))
 
-  const sourceEnumKeys = new Set(discovered.model.enums.map((enumType) => enumKey(enumType.schemaName, enumType.name)))
+  const sourceEnumKeys = new Set(discovered.model.enums.map((enumType) => sourceIdentityKey(enumType.schemaName, enumType.name)))
   const referencedEnumKeys = new Set<string>()
   for (const table of filteredTables) {
     for (const column of table.columns) {
@@ -113,14 +116,14 @@ export const filterDiscoveredSourceSchema = (
   }
 
   const filteredEnums = discovered.model.enums.filter((enumType) => {
-    const key = enumKey(enumType.schemaName, enumType.name)
+    const key = sourceIdentityKey(enumType.schemaName, enumType.name)
     if (referencedEnumKeys.has(key)) {
       return true
     }
     return allowedTables === undefined
       && (allowedSchemas === undefined || allowedSchemas.has(enumType.schemaName ?? "public"))
   })
-  const filteredEnumKeys = new Set(filteredEnums.map((enumType) => enumKey(enumType.schemaName, enumType.name)))
+  const filteredEnumKeys = new Set(filteredEnums.map((enumType) => sourceIdentityKey(enumType.schemaName, enumType.name)))
 
   const allowedBindingKeys = new Set([
     ...filteredTableKeys,

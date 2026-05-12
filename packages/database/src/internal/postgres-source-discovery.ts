@@ -73,6 +73,9 @@ export interface SourceBinding {
   readonly kind: "table" | "enum"
 }
 
+const sourceIdentityKey = (schemaName: string | undefined, name: string): string =>
+  JSON.stringify([schemaName ?? "public", name])
+
 const DEFAULT_SOURCE_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
@@ -597,11 +600,11 @@ export const discoverSourceSchema = async (
         readonly schemaName?: string
         readonly baseName: string
       }
-      const key = tableKey(state.schemaName, state.baseName)
+      const key = sourceIdentityKey(state.schemaName, state.baseName)
       const existing = seenKeys.get(key)
       if (existing) {
         throw new Error(
-          `Duplicate discovered table identity '${key}' in '${relative(cwd, existing.filePath)}' and '${relative(cwd, declaration.filePath)}'`
+          `Duplicate discovered table identity '${tableKey(state.schemaName, state.baseName)}' in '${relative(cwd, existing.filePath)}' and '${relative(cwd, declaration.filePath)}'`
         )
       }
       seenKeys.set(key, declaration)
@@ -614,11 +617,11 @@ export const discoverSourceSchema = async (
       continue
     }
     if (isEnumDefinition(value)) {
-      const key = enumKey(value.schemaName, value.name)
+      const key = sourceIdentityKey(value.schemaName, value.name)
       const existing = seenKeys.get(key)
       if (existing) {
         throw new Error(
-          `Duplicate discovered enum identity '${key}' in '${relative(cwd, existing.filePath)}' and '${relative(cwd, declaration.filePath)}'`
+          `Duplicate discovered enum identity '${enumKey(value.schemaName, value.name)}' in '${relative(cwd, existing.filePath)}' and '${relative(cwd, declaration.filePath)}'`
         )
       }
       seenKeys.set(key, declaration)

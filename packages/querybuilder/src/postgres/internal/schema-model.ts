@@ -121,17 +121,17 @@ export const fromDiscoveredValues = (values: ReadonlyArray<unknown>): SchemaMode
   const enums = new Map<string, EnumModel>()
   for (const value of values) {
     if (isEnumDefinition(value)) {
-      enums.set(enumKey(value.schemaName, value.name), toEnumModel(value))
+      enums.set(modelIdentityKey(value.schemaName, value.name), toEnumModel(value))
     } else if (isTableDefinition(value)) {
       for (const enumModel of enumModelsOfTable(value)) {
-        const key = enumKey(enumModel.schemaName, enumModel.name)
+        const key = modelIdentityKey(enumModel.schemaName, enumModel.name)
         const existing = enums.get(key)
         if (existing === undefined) {
           enums.set(key, enumModel)
           continue
         }
         if (JSON.stringify(existing.values) !== JSON.stringify(enumModel.values)) {
-          throw new Error(`Conflicting enum definitions discovered for '${key}'`)
+          throw new Error(`Conflicting enum definitions discovered for '${enumKey(enumModel.schemaName, enumModel.name)}'`)
         }
       }
     }
@@ -148,3 +148,6 @@ export const tableKey = (schemaName: string | undefined, name: string): string =
 
 export const enumKey = (schemaName: string | undefined, name: string): string =>
   `${schemaName ?? "public"}.${name}`
+
+const modelIdentityKey = (schemaName: string | undefined, name: string): string =>
+  JSON.stringify([schemaName ?? "public", name])

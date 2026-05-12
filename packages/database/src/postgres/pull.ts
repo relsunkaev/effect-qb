@@ -168,7 +168,7 @@ const sortTableAdditionsByDependency = (
     return additions
   }
   const keyOf = (addition: PulledAddition & { readonly kind: "table"; readonly model: TableModel }): string =>
-    tableKey(addition.model.schemaName, addition.model.name)
+    schemaObjectKey(addition.model.schemaName, addition.model.name)
   const additionsByKey = new Map(additions.map((addition) => [keyOf(addition), addition] as const))
   const dependenciesByKey = new Map<string, Set<string>>()
   for (const addition of additions) {
@@ -179,7 +179,7 @@ const sortTableAdditionsByDependency = (
         continue
       }
       const reference = option.references()
-      const dependencyKey = tableKey(reference.schemaName, reference.tableName)
+      const dependencyKey = schemaObjectKey(reference.schemaName, reference.tableName)
       if (dependencyKey !== key && additionsByKey.has(dependencyKey)) {
         dependencies.add(dependencyKey)
       }
@@ -219,10 +219,10 @@ const sortTableAdditionsByDependency = (
 const collectCyclicTableKeys = (
   tables: readonly TableModel[]
 ): ReadonlySet<string> => {
-  const keys = new Set(tables.map((table) => tableKey(table.schemaName, table.name)))
+  const keys = new Set(tables.map((table) => schemaObjectKey(table.schemaName, table.name)))
   const edgesByKey = new Map<string, Set<string>>()
   for (const table of tables) {
-    const key = tableKey(table.schemaName, table.name)
+    const key = schemaObjectKey(table.schemaName, table.name)
     const dependencies = new Set<string>()
     for (const option of table.options) {
       if (option.kind !== "foreignKey" || option.columns.length !== 1) {
@@ -232,7 +232,7 @@ const collectCyclicTableKeys = (
       if (reference.columns.length !== 1) {
         continue
       }
-      const dependencyKey = tableKey(reference.schemaName, reference.tableName)
+      const dependencyKey = schemaObjectKey(reference.schemaName, reference.tableName)
       if (keys.has(dependencyKey)) {
         dependencies.add(dependencyKey)
       }
@@ -306,8 +306,9 @@ const renderQueryTypeName = (
 ): string => {
   const normalized = normalizeType(typeName)
   const { schemaName, kind } = inferTypeNameFromDdl(typeName)
-  if (context !== undefined && context.enumKeys.has(enumKey(schemaName, kind))) {
-    const expression = context.enumExpressionByKey?.get(enumKey(schemaName, kind))
+  const key = schemaObjectKey(schemaName, kind)
+  if (context !== undefined && context.enumKeys.has(key)) {
+    const expression = context.enumExpressionByKey?.get(key)
     if (expression !== undefined) {
       return `${expression}.type()`
     }
@@ -436,7 +437,7 @@ const renderQueryTypeExpression = (
     }
     return `${PG_ALIAS}.Type.array(${renderQueryTypeExpression(elementColumn, context)})`
   }
-  if (column.typeKind === "e" || ("enumKeys" in context && context.enumKeys.has(enumKey(column.typeSchema, column.dbTypeKind)))) {
+  if (column.typeKind === "e" || ("enumKeys" in context && context.enumKeys.has(schemaObjectKey(column.typeSchema, column.dbTypeKind)))) {
     const typeName = column.typeSchema === undefined || column.typeSchema === "public"
       ? column.dbTypeKind
       : `${column.typeSchema}.${column.dbTypeKind}`
@@ -1361,7 +1362,7 @@ const makeDerivedColumn = (
     ddlType,
     dbTypeKind,
     typeSchema: schemaName,
-    typeKind: context.enumKeys.has(enumKey(schemaName, dbTypeKind)) ? "e" : undefined
+    typeKind: context.enumKeys.has(schemaObjectKey(schemaName, dbTypeKind)) ? "e" : undefined
   }
 }
 
@@ -1378,7 +1379,7 @@ const renderDbTypeDescriptor = (
   element: ${renderDbTypeDescriptor(makeDerivedColumn(column, context, elementDdl), context)}
 }`
   }
-  if (column.typeKind === "e" || context.enumKeys.has(enumKey(column.typeSchema, column.dbTypeKind))) {
+  if (column.typeKind === "e" || context.enumKeys.has(schemaObjectKey(column.typeSchema, column.dbTypeKind))) {
     return `{
   dialect: "postgres",
   kind: ${renderStringLiteral(column.dbTypeKind)},
@@ -1420,7 +1421,7 @@ const renderColumnBase = (
       ddlType: baseType,
       dbTypeKind: typeName.kind,
       typeSchema: typeName.schemaName ?? column.typeSchema,
-      typeKind: context.enumKeys.has(enumKey(typeName.schemaName ?? column.typeSchema, typeName.kind))
+      typeKind: context.enumKeys.has(schemaObjectKey(typeName.schemaName ?? column.typeSchema, typeName.kind))
         ? "e"
         : column.typeKind
     }
@@ -1465,7 +1466,7 @@ const renderColumnBase = (
     }
   }
   if (column.typeKind === "e") {
-    const expression = context.enumExpressionByKey?.get(enumKey(column.typeSchema, column.dbTypeKind))
+    const expression = context.enumExpressionByKey?.get(schemaObjectKey(column.typeSchema, column.dbTypeKind))
     const qualified = renderQualifiedDdlType(column.typeSchema, column.dbTypeKind)
     return {
       code: expression === undefined
@@ -1674,10 +1675,10 @@ const inlineForeignKeyColumn = (
   if (reference.columns.length !== 1) {
     return undefined
   }
-  if (cyclicTableKeys?.has(tableKey(table.schemaName, table.name))) {
+  if (cyclicTableKeys?.has(schemaObjectKey(table.schemaName, table.name))) {
     return undefined
   }
-  return tableKey(reference.schemaName, reference.tableName) === tableKey(table.schemaName, table.name)
+  return schemaObjectKey(reference.schemaName, reference.tableName) === schemaObjectKey(table.schemaName, table.name)
     ? undefined
     : option.columns[0]
 }
@@ -1748,10 +1749,11 @@ const renderInlineColumnOption = (
         return undefined
       }
       const reference = option.references()
-      const targetKey = tableKey(reference.schemaName, reference.tableName)
+      const targetKey = schemaObjectKey(reference.schemaName, reference.tableName)
       const target = context.bindingByKey.get(targetKey)
+      const displayTargetKey = tableKey(reference.schemaName, reference.tableName)
       if (target === undefined || target.kind !== "table") {
-        throw new Error(`Cannot render foreign key from ${tableKey(table.schemaName, table.name)} to missing source table '${targetKey}'`)
+        throw new Error(`Cannot render foreign key from ${tableKey(table.schemaName, table.name)} to missing source table '${displayTargetKey}'`)
       }
       const targetColumn = reference.columns[0]!
       const targetExpression = `() => ${renderColumnAccess(target.declaration.identifier, targetColumn)}`
@@ -1857,8 +1859,8 @@ const isInlineForeignKeyOption = (
   }
   const reference = option.references()
   return reference.columns.length === 1 &&
-    !cyclicTableKeys?.has(tableKey(table.schemaName, table.name)) &&
-    tableKey(reference.schemaName, reference.tableName) !== tableKey(table.schemaName, table.name)
+    !cyclicTableKeys?.has(schemaObjectKey(table.schemaName, table.name)) &&
+    schemaObjectKey(reference.schemaName, reference.tableName) !== schemaObjectKey(table.schemaName, table.name)
 }
 
 const renderTableOption = (
@@ -1890,10 +1892,11 @@ const renderTableOption = (
       return renderIndexOption(table, option, context)
     case "foreignKey": {
       const reference = option.references()
-      const targetKey = tableKey(reference.schemaName, reference.tableName)
+      const targetKey = schemaObjectKey(reference.schemaName, reference.tableName)
       const target = context.bindingByKey.get(targetKey)
+      const displayTargetKey = tableKey(reference.schemaName, reference.tableName)
       if (target === undefined || target.kind !== "table") {
-        throw new Error(`Cannot render foreign key from ${tableKey(table.schemaName, table.name)} to missing source table '${targetKey}'`)
+        throw new Error(`Cannot render foreign key from ${tableKey(table.schemaName, table.name)} to missing source table '${displayTargetKey}'`)
       }
       return `${TABLE_ALIAS}.foreignKey({ columns: ${renderStringTuple(option.columns)}, target: () => ${target.declaration.identifier}, referencedColumns: ${renderStringTuple(reference.columns)}${option.name ? `, name: ${renderStringLiteral(option.name)}` : ""}${option.onUpdate ? `, onUpdate: ${renderStringLiteral(option.onUpdate)}` : ""}${option.onDelete ? `, onDelete: ${renderStringLiteral(option.onDelete)}` : ""}${option.deferrable !== undefined ? `, deferrable: ${String(option.deferrable)}` : ""}${option.initiallyDeferred !== undefined ? `, initiallyDeferred: ${String(option.initiallyDeferred)}` : ""} })`
     }
@@ -2218,7 +2221,7 @@ const collectExpressionReferences = (
       const target = current.to
       if (typeof target === "string") {
         const { schemaName, kind } = inferTypeNameFromDdl(target)
-        const key = enumKey(schemaName, kind)
+        const key = schemaObjectKey(schemaName, kind)
         if (options.enumKeys.has(key)) {
           options.enumUsageByKey.set(key, (options.enumUsageByKey.get(key) ?? 0) + 1)
         }
@@ -2227,20 +2230,20 @@ const collectExpressionReferences = (
       if (target !== null && typeof target === "object") {
         const record = target as { readonly schema?: unknown; readonly name?: unknown; readonly type?: unknown }
         if (typeof record.schema === "string" && typeof record.name === "string") {
-          const key = enumKey(record.schema, record.name)
+          const key = schemaObjectKey(record.schema, record.name)
           if (options.enumKeys.has(key)) {
             options.enumUsageByKey.set(key, (options.enumUsageByKey.get(key) ?? 0) + 1)
           }
           return
         }
         if (typeof record.name === "string") {
-          const key = enumKey(options.fallbackSchemaName, record.name)
+          const key = schemaObjectKey(options.fallbackSchemaName, record.name)
           if (options.enumKeys.has(key)) {
             options.enumUsageByKey.set(key, (options.enumUsageByKey.get(key) ?? 0) + 1)
           }
         } else if (typeof record.type === "string") {
           const { schemaName, kind } = inferTypeNameFromDdl(record.type)
-          const key = enumKey(schemaName, kind)
+          const key = schemaObjectKey(schemaName, kind)
           if (options.enumKeys.has(key)) {
             options.enumUsageByKey.set(key, (options.enumUsageByKey.get(key) ?? 0) + 1)
           }
@@ -2254,7 +2257,7 @@ const enumColumnKey = (
   column: ColumnModel,
   enumKeys: ReadonlySet<string>
 ): string | undefined => {
-  const direct = enumKey(column.typeSchema, column.dbTypeKind)
+  const direct = schemaObjectKey(column.typeSchema, column.dbTypeKind)
   if (enumKeys.has(direct)) {
     return direct
   }
@@ -2263,7 +2266,7 @@ const enumColumnKey = (
     baseDdlType = baseDdlType.slice(0, -2).trim()
   }
   const inferred = inferTypeNameFromDdl(baseDdlType)
-  const inferredKey = enumKey(inferred.schemaName ?? column.typeSchema, inferred.kind)
+  const inferredKey = schemaObjectKey(inferred.schemaName ?? column.typeSchema, inferred.kind)
   return enumKeys.has(inferredKey)
     ? inferredKey
     : undefined
@@ -2424,7 +2427,7 @@ const renderCanonicalNewModule = (
   const hoistedEnumDeclarations: string[] = []
   const hoistedEnumExports: string[] = []
   for (const addition of enums) {
-    const key = enumKey(addition.model.schemaName, addition.model.name)
+    const key = schemaObjectKey(addition.model.schemaName, addition.model.name)
     const usageCount = enumUsageByKey.get(key) ?? 0
     const hoist = usageCount > 1
     enumExpressionByKey.set(
@@ -2556,8 +2559,8 @@ export const planPostgresPull = async (
   database: SchemaModel
 ): Promise<PullPlan> => {
   const bindingByKey = new Map(discovered.bindings.map((binding) => [binding.key, binding]))
-  const databaseTablesByKey = new Map(database.tables.map((table) => [tableKey(table.schemaName, table.name), table]))
-  const databaseEnumsByKey = new Map(database.enums.map((enumType) => [enumKey(enumType.schemaName, enumType.name), enumType]))
+  const databaseTablesByKey = new Map(database.tables.map((table) => [schemaObjectKey(table.schemaName, table.name), table]))
+  const databaseEnumsByKey = new Map(database.enums.map((enumType) => [schemaObjectKey(enumType.schemaName, enumType.name), enumType]))
   const context: RenderContext = {
     bindingByKey,
     enumKeys: new Set(databaseEnumsByKey.keys())
@@ -2643,25 +2646,25 @@ export const planPostgresPull = async (
 
   const renameTablePairs = pairUniqueBySignature(
     discovered.bindings.filter((binding) => binding.kind === "table" && !matchedSourceBindings.has(binding)),
-    database.tables.filter((table) => !matchedDbTableKeys.has(tableKey(table.schemaName, table.name))),
+    database.tables.filter((table) => !matchedDbTableKeys.has(schemaObjectKey(table.schemaName, table.name))),
     (binding) => tableShapeSignature(toTableModel(binding.value as any)),
     (table) => tableShapeSignature(table)
   )
   for (const { source: binding, db: table } of renameTablePairs) {
     matchedSourceBindings.add(binding)
-    matchedDbTableKeys.add(tableKey(table.schemaName, table.name))
+    matchedDbTableKeys.add(schemaObjectKey(table.schemaName, table.name))
     await scheduleReplacement(binding, table)
   }
 
   const renameEnumPairs = pairUniqueBySignature(
     discovered.bindings.filter((binding) => binding.kind === "enum" && !matchedSourceBindings.has(binding)),
-    database.enums.filter((enumType) => !matchedDbEnumKeys.has(enumKey(enumType.schemaName, enumType.name))),
+    database.enums.filter((enumType) => !matchedDbEnumKeys.has(schemaObjectKey(enumType.schemaName, enumType.name))),
     (binding) => enumShapeSignature(toEnumModel(binding.value as any)),
     (enumType) => enumShapeSignature(enumType)
   )
   for (const { source: binding, db: enumType } of renameEnumPairs) {
     matchedSourceBindings.add(binding)
-    matchedDbEnumKeys.add(enumKey(enumType.schemaName, enumType.name))
+    matchedDbEnumKeys.add(schemaObjectKey(enumType.schemaName, enumType.name))
     await scheduleReplacement(binding, enumType)
   }
 
@@ -2671,7 +2674,7 @@ export const planPostgresPull = async (
   }>>()
 
   for (const table of database.tables) {
-    const key = tableKey(table.schemaName, table.name)
+    const key = schemaObjectKey(table.schemaName, table.name)
     if (matchedDbTableKeys.has(key)) {
       continue
     }
@@ -2718,7 +2721,7 @@ export const planPostgresPull = async (
   }
 
   for (const enumType of database.enums) {
-    const key = enumKey(enumType.schemaName, enumType.name)
+    const key = schemaObjectKey(enumType.schemaName, enumType.name)
     if (matchedDbEnumKeys.has(key)) {
       continue
     }
