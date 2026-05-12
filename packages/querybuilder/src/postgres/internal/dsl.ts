@@ -4183,7 +4183,12 @@ type BinaryPredicateExpression<
 
   const normalizeUnnestColumns = (columns: UnnestColumnsInput): Record<string, readonly Expression.Any[]> =>
     Object.fromEntries(
-      Object.entries(columns).map(([key, values]) => [key, values.map((value) => toDialectExpression(value))])
+      Object.entries(columns).map(([key, values]) => {
+        if (!Array.isArray(values)) {
+          throw new Error("unnest(...) expects every value to be an array")
+        }
+        return [key, values.map((value) => toDialectExpression(value))]
+      })
     ) as Record<string, readonly Expression.Any[]>
 
   const normalizeMutationTargets = (
