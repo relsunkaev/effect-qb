@@ -35,7 +35,8 @@ import {
   type DependencyRecord,
   type DialectOf,
   type DerivedSelectionOf,
-  type DerivedProjectionCompatiblePlan,
+  type DerivedTableCompatiblePlan,
+  type LateralSourceCompatiblePlan,
   type DerivedSourceCompatiblePlan,
   type DerivedSource,
   type CompletePlan,
@@ -5322,7 +5323,7 @@ type AsCurriedResult<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
-    value: DerivedSourceCompatiblePlan<PlanValue>,
+    value: DerivedTableCompatiblePlan<PlanValue>,
     alias: Alias
   ): DerivedSource<PlanValue, Alias>
   function as(valueOrAlias: unknown, alias?: string): unknown {
@@ -5418,13 +5419,13 @@ type AsCurriedResult<
   >(
     alias: Alias
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    value: DerivedProjectionCompatiblePlan<PlanValue>
+    value: LateralSourceCompatiblePlan<PlanValue>
   ) => import("../../internal/query.js").LateralSource<PlanValue, Alias>
   function lateral<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
-    value: DerivedProjectionCompatiblePlan<PlanValue>,
+    value: LateralSourceCompatiblePlan<PlanValue>,
     alias: Alias
   ): import("../../internal/query.js").LateralSource<PlanValue, Alias>
   function lateral(valueOrAlias: unknown, alias?: string): unknown {

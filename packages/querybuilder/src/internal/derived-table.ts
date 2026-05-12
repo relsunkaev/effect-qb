@@ -10,6 +10,7 @@ import {
   type LateralSource,
   type QueryPlan,
   getAst,
+  getQueryState,
   makeExpression,
   currentRequiredList,
   type SelectionOfPlan
@@ -65,6 +66,15 @@ const assertSourceComplete = (
   }
 }
 
+const assertInlineSourceStatement = (
+  plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
+): void => {
+  const statement = getQueryState(plan).statement
+  if (statement !== "select" && statement !== "set") {
+    throw new Error("inline derived sources only accept select-like query plans")
+  }
+}
+
 const reboundedColumns = <
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   Alias extends string
@@ -110,6 +120,7 @@ export const makeDerivedSource = <
   plan: CompletePlan<PlanValue>,
   alias: Alias
 ): DerivedSource<PlanValue, Alias> => {
+  assertInlineSourceStatement(plan)
   assertSourceComplete(plan)
   const columns = reboundedColumns(plan, alias)
   const derived = attachPipe(Object.create(DerivedProto)) as Record<string, unknown>
@@ -154,6 +165,7 @@ export const makeLateralSource = <
   plan: PlanValue,
   alias: Alias
 ): LateralSource<PlanValue, Alias> => {
+  assertInlineSourceStatement(plan)
   const columns = reboundedColumns(plan, alias)
   const lateral = attachPipe(Object.create(DerivedProto)) as Record<string, unknown>
   Object.assign(lateral, columns)

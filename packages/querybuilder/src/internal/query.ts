@@ -1168,6 +1168,26 @@ export type DerivedSourceCompatiblePlan<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > = DerivedProjectionCompatiblePlan<PlanValue, CompletePlan<PlanValue>>
 
+type InlineSourceStatementError<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = PlanValue & {
+  readonly __effect_qb_error__: "effect-qb: inline derived sources only accept select-like query plans"
+  readonly __effect_qb_statement__: StatementOfPlan<PlanValue>
+  readonly __effect_qb_hint__: "Use select(...) or a set operator for as(...) and lateral(...); use with(...) for data-modifying CTEs where supported"
+}
+
+export type DerivedTableCompatiblePlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = StatementOfPlan<PlanValue> extends SelectLikeStatement
+  ? DerivedSourceCompatiblePlan<PlanValue>
+  : InlineSourceStatementError<PlanValue>
+
+export type LateralSourceCompatiblePlan<
+  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+> = StatementOfPlan<PlanValue> extends SelectLikeStatement
+  ? DerivedProjectionCompatiblePlan<PlanValue>
+  : InlineSourceStatementError<PlanValue>
+
 type DerivedLeafExpression<
   Value extends Expression.Any,
   Alias extends string,
