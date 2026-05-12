@@ -69,6 +69,64 @@ describe("ddl rendering behavior", () => {
     expect(renderedMysql.params).toEqual([])
   })
 
+  test("rejects invalid foreign key actions at runtime", () => {
+    const postgresOrgs = Postgres.Table.make("orgs", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    })
+
+    expect(() =>
+      Postgres.Table.make("memberships", {
+        id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+        orgId: Postgres.Column.uuid().pipe(Postgres.Column.foreignKey({
+          target: () => postgresOrgs.id,
+          onDelete: "cascade; drop table orgs"
+        } as never))
+      })
+    ).toThrow("Foreign key action must be noAction, restrict, cascade, setNull, or setDefault")
+
+    const mysqlMemberships = Mysql.Table.make("memberships", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      orgId: Mysql.Column.uuid()
+    })
+    ;(mysqlMemberships as any)[Mysql.Table.OptionsSymbol] = [
+      ...(mysqlMemberships as any)[Mysql.Table.OptionsSymbol],
+      {
+        kind: "foreignKey",
+        columns: ["orgId"],
+        onUpdate: "restrict; drop table orgs",
+        references: () => ({
+          tableName: "orgs",
+          columns: ["id"],
+          knownColumns: ["id"]
+        })
+      }
+    ]
+    expect(() =>
+      Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlMemberships))
+    ).toThrow("Foreign key action must be noAction, restrict, cascade, setNull, or setDefault")
+
+    const sqliteMemberships = Sqlite.Table.make("memberships", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+      orgId: Sqlite.Column.text()
+    })
+    ;(sqliteMemberships as any)[Sqlite.Table.OptionsSymbol] = [
+      ...(sqliteMemberships as any)[Sqlite.Table.OptionsSymbol],
+      {
+        kind: "foreignKey",
+        columns: ["orgId"],
+        onDelete: "cascade; drop table orgs",
+        references: () => ({
+          tableName: "orgs",
+          columns: ["id"],
+          knownColumns: ["id"]
+        })
+      }
+    ]
+    expect(() =>
+      Sqlite.Renderer.make().render(Sqlite.Query.createTable(sqliteMemberships))
+    ).toThrow("Foreign key action must be noAction, restrict, cascade, setNull, or setDefault")
+  })
+
   test("rejects mysql unique constraints with unsupported postgres-only options", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),

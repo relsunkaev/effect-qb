@@ -1,6 +1,6 @@
 import type { ColumnModel, EnumModel, TableModel } from "effect-qb/postgres/metadata"
 import { SchemaExpression } from "effect-qb/postgres"
-import type { IndexKeySpec, ReferentialAction, TableOptionSpec } from "effect-qb/postgres/metadata"
+import type { IndexKeySpec, TableOptionSpec } from "effect-qb/postgres/metadata"
 
 const quote = (value: string): string =>
   `"${value.replaceAll("\"", "\"\"")}"`
@@ -88,7 +88,7 @@ const renderIndexMethod = (method: unknown): string => {
   throw new Error("Postgres index method must be an identifier")
 }
 
-const renderAction = (action: ReferentialAction): string => {
+const renderAction = (action: unknown): string => {
   switch (action) {
     case "noAction":
       return "no action"
@@ -101,6 +101,7 @@ const renderAction = (action: ReferentialAction): string => {
     case "setDefault":
       return "set default"
   }
+  throw new Error("Foreign key action must be noAction, restrict, cascade, setNull, or setDefault")
 }
 
 const renderIdentity = (generation: "always" | "byDefault"): string =>

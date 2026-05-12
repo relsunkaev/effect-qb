@@ -15,6 +15,30 @@ export type DdlExpressionLike = AnyExpression | AnySchemaExpression
 
 export type ReferentialAction = "noAction" | "restrict" | "cascade" | "setNull" | "setDefault"
 
+const referentialActionError = "Foreign key action must be noAction, restrict, cascade, setNull, or setDefault"
+
+export const renderReferentialAction = (action: unknown): string => {
+  switch (action) {
+    case "noAction":
+      return "no action"
+    case "restrict":
+      return "restrict"
+    case "cascade":
+      return "cascade"
+    case "setNull":
+      return "set null"
+    case "setDefault":
+      return "set default"
+  }
+  throw new Error(referentialActionError)
+}
+
+const validateReferentialAction = (action: unknown): void => {
+  if (action !== undefined) {
+    renderReferentialAction(action)
+  }
+}
+
 export type IndexKeySpec =
   | {
       readonly kind: "column"
@@ -212,6 +236,8 @@ export const collectInlineOptions = <Fields extends TableFieldMap>(
       })
     }
     if (column.metadata.references) {
+      validateReferentialAction(column.metadata.references.onUpdate)
+      validateReferentialAction(column.metadata.references.onDelete)
       const local = [columnName] as ColumnList
       options.push({
         kind: "foreignKey",
@@ -307,6 +333,8 @@ export const validateOptions = <Fields extends TableFieldMap>(
           }
         }
         if (option.kind === "foreignKey") {
+          validateReferentialAction(option.onUpdate)
+          validateReferentialAction(option.onDelete)
           const reference = option.references()
           if (reference.columns.length !== columns.length) {
             throw new Error(`Foreign key on table '${tableName}' must reference the same number of columns`)

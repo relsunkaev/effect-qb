@@ -16,7 +16,7 @@ import { normalizeDbValue } from "../../internal/runtime/normalize.js"
 import { flattenSelection, type Projection } from "../../internal/projections.js"
 import { type SelectionValue, validateAggregationSelection } from "../../internal/aggregation-validation.js"
 import * as SchemaExpression from "../../internal/schema-expression.js"
-import type { DdlExpressionLike } from "../../internal/table-options.js"
+import { renderReferentialAction, type DdlExpressionLike } from "../../internal/table-options.js"
 
 const renderDbType = (
   dialect: SqlDialect,
@@ -174,7 +174,7 @@ const renderCreateTableSql = (
       case "foreignKey": {
         const reference = option.references()
         definitions.push(
-          `${option.name ? `constraint ${dialect.quoteIdentifier(option.name)} ` : ""}foreign key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")}) references ${dialect.renderTableReference(reference.tableName, reference.tableName, reference.schemaName)} (${reference.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${option.onDelete ? ` on delete ${option.onDelete.replace(/[A-Z]/g, (value) => ` ${value.toLowerCase()}`).trim()}` : ""}${option.onUpdate ? ` on update ${option.onUpdate.replace(/[A-Z]/g, (value) => ` ${value.toLowerCase()}`).trim()}` : ""}${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`
+          `${option.name ? `constraint ${dialect.quoteIdentifier(option.name)} ` : ""}foreign key (${option.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")}) references ${dialect.renderTableReference(reference.tableName, reference.tableName, reference.schemaName)} (${reference.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${option.onDelete !== undefined ? ` on delete ${renderReferentialAction(option.onDelete)}` : ""}${option.onUpdate !== undefined ? ` on update ${renderReferentialAction(option.onUpdate)}` : ""}${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`
         )
         break
       }

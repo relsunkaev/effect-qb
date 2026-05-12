@@ -407,6 +407,64 @@ describe("postgres schema management", () => {
     })).toThrow("Postgres index method must be an identifier")
   })
 
+  test("rejects invalid postgres foreign key actions before rendering ddl", () => {
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "orgs",
+          columns: [
+            {
+              name: "id",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: []
+        },
+        {
+          kind: "table",
+          schemaName: "public",
+          name: "memberships",
+          columns: [
+            {
+              name: "orgId",
+              ddlType: "uuid",
+              dbTypeKind: "uuid",
+              nullable: false,
+              hasDefault: false,
+              generated: false
+            }
+          ],
+          options: [
+            {
+              kind: "foreignKey",
+              columns: ["orgId"],
+              onDelete: "cascade; drop table orgs" as never,
+              references: () => ({
+                tableName: "orgs",
+                schemaName: "public",
+                columns: ["id"]
+              })
+            }
+          ]
+        }
+      ]
+    }
+
+    expect(() => planPostgresSchemaDiff(source, {
+      dialect: "postgres",
+      enums: [],
+      tables: []
+    })).toThrow("Foreign key action must be noAction, restrict, cascade, setNull, or setDefault")
+  })
+
   test("rejects invalid postgres index key ordering metadata before rendering ddl", () => {
     const invalidOrder: SchemaModel = {
       dialect: "postgres",
