@@ -162,6 +162,37 @@ describe("ddl rendering behavior", () => {
     ).toThrow("Unsupported table option kind")
   })
 
+  test("rejects mismatched ddl payload kinds at render time", () => {
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+
+    const postgresUsers = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    })
+    const postgresCreate = Postgres.Query.createTable(postgresUsers, { ifNotExists: true })
+    ;(postgresCreate as any)[queryAst].ddl.kind = "dropTable"
+    expect(() =>
+      Postgres.Renderer.make().render(postgresCreate)
+    ).toThrow("Unsupported DDL statement kind")
+
+    const mysqlUsers = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    })
+    const mysqlCreate = Mysql.Query.createTable(mysqlUsers, { ifNotExists: true })
+    ;(mysqlCreate as any)[queryAst].ddl.kind = "dropTable"
+    expect(() =>
+      Mysql.Renderer.make().render(mysqlCreate)
+    ).toThrow("Unsupported DDL statement kind")
+
+    const sqliteUsers = Sqlite.Table.make("users", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey)
+    })
+    const sqliteCreate = Sqlite.Query.createTable(sqliteUsers, { ifNotExists: true })
+    ;(sqliteCreate as any)[queryAst].ddl.kind = "dropTable"
+    expect(() =>
+      Sqlite.Renderer.make().render(sqliteCreate)
+    ).toThrow("Unsupported DDL statement kind")
+  })
+
   test("rejects mysql unique constraints with unsupported postgres-only options", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),

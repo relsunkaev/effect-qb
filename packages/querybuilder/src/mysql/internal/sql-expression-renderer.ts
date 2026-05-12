@@ -8,7 +8,7 @@ import type { RenderState, RenderValueContext, SqlDialect } from "../../internal
 import * as ExpressionAst from "../../internal/expression-ast.js"
 import * as JsonPath from "../../internal/json/path.js"
 import { renderMysqlMutationLockMode, renderSelectLockMode } from "../../internal/dsl-plan-runtime.js"
-import { renderTransactionIsolationLevel } from "../../internal/dsl-transaction-ddl-runtime.js"
+import { expectDdlClauseKind, renderTransactionIsolationLevel } from "../../internal/dsl-transaction-ddl-runtime.js"
 import {
   renderJsonSelectSql,
   renderSelectSql,
@@ -1450,14 +1450,15 @@ export const renderQueryAst = (
     case "createTable": {
       const createTableAst = ast as QueryAst.Ast<Record<string, unknown>, any, "createTable">
       assertNoStatementQueryClauses(createTableAst, "createTable")
-      sql = renderCreateTableSql(createTableAst.target!, state, dialect, createTableAst.ddl?.kind === "createTable" && createTableAst.ddl.ifNotExists)
+      const ddl = expectDdlClauseKind(createTableAst.ddl, "createTable")
+      sql = renderCreateTableSql(createTableAst.target!, state, dialect, ddl.ifNotExists)
       break
     }
     case "dropTable": {
       const dropTableAst = ast as QueryAst.Ast<Record<string, unknown>, any, "dropTable">
       assertNoStatementQueryClauses(dropTableAst, "dropTable")
-      const ifExists = dropTableAst.ddl?.kind === "dropTable" && dropTableAst.ddl.ifExists
-      sql = `drop table${ifExists ? " if exists" : ""} ${renderSourceReference(dropTableAst.target!.source, dropTableAst.target!.tableName, dropTableAst.target!.baseTableName, state, dialect)}`
+      const ddl = expectDdlClauseKind(dropTableAst.ddl, "dropTable")
+      sql = `drop table${ddl.ifExists ? " if exists" : ""} ${renderSourceReference(dropTableAst.target!.source, dropTableAst.target!.tableName, dropTableAst.target!.baseTableName, state, dialect)}`
       break
     }
     case "createIndex": {
@@ -1465,7 +1466,7 @@ export const renderQueryAst = (
       assertNoStatementQueryClauses(createIndexAst, "createIndex")
       sql = renderCreateIndexSql(
         createIndexAst.target!,
-        createIndexAst.ddl as Extract<QueryAst.DdlClause, { readonly kind: "createIndex" }>,
+        expectDdlClauseKind(createIndexAst.ddl, "createIndex"),
         state,
         dialect
       )
@@ -1476,7 +1477,7 @@ export const renderQueryAst = (
       assertNoStatementQueryClauses(dropIndexAst, "dropIndex")
       sql = renderDropIndexSql(
         dropIndexAst.target!,
-        dropIndexAst.ddl as Extract<QueryAst.DdlClause, { readonly kind: "dropIndex" }>,
+        expectDdlClauseKind(dropIndexAst.ddl, "dropIndex"),
         state,
         dialect
       )

@@ -23,6 +23,19 @@ export const renderTransactionIsolationLevel = (isolationLevel: unknown): string
   return `isolation level ${isolationLevel}`
 }
 
+export const expectDdlClauseKind = <
+  Ddl extends { readonly kind: string },
+  Kind extends Ddl["kind"]
+>(
+  ddl: Ddl | undefined,
+  kind: Kind
+): Extract<Ddl, { readonly kind: Kind }> => {
+  if (ddl === undefined || ddl.kind !== kind) {
+    throw new Error("Unsupported DDL statement kind")
+  }
+  return ddl as Extract<Ddl, { readonly kind: Kind }>
+}
+
 const validateIsolationLevel = (isolationLevel: unknown): void => {
   renderTransactionIsolationLevel(isolationLevel)
 }
