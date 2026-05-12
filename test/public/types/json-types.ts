@@ -125,6 +125,9 @@ const jsonbHasAnyExpr = J.jsonb.hasAnyKeys(docs.payloadJsonb, "profile", "note")
 const jsonbHasAllExpr = J.jsonb.hasAllKeys(docs.payloadJsonb, "profile", "note")
 const jsonbSetExpr = J.jsonb.set(docs.payloadJsonb, postcodePath, "1000")
 const jsonbInsertExpr = J.jsonb.insert(docs.payloadJsonb, suitePath, "12A")
+const jsonbSetWithoutCreateExpr = J.jsonb.set(docs.payloadJsonb, suitePath, "12A", {
+  createMissing: false
+})
 const jsonbDeleteExpr = J.jsonb.delete(docs.payloadJsonb, J.jsonb.key("note"))
 const jsonbFirstTagExpr = J.jsonb.get(docs.payloadJsonb, wildcardPath)
 const jsonbConcatExpr = J.jsonb.concat({ a: 1 }, { b: "x" })
@@ -266,6 +269,7 @@ type JsonbKeys = E.RuntimeOf<typeof jsonbKeysExpr>
 type JsonbPathExists = E.RuntimeOf<typeof jsonbPathExistsExpr>
 type JsonbPathMatch = E.RuntimeOf<typeof jsonbPathMatchExpr>
 type JsonbStripped = Exclude<E.RuntimeOf<typeof jsonbStrippedExpr>, null>
+type JsonbSetWithoutCreate = E.RuntimeOf<typeof jsonbSetWithoutCreateExpr>
 type Option3PayloadRow = Q.ResultRow<typeof option3Payload>
 type Option3PayloadRuntimeRow = Q.RuntimeResultRow<typeof option3Payload>
 type Option2Or3PayloadRow = Q.ResultRow<typeof option2Or3Payload>
@@ -312,6 +316,7 @@ const jsonbPathExists: JsonbPathExists = true
 const jsonbPathMatch: JsonbPathMatch = true
 const jsonbStrippedNote: JsonbStripped["note"] = undefined
 const jsonbStrippedPostcode: JsonbStripped["profile"]["address"]["postcode"] = undefined
+declare const jsonbSetWithoutCreate: JsonbSetWithoutCreate
 declare const option3PayloadRow: Option3PayloadRow
 declare const option3PayloadRuntimeRow: Option3PayloadRuntimeRow
 declare const option2Or3PayloadRow: Option2Or3PayloadRow
@@ -329,6 +334,8 @@ const option3SelectedKind: "option3" = option3KindSelectedRow.kind
 const option2Or3SelectedViaOrKind: "option2" | "option3" = option2Or3KindSelectedViaOrRow.kind
 const nestedChild2PayloadKind: "child2" = nestedChild2PayloadRow.payload.details.kind
 const nestedChild2SelectedKind: "child2" = nestedChild2PayloadRow.kind
+// @ts-expect-error createMissing: false should not add a missing object key
+jsonbSetWithoutCreate.profile.address.suite
 declare const dottedFlatPayloadRow: DottedFlatPayloadRow
 const dottedFlatKeyKind: "flat" = dottedFlatPayloadRow.payload["a.b"].kind
 const dottedNestedKeyKind: "nested" | "other" = dottedFlatPayloadRow.payload.a.b.kind
@@ -409,6 +416,7 @@ void badOption3SelectedKind
 void badOption2Or3SelectedViaOrKind
 void badNestedChild2SelectedKind
 void jsonbSetExpr
+void jsonbSetWithoutCreateExpr
 void jsonbInsertExpr
 void jsonbDeleteExpr
 void jsonbFirstTagExpr
