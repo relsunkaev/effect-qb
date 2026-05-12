@@ -84,6 +84,27 @@ describe("select sources behavior", () => {
     )
   })
 
+  test("rejects runtime set operators with dotted path collisions", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+
+    const nested = Postgres.Query.select({
+      profile: {
+        email: users.email
+      }
+    }).pipe(Postgres.Query.from(users))
+
+    const dotted = Postgres.Query.select({
+      "profile.email": users.email
+    }).pipe(Postgres.Query.from(users))
+
+    expect(() => renderPostgres(Postgres.Query.union(unsafeAny(nested), unsafeAny(dotted)))).toThrow(
+      "set operator operands must have matching result rows"
+    )
+  })
+
   test("renders standalone values, unnest, and generate series sources in postgres", () => {
     const valuesSource = Postgres.Query.values([
       { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") },
