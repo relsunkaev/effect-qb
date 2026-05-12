@@ -135,6 +135,30 @@ export default {
     }
   })
 
+  test("rejects malformed qualified migration table names", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-config-"))
+    try {
+      await Bun.write(join(tempDir, "effectdb.config.ts"), `
+export default {
+  dialect: "postgres",
+  db: {
+    url: "postgres://example"
+  },
+  source: {
+    include: ["schema.ts"]
+  },
+  migrations: {
+    table: "public..effect_qb_migrations"
+  }
+}
+`)
+
+      await expect(loadPostgresConfig(tempDir)).rejects.toThrow("config.migrations.table must be a valid qualified identifier")
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("rejects missing explicit config paths", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-config-"))
     try {
