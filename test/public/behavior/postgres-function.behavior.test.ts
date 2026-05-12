@@ -24,4 +24,26 @@ describe("postgres function namespace", () => {
     expect(rendered.sql).toBe('select lower("users"."email") as "lowerEmail", coalesce("users"."email", $1) as "fallbackEmail", current_date as "today", current_timestamp as "instant" from "public"."users"')
     expect(rendered.params).toEqual(["missing"])
   })
+
+  test("groups by function call expressions", () => {
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey)
+    })
+    const today = Postgres.Function.currentDate()
+
+    const plan = Q.select({
+      today,
+      userCount: Postgres.Function.count(users.id)
+    }).pipe(
+      Q.from(users),
+      Q.groupBy(today)
+    )
+
+    const rendered = Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'select current_date as "today", count("users"."id") as "userCount" from "public"."users" group by current_date'
+    )
+    expect(rendered.params).toEqual([])
+  })
 })

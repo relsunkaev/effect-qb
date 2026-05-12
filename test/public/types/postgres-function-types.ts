@@ -18,6 +18,13 @@ const localTime = Postgres.Function.localTime()
 const localTimestamp = Postgres.Function.localTimestamp()
 const now = Postgres.Function.now()
 
+const currentDateGrouped = Postgres.Query.select({
+  today: currentDate,
+  rowCount: Postgres.Function.count(Postgres.Query.literal(1))
+}).pipe(
+  Postgres.Query.groupBy(currentDate)
+)
+
 type CurrentDateRuntime = Postgres.Scalar.RuntimeOf<typeof currentDate>
 type CurrentTimeRuntime = Postgres.Scalar.RuntimeOf<typeof currentTime>
 type CurrentTimestampRuntime = Postgres.Scalar.RuntimeOf<typeof currentTimestamp>
@@ -32,9 +39,12 @@ type _AssertLocalTime = Assert<IsExact<LocalTimeRuntime, Postgres.Scalar.LocalTi
 type _AssertLocalTimestamp = Assert<IsExact<LocalTimestampRuntime, Postgres.Scalar.LocalDateTimeString>>
 type _AssertNow = Assert<IsExact<NowRuntime, Postgres.Scalar.InstantString>>
 
+const completeCurrentDateGrouped: Postgres.Query.CompletePlan<typeof currentDateGrouped> = currentDateGrouped
+
 void currentDate
 void currentTime
 void currentTimestamp
 void localTime
 void localTimestamp
 void now
+void completeCurrentDateGrouped
