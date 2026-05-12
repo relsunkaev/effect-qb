@@ -153,6 +153,14 @@ void derivedAliasCollisionSource
 const derivedAliasCollisionCurriedSource = Postgres.Query.as("derived_collision_curried")(derivedAliasCollisionSubquery)
 void derivedAliasCollisionCurriedSource
 
+// @ts-expect-error CTE projection aliases must be validated too
+const cteAliasCollisionSource = Postgres.Query.with("cte_collision")(derivedAliasCollisionSubquery)
+void cteAliasCollisionSource
+
+// @ts-expect-error lateral projection aliases must be validated too
+const lateralAliasCollisionSource = Postgres.Query.lateral("lateral_collision")(derivedAliasCollisionSubquery)
+void lateralAliasCollisionSource
+
 const derivedAliasedProjectionSubquery = Postgres.Query.select({
   value: Postgres.Query.as(users.id, "renamed_value")
 }).pipe(
