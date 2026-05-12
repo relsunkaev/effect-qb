@@ -833,6 +833,47 @@ describe("executor behavior", () => {
       })
     })
 
+    test("fails with RowDecodeError when streamed nested rows miss required aliases", () => {
+      const users = Table.make("users", {
+        id: C.uuid().pipe(C.primaryKey),
+        email: C.text()
+      })
+
+      const plan = Q.select({
+        profile: {
+          id: users.id,
+          email: users.email
+        }
+      }).pipe(
+        Q.from(users)
+      )
+
+      const executor = Executor.make({
+        driver: Executor.driver("postgres", {
+          execute: () => Effect.succeed([]),
+          stream: () =>
+            Stream.fromIterable([
+              {
+                profile__id: userId
+              }
+            ])
+        })
+      })
+
+      const result = Effect.runSync(Effect.either(Stream.runCollect(executor.stream(plan))))
+
+      expect(result).toMatchObject({
+        _tag: "Left",
+        left: {
+          _tag: "RowDecodeError",
+          stage: "schema",
+          projection: {
+            alias: "profile__email"
+          }
+        }
+      })
+    })
+
     test("uses the driver's stream path without calling execute", () => {
       const users = Table.make("users", {
         id: C.uuid().pipe(C.primaryKey)
