@@ -284,6 +284,20 @@ describe("select sources behavior", () => {
     )
   })
 
+  test("rejects mutation plans in subquery expressions before rendering invalid nested sql", () => {
+    const insertPlan = Postgres.Query.insert(pgUsers, {
+      id: "11111111-1111-1111-1111-111111111111",
+      email: "alice@example.com"
+    })
+    const plan = Postgres.Query.select({
+      inserted: Postgres.Query.exists(unsafeAny(insertPlan))
+    })
+
+    expect(() => renderPostgres(plan)).toThrow(
+      "subquery expressions only accept select-like query plans"
+    )
+  })
+
   test("groups by quantified subquery expressions in postgres", () => {
     const postIds = Postgres.Query.select({
       value: pgPosts.id

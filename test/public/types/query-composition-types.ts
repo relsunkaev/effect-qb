@@ -81,6 +81,15 @@ type InvalidCorrelatedExistsPlan = Q.CompletePlan<typeof invalidCorrelatedExists
 const correlatedMissingSource: BrandedMissingSourcesOf<InvalidCorrelatedExistsPlan> = "users"
 void correlatedMissingSource
 
+const insertExistsSubquery = Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com"
+})
+
+// @ts-expect-error exists subqueries only accept select-like plans
+const invalidInsertExists = Q.exists(insertExistsSubquery)
+void invalidInsertExists
+
 const derivedSourceSubquery = Q.select({
   userId: posts.userId,
   title: posts.title
