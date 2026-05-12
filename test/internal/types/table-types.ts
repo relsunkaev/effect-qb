@@ -409,6 +409,13 @@ void emptyUnique
 void emptyTablePrimaryKey
 void emptyForeignKey
 
+// @ts-expect-error foreign keys must reference the same number of columns
+const badForeignKeyArity = Table.foreignKey(["orgId", "role"] as const, () => orgs, ["id"] as const)(Table.make("bad_fk_arity", {
+  orgId: C.uuid(),
+  role: C.text()
+}))
+void badForeignKeyArity
+
 // @ts-expect-error unknown columns are rejected for indexes
 const badIndex = Table.index(["missing"])(Table.make("bad_index", {
   id: C.uuid()
