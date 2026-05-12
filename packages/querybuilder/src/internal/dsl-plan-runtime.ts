@@ -28,7 +28,16 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       ? ctx.currentRequiredList(source.required)
       : []
 
+  const assertPlanComplete = (plan: any): void => {
+    const required = ctx.currentRequiredList(plan[Plan.TypeId].required)
+    if (required.length > 0) {
+      throw new Error(`query references sources that are not yet in scope: ${required.join(", ")}`)
+    }
+  }
+
   const buildSetOperation = (kind: string, all: boolean, left: any, right: any) => {
+    assertPlanComplete(left)
+    assertPlanComplete(right)
     const leftState = left[Plan.TypeId]
     const leftAst = ctx.getAst(left)
     const basePlan = leftAst.kind === "set"
