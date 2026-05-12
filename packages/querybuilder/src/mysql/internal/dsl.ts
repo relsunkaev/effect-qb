@@ -4025,17 +4025,36 @@ type BinaryPredicateExpression<
     value: Value,
     column: Expression.Any
   ): Expression.Any => {
+    const columnState = column[Expression.TypeId]
+    const normalizeMutationValue = (candidate: unknown): unknown => {
+      const runtimeSchemaAccepts = columnState.runtimeSchema !== undefined &&
+        (Schema.is(columnState.runtimeSchema) as (input: unknown) => boolean)(candidate)
+      return candidate === null || runtimeSchemaAccepts
+        ? candidate
+        : normalizeDbValue(columnState.dbType, candidate)
+    }
     if (value !== null && typeof value === "object" && Expression.TypeId in value) {
+      const expression = value as unknown as Expression.Any
+      const ast = (expression as unknown as { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
+      if (ast.kind === "literal") {
+        const normalizedValue = normalizeMutationValue(ast.value)
+        return makeExpression({
+          runtime: normalizedValue,
+          dbType: columnState.dbType,
+          runtimeSchema: columnState.runtimeSchema,
+          driverValueMapping: columnState.driverValueMapping,
+          nullability: normalizedValue === null ? "always" : "never",
+          dialect: columnState.dialect,
+          kind: "scalar",
+          dependencies: {}
+        }, {
+          kind: "literal",
+          value: normalizedValue
+        })
+      }
       return retargetLiteralExpression(value as unknown as Expression.Any, column)
     }
-    const columnState = column[Expression.TypeId]
-    const runtimeSchemaAccepts = columnState.runtimeSchema !== undefined &&
-      (Schema.is(columnState.runtimeSchema) as (candidate: unknown) => boolean)(value)
-    const normalizedValue = value === null
-      ? value
-      : runtimeSchemaAccepts
-        ? value
-        : normalizeDbValue(columnState.dbType, value)
+    const normalizedValue = normalizeMutationValue(value)
     return makeExpression({
       runtime: normalizedValue as Value,
       dbType: columnState.dbType,
