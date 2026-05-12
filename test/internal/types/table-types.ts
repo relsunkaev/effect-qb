@@ -420,6 +420,24 @@ void badForeignKeyArity
 const badRichIndex = Table.index({ name: "bad_rich_index" })
 void badRichIndex
 
+// @ts-expect-error rich index columns must exist on the target table
+const badRichIndexColumn = Table.index({ columns: ["missing"] as const })(Table.make("bad_rich_index_column", {
+  id: C.uuid()
+}))
+void badRichIndexColumn
+
+// @ts-expect-error rich index included columns must exist on the target table
+const badRichIndexInclude = Table.index({ columns: ["id"] as const, include: ["missing"] as const })(Table.make("bad_rich_index_include", {
+  id: C.uuid()
+}))
+void badRichIndexInclude
+
+// @ts-expect-error rich index key columns must exist on the target table
+const badRichIndexKey = Table.index({ keys: [{ column: "missing" }] as const })(Table.make("bad_rich_index_key", {
+  id: C.uuid()
+}))
+void badRichIndexKey
+
 // @ts-expect-error unknown columns are rejected for indexes
 const badIndex = Table.index(["missing"])(Table.make("bad_index", {
   id: C.uuid()
