@@ -659,6 +659,51 @@ describe("postgres dialect behavior", () => {
     ])
   })
 
+  test("does not duplicate registered ctes inside later derived subqueries", () => {
+    const users = Postgres.Table.make("users", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      email: Postgres.Column.text()
+    })
+    const posts = Postgres.Table.make("posts", {
+      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+      userId: Postgres.Column.uuid()
+    })
+
+    const insertedUsers = Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }).pipe(
+      Postgres.Query.returning({
+        id: users.id
+      }),
+      Postgres.Query.with("inserted_users")
+    )
+    const postIds = Postgres.Query.select({
+      postId: posts.id
+    }).pipe(
+      Postgres.Query.from(posts),
+      Postgres.Query.as("post_ids")
+    )
+
+    const plan = Postgres.Query.select({
+      id: insertedUsers.id,
+      postId: postIds.postId
+    }).pipe(
+      Postgres.Query.from(insertedUsers),
+      Postgres.Query.crossJoin(postIds)
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    expect(rendered.sql).toBe(
+      'with "inserted_users" as (insert into "public"."users" ("id", "email") values ($1, $2) returning "users"."id" as "id") select "inserted_users"."id" as "id", "post_ids"."postId" as "postId" from "inserted_users" cross join (select "posts"."id" as "postId" from "public"."posts") as "post_ids"'
+    )
+    expect(rendered.params).toEqual([
+      userId,
+      "alice@example.com"
+    ])
+  })
+
   test("renders postgres lateral joins with correlated outer references", () => {
     const { users, posts } = makePostgresSocialGraph()
 
