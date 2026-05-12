@@ -176,7 +176,7 @@ describe("mysql insert behavior", () => {
     }))
 
     expect(render(defaultInsertPlan).sql).toBe(
-      "insert into `audit_logs` default values"
+      "insert into `audit_logs` () values ()"
     )
 
     expect(render(conflictPlan).sql).toBe(

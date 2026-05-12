@@ -4434,12 +4434,12 @@ type ValidateTargetColumns<
 type CreateIndexOptions = {
   readonly name?: string
   readonly unique?: boolean
-  readonly ifNotExists?: boolean
+  readonly ifNotExists?: never
 }
 
 type DropIndexOptions = {
   readonly name?: string
-  readonly ifExists?: boolean
+  readonly ifExists?: never
 }
 
 type CreateTableOptions = {

@@ -102,3 +102,11 @@ Q.orderBy(users.email)(Q.update(users, { visits: 3 }))
 
 // @ts-expect-error sqlite does not support mysql-style multi-table updates
 Q.update([users, users] as const, { users: { visits: 3 } })
+
+Q.transaction()
+
+// @ts-expect-error sqlite transactions do not support SQL isolation levels
+Q.transaction({ isolationLevel: "serializable" })
+
+// @ts-expect-error sqlite transactions do not support read-only mode
+Q.transaction({ readOnly: true })

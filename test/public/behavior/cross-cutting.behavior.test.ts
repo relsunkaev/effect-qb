@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
+import * as Sqlite from "#sqlite"
 
 describe("cross-cutting statement behavior", () => {
   test("renders postgres truncate, merge, and transaction-control statements", () => {
@@ -249,22 +250,74 @@ describe("cross-cutting statement behavior", () => {
     )
   })
 
-  test("rejects runtime offset modifiers on insert statements", () => {
-    const users = Postgres.Table.make("users", {
+  test("rejects runtime query clauses on insert statements", () => {
+    const postgresUsers = Postgres.Table.make("users", {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
       email: Postgres.Column.text()
     })
+    const mysqlUsers = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text()
+    })
+    const sqliteUsers = Sqlite.Table.make("users", {
+      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
+      email: Sqlite.Column.text()
+    })
+    const dialects = [
+      {
+        Query: Postgres.Query,
+        render: (plan: unknown) => Postgres.Renderer.make().render(plan),
+        users: postgresUsers,
+        insert: Postgres.Query.insert(postgresUsers, {
+          id: "00000000-0000-0000-0000-000000000001",
+          email: "alice@example.com"
+        })
+      },
+      {
+        Query: Mysql.Query,
+        render: (plan: unknown) => Mysql.Renderer.make().render(plan),
+        users: mysqlUsers,
+        insert: Mysql.Query.insert(mysqlUsers, {
+          id: "00000000-0000-0000-0000-000000000001",
+          email: "alice@example.com"
+        })
+      },
+      {
+        Query: Sqlite.Query,
+        render: (plan: unknown) => Sqlite.Renderer.make().render(plan),
+        users: sqliteUsers,
+        insert: Sqlite.Query.insert(sqliteUsers, {
+          id: "user-1",
+          email: "alice@example.com"
+        })
+      }
+    ]
 
-    const offsetInsert = Postgres.Query.insert(users, {
-      id: "00000000-0000-0000-0000-000000000001",
-      email: "alice@example.com"
-    }).pipe(
-      Postgres.Query.offset(10)
-    )
+    for (const { Query, render, users, insert } of dialects) {
+      expect(() =>
+        render(insert.pipe(Query.where(Query.eq(users.email, "alice@example.com"))))
+      ).toThrow("where(...) is not supported for insert statements")
 
-    expect(() => Postgres.Renderer.make().render(offsetInsert)).toThrow(
-      "offset(...) is not supported for insert statements"
-    )
+      expect(() =>
+        render(insert.pipe(Query.innerJoin(users, Query.eq(users.id, users.id))))
+      ).toThrow("join(...) is not supported for insert statements")
+
+      expect(() =>
+        render(insert.pipe(Query.orderBy(users.email)))
+      ).toThrow("orderBy(...) is not supported for insert statements")
+
+      expect(() =>
+        render(insert.pipe(Query.limit(5)))
+      ).toThrow("limit(...) is not supported for insert statements")
+
+      expect(() =>
+        render(insert.pipe(Query.offset(10)))
+      ).toThrow("offset(...) is not supported for insert statements")
+
+      expect(() =>
+        render(insert.pipe(Query.lock("update")))
+      ).toThrow("lock(...) is not supported for insert statements")
+    }
   })
 
   test("rejects runtime limit modifiers on unsupported mutation statements", () => {

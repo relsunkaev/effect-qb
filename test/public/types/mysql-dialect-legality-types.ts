@@ -24,6 +24,16 @@ const restartIdentityTruncate = Q.truncate(users, {
   restartIdentity: true
 })
 
+const unsupportedCreateIndexOption = Q.createIndex(users, ["id", "email"] as const, {
+  // @ts-expect-error MySQL CREATE INDEX does not support IF NOT EXISTS.
+  ifNotExists: true
+})
+
+const unsupportedDropIndexOption = Q.dropIndex(users, ["id", "email"] as const, {
+  // @ts-expect-error MySQL DROP INDEX does not support IF EXISTS.
+  ifExists: true
+})
+
 const returningMutation = Q.insert(users, {
   id: "user-id",
   email: "alice@example.com"
@@ -51,6 +61,8 @@ const mergePlan = Q.merge(users, posts, Q.eq(users.id, posts.userId), {
 
 void fullJoinPlan
 void restartIdentityTruncate
+void unsupportedCreateIndexOption
+void unsupportedDropIndexOption
 void returningMutation
 void insertCte
 void mergePlan

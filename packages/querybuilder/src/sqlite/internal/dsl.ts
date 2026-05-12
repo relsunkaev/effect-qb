@@ -4467,8 +4467,8 @@ type TruncateOptions = {
 }
 
 type TransactionOptions = {
-  readonly isolationLevel?: "read committed" | "repeatable read" | "serializable"
-  readonly readOnly?: boolean
+  readonly isolationLevel?: never
+  readonly readOnly?: never
 }
 
 type LockOptions = {

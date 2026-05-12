@@ -892,6 +892,9 @@ const renderTransactionClause = (
 ): string => {
   switch (clause.kind) {
     case "transaction": {
+      if (clause.isolationLevel !== undefined || clause.readOnly === true) {
+        throw new Error("Unsupported sqlite transaction options")
+      }
       return "begin"
     }
     case "commit":
@@ -972,6 +975,29 @@ const assertNoSqliteMutationModifiers = (
   }
   if (ast.lock) {
     throw new Error(`lock(...) is not supported for ${statement} statements`)
+  }
+}
+
+const assertNoInsertQueryClauses = (
+  ast: Pick<QueryAst.Ast, "where" | "joins" | "orderBy" | "limit" | "offset" | "lock">
+): void => {
+  if (ast.where.length > 0) {
+    throw new Error("where(...) is not supported for insert statements")
+  }
+  if (ast.joins.length > 0) {
+    throw new Error("join(...) is not supported for insert statements")
+  }
+  if (ast.orderBy.length > 0) {
+    throw new Error("orderBy(...) is not supported for insert statements")
+  }
+  if (ast.limit) {
+    throw new Error("limit(...) is not supported for insert statements")
+  }
+  if (ast.offset) {
+    throw new Error("offset(...) is not supported for insert statements")
+  }
+  if (ast.lock) {
+    throw new Error("lock(...) is not supported for insert statements")
   }
 }
 
@@ -1108,6 +1134,7 @@ export const renderQueryAst = (
         throw new Error("distinct(...) is not supported for insert statements")
       }
       assertNoGroupedMutationClauses(insertAst, "insert")
+      assertNoInsertQueryClauses(insertAst)
       const targetSource = insertAst.into!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       sql = `insert into ${target}`

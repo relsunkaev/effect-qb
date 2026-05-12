@@ -920,6 +920,27 @@ describe("mysql dialect behavior", () => {
     ])
   })
 
+  test("rejects mysql mutation offsets that cannot be rendered", () => {
+    const { users } = makeMysqlSocialGraph()
+
+    const offsetUpdate = Mysql.Query.update(users, {
+      email: "author@example.com"
+    }).pipe(
+      Mysql.Query.offset(2)
+    )
+
+    const offsetDelete = Mysql.Query.delete(users).pipe(
+      Mysql.Query.offset(2)
+    )
+
+    expect(() => Mysql.Renderer.make().render(offsetUpdate)).toThrow(
+      "offset(...) is not supported for update statements"
+    )
+    expect(() => Mysql.Renderer.make().render(offsetDelete)).toThrow(
+      "offset(...) is not supported for delete statements"
+    )
+  })
+
   test("renders mysql joined delete modifiers order and limit", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
@@ -1049,7 +1070,7 @@ describe("mysql dialect behavior", () => {
     }))
 
     expect(Mysql.Renderer.make().render(defaultInsertPlan).sql).toBe(
-      "insert into `audit_logs` default values"
+      "insert into `audit_logs` () values ()"
     )
 
     expect(Mysql.Renderer.make().render(conflictPlan).sql).toBe(
@@ -1107,16 +1128,18 @@ describe("mysql dialect behavior", () => {
     expect(Mysql.Renderer.make().render(Mysql.Query.createTable(memberships, {
       ifNotExists: true
     })).params).toEqual([])
-    expect(Mysql.Renderer.make().render(Mysql.Query.createIndex(memberships, ["role", "orgId"] as const, {
-      ifNotExists: true
-    })).sql).toBe(
+    expect(Mysql.Renderer.make().render(Mysql.Query.createIndex(memberships, ["role", "orgId"] as const)).sql).toBe(
       'create index `memberships_role_orgId_idx` on `memberships` (`role`, `orgId`)'
     )
-    expect(Mysql.Renderer.make().render(Mysql.Query.dropIndex(memberships, ["role", "orgId"] as const, {
-      ifExists: true
-    })).sql).toBe(
+    expect(Mysql.Renderer.make().render(Mysql.Query.dropIndex(memberships, ["role", "orgId"] as const)).sql).toBe(
       'drop index `memberships_role_orgId_idx` on `memberships`'
     )
+    expect(() => Mysql.Renderer.make().render(Mysql.Query.createIndex(memberships, ["role", "orgId"] as const, {
+      ifNotExists: true
+    }))).toThrow("Unsupported mysql create index options")
+    expect(() => Mysql.Renderer.make().render(Mysql.Query.dropIndex(memberships, ["role", "orgId"] as const, {
+      ifExists: true
+    }))).toThrow("Unsupported mysql drop index options")
     expect(Mysql.Renderer.make().render(Mysql.Query.dropTable(memberships, {
       ifExists: true
     })).sql).toBe(

@@ -462,6 +462,20 @@ describe("sqlite behavior", () => {
     ).toThrow("Unsupported transaction isolation level")
   })
 
+  test("rejects sqlite transaction options that cannot be rendered", () => {
+    expect(() =>
+      render(Sqlite.Query.transaction({
+        isolationLevel: "serializable"
+      }))
+    ).toThrow("Unsupported sqlite transaction options")
+
+    expect(() =>
+      render(Sqlite.Query.transaction({
+        readOnly: true
+      }))
+    ).toThrow("Unsupported sqlite transaction options")
+  })
+
   test("rejects empty sqlite membership predicates", () => {
     const { users } = makeSqliteSocialGraph()
 

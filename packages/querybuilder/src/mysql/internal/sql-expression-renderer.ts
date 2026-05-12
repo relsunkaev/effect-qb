@@ -192,6 +192,9 @@ const renderCreateIndexSql = (
   state: RenderState,
   dialect: SqlDialect
 ): string => {
+  if (ddl.ifNotExists) {
+    throw new Error("Unsupported mysql create index options")
+  }
   const maybeIfNotExists = dialect.name === "postgres" && ddl.ifNotExists ? " if not exists" : ""
   return `create${ddl.unique ? " unique" : ""} index${maybeIfNotExists} ${dialect.quoteIdentifier(ddl.name)} on ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)} (${ddl.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
 }
@@ -201,10 +204,14 @@ const renderDropIndexSql = (
   ddl: Extract<QueryAst.DdlClause, { readonly kind: "dropIndex" }>,
   state: RenderState,
   dialect: SqlDialect
-): string =>
-  dialect.name === "postgres"
+): string => {
+  if (ddl.ifExists) {
+    throw new Error("Unsupported mysql drop index options")
+  }
+  return dialect.name === "postgres"
     ? `drop index${ddl.ifExists ? " if exists" : ""} ${dialect.quoteIdentifier(ddl.name)}`
     : `drop index ${dialect.quoteIdentifier(ddl.name)} on ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)}`
+}
 
 const isExpression = (value: unknown): value is Expression.Any =>
   value !== null && typeof value === "object" && Expression.TypeId in value
@@ -996,6 +1003,29 @@ const assertNoGroupedMutationClauses = (
   }
 }
 
+const assertNoInsertQueryClauses = (
+  ast: Pick<QueryAst.Ast, "where" | "joins" | "orderBy" | "limit" | "offset" | "lock">
+): void => {
+  if (ast.where.length > 0) {
+    throw new Error("where(...) is not supported for insert statements")
+  }
+  if (ast.joins.length > 0) {
+    throw new Error("join(...) is not supported for insert statements")
+  }
+  if (ast.orderBy.length > 0) {
+    throw new Error("orderBy(...) is not supported for insert statements")
+  }
+  if (ast.limit) {
+    throw new Error("limit(...) is not supported for insert statements")
+  }
+  if (ast.offset) {
+    throw new Error("offset(...) is not supported for insert statements")
+  }
+  if (ast.lock) {
+    throw new Error("lock(...) is not supported for insert statements")
+  }
+}
+
 const assertNoStatementQueryClauses = (
   ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
   statement: string
@@ -1135,6 +1165,7 @@ export const renderQueryAst = (
         throw new Error("distinct(...) is not supported for insert statements")
       }
       assertNoGroupedMutationClauses(insertAst, "insert")
+      assertNoInsertQueryClauses(insertAst)
       const targetSource = insertAst.into!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       sql = `insert into ${target}`
@@ -1185,7 +1216,7 @@ export const renderQueryAst = (
         if ((insertAst.values ?? []).length > 0) {
           sql += ` (${columns}) values (${values})`
         } else {
-          sql += " default values"
+          sql += " () values ()"
         }
       }
       if (insertAst.conflict) {
@@ -1230,6 +1261,9 @@ export const renderQueryAst = (
         throw new Error("distinct(...) is not supported for update statements")
       }
       assertNoGroupedMutationClauses(updateAst, "update")
+      if (updateAst.offset) {
+        throw new Error("offset(...) is not supported for update statements")
+      }
       const targetSource = updateAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       const targets = updateAst.targets ?? [targetSource]
@@ -1300,6 +1334,9 @@ export const renderQueryAst = (
         throw new Error("distinct(...) is not supported for delete statements")
       }
       assertNoGroupedMutationClauses(deleteAst, "delete")
+      if (deleteAst.offset) {
+        throw new Error("offset(...) is not supported for delete statements")
+      }
       const targetSource = deleteAst.target!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       const targets = deleteAst.targets ?? [targetSource]
