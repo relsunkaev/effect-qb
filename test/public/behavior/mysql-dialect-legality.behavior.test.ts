@@ -49,6 +49,30 @@ describe("mysql dialect legality", () => {
     )
   })
 
+  test("rejects data-modifying ctes instead of rendering unsupported mysql sql", () => {
+    const users = Mysql.Table.make("users", {
+      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
+      email: Mysql.Column.text()
+    })
+
+    const insertedUsers = Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }).pipe(
+      Mysql.Query.with("inserted_users")
+    )
+
+    const plan = Mysql.Query.select({
+      ok: Mysql.Query.literal(1)
+    }).pipe(
+      Mysql.Query.from(insertedUsers)
+    )
+
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "Unsupported mysql data-modifying cte"
+    )
+  })
+
   test("rejects postgres-only truncate options instead of rendering unsupported mysql sql", () => {
     const users = Mysql.Table.make("users", {
       id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),

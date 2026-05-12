@@ -34,6 +34,14 @@ const returningMutation = Q.insert(users, {
   })
 )
 
+const insertCtePlan = Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com"
+})
+
+// @ts-expect-error MySQL CTE sources only support select-like plans.
+const insertCte = Q.with("inserted_users")(insertCtePlan)
+
 // @ts-expect-error MySQL does not support MERGE syntax.
 const mergePlan = Q.merge(users, posts, Q.eq(users.id, posts.userId), {
   whenMatched: {
@@ -44,4 +52,5 @@ const mergePlan = Q.merge(users, posts, Q.eq(users.id, posts.userId), {
 void fullJoinPlan
 void restartIdentityTruncate
 void returningMutation
+void insertCte
 void mergePlan
