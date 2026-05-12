@@ -197,4 +197,35 @@ describe("postgres insert behavior", () => {
       happenedOn: "2026-02-31"
     }))).toThrow("Expected a local-date value")
   })
+
+  test("canonicalizes unnest insert arrays using the target column runtime contract", () => {
+    const metrics = Postgres.Table.make("unnest_metrics", {
+      total: Postgres.Column.number(),
+      counter: Postgres.Column.int8()
+    })
+
+    const rendered = render(Postgres.Query.insert(metrics).pipe(
+      Postgres.Query.from(Postgres.Query.unnest({
+        total: ["-0.00"],
+        counter: ["0042"]
+      }, "seed"))
+    ))
+
+    expect(rendered.params).toEqual([
+      ["0"],
+      ["42"]
+    ])
+  })
+
+  test("rejects invalid unnest insert arrays before rendering params", () => {
+    const events = Postgres.Table.make("unnest_events", {
+      happenedOn: Postgres.Column.date()
+    })
+
+    expect(() => render(Postgres.Query.insert(events).pipe(
+      Postgres.Query.from(Postgres.Query.unnest({
+        happenedOn: ["2026-02-31"]
+      }, "seed"))
+    ))).toThrow("Expected a local-date value")
+  })
 })
