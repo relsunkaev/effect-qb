@@ -1,4 +1,4 @@
-import { schema as makeTableSchemaNamespace, type TableSchemaNamespace } from "../internal/table.js"
+import { schema as makeTableSchemaNamespace, type TableSchemaNamespace } from "./table.js"
 import { enumType, sequence, type EnumDefinition, type SequenceDefinition } from "./schema-management.js"
 
 export type SchemaNamespace<SchemaName extends string> = TableSchemaNamespace<SchemaName> & {
