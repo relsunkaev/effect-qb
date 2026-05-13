@@ -4,6 +4,39 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 4.0.0-beta.66 - 2026-05-13
+
+### Features
+
+- feat: derive table schemas lazily
+- feat: validate effect-db sql rows with SqlSchema
+- feat: preserve schema issues in row decode errors
+
+### Fixes
+
+- fix: preserve json path schema transforms
+
+### Docs
+
+- docs(readme): document sqlite and jsonb narrowing
+- docs: cover opt-in Effect v4 schema codecs
+- docs: record schema model migration decision
+
+### Tests
+
+- test: cover table schema helper surface
+
+### Chores
+
+- chore(repo): map stale release bot identity
+- chore(repo): map bare release email
+- chore: migrate Effect dependency surface to v4 beta
+- chore(release): prepare beta channel
+
+### Other
+
+- bd init: initialize beads issue tracking
+
 ## 0.17.0 - 2026-05-12
 
 ### Features

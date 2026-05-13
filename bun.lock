@@ -20,7 +20,7 @@
     },
     "packages/database": {
       "name": "effect-db",
-      "version": "0.17.0",
+      "version": "4.0.0-beta.66",
       "bin": {
         "effectdb": "./dist/cli.js",
       },
@@ -34,7 +34,7 @@
     },
     "packages/querybuilder": {
       "name": "effect-qb",
-      "version": "0.17.0",
+      "version": "4.0.0-beta.66",
       "dependencies": {
         "effect": "4.0.0-beta.66",
         "pgsql-ast-parser": "^12.0.2",

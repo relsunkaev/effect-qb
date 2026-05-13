@@ -30,6 +30,7 @@ type ReleaseBoundary = {
 }
 
 const changelogPath = `${cwd}/CHANGELOG.md`
+const bunLockPath = `${cwd}/bun.lock`
 const releaseDate = new Date().toISOString().slice(0, 10)
 const recordSeparator = "\u001e"
 const fieldSeparator = "\u001f"
@@ -206,6 +207,36 @@ const setCliVersion = async (version: Semver) => {
   await Bun.write(databaseCliPath, next)
 }
 
+const setBunLockWorkspaceVersions = async (version: Semver) => {
+  const versionString = formatSemver(version)
+  const raw = await Bun.file(bunLockPath).text()
+  const lines = raw.split("\n")
+  const workspaces = new Set(["packages/database", "packages/querybuilder"])
+  const updated = new Set<string>()
+  let currentWorkspace: string | null = null
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const workspaceMatch = /^    "(packages\/(?:database|querybuilder))": \{$/.exec(lines[index]!)
+    if (workspaceMatch?.[1]) {
+      currentWorkspace = workspaceMatch[1]
+      continue
+    }
+
+    if (currentWorkspace !== null && /^      "version": "/.test(lines[index]!)) {
+      lines[index] = `      "version": "${versionString}",`
+      updated.add(currentWorkspace)
+      currentWorkspace = null
+    }
+  }
+
+  const missing = [...workspaces].filter((workspace) => !updated.has(workspace))
+  if (missing.length > 0) {
+    throw new Error(`Failed to update bun.lock workspace version(s): ${missing.join(", ")}`)
+  }
+
+  await Bun.write(bunLockPath, lines.join("\n"))
+}
+
 const parseCommit = (hash: string, subject: string, body: string): Commit => {
   const match = /^(?<type>[a-z]+)(?:\((?<scope>[^)]+)\))?(?<breaking>!)?: (?<description>.+)$/.exec(subject)
   const bodyHasBreaking = /(?:^|\n)BREAKING[- ]CHANGE:/m.test(body)
@@ -354,6 +385,7 @@ const main = async () => {
   }
   await setCliVersion(nextVersion)
   await run(["bun", "install", "--lockfile-only"])
+  await setBunLockWorkspaceVersions(nextVersion)
 
   const existingChangelog = await Bun.file(changelogPath).text().catch(() => "# Changelog\n\nAll notable changes to this project are documented here.\n\n## Unreleased\n\n")
   await Bun.write(changelogPath, insertChangelogSection(existingChangelog, changelogSection))
