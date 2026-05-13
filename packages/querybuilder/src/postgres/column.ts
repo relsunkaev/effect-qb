@@ -29,7 +29,7 @@ const enrichDbType = <Db extends Expression.DbType.Any>(dbType: Db): Db => {
 }
 
 const primitive = <Type, Db extends Expression.DbType.Any>(
-  schema: Schema.Schema<Type, any, any>,
+  schema: Schema.Schema<Type>,
   dbType: Db
 ): ColumnDefinition<Type, Type, Type, Db, false, false, false, false, false, undefined> =>
   makeColumnDefinition(schema as Schema.Schema<NonNullable<Type>>, {
@@ -57,15 +57,15 @@ const renderNumericDdlType = (
 const boundedString = (length?: number): Schema.Schema<string> =>
   length === undefined
     ? Schema.String
-    : Schema.String.pipe(Schema.maxLength(length))
+    : Schema.String.check(Schema.isMaxLength(length))
 
-const finiteNumber = Schema.Number.pipe(Schema.finite())
+const finiteNumber = Schema.Number.check(Schema.isFinite())
 
-export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expression.DbType.Any>(
+export const custom = <SchemaType extends Schema.Top, Db extends Expression.DbType.Any>(
   schema: SchemaType,
   dbType: Db
 ) =>
-  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: enrichDbType(dbType),
     nullable: false,
     hasDefault: false,
@@ -77,7 +77,7 @@ export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expressi
     identity: undefined
   })
 
-export const uuid = () => primitive(Schema.UUID, postgresDatatypes.uuid())
+export const uuid = () => primitive(Schema.String.check(Schema.isUUID()), postgresDatatypes.uuid())
 export const text = () => primitive(Schema.String, postgresDatatypes.text())
 export const int = () => primitive(Schema.Int, postgresDatatypes.int4())
 export const int2 = () => primitive(Schema.Int, postgresDatatypes.int2())
@@ -103,7 +103,7 @@ export const time = () => primitive(LocalTimeStringSchema, postgresDatatypes.tim
 export const timetz = () => primitive(OffsetTimeStringSchema, postgresDatatypes.timetz())
 export const timestamptz = () => primitive(InstantStringSchema, postgresDatatypes.timestamptz())
 export const interval = () => primitive(Schema.String, postgresDatatypes.interval())
-export const bytea = () => primitive(Schema.Uint8ArrayFromSelf, postgresDatatypes.bytea())
+export const bytea = () => primitive(Schema.Uint8Array, postgresDatatypes.bytea())
 export const name = () => primitive(Schema.String, postgresDatatypes.name())
 export const oid = () => primitive(Schema.Int, postgresDatatypes.oid())
 export const regclass = () => primitive(Schema.String, postgresDatatypes.regclass())
@@ -135,8 +135,8 @@ export const varchar = (length?: number) =>
     ddlType: length === undefined ? "varchar" : `varchar(${length})`,
     identity: undefined
   })
-export const json = <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
-  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+export const json = <SchemaType extends Schema.Top>(schema: SchemaType) =>
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: postgresDatatypes.json(),
     nullable: false,
     hasDefault: false,
@@ -147,8 +147,8 @@ export const json = <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =
     ddlType: undefined,
     identity: undefined
   })
-export const jsonb = <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
-  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+export const jsonb = <SchemaType extends Schema.Top>(schema: SchemaType) =>
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: postgresDatatypes.jsonb(),
     nullable: false,
     hasDefault: false,

@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Duration from "effect/Duration"
 import * as Redacted from "effect/Redacted"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { MysqlClient } from "@effect/sql-mysql2"
 import { PgClient } from "@effect/sql-pg"
 import { mkdir, rm } from "node:fs/promises"

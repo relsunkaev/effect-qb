@@ -2412,7 +2412,7 @@ export const makeExpression = <
   state: {
     readonly runtime: Runtime
     readonly dbType: Db
-    readonly runtimeSchema?: Schema.Schema.Any
+    readonly runtimeSchema?: Schema.Top
     readonly driverValueMapping?: Expression.DriverValueMapping
     readonly nullability: Nullable
     readonly dialect: Dialect

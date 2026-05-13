@@ -11,8 +11,8 @@ import type { AssumptionsOfPlan, AvailableOfPlan, ExpressionOutput, FactsOfPlan,
 const posts = Table.make("predicate_invariant_posts", {
   id: C.uuid().pipe(C.primaryKey),
   title: C.text().pipe(C.nullable),
-  status: C.custom(Schema.Literal("draft", "published", "archived"), Type.text()),
-  category: C.custom(Schema.Literal("news", "ops", "meta"), Type.text())
+  status: C.custom(Schema.Literals(["draft", "published", "archived"]), Type.text()),
+  category: C.custom(Schema.Literals(["news", "ops", "meta"]), Type.text())
 })
 
 type BaseStatusRuntime = RuntimeOf<typeof posts.status>

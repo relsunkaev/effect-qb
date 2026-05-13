@@ -16,18 +16,18 @@ const posts = Table.make("posts", {
 
 const articles = Table.make("articles", {
   id: C.uuid().pipe(C.primaryKey),
-  status: C.custom(Schema.Literal("draft", "published", "archived"), Type.text()),
-  previousStatus: C.custom(Schema.Literal("draft", "published", "archived"), Type.text())
+  status: C.custom(Schema.Literals(["draft", "published", "archived"]), Type.text()),
+  previousStatus: C.custom(Schema.Literals(["draft", "published", "archived"]), Type.text())
 })
 
 const articleStatusText = Cast.to(articles.status, Type.text())
 
 const dottedPredicateTable = Table.make("a.b", {
-  status: C.custom(Schema.Literal("left", "right"), Type.text())
+  status: C.custom(Schema.Literals(["left", "right"]), Type.text())
 })
 
 const splitPredicateTable = Table.make("a", {
-  "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
+  "b.status": C.custom(Schema.Literals(["left", "right"]), Type.text())
 })
 
 const nullFiltered = Q.select({

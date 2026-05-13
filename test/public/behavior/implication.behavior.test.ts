@@ -218,10 +218,10 @@ describe("implication behavior", () => {
 
   test("predicate facts keep dotted table and column names distinct", () => {
     const dottedTable = Table.make("a.b", {
-      status: C.custom(Schema.Literal("left", "right"), Type.text())
+      status: C.custom(Schema.Literals(["left", "right"]), Type.text())
     })
     const splitTable = Table.make("a", {
-      "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
+      "b.status": C.custom(Schema.Literals(["left", "right"]), Type.text())
     })
 
     const plan = Q.select({
@@ -252,10 +252,10 @@ describe("implication behavior", () => {
       id: C.uuid().pipe(C.primaryKey)
     })
     const dottedTable = Table.make("a.b", {
-      status: C.custom(Schema.Literal("left", "right"), Type.text())
+      status: C.custom(Schema.Literals(["left", "right"]), Type.text())
     })
     const splitTable = Table.make("a", {
-      "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
+      "b.status": C.custom(Schema.Literals(["left", "right"]), Type.text())
     })
 
     const plan = Q.select({

@@ -8,7 +8,7 @@ const payloadSchema = Schema.Struct({
       city: Schema.String
     }),
     tags: Schema.Array(Schema.String),
-    pair: Schema.Tuple(Schema.String, Schema.Number)
+    pair: Schema.Tuple([Schema.String, Schema.Number])
   })
 })
 

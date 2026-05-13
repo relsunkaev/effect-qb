@@ -41,22 +41,22 @@ bun add effect-qb
 If you want to execute plans with the built-in Postgres executor:
 
 ```bash
-bun add effect-qb effect @effect/sql @effect/sql-pg
+bun add effect-qb effect @effect/sql-pg
 ```
 
 If you want to execute plans with the built-in MySQL executor:
 
 ```bash
-bun add effect-qb effect @effect/sql @effect/sql-mysql2
+bun add effect-qb effect @effect/sql-mysql2
 ```
 
 If you want to execute plans with the built-in SQLite executor:
 
 ```bash
-bun add effect-qb effect @effect/sql @effect/sql-sqlite-bun
+bun add effect-qb effect @effect/sql-sqlite-bun
 ```
 
-The built-in executors require an ambient `@effect/sql` `SqlClient`. If your app already uses Effect and `@effect/sql`, you likely already have the extra runtime packages installed.
+The built-in executors require an ambient `effect/unstable/sql` `SqlClient`. If your app already uses Effect's v4 SQL services, you likely already have the extra runtime packages installed.
 
 For local development in this repository:
 
@@ -521,7 +521,7 @@ import { Column as C, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const events = Table.make("events", {
   id: C.uuid().pipe(C.primaryKey),
-  payload: C.jsonb(Schema.Union(
+  payload: C.jsonb(Schema.Union([
     Schema.Struct({
       kind: Schema.Literal("signup"),
       email: Schema.String
@@ -530,7 +530,7 @@ const events = Table.make("events", {
       kind: Schema.Literal("purchase"),
       amount: Schema.Number
     })
-  ))
+  ]))
 })
 
 const payloadKind = J.jsonb.text(events.payload, J.jsonb.key("kind"))

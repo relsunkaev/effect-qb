@@ -137,9 +137,8 @@ const EnumProto = {
     }
   },
   column(this: EnumDefinition) {
-    const values = this.values.map((value) => Schema.Literal(value)) as unknown as readonly [Schema.Schema.Any, ...Schema.Schema.Any[]]
     return makeColumnDefinition(
-      values.length === 1 ? values[0]! : Schema.Union(...values),
+      Schema.Literals(this.values),
       {
         dbType: this.type(),
         nullable: false,

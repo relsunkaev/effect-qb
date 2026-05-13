@@ -23,7 +23,7 @@ const enrichDbType = <Db extends Expression.DbType.Any>(dbType: Db): Db => {
 }
 
 const primitive = <Type, Db extends Expression.DbType.Any>(
-  schema: Schema.Schema<Type, any, any>,
+  schema: Schema.Schema<Type>,
   dbType: Db
 ): ColumnDefinition<Type, Type, Type, Db, false, false, false, false, false, undefined> =>
   makeColumnDefinition(schema as Schema.Schema<NonNullable<Type>>, {
@@ -48,11 +48,11 @@ const renderNumericDdlType = (
     : `${kind}(${options.precision},${options.scale})`
 }
 
-export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expression.DbType.Any>(
+export const custom = <SchemaType extends Schema.Top, Db extends Expression.DbType.Any>(
   schema: SchemaType,
   dbType: Db
 ) =>
-  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: enrichDbType(dbType),
     nullable: false,
     hasDefault: false,
@@ -64,7 +64,7 @@ export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expressi
     identity: undefined
   })
 
-export const uuid = () => primitive(Schema.UUID, sqliteDatatypes.uuid())
+export const uuid = () => primitive(Schema.String.check(Schema.isUUID()), sqliteDatatypes.uuid())
 export const text = () => primitive(Schema.String, sqliteDatatypes.text())
 export const int = () => primitive(Schema.Int, sqliteDatatypes.int())
 export const number = (options?: BaseColumn.NumericOptions) =>
@@ -84,8 +84,8 @@ export const date = () => primitive(LocalDateStringSchema, sqliteDatatypes.date(
 export const time = () => primitive(LocalTimeStringSchema, sqliteDatatypes.time())
 export const datetime = () => primitive(LocalDateTimeStringSchema, sqliteDatatypes.datetime())
 export const timestamp = () => primitive(LocalDateTimeStringSchema, sqliteDatatypes.timestamp())
-export const json = <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
-  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+export const json = <SchemaType extends Schema.Top>(schema: SchemaType) =>
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: { ...sqliteDatatypes.json(), variant: "json" } as Expression.DbType.Json<"sqlite", "json">,
     nullable: false,
     hasDefault: false,

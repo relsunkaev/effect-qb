@@ -8,7 +8,7 @@ import { Column as C, Json as J, Query as Q, Table } from "effect-qb/postgres"
 
 const events = Table.make("events", {
   id: C.uuid().pipe(C.primaryKey),
-  payload: C.jsonb(Schema.Union(
+  payload: C.jsonb(Schema.Union([
     Schema.Struct({
       kind: Schema.Literal("signup"),
       email: Schema.String
@@ -17,7 +17,7 @@ const events = Table.make("events", {
       kind: Schema.Literal("purchase"),
       amount: Schema.Number
     })
-  ))
+  ]))
 })
 
 const payloadKind = J.jsonb.text(events.payload, J.jsonb.key("kind"))

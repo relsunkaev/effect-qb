@@ -1,4 +1,4 @@
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 

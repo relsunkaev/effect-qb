@@ -1,4 +1,4 @@
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { PgClient } from "@effect/sql-pg"
 import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"

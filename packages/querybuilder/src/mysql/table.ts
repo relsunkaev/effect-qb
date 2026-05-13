@@ -37,6 +37,8 @@ type FieldsOfTable<Table extends BaseTable.AnyTable> = Table[typeof BaseTable.Ty
   ? Fields
   : never
 
+type ColumnNamesOfTable<Table extends BaseTable.AnyTable> = Extract<keyof FieldsOfTable<Table>, string>
+
 type PrimaryKeyOfTable<Table extends BaseTable.AnyTable> = Table[typeof BaseTable.TypeId]["primaryKey"][number]
 
 type SchemaNameOfTable<Table extends BaseTable.AnyTable> = Table[typeof BaseTable.TypeId]["schemaName"]
@@ -157,7 +159,16 @@ export const foreignKey = <
   columns: LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
   target: () => TargetTable,
   referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns>
-) =>
+): BaseTable.TableOption<{
+  readonly kind: "foreignKey"
+  readonly columns: BaseTable.NormalizeColumns<LocalColumns>
+  readonly references: () => {
+    readonly tableName: string
+    readonly schemaName?: string
+    readonly columns: BaseTable.NormalizeColumns<TargetColumns>
+    readonly knownColumns: readonly ColumnNamesOfTable<TargetTable>[]
+  }
+}> =>
   BaseTable.foreignKey<LocalColumns, TargetTable, TargetColumns>(
     columns as LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>,
     target,

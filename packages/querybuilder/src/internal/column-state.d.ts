@@ -70,7 +70,7 @@ export interface ColumnState<Select, Insert, Update, Db extends Expression.DbTyp
 export interface ColumnDefinition<Select, Insert, Update, Db extends Expression.DbType.Any, Nullable extends boolean, HasDefault extends boolean, Generated extends boolean, PrimaryKey extends boolean, Unique extends boolean, Ref, Dependencies extends Expression.BindingId = never> extends Pipeable, Expression.Scalar<Select, Db, Nullable extends true ? "maybe" : "never", Db["dialect"], "scalar", Dependencies> {
     readonly pipe: Pipeable["pipe"];
     readonly [ColumnTypeId]: ColumnState<Select, Insert, Update, Db, Nullable, HasDefault, Generated, PrimaryKey, Unique, Ref, Dependencies>;
-    readonly schema: Schema.Schema<NonNullable<Select>, any, any>;
+    readonly schema: Schema.Schema<NonNullable<Select>>;
     readonly metadata: {
         readonly dbType: Db;
         readonly nullable: Nullable;
@@ -111,7 +111,7 @@ export type AnyColumnDefinition = ColumnDefinition<any, any, any, Expression.DbT
 /** Convenience alias for any bound column. */
 export type AnyBoundColumn = BoundColumn<any, any, any, Expression.DbType.Any, boolean, boolean, boolean, boolean, boolean, any, string, string, string>;
 /** Constructs a runtime column-definition object from schema and metadata. */
-export declare const makeColumnDefinition: <Select, Insert, Update, Db extends Expression.DbType.Any, Nullable extends boolean, HasDefault extends boolean, Generated extends boolean, PrimaryKey extends boolean, Unique extends boolean, Ref, Dependencies extends string = never>(schema: Schema.Schema<NonNullable<Select>, any, any>, metadata: {
+export declare const makeColumnDefinition: <Select, Insert, Update, Db extends Expression.DbType.Any, Nullable extends boolean, HasDefault extends boolean, Generated extends boolean, PrimaryKey extends boolean, Unique extends boolean, Ref, Dependencies extends string = never>(schema: Schema.Schema<NonNullable<Select>>, metadata: {
     readonly dbType: Db;
     readonly nullable: Nullable;
     readonly hasDefault: HasDefault;
@@ -135,7 +135,7 @@ export declare const makeColumnDefinition: <Select, Insert, Update, Db extends E
     } | undefined;
 }) => ColumnDefinition<Select, Insert, Update, Db, Nullable, HasDefault, Generated, PrimaryKey, Unique, Ref, Dependencies>;
 export declare const remapColumnDefinition: <Select, Insert, Update, Db extends Expression.DbType.Any, Nullable extends boolean, HasDefault extends boolean, Generated extends boolean, PrimaryKey extends boolean, Unique extends boolean, Ref, Dependencies extends string = never>(column: ColumnDefinition<Select, Insert, Update, Db, Nullable, HasDefault, Generated, PrimaryKey, Unique, Ref, Dependencies>, options?: {
-    readonly schema?: Schema.Schema.Any | undefined;
+    readonly schema?: Schema.Top | undefined;
     readonly metadata?: {
         readonly dbType: Db;
         readonly nullable: Nullable;

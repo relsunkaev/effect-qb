@@ -144,7 +144,7 @@ const main = async () => {
       "  id: MysqlColumn.uuid().pipe(MysqlColumn.primaryKey),",
       "  payload: MysqlColumn.json(Schema.Struct({",
       "    profile: Schema.Struct({",
-      "      pair: Schema.Tuple(Schema.String, Schema.Number)",
+      "      pair: Schema.Tuple([Schema.String, Schema.Number])",
       "    })",
       "  }))",
       "})",

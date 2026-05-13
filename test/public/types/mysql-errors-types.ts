@@ -54,7 +54,7 @@ const execution = executor.execute(plan)
 type Capabilities = Mysql.Query.CapabilitiesOfPlan<typeof plan>
 const readCapability: Capabilities = "read"
 type QueryError = Mysql.Executor.MysqlQueryError<typeof plan>
-type ExecutionError = Effect.Effect.Error<typeof execution>
+type ExecutionError = Effect.Error<typeof execution>
 declare const executionError: ExecutionError
 declare const queryError: QueryError
 void readCapability

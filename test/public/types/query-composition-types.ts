@@ -696,7 +696,7 @@ const executor = Executor.custom(<PlanValue extends Q.QueryPlan<any, any, any, a
 })
 
 const executed = executor.execute(windowPlan)
-type ExecutedRows = Effect.Effect.Success<typeof executed>
+type ExecutedRows = Effect.Success<typeof executed>
 const executedRow: ExecutedRows[number] = {
   userId: "user-1",
   rowNumber: 1,

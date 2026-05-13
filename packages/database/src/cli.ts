@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-import { BunContext, BunRuntime } from "@effect/platform-bun"
-import { Command, Options } from "@effect/cli"
+import { BunRuntime, BunServices } from "@effect/platform-bun"
+import { Command, Flag } from "effect/unstable/cli"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 
@@ -54,33 +54,33 @@ const logLines = (lines: readonly string[]): Effect.Effect<void> =>
     }
   })
 
-const configOption = Options.text("config").pipe(
-  Options.optional,
-  Options.withAlias("c"),
-  Options.withDescription("Path to effectdb.config.ts")
+const configOption = Flag.string("config").pipe(
+  Flag.optional,
+  Flag.withAlias("c"),
+  Flag.withDescription("Path to effectdb.config.ts")
 )
 
-const urlOption = Options.text("url").pipe(
-  Options.optional,
-  Options.withDescription("Override the Postgres connection URL")
+const urlOption = Flag.string("url").pipe(
+  Flag.optional,
+  Flag.withDescription("Override the Postgres connection URL")
 )
 
-const dryRunOption = Options.boolean("dry-run").pipe(
-  Options.withDescription("Print the computed plan without writing")
+const dryRunOption = Flag.boolean("dry-run").pipe(
+  Flag.withDescription("Print the computed plan without writing")
 )
 
-const allowDestructiveOption = Options.boolean("allow-destructive").pipe(
-  Options.withDescription("Include destructive SQL instead of safe-only changes")
+const allowDestructiveOption = Flag.boolean("allow-destructive").pipe(
+  Flag.withDescription("Include destructive SQL instead of safe-only changes")
 )
 
-const nameOption = Options.text("name").pipe(
-  Options.optional,
-  Options.withDescription("Migration name")
+const nameOption = Flag.string("name").pipe(
+  Flag.optional,
+  Flag.withDescription("Migration name")
 )
 
-const stepsOption = Options.integer("steps").pipe(
-  Options.optional,
-  Options.withDescription("Number of applied migrations to roll back")
+const stepsOption = Flag.integer("steps").pipe(
+  Flag.optional,
+  Flag.withDescription("Number of applied migrations to roll back")
 )
 
 const withLoadedConfig = <A>(
@@ -398,11 +398,10 @@ const root = Command.make("effectdb", {}, () => Effect.void).pipe(
 )
 
 const cli = Command.run(root, {
-  name: "effectdb",
   version: "0.17.0"
 })
 
-cli(Bun.argv).pipe(
-  Effect.provide(BunContext.layer),
+cli.pipe(
+  Effect.provide(BunServices.layer),
   BunRuntime.runMain
 )

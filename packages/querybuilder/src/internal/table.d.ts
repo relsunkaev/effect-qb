@@ -47,9 +47,9 @@ export type BoundColumns<Name extends string, Fields extends TableFieldMap> = {
 };
 /** Derived runtime schemas exposed by a table definition. */
 export interface TableSchemas<Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string> {
-    readonly select: Schema.Schema<SelectRow<Name, Fields>>;
-    readonly insert: Schema.Schema<InsertRow<Name, Fields>>;
-    readonly update: Schema.Schema<UpdateRow<Name, Fields, PrimaryKeyColumns>>;
+    readonly select: Schema.Decoder<SelectRow<Name, Fields>, never>;
+    readonly insert: Schema.Decoder<InsertRow<Name, Fields>, never>;
+    readonly update: Schema.Decoder<UpdateRow<Name, Fields, PrimaryKeyColumns>, never>;
 }
 interface TableState<Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string, Kind extends TableKind = "schema", SchemaName extends string | undefined = DefaultSchemaName> {
     readonly name: Name;
@@ -118,11 +118,11 @@ export declare const schema: <SchemaName extends string>(schemaName: SchemaName)
  */
 export declare const alias: <Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string, SchemaName extends string, AliasName extends string>(table: TableClassStatic<Name, Fields, PrimaryKeyColumns, SchemaName> | TableDefinition<Name, Fields, PrimaryKeyColumns, any, SchemaName>, aliasName: AliasName) => TableDefinition<AliasName, Fields, PrimaryKeyColumns, "alias", SchemaName>;
 /** Returns the lazily derived select schema for a table. */
-export declare function selectSchema<Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>): Schema.Schema<SelectRow<Name, Fields>>;
+export declare function selectSchema<Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>): Schema.Decoder<SelectRow<Name, Fields>, never>;
 /** Returns the lazily derived insert schema for a table. */
-export declare function insertSchema<Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>): Schema.Schema<InsertRow<Name, Fields>>;
+export declare function insertSchema<Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>): Schema.Decoder<InsertRow<Name, Fields>, never>;
 /** Returns the lazily derived update schema for a table. */
-export declare function updateSchema<Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>): Schema.Schema<UpdateRow<Name, Fields, PrimaryKeyColumns>>;
+export declare function updateSchema<Name extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>): Schema.Decoder<UpdateRow<Name, Fields, PrimaryKeyColumns>, never>;
 /**
  * Class-based table constructor mirroring `Schema.Class`.
  *

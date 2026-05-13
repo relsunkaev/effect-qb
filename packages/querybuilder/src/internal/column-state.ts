@@ -123,7 +123,7 @@ export interface ColumnDefinition<
     Ref,
     Dependencies
   >
-  readonly schema: Schema.Schema<NonNullable<Select>, any, any>
+  readonly schema: Schema.Schema<NonNullable<Select>>
   readonly metadata: {
     readonly dbType: Db
     readonly nullable: Nullable
@@ -257,7 +257,7 @@ export const makeColumnDefinition = <
   Ref,
   Dependencies extends Expression.BindingId = never
 >(
-  schema: Schema.Schema<NonNullable<Select>, any, any>,
+  schema: Schema.Schema<NonNullable<Select>>,
   metadata: ColumnDefinition<
     Select,
     Insert,
@@ -345,7 +345,7 @@ export const remapColumnDefinition = <
     Dependencies
   >,
   options: {
-    readonly schema?: Schema.Schema.Any
+    readonly schema?: Schema.Top
     readonly metadata?: ColumnDefinition<
       Select,
       Insert,

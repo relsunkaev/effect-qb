@@ -46,7 +46,7 @@ const nullableObjectDocs = Table.make("nullable_object_docs", {
   })))
 })
 
-const variantPayloadSchema = Schema.Union(
+const variantPayloadSchema = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("option1"),
     option1Value: Schema.String
@@ -59,7 +59,7 @@ const variantPayloadSchema = Schema.Union(
     kind: Schema.Literal("option3"),
     option3Value: Schema.String
   })
-)
+])
 
 const variantDocs = Table.make("variant_docs", {
   id: C.uuid().pipe(C.primaryKey),
@@ -67,7 +67,7 @@ const variantDocs = Table.make("variant_docs", {
 })
 
 const nestedVariantPayloadSchema = Schema.Struct({
-  details: Schema.Union(
+  details: Schema.Union([
     Schema.Struct({
       kind: Schema.Literal("child1"),
       child1Value: Schema.String
@@ -76,7 +76,7 @@ const nestedVariantPayloadSchema = Schema.Struct({
       kind: Schema.Literal("child2"),
       child2Value: Schema.String
     })
-  )
+  ])
 })
 
 const nestedVariantDocs = Table.make("nested_variant_docs", {
@@ -86,11 +86,11 @@ const nestedVariantDocs = Table.make("nested_variant_docs", {
 
 const dottedPathPayloadSchema = Schema.Struct({
   "a.b": Schema.Struct({
-    kind: Schema.Literal("flat", "other")
+    kind: Schema.Literals(["flat", "other"])
   }),
   a: Schema.Struct({
     b: Schema.Struct({
-      kind: Schema.Literal("nested", "other")
+      kind: Schema.Literals(["nested", "other"])
     })
   })
 })

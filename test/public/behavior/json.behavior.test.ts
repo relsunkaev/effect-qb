@@ -121,11 +121,11 @@ describe("json behavior", () => {
       id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Struct({
         "a.b": Schema.Struct({
-          kind: Schema.Literal("flat", "other")
+          kind: Schema.Literals(["flat", "other"])
         }),
         a: Schema.Struct({
           b: Schema.Struct({
-            kind: Schema.Literal("nested", "other")
+            kind: Schema.Literals(["nested", "other"])
           })
         })
       }))

@@ -2,8 +2,8 @@ import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import * as SqlClient from "@effect/sql/SqlClient"
-import * as SqlError from "@effect/sql/SqlError"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlError from "effect/unstable/sql/SqlError"
 import * as Stream from "effect/Stream"
 
 import * as Expression from "./scalar.js"
@@ -249,7 +249,7 @@ const dbTypeAllowsTopLevelJsonNull = (
 }
 
 const schemaAcceptsNull = (
-  schema: Schema.Schema.Any | undefined
+  schema: Schema.Top | undefined
 ): boolean =>
   schema !== undefined && (Schema.is(schema) as (value: unknown) => boolean)(null)
 
@@ -325,7 +325,7 @@ const decodeProjectionValue = (
     return normalized
   }
 
-  if ((Schema.is(schema as Schema.Schema.Any) as (value: unknown) => boolean)(normalized)) {
+  if ((Schema.is(schema as Schema.Top) as (value: unknown) => boolean)(normalized)) {
     return normalized
   }
 
@@ -390,7 +390,7 @@ export const decodeChunk = (
   } = {}
 ): Chunk.Chunk<any> => {
   const decodeRow = makeRowDecoder(rendered, plan, options)
-  return Chunk.unsafeFromArray(Chunk.toReadonlyArray(rows).map((row) => decodeRow(row)))
+  return Chunk.fromIterable(Chunk.toReadonlyArray(rows).map((row) => decodeRow(row)))
 }
 
 export const decodeRows = (
@@ -520,9 +520,9 @@ export const fromDriver = <
     },
     stream(plan: any) {
       const rendered = renderer.render(plan) as Renderer.RenderedQuery<any, Dialect>
-      return Stream.mapChunks(
+      return Stream.mapArray(
         sqlDriver.stream(rendered),
-        (rows) => Chunk.unsafeFromArray(remapRows<any>(rendered, Chunk.toReadonlyArray(rows)))
+        (rows) => remapRows<any>(rendered, rows) as never
       )
     }
   }
@@ -532,10 +532,10 @@ export const fromDriver = <
 export const streamFromSqlClient = <Dialect extends string>(
   query: Renderer.RenderedQuery<any, Dialect>
 ): Stream.Stream<FlatRow, SqlError.SqlError, SqlClient.SqlClient> =>
-  Stream.unwrapScoped(
+  Stream.unwrap(
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
       Effect.flatMap(
-        Effect.serviceOption(SqlClient.TransactionConnection),
+        Effect.serviceOption(sql.transactionService),
         Option.match({
           onNone: () => sql.reserve,
           onSome: ([connection]) => Effect.succeed(connection)
@@ -556,7 +556,7 @@ export const fromSqlClient = <Dialect extends string>(
     stream: (query) => streamFromSqlClient(query)
   }))
 
-/** Runs an effect within the ambient `@effect/sql` transaction service. */
+/** Runs an effect within the ambient `effect/unstable/sql` transaction service. */
 export const withTransaction = <A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
@@ -565,7 +565,7 @@ export const withTransaction = <A, E, R>(
 /**
  * Runs an effect in a nested transaction scope.
  *
- * When the ambient `@effect/sql` client is already inside a transaction, the
+ * When the ambient `effect/unstable/sql` client is already inside a transaction, the
  * underlying client implementation uses a savepoint.
  */
 export const withSavepoint = <A, E, R>(

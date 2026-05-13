@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 
 import { SchemaExpression } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, ReferentialAction, TableOptionSpec } from "effect-qb/postgres/metadata"

@@ -225,21 +225,21 @@ type ForeignKeyOptions<Target extends AnyBoundColumn> = {
 
 type SchemaCompatibleColumn<
   Column extends AnyColumnDefinition,
-  SchemaType extends Schema.Schema.Any
-> = [BaseSelectType<Column>] extends [Schema.Schema.Encoded<SchemaType>]
+  SchemaType extends Schema.Top
+> = [BaseSelectType<Column>] extends [Schema.Codec.Encoded<SchemaType>]
   ? Column
   : never
 
 type ColumnSchemaOutput<
   Column extends AnyColumnDefinition,
-  SchemaType extends Schema.Schema.Any
+  SchemaType extends Schema.Top
 > = IsNullable<Column> extends true
   ? Schema.Schema.Type<SchemaType> | null
   : Schema.Schema.Type<SchemaType>
 
 type ColumnWithSchema<
   Column extends AnyColumnDefinition,
-  SchemaType extends Schema.Schema.Any
+  SchemaType extends Schema.Top
 > = ColumnDefinition<
   ColumnSchemaOutput<Column, SchemaType>,
   ColumnSchemaOutput<Column, SchemaType>,
@@ -376,7 +376,7 @@ const isColumnDefinitionValue = (value: unknown): value is AnyColumnDefinition =
   typeof value === "object" && value !== null && ColumnTypeId in value
 
 const primitive = <Type, Db extends Expression.DbType.Any>(
-  schema: Schema.Schema<Type, any, any>,
+  schema: Schema.Schema<Type>,
   dbType: Db
 ): ColumnDefinition<Type, Type, Type, Db, false, false, false, false, false, undefined> =>
   makeColumnDefinition(schema as Schema.Schema<NonNullable<Type>>, {
@@ -401,7 +401,7 @@ type ColumnModule<
   JsonKind extends string
 > = {
   readonly custom: <
-    SchemaType extends Schema.Schema.Any,
+    SchemaType extends Schema.Top,
     Db extends Expression.DbType.Any
   >(
     schema: SchemaType,
@@ -425,7 +425,7 @@ type ColumnModule<
   readonly boolean: () => ColumnDefinition<boolean, boolean, boolean, Expression.DbType.Base<Dialect, BooleanKind>, false, false, false, false, false, undefined>
   readonly date: () => ColumnDefinition<LocalDateString, LocalDateString, LocalDateString, Expression.DbType.Base<Dialect, DateKind>, false, false, false, false, false, undefined>
   readonly timestamp: () => ColumnDefinition<LocalDateTimeString, LocalDateTimeString, LocalDateTimeString, Expression.DbType.Base<Dialect, TimestampKind>, false, false, false, false, false, undefined>
-  readonly json: <SchemaType extends Schema.Schema.Any>(
+  readonly json: <SchemaType extends Schema.Top>(
     schema: SchemaType
   ) => ColumnDefinition<
     Schema.Schema.Type<SchemaType>,
@@ -442,7 +442,7 @@ type ColumnModule<
 }
 
 /** Replaces a column's runtime schema while preserving its SQL type metadata. */
-export const schema = <SchemaType extends Schema.Schema.Any>(nextSchema: SchemaType) =>
+export const schema = <SchemaType extends Schema.Top>(nextSchema: SchemaType) =>
   <Column extends AnyColumnDefinition>(
     column: SchemaCompatibleColumn<Column, SchemaType>
   ): ColumnWithSchema<Column, SchemaType> =>

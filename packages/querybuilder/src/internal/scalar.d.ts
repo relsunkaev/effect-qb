@@ -73,7 +73,7 @@ export declare namespace DbType {
 export interface State<Runtime, Db extends DbType.Any, Nullable extends Nullability, Dialect extends string, Kind extends ScalarKind, Deps extends BindingId = never> {
     readonly runtime: Runtime;
     readonly dbType: Db;
-    readonly runtimeSchema?: Schema.Schema.Any;
+    readonly runtimeSchema?: Schema.Top;
     readonly nullability: Nullable;
     readonly dialect: Dialect;
     readonly kind: Kind;

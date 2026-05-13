@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import type * as SqlClient from "@effect/sql/SqlClient"
+import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Effect from "effect/Effect"
 
 import * as Mysql from "#mysql"
@@ -238,7 +238,7 @@ const executor = Executor.make("postgres", <PlanValue extends Q.QueryPlan<any, a
 })
 
 const executed = executor.execute(leftJoined)
-type ExecutedRows = Effect.Effect.Success<typeof executed>
+type ExecutedRows = Effect.Success<typeof executed>
 const executedRow: ExecutedRows[number] = {
   userId: "user-id",
   postId: null,
@@ -269,7 +269,7 @@ const runtimeDriver = Executor.driver("postgres", <Row>(
 
 const pipelineExecutor = Executor.fromDriver(runtimeRenderer, runtimeDriver)
 const pipelineRows = pipelineExecutor.execute(nestedPlan)
-type PipelineRows = Effect.Effect.Success<typeof pipelineRows>
+type PipelineRows = Effect.Success<typeof pipelineRows>
 const pipelineRow: PipelineRows[number] = {
   profile: {
     id: "user-id",
@@ -303,14 +303,14 @@ void explicitAliasProjectionAlias
 
 const sqlClientExecutor = Executor.fromSqlClient(runtimeRenderer)
 const sqlClientRows = sqlClientExecutor.execute(nestedPlan)
-type SqlClientRows = Effect.Effect.Success<typeof sqlClientRows>
+type SqlClientRows = Effect.Success<typeof sqlClientRows>
 const sqlClientRow: SqlClientRows[number] = {
   profile: {
     id: "user-id",
     email: "alice@example.com"
   }
 }
-type SqlClientContext = Effect.Effect.Context<typeof sqlClientRows>
+type SqlClientContext = Effect.Services<typeof sqlClientRows>
 const sqlClientContext: SqlClientContext = null as never as SqlClient.SqlClient
 void sqlClientRows
 void sqlClientRow
