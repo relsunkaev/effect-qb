@@ -127,7 +127,6 @@ const propertyAstOf = (
   ast: SchemaAST.AST,
   key: string
 ): SchemaAST.AST | undefined => {
-  ast = SchemaAST.toType(ast)
   switch (ast._tag) {
     case "Suspend":
       return propertyAstOf(ast.thunk(), key)
@@ -155,7 +154,6 @@ const numberAstOf = (
   ast: SchemaAST.AST,
   index: number
 ): SchemaAST.AST | undefined => {
-  ast = SchemaAST.toType(ast)
   switch (ast._tag) {
     case "Suspend":
       return numberAstOf(ast.thunk(), index)
@@ -190,7 +188,9 @@ const schemaAstAtExactJsonPath = (
   schema: RuntimeSchema,
   segments: readonly JsonPath.CanonicalSegment[]
 ): SchemaAST.AST | undefined => {
-  let current: SchemaAST.AST = SchemaAST.toType(schema.ast)
+  // JSON path operators return encoded JSON subvalues, so preserve field-level
+  // encoding links instead of walking the type-side AST.
+  let current: SchemaAST.AST = schema.ast
   for (const segment of segments) {
     if (segment.kind === "key") {
       const property = propertyAstOf(current, segment.key)
