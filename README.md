@@ -295,6 +295,15 @@ The important rule for `C.schema(...)` is that the schema must accept the column
 - `C.date()` produces a canonical `LocalDateString`, so `C.date().pipe(C.schema(Schema.DateFromString))` is valid
 - `C.int().pipe(C.schema(Schema.DateFromString))` is rejected because the column runtime type is `number`, not `string`
 
+Useful v4 codec pairings include:
+
+- `C.int8().pipe(C.schema(Schema.BigIntFromString))`
+- `C.number().pipe(C.schema(Schema.BigDecimalFromString))`
+- `C.interval().pipe(C.schema(Schema.DurationFromString))`
+- `C.bytea().pipe(C.schema(Schema.flip(Schema.Uint8ArrayFromBase64)))`
+
+Those are opt-in transforms. The default decoded column types remain the canonical `effect-qb` runtime values, such as decimal strings for `C.number()` and `Uint8Array` for `C.bytea()`.
+
 Example:
 
 ```ts
@@ -307,6 +316,10 @@ const users = Table.make("users", {
   profile: C.json(Schema.Struct({
     visits: Schema.NumberFromString
   })),
+  viewCount: C.int8().pipe(C.schema(Schema.BigIntFromString)),
+  total: C.number().pipe(C.schema(Schema.BigDecimalFromString)),
+  activeFor: C.interval().pipe(C.schema(Schema.DurationFromString)),
+  payloadBase64: C.bytea().pipe(C.schema(Schema.flip(Schema.Uint8ArrayFromBase64))),
   createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
 })
 
@@ -320,6 +333,10 @@ const decoded = Schema.decodeUnknownSync(Table.selectSchema(users))({
   profile: {
     visits: "42"
   },
+  viewCount: "42",
+  total: "12.30",
+  activeFor: "5 seconds",
+  payloadBase64: new Uint8Array([1, 2, 3]),
   createdAt: "2026-03-20T10:00:00"
 })
 
@@ -328,6 +345,12 @@ decoded.happenedOn
 
 decoded.profile.visits
 // number
+
+decoded.viewCount
+// bigint
+
+decoded.payloadBase64
+// string
 
 const plan = Q.select({
   happenedOn: users.happenedOn,

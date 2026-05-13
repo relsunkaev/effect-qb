@@ -1,6 +1,8 @@
 import * as Schema from "effect/Schema"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Effect from "effect/Effect"
+import type * as BigDecimal from "effect/BigDecimal"
+import type * as Duration from "effect/Duration"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
@@ -60,6 +62,18 @@ const auditLog = Table.make("audit_log", {
 const datedEvents = Table.make("dated_events", {
   happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
 })
+const codecEvents = Table.make("codec_events", {
+  bigCounter: C.int8().pipe(C.schema(Schema.BigIntFromString)),
+  amount: C.number().pipe(C.schema(Schema.BigDecimalFromString)),
+  activeFor: C.interval().pipe(C.schema(Schema.DurationFromString)),
+  payloadBase64: C.bytea().pipe(C.schema(Schema.flip(Schema.Uint8ArrayFromBase64)))
+})
+const defaultCodecEvents = Table.make("default_codec_events", {
+  bigCounter: C.int8(),
+  amount: C.number(),
+  activeFor: C.interval(),
+  payload: C.bytea()
+})
 
 type UserInsert = Table.InsertOf<typeof users>
 type UserUpdate = Table.UpdateOf<typeof users>
@@ -73,6 +87,8 @@ type UsersSchemaName = typeof users extends Table.TableDefinition<any, any, any,
   : never
 type DatedEventSelect = Table.SelectOf<typeof datedEvents>
 type AuditLogInsert = Table.InsertOf<typeof auditLog>
+type CodecEventSelect = Table.SelectOf<typeof codecEvents>
+type DefaultCodecEventSelect = Table.SelectOf<typeof defaultCodecEvents>
 
 const goodInsert: UserInsert = {
   email: "alice@example.com"
@@ -103,6 +119,21 @@ const badDatedEvent: DatedEventSelect = {
   // @ts-expect-error schema pipes should update the declared select schema
   happenedOn: "2026-03-20"
 }
+const codecEvent: CodecEventSelect = {
+  bigCounter: 42n,
+  amount: null as never as BigDecimal.BigDecimal,
+  activeFor: null as never as Duration.Duration,
+  payloadBase64: "AQID"
+}
+const defaultPayload: DefaultCodecEventSelect["payload"] = new Uint8Array([1, 2, 3])
+// @ts-expect-error opt-in BigIntFromString must be explicit; int8 defaults to canonical string output
+const defaultBigCounter: DefaultCodecEventSelect["bigCounter"] = 42n
+// @ts-expect-error opt-in BigDecimalFromString must be explicit; numeric defaults to canonical string output
+const defaultAmount: DefaultCodecEventSelect["amount"] = null as never as BigDecimal.BigDecimal
+// @ts-expect-error opt-in DurationFromString must be explicit; interval defaults to string output
+const defaultActiveFor: DefaultCodecEventSelect["activeFor"] = null as never as Duration.Duration
+// @ts-expect-error bytea defaults to Uint8Array, not base64 text
+const defaultPayloadBase64: DefaultCodecEventSelect["payload"] = "AQID"
 // @ts-expect-error schema input must accept the column's canonical runtime value
 C.int().pipe(C.schema(Schema.DateFromString))
 void uuidKind
@@ -111,6 +142,12 @@ void analyticsSchemaName
 void publicSchemaName
 void datedEvent
 void badDatedEvent
+void codecEvent
+void defaultPayload
+void defaultBigCounter
+void defaultAmount
+void defaultActiveFor
+void defaultPayloadBase64
 
 const query = Q.select({
   id: users.id,
