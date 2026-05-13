@@ -37,10 +37,40 @@ const main = async () => {
     process.exit(exitCode)
   }
 
-  await Bun.write(join(distDir, "index.d.ts"), 'export * from "./index.js"\n')
-  await Bun.write(join(distDir, "postgres", "pull.d.ts"), 'export * from "./pull.js"\n')
-  await Bun.write(join(distDir, "postgres", "push.d.ts"), 'export * from "./push.js"\n')
-  await Bun.write(join(distDir, "postgres", "migrate.d.ts"), 'export * from "./migrate.js"\n')
+  const declarations = Bun.spawn([
+    join(cwd, "..", "..", "node_modules", ".bin", "tsgo"),
+    "--ignoreConfig",
+    "--declaration",
+    "--emitDeclarationOnly",
+    "--outDir",
+    "dist",
+    "--rootDir",
+    "src",
+    "--module",
+    "Preserve",
+    "--moduleResolution",
+    "bundler",
+    "--target",
+    "ESNext",
+    "--strict",
+    "--skipLibCheck",
+    "--allowImportingTsExtensions",
+    "--types",
+    "bun",
+    "src/index.ts",
+    "src/postgres/pull.ts",
+    "src/postgres/push.ts",
+    "src/postgres/migrate.ts"
+  ], {
+    cwd,
+    stdout: "inherit",
+    stderr: "inherit"
+  })
+
+  const declarationsExitCode = await declarations.exited
+  if (declarationsExitCode !== 0) {
+    process.exit(declarationsExitCode)
+  }
 
   const distStat = await stat(distDir)
   if (!distStat.isDirectory()) {
