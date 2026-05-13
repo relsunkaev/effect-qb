@@ -10,6 +10,14 @@ on:
         description: Release tag to publish
         required: true
         type: string
+      maintenance_action:
+        description: Optional npm maintenance action instead of publishing
+        required: false
+        default: publish
+        type: choice
+        options:
+          - publish
+          - deprecate-effect-db-beta66
 
 concurrency:
   group: publish-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
@@ -84,14 +92,24 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish querybuilder to npm
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.maintenance_action == 'publish' }}
         working-directory: packages/querybuilder
         run: bun publish --access public --tag "${{ steps.npm-tag.outputs.tag }}"
 
       - name: Publish database to npm
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.maintenance_action == 'publish' }}
         working-directory: packages/database
         run: bun publish --access public --tag "${{ steps.npm-tag.outputs.tag }}"
 
+      - name: Deprecate broken beta database package
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.maintenance_action == 'deprecate-effect-db-beta66' }}
+        run: |
+          VERSION="${{ steps.tag.outputs.tag }}"
+          VERSION="${VERSION#v}"
+          npm deprecate "effect-db@${VERSION}" "Broken generated type declaration: import { defineConfig } from 'effect-db' fails with TS2305. Use effect-qb@4.0.0-beta.66 only, or wait for the next effect-db beta."
+
       - name: Create GitHub release
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.maintenance_action == 'publish' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${{ steps.tag.outputs.tag }}" --notes-file "${{ steps.notes.outputs.notes }}" --title "${{ steps.tag.outputs.tag }}"
