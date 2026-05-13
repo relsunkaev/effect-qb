@@ -1,5 +1,6 @@
 import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -44,6 +45,10 @@ export interface RowDecodeError {
   readonly normalized?: unknown
   readonly stage: "normalize" | "schema"
   readonly cause: unknown
+  readonly schemaError?: {
+    readonly message: string
+    readonly issue: unknown
+  }
 }
 
 /**
@@ -183,26 +188,35 @@ const makeRowDecodeError = (
   stage: RowDecodeError["stage"],
   cause: unknown,
   normalized?: unknown
-): RowDecodeError => ({
-  _tag: "RowDecodeError",
-  message: stage === "normalize"
-    ? `Failed to normalize projection '${projection.alias}'`
-    : `Failed to decode projection '${projection.alias}' against its runtime schema`,
-  dialect: rendered.dialect,
-  query: {
-    sql: rendered.sql,
-    params: rendered.params
-  },
-  projection: {
-    alias: projection.alias,
-    path: projection.path
-  },
-  dbType: expression[Expression.TypeId].dbType,
-  raw,
-  normalized,
-  stage,
-  cause
-})
+): RowDecodeError => {
+  const schemaError = Schema.isSchemaError(cause)
+    ? {
+        message: cause.message,
+        issue: cause.issue
+      }
+    : undefined
+  return {
+    _tag: "RowDecodeError",
+    message: stage === "normalize"
+      ? `Failed to normalize projection '${projection.alias}'`
+      : `Failed to decode projection '${projection.alias}' against its runtime schema`,
+    dialect: rendered.dialect,
+    query: {
+      sql: rendered.sql,
+      params: rendered.params
+    },
+    projection: {
+      alias: projection.alias,
+      path: projection.path
+    },
+    dbType: expression[Expression.TypeId].dbType,
+    raw,
+    normalized,
+    stage,
+    cause,
+    ...(schemaError === undefined ? {} : { schemaError })
+  }
+}
 
 const hasOptionalSourceDependency = (
   expression: Expression.Any,
@@ -329,11 +343,16 @@ const decodeProjectionValue = (
     return normalized
   }
 
-  try {
-    return (Schema.decodeUnknownSync as any)(schema)(normalized)
-  } catch (cause) {
-    throw makeRowDecodeError(rendered, projection, expression, raw, "schema", cause, normalized)
+  const decoded = (Schema.decodeUnknownExit as any)(schema)(normalized)
+  if (Exit.isSuccess(decoded)) {
+    return decoded.value
   }
+
+  const cause = Option.match(Exit.findErrorOption(decoded), {
+    onNone: () => decoded.cause,
+    onSome: (schemaError) => schemaError
+  })
+  throw makeRowDecodeError(rendered, projection, expression, raw, "schema", cause, normalized)
 }
 
 export const makeRowDecoder = (

@@ -1430,6 +1430,64 @@ describe("executor behavior", () => {
     ])
   })
 
+  test("fromDriver preserves structured schema issues for nested JSON decode failures", () => {
+    const users = Table.make("schema_issue_users", {
+      id: C.uuid().pipe(C.primaryKey),
+      profile: C.json(Schema.Struct({
+        visits: Schema.NumberFromString,
+        nested: Schema.Struct({
+          enabled: Schema.Boolean
+        })
+      }))
+    })
+
+    const plan = Q.select({
+      profile: users.profile
+    }).pipe(
+      Q.from(users)
+    )
+
+    const error = Effect.runSync(Effect.flip(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          profile: JSON.stringify({
+            visits: "not-a-number",
+            nested: {
+              enabled: "yes"
+            }
+          })
+        }
+      ]))
+    }).execute(plan)))
+
+    expect(error).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "profile"
+      },
+      dbType: {
+        dialect: "postgres",
+        kind: "json"
+      },
+      raw: JSON.stringify({
+        visits: "not-a-number",
+        nested: {
+          enabled: "yes"
+        }
+      }),
+      normalized: {
+        visits: "not-a-number",
+        nested: {
+          enabled: "yes"
+        }
+      }
+    })
+    expect(error.schemaError).toBeDefined()
+    expect(error.schemaError.message).toContain("visits")
+    expect(error.schemaError.issue).toBeDefined()
+  })
+
   test("fromDriver accepts already-decoded JSON string scalars", () => {
     const docs = Table.make("json_string_docs", {
       payload: C.json(Schema.String)
