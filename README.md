@@ -1,6 +1,6 @@
 # effect-qb
 
-Type-safe SQL query construction for PostgreSQL and MySQL, with query plans that carry result shapes, nullability, dialect compatibility, and statement constraints in the type system.
+Type-safe SQL query construction for PostgreSQL, MySQL, and SQLite, with query plans that carry result shapes, nullability, dialect compatibility, and statement constraints in the type system.
 
 ## Overview
 
@@ -48,6 +48,12 @@ If you want to execute plans with the built-in MySQL executor:
 
 ```bash
 bun add effect-qb effect @effect/sql @effect/sql-mysql2
+```
+
+If you want to execute plans with the built-in SQLite executor:
+
+```bash
+bun add effect-qb effect @effect/sql @effect/sql-sqlite-bun
 ```
 
 The built-in executors require an ambient `@effect/sql` `SqlClient`. If your app already uses Effect and `@effect/sql`, you likely already have the extra runtime packages installed.
@@ -111,6 +117,7 @@ bun install
 - [Dialect Support](#dialect-support)
   - [PostgreSQL](#postgresql)
   - [MySQL](#mysql)
+  - [SQLite](#sqlite)
 - [Limitations](#limitations)
 - [Contributing](#contributing)
 
@@ -120,12 +127,15 @@ Available entrypoints:
 
 - `effect-qb/postgres`
 - `effect-qb/mysql`
+- `effect-qb/sqlite`
 
 Use `effect-qb/postgres` when you want explicit Postgres branding throughout the plan, renderer, executor, datatypes, and errors.
 
 That entrypoint also exposes `Postgres.Function` for typed SQL functions and JSON helpers.
 
 Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors. It also exposes `Mysql.Function` for typed SQL functions and JSON helpers.
+
+Use `effect-qb/sqlite` when you want the SQLite-specific DSL, renderer, executor, datatypes, and errors. It exposes SQLite-compatible function and JSON helpers while rejecting unsupported SQL features with branded type errors.
 
 ## Quick Start
 
@@ -503,6 +513,48 @@ type City = Q.ExpressionOutput<typeof city, {
 // string
 ```
 
+Schema-backed `jsonb` columns can also model discriminated unions. Predicates over JSON path expressions feed back into the selected payload type:
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column as C, Json as J, Query as Q, Table } from "effect-qb/postgres"
+
+const events = Table.make("events", {
+  id: C.uuid().pipe(C.primaryKey),
+  payload: C.jsonb(Schema.Union(
+    Schema.Struct({
+      kind: Schema.Literal("signup"),
+      email: Schema.String
+    }),
+    Schema.Struct({
+      kind: Schema.Literal("purchase"),
+      amount: Schema.Number
+    })
+  ))
+})
+
+const payloadKind = J.jsonb.text(events.payload, J.jsonb.key("kind"))
+
+const purchaseEvents = Q.select({
+  payload: events.payload
+}).pipe(
+  Q.from(events),
+  Q.where(Q.eq(payloadKind, "purchase"))
+)
+
+type PurchaseEventRow = Q.ResultRow<typeof purchaseEvents>
+// {
+//   payload: {
+//     kind: "purchase"
+//     amount: number
+//   }
+// }
+
+declare const purchaseEvent: PurchaseEventRow
+const purchaseKind: "purchase" = purchaseEvent.payload.kind
+const purchaseAmount: number = purchaseEvent.payload.amount
+```
+
 ### Dialect-specific Entrypoints
 
 Dialect entrypoints expose dialect-specific builders:
@@ -510,6 +562,7 @@ Dialect entrypoints expose dialect-specific builders:
 ```ts
 import { Query as PostgresQuery } from "effect-qb/postgres"
 import { Query as MysqlQuery } from "effect-qb/mysql"
+import { Query as SqliteQuery } from "effect-qb/sqlite"
 ```
 
 This matters for:
@@ -1209,6 +1262,7 @@ Dialect executors expose query-sensitive error unions:
 
 - `Postgres.Executor.PostgresQueryError<typeof plan>`
 - `Mysql.Executor.MysqlQueryError<typeof plan>`
+- `Sqlite.Executor.SqliteQueryError<typeof plan>`
 
 Those types are narrower than the raw dialect error catalogs. For example, known write-only failures are removed from read-query error channels, while write-bearing plans retain them.
 
@@ -1763,6 +1817,15 @@ That makes invalid plans easier to inspect in editor tooltips and type aliases.
 - schema names map to database-qualified table references
 - `Mysql.Executor.MysqlQueryError<typeof plan>`
 
+### SQLite
+
+- dialect-specific table and query entrypoint via `effect-qb/sqlite`
+- built-in renderer and executor support for SQLite-compatible plans
+- `returning(...)` is available where SQLite supports it
+- unsupported features such as lateral sources, row locks, truncate, regex predicates, and container operators are rejected with branded type errors
+- JSON helpers target SQLite's JSON function surface and intentionally differ from Postgres `jsonb`
+- `Sqlite.Executor.SqliteQueryError<typeof plan>`
+
 Meaningful differences should be expected around:
 
 - JSON operator support
@@ -1777,7 +1840,7 @@ This README is curated. It documents the main workflows and type-safety contract
 Current practical limits:
 
 - some features are dialect-specific by design
-- JSON support is not identical between Postgres and MySQL
+- JSON support is not identical across Postgres, MySQL, and SQLite
 - admin and DDL workflows are not the focus of this README
 - runtime schema enforcement follows propagated column and projection schemas, not full query-derived schemas
 
