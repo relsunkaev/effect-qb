@@ -46,13 +46,9 @@ The Effect v4 lane is published in parallel on npm's `beta` tag:
 bun add effect-qb@beta effect@4.0.0-beta.66
 ```
 
-Install `effect-db` from the same tag when you want the schema-management CLI:
+The `effect-db@4.0.0-beta.66` artifact was deprecated because it shipped a broken generated type declaration. Wait for the next `effect-db` beta before installing the schema-management CLI from npm.
 
-```bash
-bun add effect-db@beta
-```
-
-Use matching package tags within an app. `effect-qb@latest` and `effect-db@latest` stay on the stable line, while `effect-qb@beta` and `effect-db@beta` carry the Effect v4 schema/runtime surface.
+Use matching package tags within an app. `effect-qb@latest` and `effect-db@latest` stay on the stable line. `effect-qb@beta` carries the Effect v4 querybuilder surface; `effect-db` will rejoin the beta lane in the next package version.
 
 If you want to execute beta plans with the built-in Postgres executor:
 

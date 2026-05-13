@@ -8,11 +8,7 @@
 bun add effect-db
 ```
 
-For the parallel Effect v4 beta lane:
-
-```sh
-bun add effect-db@beta effect-qb@beta effect@4.0.0-beta.66
-```
+The `effect-db@4.0.0-beta.66` beta artifact was deprecated because it shipped a broken generated type declaration. Wait for the next `effect-db` beta before installing the schema-management CLI from npm's beta channel.
 
 ## Config
 
