@@ -8,6 +8,12 @@
 bun add effect-db
 ```
 
+For the parallel Effect v4 beta lane:
+
+```sh
+bun add effect-db@beta effect-qb@beta effect@4.0.0-beta.66
+```
+
 ## Config
 
 Use `effectdb.config.ts` and import `defineConfig` from `effect-db`:

@@ -8,6 +8,12 @@
 bun add effect-qb
 ```
 
+For the parallel Effect v4 beta lane:
+
+```sh
+bun add effect-qb@beta effect@4.0.0-beta.66
+```
+
 ## Entry points
 
 - `effect-qb/postgres`

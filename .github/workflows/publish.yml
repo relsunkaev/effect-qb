@@ -64,6 +64,17 @@ jobs:
           fi
           echo "notes=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
 
+      - name: Determine npm tag
+        id: npm-tag
+        run: |
+          VERSION="${{ steps.tag.outputs.tag }}"
+          VERSION="${VERSION#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -74,11 +85,11 @@ jobs:
 
       - name: Publish querybuilder to npm
         working-directory: packages/querybuilder
-        run: bun publish --access public
+        run: bun publish --access public --tag "${{ steps.npm-tag.outputs.tag }}"
 
       - name: Publish database to npm
         working-directory: packages/database
-        run: bun publish --access public
+        run: bun publish --access public --tag "${{ steps.npm-tag.outputs.tag }}"
 
       - name: Create GitHub release
         env:

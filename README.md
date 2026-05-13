@@ -32,28 +32,44 @@ It is a query-construction library, not an ORM. It does not manage model identit
 
 ## Installation
 
-If you only want the typed DSL and SQL rendering:
+The stable lane is published on npm's `latest` tag:
 
 ```bash
 bun add effect-qb
 ```
 
-If you want to execute plans with the built-in Postgres executor:
+It currently targets the stable Effect package line.
+
+The Effect v4 lane is published in parallel on npm's `beta` tag:
 
 ```bash
-bun add effect-qb effect @effect/sql-pg
+bun add effect-qb@beta effect@4.0.0-beta.66
 ```
 
-If you want to execute plans with the built-in MySQL executor:
+Install `effect-db` from the same tag when you want the schema-management CLI:
 
 ```bash
-bun add effect-qb effect @effect/sql-mysql2
+bun add effect-db@beta
 ```
 
-If you want to execute plans with the built-in SQLite executor:
+Use matching package tags within an app. `effect-qb@latest` and `effect-db@latest` stay on the stable line, while `effect-qb@beta` and `effect-db@beta` carry the Effect v4 schema/runtime surface.
+
+If you want to execute beta plans with the built-in Postgres executor:
 
 ```bash
-bun add effect-qb effect @effect/sql-sqlite-bun
+bun add effect-qb@beta effect@4.0.0-beta.66 @effect/sql-pg@4.0.0-beta.66
+```
+
+If you want to execute beta plans with the built-in MySQL executor:
+
+```bash
+bun add effect-qb@beta effect@4.0.0-beta.66 @effect/sql-mysql2@4.0.0-beta.66
+```
+
+If you want to execute beta plans with the built-in SQLite executor:
+
+```bash
+bun add effect-qb@beta effect@4.0.0-beta.66 @effect/sql-sqlite-bun@4.0.0-beta.66
 ```
 
 The built-in executors require an ambient `effect/unstable/sql` `SqlClient`. If your app already uses Effect's v4 SQL services, you likely already have the extra runtime packages installed.

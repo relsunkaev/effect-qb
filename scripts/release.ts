@@ -10,6 +10,7 @@ type Semver = {
   readonly major: number
   readonly minor: number
   readonly patch: number
+  readonly prerelease: string | null
 }
 
 type Commit = {
@@ -64,36 +65,57 @@ const sectionOrder = [
 ] as const
 
 const parseSemver = (value: string): Semver => {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value)
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(value)
   if (!match) {
     throw new Error(`Invalid semver: ${value}`)
   }
   return {
     major: Number(match[1]),
     minor: Number(match[2]),
-    patch: Number(match[3])
+    patch: Number(match[3]),
+    prerelease: match[4] ?? null
   }
 }
 
 const parseReleaseVersion = (subject: string): Semver | null => {
-  const match = /^chore\(release\): v(?<version>\d+\.\d+\.\d+)$/.exec(subject)
+  const match = /^chore\(release\): v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(subject)
   if (!match?.groups?.version) {
     return null
   }
   return parseSemver(match.groups.version)
 }
 
-const formatSemver = (value: Semver): string => `${value.major}.${value.minor}.${value.patch}`
+const formatSemver = (value: Semver): string =>
+  `${value.major}.${value.minor}.${value.patch}${value.prerelease === null ? "" : `-${value.prerelease}`}`
 
 const bumpSemver = (value: Semver, bump: Bump): Semver => {
   switch (bump) {
     case "major":
-      return { major: value.major + 1, minor: 0, patch: 0 }
+      return { major: value.major + 1, minor: 0, patch: 0, prerelease: null }
     case "minor":
-      return { major: value.major, minor: value.minor + 1, patch: 0 }
+      return { major: value.major, minor: value.minor + 1, patch: 0, prerelease: null }
     case "patch":
-      return { major: value.major, minor: value.minor, patch: value.patch + 1 }
+      return { major: value.major, minor: value.minor, patch: value.patch + 1, prerelease: null }
   }
+}
+
+const getArgValue = (args: readonly string[], name: string): string | null => {
+  const inlinePrefix = `${name}=`
+  const inline = args.find((arg) => arg.startsWith(inlinePrefix))
+  if (inline !== undefined) {
+    return inline.slice(inlinePrefix.length)
+  }
+
+  const index = args.indexOf(name)
+  if (index === -1) {
+    return null
+  }
+
+  const value = args[index + 1]
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`${name} requires a value`)
+  }
+  return value
 }
 
 const run = async (command: string[], options?: { readonly allowFailure?: boolean }) => {
@@ -175,7 +197,7 @@ const setPackageVersion = async (version: Semver) => {
 const setCliVersion = async (version: Semver) => {
   const raw = await Bun.file(databaseCliPath).text()
   const next = raw.replace(
-    /version: "\d+\.\d+\.\d+"/,
+    /version: "\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?"/,
     `version: "${formatSemver(version)}"`
   )
   if (next === raw) {
@@ -289,9 +311,11 @@ const insertChangelogSection = (existing: string, section: string): string => {
 }
 
 const main = async () => {
-  const args = new Set(process.argv.slice(2))
+  const argv = process.argv.slice(2)
+  const args = new Set(argv)
   const push = args.has("--push")
   const dryRun = args.has("--dry-run")
+  const explicitVersion = getArgValue(argv, "--version")
 
   const status = await run(["git", "status", "--short"])
   if (status.stdout.trim()) {
@@ -307,12 +331,15 @@ const main = async () => {
   }
 
   const baseVersion = boundary?.version ?? packageVersion
-  const nextVersion = bumpSemver(baseVersion, determineBump(commits, baseVersion.major))
+  const bump = determineBump(commits, baseVersion.major)
+  const nextVersion = explicitVersion === null
+    ? bumpSemver(baseVersion, bump)
+    : parseSemver(explicitVersion)
   const changelogSection = renderChangelogSection(formatSemver(nextVersion), commits)
 
   console.log(`Release version: ${formatSemver(nextVersion)}`)
   console.log(`Commits in release: ${commits.length}`)
-  console.log(`Version bump: ${determineBump(commits, baseVersion.major)}`)
+  console.log(`Version bump: ${explicitVersion === null ? bump : "explicit"}`)
 
   if (dryRun) {
     console.log(changelogSection)
@@ -326,6 +353,7 @@ const main = async () => {
     await setPackageVersion(nextVersion)
   }
   await setCliVersion(nextVersion)
+  await run(["bun", "install", "--lockfile-only"])
 
   const existingChangelog = await Bun.file(changelogPath).text().catch(() => "# Changelog\n\nAll notable changes to this project are documented here.\n\n## Unreleased\n\n")
   await Bun.write(changelogPath, insertChangelogSection(existingChangelog, changelogSection))
@@ -335,7 +363,7 @@ const main = async () => {
     throw new Error("Release requires a checked-out branch")
   }
 
-  await run(["git", "add", "package.json", "packages/querybuilder/package.json", "packages/database/package.json", "packages/database/src/cli.ts", "CHANGELOG.md"])
+  await run(["git", "add", "package.json", "packages/querybuilder/package.json", "packages/database/package.json", "packages/database/src/cli.ts", "bun.lock", "CHANGELOG.md"])
   await run(["git", "commit", "-m", `chore(release): v${formatSemver(nextVersion)}`])
   await run(["git", "tag", "-a", `v${formatSemver(nextVersion)}`, "-m", `v${formatSemver(nextVersion)}`])
 
