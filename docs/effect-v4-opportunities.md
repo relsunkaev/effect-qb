@@ -74,6 +74,8 @@ Implementation shape:
 - Replace the import and adapt the call forms. v4 `FieldOnly`, `FieldExcept`, and `Union` use array arguments, so generated declaration output will change.
 - Only after this is green, evaluate `effect/unstable/schema/Model`. It offers built-in `select`, `insert`, `update`, `json`, `jsonCreate`, and `jsonUpdate` variants plus helpers like `Generated`, `Sensitive`, and optional field helpers. That looks valuable for future model-first APIs, but it is broader than a safe migration of the existing table DSL.
 
+Follow-up decision: `docs/effect-v4-schema-model.md` keeps this branch on v4 `VariantSchema` and defers `Model` to a separate model-first API design.
+
 ### P1: Adopt v4 SQL core and use the new SQL error shape
 
 The v4 driver packages use `effect/unstable/sql/*`; `@effect/sql-pg@4.0.0-beta.66` no longer depends on the standalone `@effect/sql` package. The v4 SQL core also has a reason-based `SqlError` hierarchy.
