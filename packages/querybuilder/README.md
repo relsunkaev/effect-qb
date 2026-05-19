@@ -11,8 +11,11 @@ bun add effect-qb
 ## Entry points
 
 - `effect-qb/postgres`
+- `effect-qb/standard`
 - `effect-qb/mysql`
 - `effect-qb/sqlite`
 - `effect-qb/postgres/metadata`
 
 `effect-qb/postgres/metadata` exposes normalized table and enum metadata helpers used by `effectdb`.
+
+Use `effect-qb/standard` for portable query plans that should render through the built-in SQL renderers.

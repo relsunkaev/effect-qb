@@ -1,11 +1,32 @@
 import { describe, expect, test } from "bun:test"
 
 import * as Mysql from "#mysql"
+import * as Sqlite from "#sqlite"
+import * as Standard from "#standard"
 import { Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { Column as C } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
 
 describe("rendering behavior", () => {
+  test("standard plans render through every built-in SQL renderer", () => {
+    const users = Standard.Table.make("users", {
+      id: Standard.Column.uuid().pipe(Standard.Column.primaryKey),
+      email: Standard.Column.text()
+    })
+
+    const plan = Standard.Query.select({
+      label: Standard.Function.concat(Standard.Function.lower(users.email), "-user")
+    }).pipe(
+      Standard.Query.from(users),
+      Standard.Query.where(Standard.Query.eq(users.email, "alice@example.com"))
+    )
+
+    expect(Standard.Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || ?) as "label" from "users" where ("users"."email" = ?)')
+    expect(Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || $1) as "label" from "users" where ("users"."email" = $2)')
+    expect(Mysql.Renderer.make().render(plan).sql).toBe("select concat(lower(`users`.`email`), ?) as `label` from `users` where (`users`.`email` = ?)")
+    expect(Sqlite.Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || ?) as "label" from "users" where ("users"."email" = ?)')
+  })
+
   test("postgres renders clause combinations with stable parameter ordering", () => {
     const { users, posts } = makeRootSocialGraph()
 

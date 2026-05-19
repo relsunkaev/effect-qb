@@ -1,5 +1,6 @@
 import type { RenderState, RenderValueContext, SqlDialect } from "../../internal/dialect.js"
 import { toDriverValue } from "../../internal/runtime/driver-value-mapping.js"
+import { standardDialect } from "../../standard/dialect.js"
 
 const quoteIdentifier = (value: string): string => `"${value.replaceAll("\"", "\"\"")}"`
 
@@ -23,6 +24,7 @@ const renderLiteral = (value: unknown, state: RenderState, context: RenderValueC
  * Built-in runtime dialect implementation for Postgres.
  */
 export const postgresDialect: SqlDialect<"postgres"> = {
+  ...standardDialect,
   name: "postgres",
   quoteIdentifier,
   renderLiteral,

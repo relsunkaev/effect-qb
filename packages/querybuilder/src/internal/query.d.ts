@@ -37,6 +37,22 @@ export interface QueryState<Outstanding extends string, AvailableNames extends s
 }
 /** Effective SQL dialect carried by an expression. */
 export type DialectOf<Value extends Expression.Any> = Value[typeof Expression.TypeId]["dialect"];
+type ConcreteDialect<D> = D extends "standard" ? never : D;
+export type DialectConflictError<A extends string, B extends string> = {
+    readonly _tag: "DialectConflict";
+    readonly left: A;
+    readonly right: B;
+};
+export type MergeDialect<A extends string, B extends string> = [
+    ConcreteDialect<A>,
+    ConcreteDialect<B>
+] extends [never, never] ? "standard" : [
+    ConcreteDialect<A>,
+    ConcreteDialect<B>
+] extends [never, infer C extends string] ? C : [
+    ConcreteDialect<A>,
+    ConcreteDialect<B>
+] extends [infer C extends string, never] ? C : ConcreteDialect<A> extends ConcreteDialect<B> ? ConcreteDialect<B> extends ConcreteDialect<A> ? A : DialectConflictError<A, B> : DialectConflictError<A, B>;
 /** Source dependency union carried by an expression. */
 export type DependenciesOf<Value extends Expression.Any> = Expression.DependenciesOf<Value>;
 /** Aggregation kind carried by an expression. */
@@ -678,7 +694,7 @@ export type AggregationCompatiblePlan<PlanValue extends QueryPlan<any, any, any,
 /** Narrows a query plan to aggregate-compatible, source-complete plans. */
 export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> = StatementOfPlan<PlanValue> extends "insert" ? InsertSourceStateOfPlan<PlanValue> extends "missing" ? InsertHasOptionalDefaults<PlanValue> extends true ? PlanValue : InsertSourceCompletenessError<PlanValue> : HasKnownOutstanding<RequiredOfPlan<PlanValue>> extends true ? SourceCompletenessError<PlanValue, Extract<RequiredOfPlan<PlanValue>, string>> : IsAggregationCompatibleSelection<SelectionOfPlan<PlanValue>, GroupedOfPlan<PlanValue>> extends true ? PlanValue : AggregationCompatibilityError<PlanValue> : HasKnownOutstanding<RequiredOfPlan<PlanValue>> extends true ? SourceCompletenessError<PlanValue, Extract<RequiredOfPlan<PlanValue>, string>> : IsAggregationCompatibleSelection<SelectionOfPlan<PlanValue>, GroupedOfPlan<PlanValue>> extends true ? PlanValue : AggregationCompatibilityError<PlanValue>;
 /** Whether a plan dialect is compatible with a target engine dialect. */
-type IsDialectCompatible<PlanDialect extends string, EngineDialect extends string> = [PlanDialect] extends [never] ? true : Extract<PlanDialect, EngineDialect> extends never ? false : true;
+type IsDialectCompatible<PlanDialect extends string, EngineDialect extends string> = [PlanDialect] extends [never] ? true : Exclude<PlanDialect, EngineDialect | "standard"> extends never ? true : false;
 /** Narrows a complete plan to those compatible with a target engine dialect. */
 export type DialectCompatiblePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>, EngineDialect extends string> = IsDialectCompatible<PlanValue[typeof RowSet.TypeId]["dialect"], EngineDialect> extends true ? CompletePlan<PlanValue> : DialectCompatibilityError<PlanValue, EngineDialect>;
 /** Nested-plan compatibility used by subquery expressions such as `exists(...)`. */

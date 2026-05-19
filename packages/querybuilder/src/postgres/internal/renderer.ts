@@ -3,7 +3,7 @@ import type * as Expression from "../../internal/scalar.js"
 import { type RenderState } from "../../internal/dialect.js"
 import { postgresDialect } from "./dialect.js"
 import { type Projection } from "../../internal/projections.js"
-import { renderQueryAst } from "./sql-expression-renderer.js"
+import { renderQueryAst } from "../../internal/sql-expression-renderer.js"
 
 /**
  * Minimal rendered-query payload produced by the built-in Postgres renderer.

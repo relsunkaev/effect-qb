@@ -1,7 +1,7 @@
 import type * as Expression from "../../internal/scalar.js"
 import type { RenderState, SqlDialect } from "../../internal/dialect.js"
 import * as SchemaExpression from "../../internal/schema-expression.js"
-import { renderExpression } from "./sql-expression-renderer.js"
+import { renderExpression } from "../../internal/sql-expression-renderer.js"
 import type { DdlExpressionLike } from "../../internal/table-options.js"
 import { parse, toSql } from "pgsql-ast-parser"
 import { postgresDialect } from "./dialect.js"

@@ -21,6 +21,10 @@
     "README.md"
   ],
   "exports": {
+    "./standard": {
+      "types": "./src/standard.ts",
+      "import": "./dist/standard.js"
+    },
     "./postgres": {
       "types": "./src/postgres.ts",
       "import": "./dist/postgres.js"
@@ -40,6 +44,7 @@
     "./package.json": "./package.json"
   },
   "imports": {
+    "#standard": "./src/standard.ts",
     "#postgres": "./src/postgres.ts",
     "#mysql": "./src/mysql.ts",
     "#sqlite": "./src/sqlite.ts",

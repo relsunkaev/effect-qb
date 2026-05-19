@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "imports": {
+    "#standard": "./packages/querybuilder/src/standard.ts",
     "#postgres": "./packages/querybuilder/src/postgres.ts",
     "#mysql": "./packages/querybuilder/src/mysql.ts",
     "#sqlite": "./packages/querybuilder/src/sqlite.ts",

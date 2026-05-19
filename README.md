@@ -126,6 +126,7 @@ bun install
 Available entrypoints:
 
 - `effect-qb/postgres`
+- `effect-qb/standard`
 - `effect-qb/mysql`
 - `effect-qb/sqlite`
 
@@ -133,9 +134,31 @@ Use `effect-qb/postgres` when you want explicit Postgres branding throughout the
 
 That entrypoint also exposes `Postgres.Function` for typed SQL functions and JSON helpers.
 
+Use `effect-qb/standard` when a query should remain portable across the built-in engines. Plans built entirely from `Std.*` carry the `"standard"` dialect tag and can be rendered by the standard, Postgres, MySQL, or SQLite renderers.
+
 Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors. It also exposes `Mysql.Function` for typed SQL functions and JSON helpers.
 
 Use `effect-qb/sqlite` when you want the SQLite-specific DSL, renderer, executor, datatypes, and errors. It exposes SQLite-compatible function and JSON helpers while rejecting unsupported SQL features with branded type errors.
+
+## Writing Portable Queries
+
+```ts
+import * as Std from "effect-qb/standard"
+
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
+})
+
+const userEmails = Std.Query.select({
+  id: users.id,
+  email: Std.Function.lower(users.email)
+}).pipe(
+  Std.Query.from(users)
+)
+```
+
+`userEmails` can be passed to any built-in renderer. If a later step uses a concrete dialect helper, the plan should be rendered by that concrete dialect.
 
 ## Quick Start
 

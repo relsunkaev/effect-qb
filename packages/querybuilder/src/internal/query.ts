@@ -143,6 +143,21 @@ export interface QueryState<
 
 /** Effective SQL dialect carried by an expression. */
 export type DialectOf<Value extends Expression.Any> = Value[typeof Expression.TypeId]["dialect"]
+type ConcreteDialect<D> = D extends "standard" ? never : D
+export type DialectConflictError<A extends string, B extends string> = {
+  readonly _tag: "DialectConflict"
+  readonly left: A
+  readonly right: B
+}
+export type MergeDialect<A extends string, B extends string> =
+  [ConcreteDialect<A>, ConcreteDialect<B>] extends [never, never] ? "standard"
+    : [ConcreteDialect<A>, ConcreteDialect<B>] extends [never, infer C extends string] ? C
+      : [ConcreteDialect<A>, ConcreteDialect<B>] extends [infer C extends string, never] ? C
+        : ConcreteDialect<A> extends ConcreteDialect<B>
+          ? ConcreteDialect<B> extends ConcreteDialect<A>
+            ? A
+            : DialectConflictError<A, B>
+          : DialectConflictError<A, B>
 /** Source dependency union carried by an expression. */
 export type DependenciesOf<Value extends Expression.Any> = Expression.DependenciesOf<Value>
 /** Aggregation kind carried by an expression. */
@@ -2175,7 +2190,7 @@ type IsDialectCompatible<
   EngineDialect extends string
 > = [PlanDialect] extends [never]
   ? true
-  : Exclude<PlanDialect, EngineDialect> extends never
+  : Exclude<PlanDialect, EngineDialect | "standard"> extends never
     ? true
     : false
 

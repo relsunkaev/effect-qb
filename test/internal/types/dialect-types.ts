@@ -17,6 +17,15 @@ type IsExact<A, B> =
 
 type Assert<T extends true> = T
 
+type _AssertMergeStandardStandard = Assert<IsExact<RootQuery.MergeDialect<"standard", "standard">, "standard">>
+type _AssertMergeStandardPostgres = Assert<IsExact<RootQuery.MergeDialect<"standard", "postgres">, "postgres">>
+type _AssertMergeMysqlStandard = Assert<IsExact<RootQuery.MergeDialect<"mysql", "standard">, "mysql">>
+type _AssertMergeSqliteSqlite = Assert<IsExact<RootQuery.MergeDialect<"sqlite", "sqlite">, "sqlite">>
+type _AssertMergeConflict = Assert<IsExact<
+  RootQuery.MergeDialect<"postgres", "mysql">,
+  RootQuery.DialectConflictError<"postgres", "mysql">
+>>
+
 const pgUsers = Postgres.Table.make("users", {
   id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
   email: Postgres.Column.text()
