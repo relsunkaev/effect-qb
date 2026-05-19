@@ -806,6 +806,7 @@ export function Class<
         }
 
         static get schemas() {
+          validateClassOptions(extractDeclaredOptions((this as unknown as TableClassStatic<typeof name, Fields>)[options]))
           return schemasFor(this as any)
         }
 

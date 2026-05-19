@@ -53,6 +53,12 @@ export type MergeDialect<A extends string, B extends string> = [
     ConcreteDialect<A>,
     ConcreteDialect<B>
 ] extends [infer C extends string, never] ? C : ConcreteDialect<A> extends ConcreteDialect<B> ? ConcreteDialect<B> extends ConcreteDialect<A> ? A : DialectConflictError<A, B> : DialectConflictError<A, B>;
+/** Collapses the portable standard tag out of a dialect union. */
+export type NormalizeDialect<Dialect extends string> = [
+    Dialect
+] extends [never] ? never : [
+    Exclude<Dialect, "standard">
+] extends [never] ? "standard" : Exclude<Dialect, "standard">;
 /** Source dependency union carried by an expression. */
 export type DependenciesOf<Value extends Expression.Any> = Expression.DependenciesOf<Value>;
 /** Aggregation kind carried by an expression. */
@@ -151,10 +157,11 @@ export type SelectionShape = Expression.Any | {
 export type ExtractRequired<Selection> = Selection extends Expression.Any ? RequiredFromDependencies<DependenciesOf<Selection>> : Selection extends Record<string, any> ? {
     [K in keyof Selection]: ExtractRequired<Selection[K]>;
 }[keyof Selection] : never;
-/** Walks a selection tree and unions the dialects referenced by its leaves. */
-export type ExtractDialect<Selection> = Selection extends Expression.Any ? DialectOf<Selection> : Selection extends Record<string, any> ? {
-    [K in keyof Selection]: ExtractDialect<Selection[K]>;
+type ExtractDialectRaw<Selection> = Selection extends Expression.Any ? DialectOf<Selection> : Selection extends Record<string, any> ? {
+    [K in keyof Selection]: ExtractDialectRaw<Selection[K]>;
 }[keyof Selection] : never;
+/** Walks a selection tree and extracts the effective dialects referenced by its leaves. */
+export type ExtractDialect<Selection> = NormalizeDialect<Extract<ExtractDialectRaw<Selection>, string>>;
 /**
  * Minimal table-like shape required by `from(...)` and joins.
  *
@@ -435,8 +442,7 @@ export type MutationTargetNamesOf<Target extends MutationTargetInput> = Target e
 export type UpdateInputOfTarget<Target extends MutationTargetInput> = Target extends MutationTargetLike ? MutationInputOf<Table.UpdateOf<Target>> : Target extends MutationTargetTuple ? Simplify<{
     readonly [K in MutationTargetNamesOf<Target>]?: MutationInputOf<Table.UpdateOf<MutationTargetByName<Target, K>>>;
 }> : never;
-/** Extracts the effective dialect from a source. */
-export type SourceDialectOf<Source extends SourceLike> = Source extends TableLike<any, infer Dialect> ? Dialect : Source extends {
+type SourceDialectOfRaw<Source extends SourceLike> = Source extends TableLike<any, infer Dialect> ? Dialect : Source extends {
     readonly kind: "derived";
     readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>;
 } ? PlanDialectOf<PlanValue> : Source extends {
@@ -448,6 +454,8 @@ export type SourceDialectOf<Source extends SourceLike> = Source extends TableLik
 } ? PlanDialectOf<PlanValue> : Source extends {
     readonly dialect: infer Dialect extends string;
 } ? Dialect : never;
+/** Extracts the effective dialect from a source. */
+export type SourceDialectOf<Source extends SourceLike> = NormalizeDialect<SourceDialectOfRaw<Source>>;
 /** Extracts the base table name from a source. */
 export type SourceBaseNameOf<Source extends SourceLike> = Source extends TableLike<any, any> ? Source[typeof Table.TypeId]["baseName"] : Source extends {
     readonly kind: "derived";
@@ -509,7 +517,7 @@ export type RequiredOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, 
 /** Extracts the available-source scope carried by a query plan. */
 export type AvailableOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>> = QueryPlanParts<PlanValue>["available"];
 /** Extracts the effective dialect carried by a query plan. */
-export type PlanDialectOf<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>> = QueryPlanParts<PlanValue>["dialect"];
+export type PlanDialectOf<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>> = NormalizeDialect<QueryPlanParts<PlanValue>["dialect"]>;
 /** Extracts the grouped-source phantom carried by a query plan. */
 export type GroupedOfPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>> = QueryPlanState<PlanValue>["grouped"];
 /** Extracts the available-name phantom carried by a query plan. */
@@ -578,7 +586,7 @@ type MergeNullability<Left extends Expression.Nullability, Right extends Express
 /** Folds nullability across a tuple for null-propagating scalar operators. */
 export type MergeNullabilityTuple<Values extends readonly Expression.Any[], Current extends Expression.Nullability = "never"> = Values extends readonly [infer Head extends Expression.Any, ...infer Tail extends readonly Expression.Any[]] ? MergeNullabilityTuple<Tail, MergeNullability<Current, Expression.NullabilityOf<Head>>> : Current;
 /** Dialect union across a tuple of expressions. */
-export type TupleDialect<Values extends readonly Expression.Any[]> = Values[number] extends never ? never : DialectOf<Values[number]>;
+export type TupleDialect<Values extends readonly Expression.Any[]> = Values[number] extends never ? never : NormalizeDialect<DialectOf<Values[number]>>;
 /** Dependency union across a tuple of scalar expressions. */
 export type TupleDependencies<Values extends readonly Expression.Any[]> = Values[number] extends never ? never : DependenciesOf<Values[number]>;
 /** Builds the canonical dependency union from a string union of table names. */
@@ -677,7 +685,7 @@ type AggregationCompatibilityError<PlanValue extends QueryPlan<any, any, any, an
 };
 type DialectCompatibilityError<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>, EngineDialect extends string> = PlanValue & {
     readonly __effect_qb_error__: "effect-qb: plan dialect is not compatible with the target renderer or executor";
-    readonly __effect_qb_plan_dialect__: PlanValue[typeof RowSet.TypeId]["dialect"];
+    readonly __effect_qb_plan_dialect__: PlanDialectOf<PlanValue>;
     readonly __effect_qb_target_dialect__: EngineDialect;
     readonly __effect_qb_hint__: "Use the matching dialect module or renderer/executor";
 };
@@ -696,9 +704,9 @@ export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, an
 /** Whether a plan dialect is compatible with a target engine dialect. */
 type IsDialectCompatible<PlanDialect extends string, EngineDialect extends string> = [PlanDialect] extends [never] ? true : Exclude<PlanDialect, EngineDialect | "standard"> extends never ? true : false;
 /** Narrows a complete plan to those compatible with a target engine dialect. */
-export type DialectCompatiblePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>, EngineDialect extends string> = IsDialectCompatible<PlanValue[typeof RowSet.TypeId]["dialect"], EngineDialect> extends true ? CompletePlan<PlanValue> : DialectCompatibilityError<PlanValue, EngineDialect>;
+export type DialectCompatiblePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>, EngineDialect extends string> = IsDialectCompatible<PlanDialectOf<PlanValue>, EngineDialect> extends true ? CompletePlan<PlanValue> : DialectCompatibilityError<PlanValue, EngineDialect>;
 /** Nested-plan compatibility used by subquery expressions such as `exists(...)`. */
-export type DialectCompatibleNestedPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>, EngineDialect extends string> = IsDialectCompatible<PlanValue[typeof RowSet.TypeId]["dialect"], EngineDialect> extends true ? AggregationCompatiblePlan<PlanValue> : DialectCompatibilityError<PlanValue, EngineDialect>;
+export type DialectCompatibleNestedPlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>, EngineDialect extends string> = IsDialectCompatible<PlanDialectOf<PlanValue>, EngineDialect> extends true ? AggregationCompatiblePlan<PlanValue> : DialectCompatibilityError<PlanValue, EngineDialect>;
 type SetOperandStatement = "select" | "set";
 type IsUnion<Value, All = Value> = Value extends any ? ([All] extends [Value] ? false : true) : never;
 type SingleSelectedExpressionError<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> = PlanValue & {

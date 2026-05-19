@@ -2,6 +2,8 @@ import type * as Effect from "effect/Effect"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
+import * as Sqlite from "#sqlite"
+import * as Standard from "#standard"
 import * as Executor from "#internal/executor.ts"
 import * as RootQuery from "#internal/query.ts"
 import * as Renderer from "#internal/renderer.ts"
@@ -25,6 +27,7 @@ type _AssertMergeConflict = Assert<IsExact<
   RootQuery.MergeDialect<"postgres", "mysql">,
   RootQuery.DialectConflictError<"postgres", "mysql">
 >>
+type _AssertNormalizeStandardPostgres = Assert<IsExact<RootQuery.NormalizeDialect<"standard" | "postgres">, "postgres">>
 
 const pgUsers = Postgres.Table.make("users", {
   id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
@@ -34,6 +37,11 @@ const pgUsers = Postgres.Table.make("users", {
 const myUsers = Mysql.Table.make("users", {
   id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
   email: Mysql.Column.text()
+})
+
+const stdUsers = Standard.Table.make("users", {
+  id: Standard.Column.uuid().pipe(Standard.Column.primaryKey),
+  email: Standard.Column.text()
 })
 
 const pgLiteral = Postgres.Query.literal("user")
@@ -88,6 +96,39 @@ const myPlan = Mysql.Query.select({
 }).pipe(
   Mysql.Query.from(myUsers)
 )
+
+const stdPlan = Standard.Query.select({
+  id: stdUsers.id
+}).pipe(
+  Standard.Query.from(stdUsers)
+)
+
+type StdPlanDialect = RootQuery.PlanDialectOf<typeof stdPlan>
+type _AssertStdPlanDialect = Assert<IsExact<StdPlanDialect, "standard">>
+
+const stdPgRendered = Postgres.Renderer.make().render(stdPlan)
+const stdMysqlRendered = Mysql.Renderer.make().render(stdPlan)
+const stdSqliteRendered = Sqlite.Renderer.make().render(stdPlan)
+void stdPgRendered
+void stdMysqlRendered
+void stdSqliteRendered
+
+const standardNarrowedToPostgres = Standard.Query.select({
+  id: stdUsers.id
+}).pipe(
+  Standard.Query.from(stdUsers),
+  Standard.Query.orderBy(Postgres.Query.literal(1))
+)
+
+type StandardNarrowedDialect = RootQuery.PlanDialectOf<typeof standardNarrowedToPostgres>
+type _AssertStandardNarrowedDialect = Assert<IsExact<StandardNarrowedDialect, "postgres">>
+
+const narrowedPgRendered = Postgres.Renderer.make().render(standardNarrowedToPostgres)
+void narrowedPgRendered
+
+// @ts-expect-error postgres-narrowed standard plans are not accepted by mysql renderers
+const narrowedMysqlRendered = Mysql.Renderer.make().render(standardNarrowedToPostgres)
+void narrowedMysqlRendered
 
 // @ts-expect-error postgres set operators do not accept mysql left operands
 const postgresSetWithMysqlLeft = Postgres.Query.union(myPlan, pgPlan)

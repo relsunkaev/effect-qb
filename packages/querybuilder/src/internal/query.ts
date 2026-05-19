@@ -158,6 +158,14 @@ export type MergeDialect<A extends string, B extends string> =
             ? A
             : DialectConflictError<A, B>
           : DialectConflictError<A, B>
+
+/** Collapses the portable standard tag out of a dialect union. */
+export type NormalizeDialect<Dialect extends string> =
+  [Dialect] extends [never]
+    ? never
+    : [Exclude<Dialect, "standard">] extends [never]
+      ? "standard"
+      : Exclude<Dialect, "standard">
 /** Source dependency union carried by an expression. */
 export type DependenciesOf<Value extends Expression.Any> = Expression.DependenciesOf<Value>
 /** Aggregation kind carried by an expression. */
@@ -479,14 +487,16 @@ export type ExtractRequired<Selection> = Selection extends Expression.Any
       }[keyof Selection]
     : never
 
-/** Walks a selection tree and unions the dialects referenced by its leaves. */
-export type ExtractDialect<Selection> = Selection extends Expression.Any
+type ExtractDialectRaw<Selection> = Selection extends Expression.Any
   ? DialectOf<Selection>
   : Selection extends Record<string, any>
     ? {
-        [K in keyof Selection]: ExtractDialect<Selection[K]>
+        [K in keyof Selection]: ExtractDialectRaw<Selection[K]>
       }[keyof Selection]
     : never
+
+/** Walks a selection tree and extracts the effective dialects referenced by its leaves. */
+export type ExtractDialect<Selection> = NormalizeDialect<Extract<ExtractDialectRaw<Selection>, string>>
 
 /**
  * Minimal table-like shape required by `from(...)` and joins.
@@ -1020,14 +1030,16 @@ export type UpdateInputOfTarget<Target extends MutationTargetInput> =
         }>
       : never
 
-/** Extracts the effective dialect from a source. */
-export type SourceDialectOf<Source extends SourceLike> =
+type SourceDialectOfRaw<Source extends SourceLike> =
   Source extends TableLike<any, infer Dialect> ? Dialect :
     Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
       Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
         Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
           Source extends { readonly dialect: infer Dialect extends string } ? Dialect :
       never
+
+/** Extracts the effective dialect from a source. */
+export type SourceDialectOf<Source extends SourceLike> = NormalizeDialect<SourceDialectOfRaw<Source>>
 
 /** Extracts the base table name from a source. */
 export type SourceBaseNameOf<Source extends SourceLike> =
@@ -1269,7 +1281,7 @@ export type AvailableOfPlan<
 /** Extracts the effective dialect carried by a query plan. */
 export type PlanDialectOf<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
-> = QueryPlanParts<PlanValue>["dialect"]
+> = NormalizeDialect<QueryPlanParts<PlanValue>["dialect"]>
 /** Extracts the grouped-source phantom carried by a query plan. */
 export type GroupedOfPlan<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any, any, any>
@@ -1480,7 +1492,7 @@ export type MergeNullabilityTuple<
 /** Dialect union across a tuple of expressions. */
 export type TupleDialect<
   Values extends readonly Expression.Any[]
-> = Values[number] extends never ? never : DialectOf<Values[number]>
+> = Values[number] extends never ? never : NormalizeDialect<DialectOf<Values[number]>>
 
 /** Converts a union into an intersection. */
 type UnionToIntersection<Union> = (
@@ -2139,7 +2151,7 @@ type DialectCompatibilityError<
   EngineDialect extends string
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: plan dialect is not compatible with the target renderer or executor"
-  readonly __effect_qb_plan_dialect__: PlanValue[typeof RowSet.TypeId]["dialect"]
+  readonly __effect_qb_plan_dialect__: PlanDialectOf<PlanValue>
   readonly __effect_qb_target_dialect__: EngineDialect
   readonly __effect_qb_hint__: "Use the matching dialect module or renderer/executor"
 }
@@ -2198,7 +2210,7 @@ type IsDialectCompatible<
 export type DialectCompatiblePlan<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   EngineDialect extends string
-> = IsDialectCompatible<PlanValue[typeof RowSet.TypeId]["dialect"], EngineDialect> extends true
+> = IsDialectCompatible<PlanDialectOf<PlanValue>, EngineDialect> extends true
   ? CompletePlan<PlanValue>
   : DialectCompatibilityError<PlanValue, EngineDialect>
 
@@ -2216,7 +2228,7 @@ type NestedPlanStatementError<
 export type DialectCompatibleNestedPlan<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
   EngineDialect extends string
-> = IsDialectCompatible<PlanValue[typeof RowSet.TypeId]["dialect"], EngineDialect> extends true
+> = IsDialectCompatible<PlanDialectOf<PlanValue>, EngineDialect> extends true
   ? StatementOfPlan<PlanValue> extends SelectLikeStatement
     ? AggregationCompatiblePlan<PlanValue>
     : NestedPlanStatementError<PlanValue>
