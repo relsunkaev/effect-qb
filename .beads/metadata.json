@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "effect_qb",
+  "project_id": "22ea13f5-4d9e-4af0-ad3a-392dcb5b9260"
+}
