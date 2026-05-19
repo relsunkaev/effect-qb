@@ -24,33 +24,37 @@
     },
     "packages/database": {
       "name": "effect-db",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "bin": {
-        "effect-db": "./dist/cli.js",
+        "effectdb": "./dist/cli.js",
       },
       "dependencies": {
+        "effect-qb": "workspace:*",
+      },
+      "peerDependencies": {
         "@effect/cli": "^0.75.0",
         "@effect/platform": "^0.96.0",
         "@effect/platform-bun": "^0.89.0",
         "@effect/sql": "^0.48.0",
         "@effect/sql-pg": "^0.48.0",
         "effect": "^3.19.3",
-        "effect-qb": "workspace:*",
         "typescript": "^6.0.2",
       },
     },
     "packages/querybuilder": {
       "name": "effect-qb",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "dependencies": {
-        "@effect/experimental": "^0.57.0",
-        "@effect/sql": "^0.48.0",
-        "effect": "^3.19.3",
         "pgsql-ast-parser": "^12.0.2",
       },
       "devDependencies": {
         "@types/bun": "latest",
         "@typescript/native-preview": "beta",
+      },
+      "peerDependencies": {
+        "@effect/experimental": "^0.57.0",
+        "@effect/sql": "^0.48.0",
+        "effect": "^3.19.3",
       },
     },
   },
@@ -267,8 +271,8 @@
 
     "yaml": ["yaml@2.8.3", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-AvbaCLOO2Otw/lW5bmh9d/WEdcDFdQp2Z2ZUH3pX9U2ihyUY0nvLv7J6TrWowklRGPYbB/IuIMfYgxaCPg5Bpg=="],
 
-    "effect-qb/@types/bun": ["@types/bun@1.3.13", "", { "dependencies": { "bun-types": "1.3.13" } }, "sha512-9fqXWk5YIHGGnUau9TEi+qdlTYDAnOj+xLCmSTwXfAIqXr2x4tytJb43E9uCvt09zJURKXwAtkoH4nLQfzeTXw=="],
+    "effect-qb/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
-    "effect-qb/@types/bun/bun-types": ["bun-types@1.3.13", "", { "dependencies": { "@types/node": "*" } }, "sha512-QXKeHLlOLqQX9LgYaHJfzdBaV21T63HhFJnvuRCcjZiaUDpbs5ED1MgxbMra71CsryN/1dAoXuJJJwIv/2drVA=="],
+    "effect-qb/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
   }
 }

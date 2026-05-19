@@ -58,6 +58,9 @@ const main = async () => {
       private: true,
       type: "module",
       dependencies: {
+        "@effect/experimental": "^0.57.0",
+        "@effect/sql": "^0.48.0",
+        "effect": "^3.19.3",
         "effect-qb": `file:${packedTarball}`
       }
     }, null, 2)}\n`)

@@ -56,13 +56,15 @@
     "prepack": "bun run build"
   },
   "dependencies": {
+    "effect-qb": "workspace:*"
+  },
+  "peerDependencies": {
     "@effect/cli": "^0.75.0",
     "@effect/platform": "^0.96.0",
     "@effect/platform-bun": "^0.89.0",
     "@effect/sql": "^0.48.0",
     "@effect/sql-pg": "^0.48.0",
     "effect": "^3.19.3",
-    "effect-qb": "workspace:*",
     "typescript": "^6.0.2"
   }
 }
