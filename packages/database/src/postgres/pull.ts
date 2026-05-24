@@ -1237,13 +1237,32 @@ const isKnownTableOption = (option: unknown): option is TableOptionSpec => {
   if (typeof option !== "object" || option === null || !("kind" in option)) {
     return false
   }
-  switch ((option as { readonly kind?: unknown }).kind) {
+  const candidate = option as { readonly kind?: unknown }
+  switch (candidate.kind) {
     case "index":
-    case "primaryKey":
-    case "unique":
-    case "foreignKey":
     case "check":
       return true
+    case "primaryKey":
+    case "unique":
+      return Array.isArray((option as { readonly columns?: unknown }).columns)
+    case "foreignKey": {
+      if (!Array.isArray((option as { readonly columns?: unknown }).columns)) {
+        return false
+      }
+      const references = (option as { readonly references?: unknown }).references
+      if (typeof references !== "function") {
+        return false
+      }
+      try {
+        const reference = references()
+        return typeof reference === "object" &&
+          reference !== null &&
+          typeof (reference as { readonly tableName?: unknown }).tableName === "string" &&
+          Array.isArray((reference as { readonly columns?: unknown }).columns)
+      } catch {
+        return false
+      }
+    }
     default:
       return false
   }
