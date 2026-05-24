@@ -114,6 +114,20 @@ Pg.Executor.make({
   driver: Pg.Executor.driver(() => Effect.succeed([]))
 })
 
+Std.Renderer.make({
+  valueMappings: {
+    uuid: pgMapping,
+    string: pgMapping
+  }
+})
+
+Std.Renderer.make({
+  valueMappings: {
+    // @ts-expect-error value mapping keys must be known standard type, family, or runtime keys
+    jsonb: pgMapping
+  }
+})
+
 Pg.Executor.driver({
   execute: () => Effect.succeed([]),
   stream: () => Stream.empty
@@ -206,11 +220,48 @@ Mysql.Renderer.make({
   }
 })
 
+Mysql.Renderer.make({
+  valueMappings: {
+    // @ts-expect-error value mapping keys must be known mysql type, family, or runtime keys
+    jsonb: mysqlMapping
+  }
+})
+
 Mysql.Executor.make({
   valueMappings: {
     text: mysqlMapping
   },
   driver: Mysql.Executor.driver(() => Effect.succeed([]))
+})
+
+Mysql.Executor.make({
+  valueMappings: {
+    // @ts-expect-error value mapping keys must be known mysql type, family, or runtime keys
+    timestamptzz: mysqlMapping
+  },
+  driver: Mysql.Executor.driver(() => Effect.succeed([]))
+})
+
+Sqlite.Renderer.make({
+  valueMappings: {
+    text: mysqlMapping,
+    string: mysqlMapping
+  }
+})
+
+Sqlite.Renderer.make({
+  valueMappings: {
+    // @ts-expect-error value mapping keys must be known sqlite type, family, or runtime keys
+    jsonb: mysqlMapping
+  }
+})
+
+Sqlite.Executor.make({
+  valueMappings: {
+    // @ts-expect-error value mapping keys must be known sqlite type, family, or runtime keys
+    timestamptzz: mysqlMapping
+  },
+  driver: Sqlite.Executor.driver(() => Effect.succeed([]))
 })
 
 void mysqlId
