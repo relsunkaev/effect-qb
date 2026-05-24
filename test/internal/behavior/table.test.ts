@@ -523,6 +523,26 @@ describe("table definitions", () => {
     )
   })
 
+  test("table definitions trust unknown option kinds without runtime validation", () => {
+    const users = StdRoot.Table.make("unknown_option_kind_users", {
+      id: StdRoot.Column.uuid()
+    }).pipe(
+      StdRoot.Table.option(unsafeAny({
+        kind: "partition",
+        columns: "id"
+      }))
+    )
+
+    expect(users[StdRoot.Table.OptionsSymbol]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "partition",
+          columns: "id"
+        })
+      ])
+    )
+  })
+
   test("table definitions trust malformed check option metadata without runtime validation", () => {
     const users = StdRoot.Table.make("malformed_check_option_users", {
       id: StdRoot.Column.uuid()

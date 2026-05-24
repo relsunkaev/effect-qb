@@ -225,6 +225,8 @@ const mapOption = (
           ? mapDdlExpression(option.predicate, expressionState)
           : option.predicate
       }
+    default:
+      return option
   }
 }
 

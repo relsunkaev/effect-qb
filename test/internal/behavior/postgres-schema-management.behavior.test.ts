@@ -105,14 +105,20 @@ describe("postgres schema management", () => {
     )
   })
 
-  test("source table models reject unknown table option kinds before mapping metadata", () => {
+  test("source table models preserve unknown table option kinds without runtime validation", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     ;(users as any)[StdRoot.Table.OptionsSymbol] = [{ kind: "partition", columns: ["id"] }]
 
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Unsupported table option kind"
+    const model = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+    expect(model.options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "partition",
+          columns: ["id"]
+        })
+      ])
     )
   })
 

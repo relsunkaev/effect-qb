@@ -442,7 +442,7 @@ export const validateOptions = <Fields extends TableFieldMap>(
         break
       }
       default:
-        throw new Error("Unsupported table option kind")
+        break
     }
   }
 }
