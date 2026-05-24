@@ -11,7 +11,10 @@ import * as ExpressionAst from "../../../packages/querybuilder/src/internal/expr
 import { Casing } from "../../../packages/querybuilder/src/index.ts"
 import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/postgres-schema-diff.js"
 import { fromDiscoveredValues, toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
-import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
+import {
+  discoverSourceSchema,
+  type DiscoveredSourceSchema
+} from "../../../packages/database/src/internal/postgres-source-discovery.js"
 import { planPostgresPull } from "../../../packages/database/src/postgres/pull.js"
 import * as StdRoot from "#standard"
 
@@ -637,6 +640,55 @@ describe("postgres schema management", () => {
         })
       ])
     )
+  })
+
+  test("pull planning tolerates malformed index keys in discovered source bindings", async () => {
+    const tempDir = await mkdtemp(join(process.cwd(), ".tmp-pull-malformed-index-keys-"))
+    try {
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+      })
+      ;(users as any)[StdRoot.Table.OptionsSymbol] = [
+        ...(users as any)[StdRoot.Table.OptionsSymbol],
+        {
+          kind: "index",
+          keys: [null, { kind: "column", column: "id" }]
+        }
+      ]
+
+      const declaration: DiscoveredSourceSchema["declarations"][number] = {
+        kind: "tableFactory",
+        filePath: join(tempDir, "users.ts"),
+        identifier: "users",
+        start: 0,
+        end: 0
+      }
+      const discovered: DiscoveredSourceSchema = {
+        declarations: [declaration],
+        bindings: [{
+          declaration,
+          value: users,
+          key: "public.users",
+          kind: "table"
+        }],
+        model: {
+          dialect: "postgres",
+          enums: [],
+          tables: [toTableModel(users as unknown as Parameters<typeof toTableModel>[0])]
+        }
+      }
+      const database: SchemaModel = {
+        dialect: "postgres",
+        enums: [],
+        tables: []
+      }
+
+      await expect(planPostgresPull(tempDir, { include: ["**/*.ts"] }, discovered, database)).resolves.toEqual({
+        updates: []
+      })
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
   })
 
   test("classifies safe and destructive schema changes", () => {

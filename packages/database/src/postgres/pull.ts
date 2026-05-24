@@ -1233,11 +1233,57 @@ const constraintShapeSignature = (option: Exclude<TableOptionSpec, { readonly ki
   }
 }
 
+const isKnownTableOption = (option: unknown): option is TableOptionSpec => {
+  if (typeof option !== "object" || option === null || !("kind" in option)) {
+    return false
+  }
+  switch ((option as { readonly kind?: unknown }).kind) {
+    case "index":
+    case "primaryKey":
+    case "unique":
+    case "foreignKey":
+    case "check":
+      return true
+    default:
+      return false
+  }
+}
+
+const normalizedTableOptions = (table: TableModel): readonly TableOptionSpec[] =>
+  (table.options as readonly unknown[]).filter(isKnownTableOption)
+
+const isIndexKeySpec = (key: unknown): key is IndexKeySpec => {
+  if (typeof key !== "object" || key === null || !("kind" in key)) {
+    return false
+  }
+  if ((key as { readonly kind?: unknown }).kind === "column") {
+    return typeof (key as { readonly column?: unknown }).column === "string"
+  }
+  if ((key as { readonly kind?: unknown }).kind === "expression") {
+    return "expression" in key
+  }
+  return false
+}
+
+const normalizedIndexKeys = (
+  option: Extract<TableOptionSpec, { readonly kind: "index" }>
+): readonly IndexKeySpec[] => {
+  if (Array.isArray(option.keys)) {
+    return option.keys.filter(isIndexKeySpec)
+  }
+  if (Array.isArray(option.columns)) {
+    return option.columns
+      .filter((column): column is string => typeof column === "string")
+      .map((column) => ({
+        kind: "column" as const,
+        column
+      }))
+  }
+  return []
+}
+
 const indexShapeSignature = (option: Extract<TableOptionSpec, { readonly kind: "index" }>): string => {
-  const keys: readonly IndexKeySpec[] = option.keys ?? (option.columns ?? []).map((column) => ({
-    kind: "column" as const,
-    column
-  }))
+  const keys = normalizedIndexKeys(option)
   return JSON.stringify({
     kind: option.kind,
     unique: option.unique ?? false,
@@ -1268,7 +1314,7 @@ const tableShapeSignature = (table: TableModel): string =>
   JSON.stringify({
     schemaName: table.schemaName ?? "public",
     columns: table.columns.map((column) => columnShapeSignature(column)),
-    options: table.options.map((option) =>
+    options: normalizedTableOptions(table).map((option) =>
       option.kind === "index"
         ? indexShapeSignature(option)
         : constraintShapeSignature(option))
