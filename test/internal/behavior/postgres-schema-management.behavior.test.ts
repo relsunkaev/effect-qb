@@ -95,14 +95,15 @@ describe("postgres schema management", () => {
     )
   })
 
-  test("source table models reject non-array table options before mapping metadata", () => {
+  test("source table models preserve non-array table options without runtime validation", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     ;(users as any)[StdRoot.Table.OptionsSymbol] = {}
 
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Table 'users' options require an array"
+    const model = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+    expect(model.options).toEqual(
+      expect.arrayContaining([{}])
     )
   })
 

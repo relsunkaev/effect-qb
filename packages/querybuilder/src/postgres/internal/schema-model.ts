@@ -238,8 +238,9 @@ export const toTableModel = (table: Table.AnyTable): TableModel => {
     ? undefined
     : applyCasing(casing, "schemas", state.schemaName)
   const fields = state.fields as Record<string, AnyColumnDefinition>
-  const options = table[Table.OptionsSymbol]
-  validateOptions(state.name, fields, options)
+  const options = table[Table.OptionsSymbol] as unknown
+  const normalizedOptions = (Array.isArray(options) ? options : [options]) as readonly TableOptionSpec[]
+  validateOptions(state.name, fields, normalizedOptions)
   const columnNames = new Map(
     Object.keys(fields).map((name) => [name, applyCasing(casing, "columns", name)] as const)
   )
@@ -272,7 +273,7 @@ export const toTableModel = (table: Table.AnyTable): TableModel => {
     schemaName,
     name: tableName,
     columns,
-    options: options.map((option) =>
+    options: normalizedOptions.map((option) =>
       typeof option === "object" && option !== null && "kind" in option
         ? mapOption(option, casing, expressionState)
         : option as TableOptionSpec

@@ -417,10 +417,9 @@ export const validateOptions = <Fields extends TableFieldMap>(
   fields: Fields,
   options: unknown
 ): void => {
-  if (!Array.isArray(options)) {
-    throw new Error(`Table '${tableName}' options require an array`)
-  }
-  const tableOptions = options as readonly TableOptionSpec[]
+  const tableOptions = (Array.isArray(options)
+    ? options
+    : [options]) as readonly TableOptionSpec[]
   for (const option of tableOptions) {
     if (typeof option !== "object" || option === null || !("kind" in option)) {
       continue
