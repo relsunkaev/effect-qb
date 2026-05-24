@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 import * as Mysql from "#mysql"
 import * as Sqlite from "#sqlite"
 import * as Standard from "#standard"
+import * as QueryAst from "#internal/query-ast.ts"
 import { Column as C, Table } from "#standard"
 import { Query as Q, Function as F, Json as PgJson, Renderer } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
@@ -1638,6 +1639,17 @@ describe("rendering behavior", () => {
 
     expect(() => Renderer.make().render(incomplete)).toThrow(
       "query references sources that are not yet in scope"
+    )
+  })
+
+  test("rejects plans without required clause arrays before rendering SQL", () => {
+    const plan = Q.select({
+      answer: Q.literal(1)
+    })
+    ;(plan as any)[QueryAst.TypeId].where = undefined
+
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "query plans require a where clause array"
     )
   })
 

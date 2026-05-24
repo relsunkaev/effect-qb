@@ -329,6 +329,17 @@ const visitInsertSource = (
   }
 }
 
+const requiredClauseArray = <Value>(
+  name: string,
+  entries: readonly Value[] | undefined
+): readonly Value[] => {
+  if (!Array.isArray(entries)) {
+    const article = name === "orderBy" ? "an" : "a"
+    throw new Error(`query plans require ${article} ${name} clause array`)
+  }
+  return entries
+}
+
 const visitPlan = (
   value: unknown,
   dialect: string | undefined,
@@ -346,6 +357,11 @@ const visitPlan = (
     return next
   }
   const ast = Query.getAst(value)
+  const where = requiredClauseArray<QueryAst.WhereClause>("where", ast.where)
+  const having = requiredClauseArray<QueryAst.HavingClause>("having", ast.having)
+  const joins = requiredClauseArray<QueryAst.JoinClause>("join", ast.joins)
+  const groupBy = requiredClauseArray<Expression.Any>("groupBy", ast.groupBy)
+  const orderBy = requiredClauseArray<QueryAst.OrderByClause>("orderBy", ast.orderBy)
   next = visitSelection(ast.select, next, context)
   next = visitSelection(ast.distinctOn, next, context)
   next = visitSourceClause(ast.from, next, context)
@@ -354,14 +370,14 @@ const visitPlan = (
   next = visitSourceClause(ast.target, next, context)
   next = ast.targets?.reduce((current, source) => visitSourceClause(source, current, context), next) ?? next
   next = visitSourceClause(ast.using, next, context)
-  next = ast.where.reduce((current, clause) => visitExpression(clause.predicate, current, context), next)
-  next = ast.having.reduce((current, clause) => visitExpression(clause.predicate, current, context), next)
-  next = ast.joins.reduce(
+  next = where.reduce((current, clause) => visitExpression(clause.predicate, current, context), next)
+  next = having.reduce((current, clause) => visitExpression(clause.predicate, current, context), next)
+  next = joins.reduce(
     (current, join) => visitExpression(join.on, visitSourceClause(join, current, context), context),
     next
   )
-  next = ast.groupBy.reduce((current, expression) => visitExpression(expression, current, context), next)
-  next = ast.orderBy.reduce((current, order) => visitExpression(order.value, current, context), next)
+  next = groupBy.reduce((current, expression) => visitExpression(expression, current, context), next)
+  next = orderBy.reduce((current, order) => visitExpression(order.value, current, context), next)
   next = visitExpression(ast.limit, next, context)
   next = visitExpression(ast.offset, next, context)
   next = ast.setOperations?.reduce((current, operation) => visitPlan(operation.query, current, context), next) ?? next
