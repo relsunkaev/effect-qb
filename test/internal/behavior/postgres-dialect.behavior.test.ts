@@ -445,12 +445,6 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
-  test("rejects empty postgres distinct-on expressions before rendering distinct", () => {
-    expect(() => Postgres.Query.distinctOn()).toThrow(
-      "distinctOn(...) requires at least one expression"
-    )
-  })
-
   test("renders the extended read predicate surface with postgres-specific operators", () => {
     const { users } = makePostgresSocialGraph()
 

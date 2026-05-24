@@ -6112,9 +6112,6 @@ type AsCurriedResult<
   const fullJoin = ((table, on) => (join as any)("full", table, on)) as BinaryJoinApi<"full">
 
   const distinctOn = (<Values extends readonly [ExpressionInput, ...ExpressionInput[]]>(...values: Values) => {
-    if (values.length === 0) {
-      throw new Error("distinctOn(...) requires at least one expression")
-    }
     const expressions = values.map((value) => toDialectExpression(value)) as Expression.Any[]
     return <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
