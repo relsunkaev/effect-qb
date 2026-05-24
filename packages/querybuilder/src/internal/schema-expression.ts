@@ -6,7 +6,7 @@ export const TypeId: unique symbol = Symbol.for("effect-qb/SchemaExpression")
 export type TypeId = typeof TypeId
 
 const SchemaExpressionProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   }
 }
@@ -15,7 +15,7 @@ const attachPipe = <Value extends object>(value: Value): Value => {
   Object.defineProperty(value, "pipe", {
     configurable: true,
     writable: true,
-    value: function(this: unknown) {
+    value: function(this: Value) {
       return pipeArguments(value, arguments)
     }
   })

@@ -122,7 +122,7 @@ const renderQualifiedTypeName = (
     : `${renderIdentifier(schemaName)}.${renderIdentifier(name)}`
 
 const EnumProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   },
   qualifiedName(this: EnumDefinition) {
@@ -162,7 +162,7 @@ const EnumProto = {
 }
 
 const SequenceProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   },
   qualifiedName(this: SequenceDefinition) {

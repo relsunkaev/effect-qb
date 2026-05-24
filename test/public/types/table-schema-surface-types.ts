@@ -26,8 +26,10 @@ Std.Table.make("", {
 Std.Table.make("empty_field", {
   "": Std.Column.uuid()
 })
-// @ts-expect-error class table field names must be non-empty
-Std.Table.Class<unknown>("empty_field_class")({ "": Std.Column.uuid() })
+class EmptyFieldClass extends Std.Table.Class<EmptyFieldClass>("empty_field_class")(
+  // @ts-expect-error class table field names must be non-empty
+  { "": Std.Column.uuid() }
+) {}
 const publicSchema = Postgres.Schema.make("public")
 // @ts-expect-error schema-scoped table names must be non-empty
 publicSchema.table("", {

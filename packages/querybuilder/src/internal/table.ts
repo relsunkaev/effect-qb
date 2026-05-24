@@ -291,7 +291,7 @@ export type TableOption<
 }
 
 const TableProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   }
 }
@@ -300,7 +300,7 @@ const attachPipe = <Value extends object>(value: Value): Value => {
   Object.defineProperty(value, "pipe", {
     configurable: true,
     writable: true,
-    value: function(this: unknown) {
+    value: function(this: Value) {
       return pipeArguments(value, arguments)
     }
   })
@@ -913,7 +913,7 @@ export function Class<
           return ensureClassArtifacts(this as any).normalizedOptions
         }
 
-        static pipe(this: unknown) {
+        static pipe(this: Pipeable) {
           return pipeArguments(this, arguments)
         }
       }

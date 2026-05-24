@@ -75,7 +75,7 @@ export type SchemaNamespace<SchemaName extends string> = Pipeable & {
 }
 
 const SchemaProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   }
 }

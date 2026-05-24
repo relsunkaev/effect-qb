@@ -590,13 +590,15 @@ export const array = <Options extends ArrayOptions | undefined = undefined>(
     }) as ArrayColumn<Column, Options>
 
 /** Marks a column as indexed. */
+type IndexPipe = <Column extends AnyColumnDefinition>(column: Column) => IndexedColumn<Column>
+
 export function index<Column extends AnyColumnDefinition>(
   column: Column
 ): IndexedColumn<Column>
 export function index<const Options extends ColumnIndexOptions>(
   options: Options
 ): <Column extends AnyColumnDefinition>(column: Column) => IndexedColumn<Column>
-export function index(arg: unknown): unknown {
+export function index(arg: AnyColumnDefinition | ColumnIndexOptions): IndexedColumn<AnyColumnDefinition> | IndexPipe {
   if (isColumnDefinitionValue(arg)) {
     return mapColumn(arg, {
       ...arg.metadata,
@@ -648,6 +650,10 @@ export const identityAlways = <Column extends AnyColumnDefinition>(
  *
  * The base, non-null select types must match.
  */
+type ForeignKeyPipe<Target extends AnyBoundColumn = AnyBoundColumn> = <Column extends AnyColumnDefinition>(
+  column: CompatibleReference<Column, Target>
+) => ReferencingColumn<Column, Target>
+
 export function foreignKey<Target extends AnyBoundColumn>(
   target: () => Target
 ): <Column extends AnyColumnDefinition>(
@@ -658,7 +664,7 @@ export function foreignKey<const Options extends ForeignKeyOptions<AnyBoundColum
 ): <Column extends AnyColumnDefinition>(
   column: CompatibleReference<Column, ReturnType<Options["target"]>>
 ) => ReferencingColumn<Column, ReturnType<Options["target"]>>
-export function foreignKey(arg: unknown): unknown {
+export function foreignKey(arg: (() => AnyBoundColumn) | ForeignKeyOptions<AnyBoundColumn>): ForeignKeyPipe {
   if (typeof arg === "function") {
     const target = arg as () => AnyBoundColumn
     return <Column extends AnyColumnDefinition>(

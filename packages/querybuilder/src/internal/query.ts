@@ -96,7 +96,7 @@ export { union_query_capabilities } from "./query-requirements.js"
  * `Pipeable.pipe(...)` plus the metadata stored under `Expression.TypeId`.
  */
 const ExpressionProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   }
 }
@@ -108,7 +108,7 @@ const ExpressionProto = {
  * chained through `.pipe(...)`.
  */
 const PlanProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   }
 }

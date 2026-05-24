@@ -1,4 +1,4 @@
-import { pipeArguments } from "effect/Pipeable"
+import { pipeArguments, type Pipeable } from "effect/Pipeable"
 
 import * as Expression from "./scalar.js"
 import * as Plan from "./row-set.js"
@@ -18,7 +18,7 @@ import * as ExpressionAst from "./expression-ast.js"
 import { flattenSelection } from "./projections.js"
 
 const DerivedProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   }
 }
@@ -27,7 +27,7 @@ const attachPipe = <Value extends object>(value: Value): Value => {
   Object.defineProperty(value, "pipe", {
     configurable: true,
     writable: true,
-    value: function(this: unknown) {
+    value: function(this: Value) {
       return pipeArguments(value, arguments)
     }
   })

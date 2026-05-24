@@ -229,7 +229,7 @@ export type AnyBoundColumn = BoundColumn<
 >
 
 const ColumnProto = {
-  pipe(this: unknown) {
+  pipe(this: Pipeable) {
     return pipeArguments(this, arguments)
   }
 }
@@ -238,7 +238,7 @@ const attachPipe = <Value extends object>(value: Value): Value => {
   Object.defineProperty(value, "pipe", {
     configurable: true,
     writable: true,
-    value: function(this: unknown) {
+    value: function(this: Value) {
       return pipeArguments(value, arguments)
     }
   })

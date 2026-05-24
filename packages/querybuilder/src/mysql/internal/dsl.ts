@@ -1,4 +1,4 @@
-import { pipeArguments } from "effect/Pipeable"
+import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
 import { mysqlDatatypes } from "../datatypes/index.js"
@@ -1527,7 +1527,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   type: mysqlDatatypes
 }
   const ValuesInputProto = {
-    pipe(this: unknown) {
+    pipe(this: Pipeable) {
       return pipeArguments(this, arguments)
     }
   }
