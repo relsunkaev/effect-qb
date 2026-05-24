@@ -338,10 +338,14 @@ export const resolvePrimaryKeyColumns = <Fields extends TableFieldMap>(
 export const validateOptions = <Fields extends TableFieldMap>(
   tableName: string,
   fields: Fields,
-  options: readonly TableOptionSpec[]
+  options: unknown
 ): void => {
+  if (!Array.isArray(options)) {
+    throw new Error(`Table '${tableName}' options require an array`)
+  }
+  const tableOptions = options as readonly TableOptionSpec[]
   const knownColumns = new Set(Object.keys(fields))
-  for (const option of options) {
+  for (const option of tableOptions) {
     if (typeof option !== "object" || option === null || !("kind" in option)) {
       throw new Error(`Table '${tableName}' options require option metadata objects`)
     }
@@ -450,7 +454,7 @@ export const validateOptions = <Fields extends TableFieldMap>(
         throw new Error("Unsupported table option kind")
     }
   }
-  for (const column of resolvePrimaryKeyColumns(fields, options)) {
+  for (const column of resolvePrimaryKeyColumns(fields, tableOptions)) {
     if (fields[column]!.metadata.nullable) {
       throw new Error(`Primary key column '${String(column)}' cannot be nullable`)
     }

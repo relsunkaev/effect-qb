@@ -94,6 +94,17 @@ describe("postgres schema management", () => {
     )
   })
 
+  test("source table models reject non-array table options before mapping metadata", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = {}
+
+    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
+      "Table 'users' options require an array"
+    )
+  })
+
   test("source table models reject unknown table option kinds before mapping metadata", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
