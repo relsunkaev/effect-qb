@@ -1745,7 +1745,33 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
         if (operations.every((operation) => typeof operation === "function")) {
           return pipeArguments(this, arguments)
         }
-        throw new TypeError(`Cannot mix query expressions and pipe functions inside ${kind}(...).pipe(...)`)
+        const valuesForMixedPipe = (value: unknown): readonly Expression.Any[] => {
+          if (typeof value !== "object" || value === null || !(Expression.TypeId in value)) {
+            return []
+          }
+          const expression = value as Expression.Any & {
+            readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+          }
+          const ast = expression[ExpressionAst.TypeId]
+          if (ast.kind === kind) {
+            return (ast as {
+              readonly values: readonly Expression.Any[]
+            }).values
+          }
+          return [expression]
+        }
+        let current: unknown = this
+        for (const operation of operations) {
+          if (typeof operation === "function") {
+            current = (operation as (value: unknown) => unknown)(current)
+            continue
+          }
+          current = makeVariadicBooleanExpression(
+            kind,
+            [...valuesForMixedPipe(current), toDialectExpression(operation as ExpressionInput)] as const
+          )
+        }
+        return current
       }
     })
 

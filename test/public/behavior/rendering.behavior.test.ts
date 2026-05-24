@@ -363,6 +363,36 @@ describe("rendering behavior", () => {
     }
   })
 
+  test("variadic boolean pipes trust typed operation composition without runtime mixed-argument validation", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const cases = [
+      {
+        mixed: (Standard.Query.and(true, true) as any).pipe(false, (value: unknown) => value),
+        render: (mixed: unknown) => Standard.Renderer.make().render(Standard.Query.select({ ok: mixed as any }))
+      },
+      {
+        mixed: (Q.and(true, true) as any).pipe(false, (value: unknown) => value),
+        render: (mixed: unknown) => Renderer.make().render(Q.select({ ok: mixed as any }))
+      },
+      {
+        mixed: (Mysql.Query.and(true, true) as any).pipe(false, (value: unknown) => value),
+        render: (mixed: unknown) => Mysql.Renderer.make().render(Mysql.Query.select({ ok: mixed as any }))
+      },
+      {
+        mixed: (Sqlite.Query.and(true, true) as any).pipe(false, (value: unknown) => value),
+        render: (mixed: unknown) => Sqlite.Renderer.make().render(Sqlite.Query.select({ ok: mixed as any }))
+      }
+    ] as const
+
+    for (const { mixed, render } of cases) {
+      const ast = (mixed as any)[expressionAst]
+      expect(ast.kind).toBe("and")
+      expect(ast.values).toHaveLength(3)
+      const rendered = render(mixed)
+      expect(rendered.sql).toContain(" and ")
+    }
+  })
+
   test("cast expressions trust typed target db types without renderer-time validation", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const value = Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.text())
