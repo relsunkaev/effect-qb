@@ -32,15 +32,15 @@ describe("ddl rendering behavior", () => {
     )
   })
 
-  test("rejects empty column DDL type overrides before rendering SQL", () => {
+  test("column DDL type overrides trust typed db type names without renderer-time validation", () => {
     const assets = StdRoot.Table.make("assets", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       metadata: StdRoot.Column.text().pipe(Postgres.Column.ddlType(""))
     })
     const plan = Postgres.Query.createTable(assets)
 
-    expect(() => Postgres.Renderer.make().render(plan)).toThrow(
-      "db type names must be non-empty"
+    expect(Postgres.Renderer.make().render(plan).sql).toContain(
+      '"metadata"  not null'
     )
   })
 

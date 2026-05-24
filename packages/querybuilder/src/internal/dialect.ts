@@ -44,12 +44,8 @@ export const quoteBacktickIdentifier = (value: string): string => {
   return `\`${value.replaceAll("`", "``")}\``
 }
 
-export const renderDbTypeName = (value: string): string => {
-  if (value.trim().length === 0) {
-    throw new Error("db type names must be non-empty")
-  }
-  return value
-}
+export const renderDbTypeName = (value: string): string =>
+  value
 
 export interface RenderedAst {
   readonly sql: string

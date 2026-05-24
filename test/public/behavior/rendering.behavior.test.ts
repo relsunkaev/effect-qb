@@ -385,7 +385,7 @@ describe("rendering behavior", () => {
     )
   })
 
-  test("rejects empty custom db type names before rendering SQL", () => {
+  test("custom db type casts trust typed db type names without renderer-time validation", () => {
     const standardPlan = Standard.Query.select({
       value: Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.custom("") as any)
     })
@@ -399,18 +399,10 @@ describe("rendering behavior", () => {
       value: Sqlite.Query.cast(Sqlite.Query.literal(1), Sqlite.Query.type.custom("") as any)
     })
 
-    expect(() => Standard.Renderer.make().render(standardPlan)).toThrow(
-      "db type names must be non-empty"
-    )
-    expect(() => Renderer.make().render(postgresPlan)).toThrow(
-      "db type names must be non-empty"
-    )
-    expect(() => Mysql.Renderer.make().render(mysqlPlan)).toThrow(
-      "db type names must be non-empty"
-    )
-    expect(() => Sqlite.Renderer.make().render(sqlitePlan)).toThrow(
-      "db type names must be non-empty"
-    )
+    expect(Standard.Renderer.make().render(standardPlan).sql).toContain(" as )")
+    expect(Renderer.make().render(postgresPlan).sql).toContain(" as )")
+    expect(Mysql.Renderer.make().render(mysqlPlan).sql).toContain(" as )")
+    expect(Sqlite.Renderer.make().render(sqlitePlan).sql).toContain(" as )")
   })
 
   test("rejects grouped cast expressions without a target type before rendering SQL", () => {
