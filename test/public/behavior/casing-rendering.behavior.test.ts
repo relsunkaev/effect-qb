@@ -63,6 +63,59 @@ describe("casing rendering behavior", () => {
     )
   })
 
+  test("mutation casing maps insert and conflict identifiers", () => {
+    const users = StdRoot.Table.make("UserAccounts", {
+      id: Column.uuid().pipe(Column.primaryKey),
+      emailAddress: Column.text(),
+      displayName: Column.text()
+    }).pipe(
+      Casing.withCasing({
+        tables: "snake_case",
+        columns: "snake_case"
+      })
+    )
+
+    const mysqlPlan = Mysql.Query.onConflict(["emailAddress"] as const, {
+      update: {
+        displayName: Mysql.Query.excluded(users.displayName)
+      }
+    })(Mysql.Query.insert(users, {
+      id: "11111111-1111-1111-1111-111111111111",
+      emailAddress: "alice@example.com",
+      displayName: "Alice"
+    }))
+
+    const postgresPlan = Pg.Query.onConflict(["emailAddress"] as const, {
+      update: {
+        displayName: Pg.Query.excluded(users.displayName)
+      }
+    })(Pg.Query.insert(users, {
+      id: "11111111-1111-1111-1111-111111111111",
+      emailAddress: "alice@example.com",
+      displayName: "Alice"
+    }))
+
+    const sqlitePlan = Sqlite.Query.onConflict(["emailAddress"] as const, {
+      update: {
+        displayName: Sqlite.Query.excluded(users.displayName)
+      }
+    })(Sqlite.Query.insert(users, {
+      id: "11111111-1111-1111-1111-111111111111",
+      emailAddress: "alice@example.com",
+      displayName: "Alice"
+    }))
+
+    expect(Mysql.Renderer.make().render(mysqlPlan).sql).toBe(
+      "insert into `user_accounts` (`id`, `email_address`, `display_name`) values (?, ?, ?) on duplicate key update `display_name` = values(`display_name`)"
+    )
+    expect(Pg.Renderer.make().render(postgresPlan).sql).toBe(
+      'insert into "user_accounts" ("id", "email_address", "display_name") values ($1, $2, $3) on conflict ("email_address") do update set "display_name" = excluded."display_name"'
+    )
+    expect(Sqlite.Renderer.make().render(sqlitePlan).sql).toBe(
+      'insert into "user_accounts" ("id", "email_address", "display_name") values (?, ?, ?) on conflict ("email_address") do update set "display_name" = excluded."display_name"'
+    )
+  })
+
   test("table casing overrides renderer casing", () => {
     const users = StdRoot.Table.make("UserAccounts", {
       id: Column.uuid().pipe(Column.primaryKey),

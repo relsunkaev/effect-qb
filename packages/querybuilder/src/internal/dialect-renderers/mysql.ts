@@ -159,6 +159,14 @@ const quoteColumn = (
   tableName?: string
 ): string => dialect.quoteIdentifier(casedColumnName(columnName, state, tableName))
 
+const stateWithTableCasing = (
+  state: RenderState,
+  source: unknown
+): RenderState =>
+  typeof source === "object" && source !== null && Table.TypeId in source
+    ? { ...state, casing: casingForTable(source as Table.AnyTable, state) }
+    : state
+
 const referenceCasing = (
   reference: { readonly casing?: Casing.Options },
   state: RenderState
@@ -1293,17 +1301,18 @@ export const renderQueryAst = (
       assertNoInsertQueryClauses(insertAst)
       const targetSource = insertAst.into!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
+      const targetCasingState = stateWithTableCasing(state, targetSource.source)
       const insertSource = expectInsertSourceKind(insertAst.insertSource)
       const conflict = expectConflictClause(insertAst.conflict)
       sql = `insert into ${target}`
       if (insertSource?.kind === "values") {
-        const columns = insertSource.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
+        const columns = insertSource.columns.map((column) => quoteColumn(column, state, dialect, targetSource.tableName)).join(", ")
         const rows = insertSource.rows.map((row) =>
-          `(${row.values.map((entry) => renderExpression(entry.value, state, dialect)).join(", ")})`
+          `(${row.values.map((entry) => renderExpression(entry.value, targetCasingState, dialect)).join(", ")})`
         ).join(", ")
         sql += ` (${columns}) values ${rows}`
       } else if (insertSource?.kind === "query") {
-        const columns = insertSource.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
+        const columns = insertSource.columns.map((column) => quoteColumn(column, state, dialect, targetSource.tableName)).join(", ")
         const renderedQuery = renderQueryAst(
           Query.getAst(insertSource.query as Query.Plan.Any) as QueryAst.Ast<
             Record<string, unknown>,
@@ -1315,7 +1324,7 @@ export const renderQueryAst = (
         )
         sql += ` (${columns}) ${renderedQuery.sql}`
       } else if (insertSource?.kind === "unnest") {
-        const columns = insertSource.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
+        const columns = insertSource.columns.map((column) => quoteColumn(column, state, dialect, targetSource.tableName)).join(", ")
         if (dialect.name === "postgres") {
           const table = targetSource.source as Table.AnyTable
           const fields = table[Table.TypeId].fields
@@ -1337,8 +1346,8 @@ export const renderQueryAst = (
           sql += ` (${columns}) values ${rows}`
         }
       } else {
-        const columns = (insertAst.values ?? []).map((entry) => dialect.quoteIdentifier(entry.columnName)).join(", ")
-        const values = (insertAst.values ?? []).map((entry) => renderExpression(entry.value, state, dialect)).join(", ")
+        const columns = (insertAst.values ?? []).map((entry) => quoteColumn(entry.columnName, state, dialect, targetSource.tableName)).join(", ")
+        const values = (insertAst.values ?? []).map((entry) => renderExpression(entry.value, targetCasingState, dialect)).join(", ")
         if ((insertAst.values ?? []).length > 0) {
           sql += ` (${columns}) values (${values})`
         } else {
@@ -1350,18 +1359,18 @@ export const renderQueryAst = (
           throw new Error("Unsupported mysql conflict action predicates")
         }
         const updateValues = (conflict.values ?? []).map((entry) =>
-          `${dialect.quoteIdentifier(entry.columnName)} = ${renderExpression(entry.value, state, dialect)}`
+          `${quoteColumn(entry.columnName, state, dialect, targetSource.tableName)} = ${renderExpression(entry.value, targetCasingState, dialect)}`
         ).join(", ")
         if (dialect.name === "postgres") {
           const targetSql = conflict.target?.kind === "constraint"
-            ? ` on conflict on constraint ${dialect.quoteIdentifier(conflict.target.name)}`
+            ? ` on conflict on constraint ${dialect.quoteIdentifier(Casing.applyCategory(targetCasingState.casing, "constraints", conflict.target.name))}`
             : conflict.target?.kind === "columns"
-              ? ` on conflict (${conflict.target.columns.map((column) => dialect.quoteIdentifier(column)).join(", ")})${conflict.target.where ? ` where ${renderExpression(conflict.target.where, state, dialect)}` : ""}`
+              ? ` on conflict (${conflict.target.columns.map((column) => quoteColumn(column, state, dialect, targetSource.tableName)).join(", ")})${conflict.target.where ? ` where ${renderExpression(conflict.target.where, targetCasingState, dialect)}` : ""}`
               : " on conflict"
           sql += targetSql
           sql += conflict.action === "doNothing"
             ? " do nothing"
-            : ` do update set ${updateValues}${conflict.where ? ` where ${renderExpression(conflict.where, state, dialect)}` : ""}`
+            : ` do update set ${updateValues}${conflict.where ? ` where ${renderExpression(conflict.where, targetCasingState, dialect)}` : ""}`
         } else if (conflict.action === "doNothing") {
           sql = sql.replace(/^insert/, "insert ignore")
         } else {
