@@ -7,6 +7,7 @@ import { Column as C, Table } from "#standard"
 import { Cast as PgCast, Query as Q, Function as F, Json as PgJson, Renderer, Type as PgType } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
 import * as StdRoot from "#standard"
+import { unsafeAny } from "../../helpers/unsafe.ts"
 
 describe("rendering behavior", () => {
   test("standard plans render through every built-in SQL renderer", () => {
@@ -935,6 +936,23 @@ describe("rendering behavior", () => {
       { path: ["profile", "id"], alias: "profile__id" },
       { path: ["email"], alias: "profile__id" }
     ])
+  })
+
+  test("built-in renderers do not revalidate alias emptiness at runtime", () => {
+    const users = Standard.Table.make("users", {
+      id: Standard.Column.uuid().pipe(Standard.Column.primaryKey)
+    })
+    const aliasedUsers = Standard.Table.alias(users, unsafeAny(""))
+    const plan = Standard.Query.select({
+      id: Standard.Query.as(aliasedUsers.id, unsafeAny(""))
+    }).pipe(
+      Standard.Query.from(aliasedUsers)
+    )
+
+    expect(Standard.Renderer.make().render(plan).sql).toBe('select "id" as "" from "users" as ""')
+    expect(Renderer.make().render(plan).sql).toBe('select "id" as "" from "users" as ""')
+    expect(Mysql.Renderer.make().render(plan).sql).toBe("select `id` as `` from `users` as ``")
+    expect(Sqlite.Renderer.make().render(plan).sql).toBe('select "id" as "" from "users" as ""')
   })
 
   test("quotes aliased self-joins with logical alias names and physical base tables", () => {

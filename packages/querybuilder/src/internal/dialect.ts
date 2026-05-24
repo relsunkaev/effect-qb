@@ -36,19 +36,11 @@ export interface RenderValueContext {
   readonly driverValueMapping?: Expression.DriverValueMapping
 }
 
-const requireNonEmptyIdentifier = (value: string): void => {
-  if (value.length === 0) {
-    throw new Error("SQL identifiers must be non-empty")
-  }
-}
-
 export const quoteDoubleQuotedIdentifier = (value: string): string => {
-  requireNonEmptyIdentifier(value)
   return `"${value.replaceAll("\"", "\"\"")}"`
 }
 
 export const quoteBacktickIdentifier = (value: string): string => {
-  requireNonEmptyIdentifier(value)
   return `\`${value.replaceAll("`", "``")}\``
 }
 
