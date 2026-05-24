@@ -379,6 +379,20 @@ describe("table definitions", () => {
       kind: "index",
       include: {}
     })
+
+    const malformedColumnsIndexUsers = StdRoot.Table.make("malformed_columns_index_users", {
+      id: StdRoot.Column.uuid()
+    }).pipe(
+      StdRoot.Table.option(unsafeAny({
+        kind: "index",
+        columns: "id"
+      }))
+    )
+    const malformedColumnsIndex = malformedColumnsIndexUsers[StdRoot.Table.OptionsSymbol].find((option) => option.kind === "index")
+    expect(malformedColumnsIndex).toMatchObject({
+      kind: "index",
+      columns: "id"
+    })
   })
 
   test("class tables trust type-level primary-key option constraints without runtime validation", () => {

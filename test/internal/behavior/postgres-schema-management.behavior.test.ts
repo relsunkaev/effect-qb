@@ -292,6 +292,27 @@ describe("postgres schema management", () => {
     })
   })
 
+  test("source table models preserve malformed index columns without runtime validation", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    }).pipe(
+      Casing.withCasing({
+        columns: "snake_case"
+      })
+    )
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "index",
+      columns: "id"
+    }]
+
+    const model = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+    const index = model.options.find((option) => option.kind === "index")
+    expect(index).toMatchObject({
+      kind: "index",
+      columns: "id"
+    })
+  })
+
   test("source table models preserve index support identifiers without runtime validation", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
