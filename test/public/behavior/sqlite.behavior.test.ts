@@ -453,12 +453,12 @@ describe("sqlite behavior", () => {
     expect(render(transaction).sql).toBe("begin")
   })
 
-  test("rejects invalid rendered sqlite query statement kinds", () => {
+  test("sqlite query builders trust typed statement kinds without renderer-time validation", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
     const transaction = Sqlite.Query.transaction()
     ;(transaction as any)[queryAst].kind = "vacuum"
 
-    expect(() => render(transaction)).toThrow("Unsupported query statement kind")
+    expect(render(transaction).sql).toBe("begin")
   })
 
   test("rejects non-finite sqlite numeric literals", () => {

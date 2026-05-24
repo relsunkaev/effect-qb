@@ -1667,8 +1667,12 @@ export const renderQueryAst = (
       )
       break
     }
-    default:
-      throw new Error("Unsupported query statement kind")
+    default: {
+      if (ast.transaction !== undefined) {
+        sql = renderTransactionClause(ast.transaction, dialect)
+      }
+      break
+    }
   }
 
   if (state.ctes.length === 0 || options.emitCtes === false) {
