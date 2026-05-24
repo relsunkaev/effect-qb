@@ -257,6 +257,9 @@ export const renderIndexDefinition = (
   option: Extract<TableOptionSpec, { readonly kind: "index" }>
 ): string => {
   const keys = indexKeysOf(option)
+  const includeColumns = Array.isArray(option.include)
+    ? option.include.filter((column): column is string => typeof column === "string")
+    : []
   const name = option.name ?? defaultIndexName(
     table.name,
     keys.map((key) => key.kind === "column" ? key.column : "expr"),
@@ -268,7 +271,7 @@ export const renderIndexDefinition = (
       : `(${SchemaExpression.renderDdlExpressionSql(key.expression)})`
     return `${base}${key.collation ? ` collate ${qualifyIdentifier(key.collation)}` : ""}${key.operatorClass ? ` ${qualifyIdentifier(key.operatorClass)}` : ""}${renderIndexOrder(key.order)}${renderIndexNulls(key.nulls)}`
   }).join(", ")
-  return `create${option.unique ? " unique" : ""} index ${quote(name)} on ${qualify(table.schemaName, table.name)}${renderIndexMethod(option.method)} (${renderedKeys})${option.include && option.include.length > 0 ? ` include (${option.include.map(quote).join(", ")})` : ""}${option.predicate ? ` where ${SchemaExpression.renderDdlExpressionSql(option.predicate)}` : ""}`
+  return `create${option.unique ? " unique" : ""} index ${quote(name)} on ${qualify(table.schemaName, table.name)}${renderIndexMethod(option.method)} (${renderedKeys})${includeColumns.length > 0 ? ` include (${includeColumns.map(quote).join(", ")})` : ""}${option.predicate ? ` where ${SchemaExpression.renderDdlExpressionSql(option.predicate)}` : ""}`
 }
 
 export const renderCreateTable = (table: TableModel): string => {
