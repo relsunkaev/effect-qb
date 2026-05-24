@@ -1748,6 +1748,9 @@ export const renderQueryAst = (
     case "truncate": {
       const truncateAst = ast as QueryAst.Ast<Record<string, unknown>, any, "truncate">
       assertNoStatementQueryClauses(truncateAst, "truncate")
+      if (dialect.name === "standard") {
+        throw new Error("Unsupported standard truncate statement")
+      }
       const truncate = expectTruncateClause(truncateAst.truncate)
       const targetSource = truncateAst.target!
       const restartIdentity = truncate.restartIdentity

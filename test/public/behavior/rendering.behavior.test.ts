@@ -229,6 +229,16 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("standard renderer rejects truncate statements", () => {
+    const users = Standard.Table.make("users", {
+      id: Standard.Column.uuid().pipe(Standard.Column.primaryKey)
+    })
+
+    expect(() => Standard.Renderer.make().render(Standard.Query.truncate(users))).toThrow(
+      "Unsupported standard truncate statement"
+    )
+  })
+
   test("renderers reject excluded references outside insert conflict handlers", () => {
     const users = Standard.Table.make("users", {
       email: Standard.Column.text()
