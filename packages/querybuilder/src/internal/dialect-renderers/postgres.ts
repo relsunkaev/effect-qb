@@ -1927,7 +1927,7 @@ export const renderExpression = (
     case "cast":
       return `cast(${renderExpression(expectValueExpression("cast", ast.value), state, dialect)} as ${renderCastType(dialect, ast.target)})`
     case "collate":
-      return `(${renderExpression(ast.value, state, dialect)} collate ${renderCollation(ast.collation)})`
+      return `(${renderExpression(expectValueExpression("collate", ast.value), state, dialect)} collate ${renderCollation(ast.collation)})`
     case "function":
       return renderFunctionCall(ast.name, ast.args, state, dialect)
     case "eq":

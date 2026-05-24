@@ -532,6 +532,44 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects collate expressions without value operands before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const email = Standard.Query.collate(Standard.Query.literal("alice@example.com"), "C")
+    ;(email as any)[expressionAst].value = undefined
+    const plan = Standard.Query.select({
+      email
+    })
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "collate(...) requires a value expression"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "collate(...) requires a value expression"
+    )
+  })
+
+  test("rejects grouped collate expressions without value operands before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+    const email = Standard.Query.collate(users.email, "C")
+    const plan = Standard.Query.select({
+      email
+    }).pipe(
+      Standard.Query.from(users),
+      Standard.Query.groupBy(email)
+    )
+    ;(email as any)[expressionAst].value = undefined
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "collate(...) requires a value expression"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "collate(...) requires a value expression"
+    )
+  })
+
   test("rejects cast expressions without a target type before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const value = Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.text())
