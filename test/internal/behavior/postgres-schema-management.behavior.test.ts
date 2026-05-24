@@ -604,6 +604,38 @@ describe("postgres schema management", () => {
     )
   })
 
+  test("schema diff planning ignores malformed constraint columns in create-table rendering", () => {
+    const sourceUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid()
+    })
+    const sourceUsersModel = toTableModel(sourceUsers as unknown as Parameters<typeof toTableModel>[0])
+    ;(sourceUsersModel as any).options = [
+      { kind: "unique", columns: "id" },
+      { kind: "primaryKey", columns: "id" }
+    ]
+
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [sourceUsersModel]
+    }
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: []
+    }
+
+    expect(() => planPostgresSchemaDiff(source, database)).not.toThrow()
+    expect(planPostgresSchemaDiff(source, database).changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "createTable",
+          key: "public.users"
+        })
+      ])
+    )
+  })
+
   test("schema diff planning preserves valid index keys when malformed keys are present", () => {
     const sourceUsers = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)

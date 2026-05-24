@@ -399,13 +399,37 @@ const isKnownTableOption = (option: unknown): option is TableOptionSpec => {
   if (typeof option !== "object" || option === null || !("kind" in option)) {
     return false
   }
+  const hasValidName = (
+    option as { readonly name?: unknown }
+  ).name === undefined || typeof (option as { readonly name?: unknown }).name === "string"
+  const hasStringColumns = (value: unknown): value is readonly string[] =>
+    Array.isArray(value) && value.every((column) => typeof column === "string")
   switch ((option as { readonly kind?: unknown }).kind) {
     case "index":
+      return true
     case "primaryKey":
     case "unique":
-    case "foreignKey":
+      return hasStringColumns((option as { readonly columns?: unknown }).columns)
+    case "foreignKey": {
+      if (!hasStringColumns((option as { readonly columns?: unknown }).columns)) {
+        return false
+      }
+      const references = (option as { readonly references?: unknown }).references
+      if (typeof references !== "function") {
+        return false
+      }
+      try {
+        const reference = references()
+        return typeof reference === "object" &&
+          reference !== null &&
+          typeof (reference as { readonly tableName?: unknown }).tableName === "string" &&
+          hasStringColumns((reference as { readonly columns?: unknown }).columns)
+      } catch {
+        return false
+      }
+    }
     case "check":
-      return true
+      return hasValidName && typeof (option as { readonly predicate?: unknown }).predicate === "object"
     default:
       return false
   }
