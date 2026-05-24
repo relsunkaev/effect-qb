@@ -24,24 +24,16 @@ export const expectDdlClauseKind = <
   Kind extends Ddl["kind"]
 >(
   ddl: Ddl | undefined,
-  kind: Kind
-): Extract<Ddl, { readonly kind: Kind }> => {
-  if (ddl === undefined || ddl.kind !== kind) {
-    throw new Error("Unsupported DDL statement kind")
-  }
-  return ddl as Extract<Ddl, { readonly kind: Kind }>
-}
+  _kind: Kind
+): Extract<Ddl, { readonly kind: Kind }> =>
+  ddl as Extract<Ddl, { readonly kind: Kind }>
 
 export const expectTruncateClause = <
   Truncate extends { readonly kind: string }
 >(
   truncate: Truncate | undefined
-): Extract<Truncate, { readonly kind: "truncate" }> => {
-  if (truncate === undefined || truncate.kind !== "truncate") {
-    throw new Error("Unsupported truncate statement kind")
-  }
-  return truncate as Extract<Truncate, { readonly kind: "truncate" }>
-}
+): Extract<Truncate, { readonly kind: "truncate" }> =>
+  truncate as Extract<Truncate, { readonly kind: "truncate" }>
 
 export const normalizeStatementFlag = (value: unknown): boolean =>
   (value as boolean | undefined) ?? false

@@ -538,7 +538,7 @@ describe("ddl rendering behavior", () => {
     ).toThrow("Check constraint on table 'users' requires a predicate expression")
   })
 
-  test("rejects mismatched ddl payload kinds at render time", () => {
+  test("ddl builders trust typed clause kinds without renderer-time validation", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
 
     const postgresUsers = StdRoot.Table.make("users", {
@@ -546,27 +546,27 @@ describe("ddl rendering behavior", () => {
     })
     const postgresCreate = Postgres.Query.createTable(postgresUsers, { ifNotExists: true })
     ;(postgresCreate as any)[queryAst].ddl.kind = "dropTable"
-    expect(() =>
-      Postgres.Renderer.make().render(postgresCreate)
-    ).toThrow("Unsupported DDL statement kind")
+    expect(Postgres.Renderer.make().render(postgresCreate).sql).toBe(
+      'create table if not exists "users" ("id" uuid not null, primary key ("id"))'
+    )
 
     const mysqlUsers = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     const mysqlCreate = Mysql.Query.createTable(mysqlUsers, { ifNotExists: true })
     ;(mysqlCreate as any)[queryAst].ddl.kind = "dropTable"
-    expect(() =>
-      Mysql.Renderer.make().render(mysqlCreate)
-    ).toThrow("Unsupported DDL statement kind")
+    expect(Mysql.Renderer.make().render(mysqlCreate).sql).toBe(
+      "create table if not exists `users` (`id` char(36) not null, primary key (`id`))"
+    )
 
     const sqliteUsers = StdRoot.Table.make("users", {
       id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey)
     })
     const sqliteCreate = Sqlite.Query.createTable(sqliteUsers, { ifNotExists: true })
     ;(sqliteCreate as any)[queryAst].ddl.kind = "dropTable"
-    expect(() =>
-      Sqlite.Renderer.make().render(sqliteCreate)
-    ).toThrow("Unsupported DDL statement kind")
+    expect(Sqlite.Renderer.make().render(sqliteCreate).sql).toBe(
+      'create table if not exists "users" ("id" text not null, primary key ("id"))'
+    )
   })
 
   test("rejects mysql unique constraints with unsupported postgres-only options", () => {
