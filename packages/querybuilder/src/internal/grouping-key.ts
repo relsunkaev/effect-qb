@@ -75,6 +75,54 @@ const functionCallArgsGroupingKey = (args: unknown): string => {
   return args.map(groupingKeyOfExpression).join(",")
 }
 
+const requiredVariadicGroupingValues = (
+  functionName: string,
+  values: unknown
+): readonly Expression.Any[] => {
+  const arityError = () => {
+    switch (functionName) {
+      case "and":
+        return new Error("and(...) requires at least one predicate")
+      case "or":
+        return new Error("or(...) requires at least one predicate")
+      case "coalesce":
+        return new Error("coalesce(...) requires at least one value")
+      case "concat":
+        return new Error("concat(...) requires at least two values")
+      case "in":
+        return new Error("in(...) requires at least one candidate value")
+      case "notIn":
+        return new Error("notIn(...) requires at least one candidate value")
+      case "between":
+        return new Error("between(...) requires exactly three operands")
+      default:
+        return new Error(`${functionName}(...) requires value expressions`)
+    }
+  }
+  if (!Array.isArray(values)) {
+    throw arityError()
+  }
+  const entries = values as readonly unknown[]
+  const hasExpectedArity =
+    functionName === "between"
+      ? entries.length === 3
+      : functionName === "concat" || functionName === "in" || functionName === "notIn"
+        ? entries.length >= 2
+        : entries.length >= 1
+  if (!hasExpectedArity) {
+    throw arityError()
+  }
+  if (entries.some((entry) => !isExpression(entry))) {
+    throw new Error(`${functionName}(...) requires value expressions`)
+  }
+  return entries as readonly Expression.Any[]
+}
+
+const variadicGroupingKey = (
+  functionName: string,
+  values: unknown
+): string => requiredVariadicGroupingValues(functionName, values).map(groupingKeyOfExpression).join(",")
+
 const castTargetGroupingKey = (target: unknown): string => {
   if (
     target !== null &&
@@ -207,7 +255,7 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
     case "in":
     case "notIn":
     case "between":
-      return `${ast.kind}(${ast.values.map(groupingKeyOfExpression).join(",")})`
+      return `${ast.kind}(${variadicGroupingKey(ast.kind, ast.values)})`
     case "case":
       return `case(${ast.branches.map((branch: ExpressionAst.CaseBranchNode) =>
         `when:${groupingKeyOfExpression(branch.when)}=>${groupingKeyOfExpression(branch.then)}`).join("|")};else:${groupingKeyOfExpression(ast.else)})`

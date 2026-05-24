@@ -988,6 +988,34 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects grouped coalesce expressions without a value array before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+    const coalesced = Standard.Function.coalesce(users.email, "missing")
+    const plan = Standard.Query.select({
+      email: coalesced
+    }).pipe(
+      Standard.Query.from(users),
+      Standard.Query.groupBy(coalesced)
+    )
+    ;(coalesced as any)[expressionAst].values = undefined
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "coalesce(...) requires at least one value"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "coalesce(...) requires at least one value"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "coalesce(...) requires at least one value"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "coalesce(...) requires at least one value"
+    )
+  })
+
   test("rejects json build object expressions without an entries array before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const pgBuiltObject = PgJson.json.buildObject({
