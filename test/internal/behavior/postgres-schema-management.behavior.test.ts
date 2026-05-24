@@ -133,6 +133,32 @@ describe("postgres schema management", () => {
     )
   })
 
+  test("source table models reject malformed foreign key reference identifiers before mapping metadata", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      orgId: StdRoot.Column.uuid()
+    })
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "foreignKey",
+      columns: ["orgId"],
+      references: () => ({ tableName: 0, columns: ["id"] })
+    }]
+
+    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
+      "Foreign key on table 'users' requires a referenced table name"
+    )
+
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "foreignKey",
+      columns: ["orgId"],
+      references: () => ({ tableName: "orgs", schemaName: 0, columns: ["id"] })
+    }]
+
+    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
+      "Foreign key on table 'users' requires referenced schema names to be strings"
+    )
+  })
+
   test("classifies safe and destructive schema changes", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid(),

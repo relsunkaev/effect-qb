@@ -381,6 +381,12 @@ export const validateOptions = <Fields extends TableFieldMap>(
           if (typeof reference !== "object" || reference === null) {
             throw new Error(`Foreign key on table '${tableName}' requires a reference target`)
           }
+          if (typeof reference.tableName !== "string" || reference.tableName.length === 0) {
+            throw new Error(`Foreign key on table '${tableName}' requires a referenced table name`)
+          }
+          if (reference.schemaName !== undefined && typeof reference.schemaName !== "string") {
+            throw new Error(`Foreign key on table '${tableName}' requires referenced schema names to be strings`)
+          }
           const referenceColumns = requireColumnArray(
             reference.columns,
             `Foreign key on table '${tableName}' requires referenced columns to be an array`
