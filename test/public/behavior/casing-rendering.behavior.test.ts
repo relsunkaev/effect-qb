@@ -101,6 +101,63 @@ describe("casing rendering behavior", () => {
     )
   })
 
+  test("renderer casing propagates into derived source plans", () => {
+    const casing = {
+      tables: "snake_case",
+      columns: "snake_case"
+    } as const
+    const users = StdRoot.Table.make("UserAccounts", {
+      id: Column.uuid().pipe(Column.primaryKey),
+      displayName: Column.text()
+    })
+    const postgresActiveUsers = Pg.Query.select({
+      id: users.id,
+      displayName: users.displayName
+    }).pipe(
+      Pg.Query.from(users),
+      Pg.Query.where(Pg.Query.isNotNull(users.displayName)),
+      Pg.Query.as("ActiveUsers")
+    )
+    const mysqlActiveUsers = Mysql.Query.select({
+      id: users.id,
+      displayName: users.displayName
+    }).pipe(
+      Mysql.Query.from(users),
+      Mysql.Query.where(Mysql.Query.isNotNull(users.displayName)),
+      Mysql.Query.as("ActiveUsers")
+    )
+    const sqliteActiveUsers = Sqlite.Query.select({
+      id: users.id,
+      displayName: users.displayName
+    }).pipe(
+      Sqlite.Query.from(users),
+      Sqlite.Query.where(Sqlite.Query.isNotNull(users.displayName)),
+      Sqlite.Query.as("ActiveUsers")
+    )
+
+    expect(Pg.Renderer.make({ casing }).render(
+      Pg.Query.select({
+        displayName: postgresActiveUsers.displayName
+      }).pipe(Pg.Query.from(postgresActiveUsers))
+    ).sql).toBe(
+      'select "ActiveUsers"."displayName" as "displayName" from (select "user_accounts"."id" as "id", "user_accounts"."display_name" as "displayName" from "user_accounts" where ("user_accounts"."display_name" is not null)) as "ActiveUsers"'
+    )
+    expect(Mysql.Renderer.make({ casing }).render(
+      Mysql.Query.select({
+        displayName: mysqlActiveUsers.displayName
+      }).pipe(Mysql.Query.from(mysqlActiveUsers))
+    ).sql).toBe(
+      "select `ActiveUsers`.`displayName` as `displayName` from (select `user_accounts`.`id` as `id`, `user_accounts`.`display_name` as `displayName` from `user_accounts` where (`user_accounts`.`display_name` is not null)) as `ActiveUsers`"
+    )
+    expect(Sqlite.Renderer.make({ casing }).render(
+      Sqlite.Query.select({
+        displayName: sqliteActiveUsers.displayName
+      }).pipe(Sqlite.Query.from(sqliteActiveUsers))
+    ).sql).toBe(
+      'select "ActiveUsers"."displayName" as "displayName" from (select "user_accounts"."id" as "id", "user_accounts"."display_name" as "displayName" from "user_accounts" where ("user_accounts"."display_name" is not null)) as "ActiveUsers"'
+    )
+  })
+
   test("mutation casing maps insert and conflict identifiers", () => {
     const users = StdRoot.Table.make("UserAccounts", {
       id: Column.uuid().pipe(Column.primaryKey),

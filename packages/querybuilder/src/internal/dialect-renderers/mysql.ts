@@ -1118,9 +1118,11 @@ const renderSelectionList = (
 const nestedRenderState = (state: RenderState): RenderState => ({
   params: state.params,
   valueMappings: state.valueMappings,
+  casing: state.casing,
   ctes: [],
   cteNames: new Set(state.cteNames),
-  cteSources: new Map(state.cteSources)
+  cteSources: new Map(state.cteSources),
+  sourceNames: new Map(state.sourceNames)
 })
 
 const assertMatchingSetProjections = (
