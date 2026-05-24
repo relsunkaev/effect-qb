@@ -210,8 +210,49 @@ const jsonSegmentGroupingKey = (segment: unknown): string => {
   return "unknown"
 }
 
-const jsonPathGroupingKey = (segments: readonly unknown[] | undefined): string =>
-  (segments ?? []).map(jsonSegmentGroupingKey).join(",")
+const isOptionalJsonPathNumber = (value: unknown): boolean =>
+  value === undefined || (typeof value === "number" && Number.isFinite(value))
+
+const isJsonPathSegment = (segment: unknown): boolean => {
+  if (typeof segment === "string") {
+    return true
+  }
+  if (typeof segment === "number") {
+    return Number.isFinite(segment)
+  }
+  if (segment === null || typeof segment !== "object" || !("kind" in segment)) {
+    return false
+  }
+  switch ((segment as { readonly kind?: unknown }).kind) {
+    case "key":
+      return typeof (segment as { readonly key?: unknown }).key === "string"
+    case "index": {
+      const index = (segment as { readonly index?: unknown }).index
+      return typeof index === "number" && Number.isFinite(index)
+    }
+    case "wildcard":
+    case "descend":
+      return true
+    case "slice":
+      return isOptionalJsonPathNumber((segment as { readonly start?: unknown }).start) &&
+        isOptionalJsonPathNumber((segment as { readonly end?: unknown }).end)
+    default:
+      return false
+  }
+}
+
+const jsonPathGroupingKey = (segments: unknown): string => {
+  if (segments === undefined) {
+    return ""
+  }
+  if (!Array.isArray(segments)) {
+    throw new Error("JSON path expressions require a segment array")
+  }
+  if (segments.some((segment) => !isJsonPathSegment(segment))) {
+    throw new Error("JSON path segments require string, number, or path segment objects")
+  }
+  return segments.map(jsonSegmentGroupingKey).join(",")
+}
 
 const isJsonPath = (value: unknown): value is JsonPath.Path =>
   value !== null && typeof value === "object" && JsonPath.TypeId in value

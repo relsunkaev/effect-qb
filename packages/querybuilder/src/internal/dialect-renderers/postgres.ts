@@ -481,13 +481,57 @@ const extractJsonBase = (node: Record<string, unknown>): unknown =>
 const isJsonPathValue = (value: unknown): value is JsonPath.Path<any> =>
   value !== null && typeof value === "object" && JsonPath.TypeId in value
 
+const isOptionalJsonPathNumber = (value: unknown): boolean =>
+  value === undefined || (typeof value === "number" && Number.isFinite(value))
+
+const isJsonPathSegment = (segment: unknown): boolean => {
+  if (typeof segment === "string") {
+    return true
+  }
+  if (typeof segment === "number") {
+    return Number.isFinite(segment)
+  }
+  if (segment === null || typeof segment !== "object" || !("kind" in segment)) {
+    return false
+  }
+  switch ((segment as { readonly kind?: unknown }).kind) {
+    case "key":
+      return typeof (segment as { readonly key?: unknown }).key === "string"
+    case "index": {
+      const index = (segment as { readonly index?: unknown }).index
+      return typeof index === "number" && Number.isFinite(index)
+    }
+    case "wildcard":
+    case "descend":
+      return true
+    case "slice":
+      return isOptionalJsonPathNumber((segment as { readonly start?: unknown }).start) &&
+        isOptionalJsonPathNumber((segment as { readonly end?: unknown }).end)
+    default:
+      return false
+  }
+}
+
+const validateJsonPathSegments = (segments: unknown): ReadonlyArray<JsonPath.AnySegment> => {
+  if (!Array.isArray(segments)) {
+    throw new Error("JSON path expressions require a segment array")
+  }
+  if (segments.some((segment) => !isJsonPathSegment(segment))) {
+    throw new Error("JSON path segments require string, number, or path segment objects")
+  }
+  return segments as ReadonlyArray<JsonPath.AnySegment>
+}
+
 const extractJsonPathSegments = (node: Record<string, unknown>): ReadonlyArray<JsonPath.AnySegment> => {
   const path = node.path ?? node.segments ?? node.keys
   if (isJsonPathValue(path)) {
-    return path.segments
+    return validateJsonPathSegments(path.segments)
   }
   if (Array.isArray(path)) {
-    return path as readonly JsonPath.AnySegment[]
+    return validateJsonPathSegments(path)
+  }
+  if (node.segments !== undefined) {
+    return validateJsonPathSegments(node.segments)
   }
   if ("key" in node) {
     return [JsonPath.key(String(node.key))]
@@ -506,7 +550,7 @@ const extractJsonPathSegments = (node: Record<string, unknown>): ReadonlyArray<J
     return []
   }
   if ("right" in node && isJsonPathValue(node.right)) {
-    return node.right.segments
+    return validateJsonPathSegments(node.right.segments)
   }
   return []
 }

@@ -1408,6 +1408,76 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects json path expressions with invalid path segments before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const pgValue = PgJson.jsonb.get(
+      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+      PgJson.jsonb.key("email")
+    )
+    const mysqlValue = Mysql.Json.json.get(
+      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
+      Mysql.Json.json.key("email")
+    )
+    const sqliteValue = Sqlite.Json.json.get(
+      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
+      Sqlite.Json.json.key("email")
+    )
+    ;(pgValue as any)[expressionAst].segments = [null]
+    ;(mysqlValue as any)[expressionAst].segments = [null]
+    ;(sqliteValue as any)[expressionAst].segments = [null]
+
+    expect(() => Renderer.make().render(Q.select({ value: pgValue }))).toThrow(
+      "JSON path segments require string, number, or path segment objects"
+    )
+    expect(() => Mysql.Renderer.make().render(Mysql.Query.select({ value: mysqlValue }))).toThrow(
+      "JSON path segments require string, number, or path segment objects"
+    )
+    expect(() => Sqlite.Renderer.make().render(Sqlite.Query.select({ value: sqliteValue }))).toThrow(
+      "JSON path segments require string, number, or path segment objects"
+    )
+  })
+
+  test("rejects grouped json path expressions without a segment array before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const pgValue = PgJson.jsonb.get(
+      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+      PgJson.jsonb.key("email")
+    )
+    const mysqlValue = Mysql.Json.json.get(
+      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
+      Mysql.Json.json.key("email")
+    )
+    const sqliteValue = Sqlite.Json.json.get(
+      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
+      Sqlite.Json.json.key("email")
+    )
+    const pgPlan = Q.select({
+      value: pgValue,
+      rowCount: F.count(Q.literal(1))
+    }).pipe(Q.groupBy(pgValue))
+    const mysqlPlan = Mysql.Query.select({
+      value: mysqlValue,
+      rowCount: Mysql.Function.count(Mysql.Query.literal(1))
+    }).pipe(Mysql.Query.groupBy(mysqlValue))
+    const sqlitePlan = Sqlite.Query.select({
+      value: sqliteValue,
+      rowCount: Sqlite.Function.count(Sqlite.Query.literal(1))
+    }).pipe(Sqlite.Query.groupBy(sqliteValue))
+    ;(pgValue as any)[expressionAst].segments = {}
+    ;(mysqlValue as any)[expressionAst].segments = {}
+    ;(sqliteValue as any)[expressionAst].segments = {}
+
+    expect(() => Renderer.make().render(pgPlan)).toThrow(
+      "JSON path expressions require a segment array"
+    )
+    expect(() => Mysql.Renderer.make().render(mysqlPlan)).toThrow(
+      "JSON path expressions require a segment array"
+    )
+    expect(() => Sqlite.Renderer.make().render(sqlitePlan)).toThrow(
+      "JSON path expressions require a segment array"
+    )
+  })
+
   test("rejects empty SQL JSON path predicates before rendering SQL", () => {
     const pgPathExists = PgJson.jsonb.pathExists(
       PgJson.jsonb.buildObject({ email: "alice@example.com" }),
