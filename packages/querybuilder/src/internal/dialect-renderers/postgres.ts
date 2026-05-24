@@ -260,8 +260,10 @@ const renderColumnDefinition = (
   state: RenderState,
   columnName: string,
   column: Table.AnyTable[typeof Table.TypeId]["fields"][string],
-  tableName?: string
+  tableName?: string,
+  casing?: Casing.Options
 ): string => {
+  const expressionState = { ...state, casing, rowLocalColumns: true }
   const clauses = [
     quoteColumn(columnName, state, dialect, tableName),
     column.metadata.ddlType ?? renderDbType(dialect, column.metadata.dbType)
@@ -269,9 +271,9 @@ const renderColumnDefinition = (
   if (column.metadata.identity) {
     clauses.push(`generated ${column.metadata.identity.generation === "byDefault" ? "by default" : "always"} as identity`)
   } else if (column.metadata.generatedValue) {
-    clauses.push(`generated always as (${renderDdlExpression(column.metadata.generatedValue, state, dialect)}) stored`)
+    clauses.push(`generated always as (${renderDdlExpression(column.metadata.generatedValue, expressionState, dialect)}) stored`)
   } else if (column.metadata.defaultValue) {
-    clauses.push(`default ${renderDdlExpression(column.metadata.defaultValue, state, dialect)}`)
+    clauses.push(`default ${renderDdlExpression(column.metadata.defaultValue, expressionState, dialect)}`)
   }
   if (!column.metadata.nullable) {
     clauses.push("not null")
@@ -289,7 +291,7 @@ const renderCreateTableSql = (
   const tableCasing = casingForTable(table, state)
   const fields = table[Table.TypeId].fields
   const definitions = Object.entries(fields).map(([columnName, column]) =>
-    renderColumnDefinition(dialect, state, columnName, column, targetSource.tableName)
+    renderColumnDefinition(dialect, state, columnName, column, targetSource.tableName, tableCasing)
   )
   for (const option of table[Table.OptionsSymbol]) {
     switch (option.kind) {

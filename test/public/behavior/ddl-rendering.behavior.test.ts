@@ -97,6 +97,33 @@ describe("ddl rendering behavior", () => {
     )
   })
 
+  test("generated column expressions use table-level casing", () => {
+    const users = StdRoot.Table.make("UserAccounts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      displayName: StdRoot.Column.text(),
+      normalizedName: StdRoot.Column.text().pipe(
+        StdRoot.Column.generated(
+          StdRoot.Function.lower(StdRoot.Query.column("displayName", StdRoot.Query.type.text()))
+        )
+      )
+    }).pipe(
+      Casing.withCasing({
+        tables: "snake_case",
+        columns: "snake_case"
+      })
+    )
+
+    expect(Postgres.Renderer.make().render(Postgres.Query.createTable(users)).sql).toContain(
+      'generated always as (lower("display_name")) stored'
+    )
+    expect(Mysql.Renderer.make().render(Mysql.Query.createTable(users)).sql).toContain(
+      "generated always as (lower(`display_name`)) stored"
+    )
+    expect(Sqlite.Renderer.make().render(Sqlite.Query.createTable(users)).sql).toContain(
+      'generated always as (lower("display_name")) stored'
+    )
+  })
+
   test("postgres and mysql DDL expressions inline literals instead of bind parameters", () => {
     const postgresUsersBase = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
