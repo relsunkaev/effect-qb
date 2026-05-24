@@ -182,6 +182,9 @@ export type NonEmptyColumnInput<Columns extends string | readonly string[]> =
 export type NonEmptyStringInput<Value extends string> =
   string extends Value ? Value : Value extends "" ? never : Value
 
+export type LiteralStringInput<Value extends string> =
+  string extends Value ? never : NonEmptyStringInput<Value>
+
 export type MatchingColumnArityInput<
   Left extends string | readonly string[],
   Right extends string | readonly string[]

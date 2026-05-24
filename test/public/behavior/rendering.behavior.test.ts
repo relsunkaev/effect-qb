@@ -378,26 +378,6 @@ describe("rendering behavior", () => {
     )
   })
 
-  test("rejects empty projection aliases before rendering SQL identifiers", () => {
-    const value = Standard.Query.as(Standard.Query.literal(1), "")
-    const plan = Standard.Query.select({
-      value
-    })
-
-    expect(() => Standard.Renderer.make().render(plan)).toThrow(
-      "SQL identifiers must be non-empty"
-    )
-    expect(() => Renderer.make().render(plan)).toThrow(
-      "SQL identifiers must be non-empty"
-    )
-    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
-      "SQL identifiers must be non-empty"
-    )
-    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
-      "SQL identifiers must be non-empty"
-    )
-  })
-
   test("rejects cast expressions without a target type before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const value = Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.text())

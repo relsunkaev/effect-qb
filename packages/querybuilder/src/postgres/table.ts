@@ -144,7 +144,7 @@ export const alias = <
   AliasName extends string
 >(
   table: Table,
-  aliasName: BaseTable.NonEmptyStringInput<AliasName>
+  aliasName: BaseTable.LiteralStringInput<AliasName>
 ): TableDefinition<
   AliasName,
   FieldsOfTable<Table>,

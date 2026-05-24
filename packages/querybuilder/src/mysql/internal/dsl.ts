@@ -6,6 +6,7 @@ import { mysqlDatatypes } from "../datatypes/index.js"
 import * as Expression from "../../internal/scalar.js"
 import * as Plan from "../../internal/row-set.js"
 import * as Table from "../../internal/table.js"
+import type { LiteralStringInput } from "../../internal/table-options.js"
 import type { CastTargetError, OperandCompatibilityError } from "../../internal/coercion/errors.js"
 import type { RuntimeOfDbType } from "../../internal/coercion/analysis.js"
 import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "../../internal/coercion/rules.js"
@@ -71,6 +72,7 @@ import {
   type ScopedNamesOfPlan,
   type SelectionOfPlan,
   type SelectionShape,
+  type SelectionProjectionAliasCollisionConstraint,
   type SetCompatiblePlan,
   type SetCompatibleRightPlan,
   type SchemaTableLike,
@@ -5421,7 +5423,7 @@ type AsCurriedResult<
   function as<
     Alias extends string
   >(
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): <Value extends AsCurriedInput<Dialect>>(
     value: Value
   ) => AsCurriedResult<Value, Alias, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
@@ -5430,7 +5432,7 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: Value,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): ProjectionAliasedExpression<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, Alias>
   function as<
     Rows extends ValuesRowsInput,
@@ -5441,7 +5443,7 @@ type AsCurriedResult<
       ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       Dialect
     >,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): ValuesSource<
     Rows,
     ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -5453,11 +5455,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: DerivedTableCompatiblePlan<PlanValue>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): DerivedSource<PlanValue, Alias>
   function as(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
-      return (value: unknown) => as(value as any, valueOrAlias as string)
+      return (value: unknown) => as(value as any, valueOrAlias as never)
     }
     const resolvedAlias = alias
     const value = valueOrAlias
@@ -5497,7 +5499,7 @@ type AsCurriedResult<
   function with_<
     Alias extends string
   >(
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: MysqlCteCompatiblePlan<PlanValue>
   ) => import("../../internal/query.js").CteSource<PlanValue, Alias>
@@ -5506,11 +5508,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: MysqlCteCompatiblePlan<PlanValue>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): import("../../internal/query.js").CteSource<PlanValue, Alias>
   function with_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
-      return (value: unknown) => with_(value as any, valueOrAlias as string)
+      return (value: unknown) => with_(value as any, valueOrAlias as never)
     }
     return makeCteSource(
       valueOrAlias as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
@@ -5521,7 +5523,7 @@ type AsCurriedResult<
   function withRecursive_<
     Alias extends string
   >(
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: MysqlCteCompatiblePlan<PlanValue>
   ) => import("../../internal/query.js").CteSource<PlanValue, Alias>
@@ -5530,11 +5532,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: MysqlCteCompatiblePlan<PlanValue>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): import("../../internal/query.js").CteSource<PlanValue, Alias>
   function withRecursive_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
-      return (value: unknown) => withRecursive_(value as any, valueOrAlias as string)
+      return (value: unknown) => withRecursive_(value as any, valueOrAlias as never)
     }
     return makeCteSource(
       valueOrAlias as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
@@ -5546,7 +5548,7 @@ type AsCurriedResult<
   function lateral<
     Alias extends string
   >(
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: LateralSourceCompatiblePlan<PlanValue>
   ) => import("../../internal/query.js").LateralSource<PlanValue, Alias>
@@ -5555,11 +5557,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: LateralSourceCompatiblePlan<PlanValue>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): import("../../internal/query.js").LateralSource<PlanValue, Alias>
   function lateral(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
-      return (value: unknown) => lateral(value as any, valueOrAlias as string)
+      return (value: unknown) => lateral(value as any, valueOrAlias as never)
     }
     return makeLateralSource(
       valueOrAlias as QueryPlan<any, any, any, any, any, any, any, any, any, any>,
@@ -5586,7 +5588,7 @@ type AsCurriedResult<
     columns: Columns
       & UnnestColumnsShapeInput<Columns>
       & UnnestColumnsDialectInput<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ) => UnnestSource<
     UnnestOutputShape<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Alias,
@@ -5602,7 +5604,7 @@ type AsCurriedResult<
     start: Start & NumericExpressionDialectInput<Start, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     stop: Stop & NumericExpressionDialectInput<Stop, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     step?: Step & (Step extends NumericExpressionInput ? NumericExpressionDialectInput<Step, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> : unknown),
-    alias?: Alias
+    alias?: LiteralStringInput<Alias>
   ) => Dialect extends "postgres"
     ? TableFunctionSource<
         GenerateSeriesOutputShape<Start, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -5649,8 +5651,8 @@ type AsCurriedResult<
       ? SelectSelectionNonEmptyError<Selection>
       : unknown
 
-  export type SelectApi = <Selection extends SelectionShape>(
-    selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & SelectSelectionNonEmptyConstraint<Selection>
+  export type SelectApi = <const Selection extends SelectionShape>(
+    selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & SelectSelectionNonEmptyConstraint<Selection> & SelectionProjectionAliasCollisionConstraint<Selection>
   ) => QueryPlan<
     Selection,
     ExtractRequired<Selection>,
@@ -6115,8 +6117,8 @@ type AsCurriedResult<
         : unknown
 
   type ReturningApi = Dialect extends "postgres"
-    ? <Selection extends SelectionShape>(
-        selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & ReturningSelectionNonEmptyConstraint<Selection>
+    ? <const Selection extends SelectionShape>(
+        selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & ReturningSelectionNonEmptyConstraint<Selection> & SelectionProjectionAliasCollisionConstraint<Selection>
       ) =>
         <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
           plan: PlanValue & RequireMutationStatement<PlanValue>

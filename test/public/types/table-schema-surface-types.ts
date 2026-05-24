@@ -51,6 +51,9 @@ publicSchema.table("empty_field", {
 })
 // @ts-expect-error table aliases must be non-empty
 Std.Table.alias(postgresUsers, "")
+declare const dynamicTableAlias: string
+// @ts-expect-error table aliases must be literal strings
+Std.Table.alias(postgresUsers, dynamicTableAlias)
 // @ts-expect-error schema namespace names must be non-empty
 Std.Table.schema("")
 // @ts-expect-error postgres schema namespace names must be non-empty

@@ -157,6 +157,40 @@ const aliasRow: AliasRow = {
   }
 }
 void aliasRow
+declare const dynamicProjectionAlias: string
+// @ts-expect-error projection aliases must be literal strings
+Q.as(users.id, dynamicProjectionAlias)
+// @ts-expect-error projection aliases must be non-empty
+Q.as(users.id, "")
+// @ts-expect-error curried projection aliases must be literal strings
+Q.as(dynamicProjectionAlias)(users.id)
+// @ts-expect-error curried projection aliases must be non-empty
+Q.as("")(users.id)
+
+// @ts-expect-error selection projection aliases must be unique
+Q.select({
+  id: Q.as(users.id, "duplicate_alias"),
+  email: Q.as(users.email, "duplicate_alias")
+})
+
+// @ts-expect-error selection projection aliases must be unique after path flattening
+Q.select({
+  "profile__id": users.id,
+  profile: {
+    id: users.email
+  }
+})
+
+Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com"
+}).pipe(
+  // @ts-expect-error returning projection aliases must be unique
+  Q.returning({
+    id: Q.as(users.id, "duplicate_alias"),
+    email: Q.as(users.email, "duplicate_alias")
+  })
+)
 
 const postgresDistinctOnPlan = Postgres.Query.select({
   id: users.id,

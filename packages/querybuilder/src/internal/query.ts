@@ -1180,6 +1180,21 @@ type DerivedProjectionIssues<Selection> =
     : | DerivedProjectionDuplicateAliases<Selection>
       | DerivedProjectionAliasMismatches<Selection>
 
+export type SelectionProjectionDuplicateAliases<Selection> =
+  IsBroadSelection<Selection> extends true
+    ? never
+    : DuplicateProjectionAliases<SelectionProjectionEntries<Selection>>
+
+export type SelectionProjectionAliasCollisionError<Selection> = Selection & {
+  readonly __effect_qb_error__: "effect-qb: projection aliases must be unique"
+  readonly __effect_qb_duplicate_projection_aliases__: SelectionProjectionDuplicateAliases<Selection>
+}
+
+export type SelectionProjectionAliasCollisionConstraint<Selection> =
+  [SelectionProjectionDuplicateAliases<Selection>] extends [never]
+    ? unknown
+    : SelectionProjectionAliasCollisionError<Selection>
+
 export type DerivedSourceProjectionCompatibilityError<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
 > = PlanValue & {

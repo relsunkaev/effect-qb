@@ -100,6 +100,15 @@ const derivedSourceSubquery = Q.select({
 )
 
 const derivedSource = Q.as(derivedSourceSubquery, "active_posts")
+declare const dynamicSourceAlias: string
+// @ts-expect-error derived source aliases must be literal strings
+Q.as(derivedSourceSubquery, dynamicSourceAlias)
+// @ts-expect-error derived source aliases must be non-empty
+Q.as(derivedSourceSubquery, "")
+// @ts-expect-error curried derived source aliases must be literal strings
+Q.as(dynamicSourceAlias)(derivedSourceSubquery)
+// @ts-expect-error curried derived source aliases must be non-empty
+Q.as("")(derivedSourceSubquery)
 
 const derivedSourcePlan = Q.select({
   userId: users.id,
@@ -129,6 +138,10 @@ const cteSourceSubquery = Q.select({
 )
 
 const cteSource = cteSourceSubquery.pipe(Q.with("active_posts"))
+// @ts-expect-error CTE aliases must be literal strings
+cteSourceSubquery.pipe(Q.with(dynamicSourceAlias))
+// @ts-expect-error CTE aliases must be non-empty
+cteSourceSubquery.pipe(Q.with(""))
 
 const cteSourcePlan = Q.select({
   userId: users.id,
@@ -143,6 +156,10 @@ const cteSourceTitle: CteSourceRow["title"] = "hello"
 void cteSourceTitle
 
 const recursiveCteSource = cteSourceSubquery.pipe(Q.withRecursive("recursive_posts"))
+// @ts-expect-error recursive CTE aliases must be literal strings
+cteSourceSubquery.pipe(Q.withRecursive(dynamicSourceAlias))
+// @ts-expect-error recursive CTE aliases must be non-empty
+cteSourceSubquery.pipe(Q.withRecursive(""))
 const recursiveCteFlag: typeof recursiveCteSource["recursive"] = true
 void recursiveCteFlag
 
@@ -154,6 +171,10 @@ const lateralPosts = Q.select({
     Q.where(Q.eq(posts.userId, users.id)),
     Q.lateral("user_posts")
   )
+// @ts-expect-error lateral aliases must be literal strings
+Q.lateral(dynamicSourceAlias)(cteSourceSubquery)
+// @ts-expect-error lateral aliases must be non-empty
+Q.lateral("")(cteSourceSubquery)
 
 type LateralRequired = Q.SourceRequiredOf<typeof lateralPosts>
 const lateralRequired: LateralRequired = "users"

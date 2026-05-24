@@ -65,6 +65,19 @@ const valuesSource = Postgres.Query.values([
   { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") },
   { id: Postgres.Query.literal(2), email: Postgres.Query.literal("bob@example.com") }
 ] as const).pipe(Postgres.Query.as("seed"))
+declare const dynamicValuesAlias: string
+Postgres.Query.values([
+  { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") }
+] as const).pipe(
+  // @ts-expect-error values aliases must be literal strings
+  Postgres.Query.as(dynamicValuesAlias)
+)
+Postgres.Query.values([
+  { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") }
+] as const).pipe(
+  // @ts-expect-error values aliases must be non-empty
+  Postgres.Query.as("")
+)
 
 const valuesPlan = Postgres.Query.select({
   id: valuesSource.id,
@@ -123,6 +136,20 @@ const unnestSource = Postgres.Query.unnest({
   id: [Postgres.Query.literal(1), Postgres.Query.literal(2)] as const,
   email: [Postgres.Query.literal("alice@example.com"), Postgres.Query.literal("bob@example.com")] as const
 }, "seed_rows")
+Postgres.Query.unnest(
+  {
+    id: [Postgres.Query.literal(1)] as const
+  },
+  // @ts-expect-error unnest aliases must be literal strings
+  dynamicValuesAlias
+)
+Postgres.Query.unnest(
+  {
+    id: [Postgres.Query.literal(1)] as const
+  },
+  // @ts-expect-error unnest aliases must be non-empty
+  ""
+)
 
 // @ts-expect-error unnest column arrays must have the same length
 const invalidUnnestLengths = Postgres.Query.unnest({
@@ -156,6 +183,10 @@ void unnestId
 void unnestEmail
 
 const seriesSource = Postgres.Query.generateSeries(1, 3, 1, "series")
+// @ts-expect-error generateSeries aliases must be literal strings
+Postgres.Query.generateSeries(1, 3, 1, dynamicValuesAlias)
+// @ts-expect-error generateSeries aliases must be non-empty
+Postgres.Query.generateSeries(1, 3, 1, "")
 const seriesPlan = Postgres.Query.select({
   value: seriesSource.value
 }).pipe(
@@ -199,6 +230,7 @@ void scalarValue
 void scalarNull
 void scalarInValue
 
+// @ts-expect-error selections require unique aliases after path flattening
 const derivedAliasCollisionSubquery = Postgres.Query.select({
   "user__id": users.id,
   user: {
@@ -208,21 +240,7 @@ const derivedAliasCollisionSubquery = Postgres.Query.select({
   Postgres.Query.from(users)
 )
 
-// @ts-expect-error derived subquery projection aliases must be unique after path flattening
-const derivedAliasCollisionSource = Postgres.Query.as(derivedAliasCollisionSubquery, "derived_collision")
-void derivedAliasCollisionSource
-
-// @ts-expect-error curried derived subquery aliases must be validated too
-const derivedAliasCollisionCurriedSource = Postgres.Query.as("derived_collision_curried")(derivedAliasCollisionSubquery)
-void derivedAliasCollisionCurriedSource
-
-// @ts-expect-error CTE projection aliases must be validated too
-const cteAliasCollisionSource = Postgres.Query.with("cte_collision")(derivedAliasCollisionSubquery)
-void cteAliasCollisionSource
-
-// @ts-expect-error lateral projection aliases must be validated too
-const lateralAliasCollisionSource = Postgres.Query.lateral("lateral_collision")(derivedAliasCollisionSubquery)
-void lateralAliasCollisionSource
+void derivedAliasCollisionSubquery
 
 const derivedAliasedProjectionSubquery = Postgres.Query.select({
   value: Postgres.Query.as(users.id, "renamed_value")

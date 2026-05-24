@@ -12,6 +12,7 @@ import {
   resolvePrimaryKeyColumns,
   type DdlExpressionLike,
   type IndexKeySpec,
+  type LiteralStringInput,
   type MatchingColumnArityInput,
   type NonEmptyColumnInput,
   type NonEmptyStringInput,
@@ -205,7 +206,7 @@ export interface TableSchemaNamespace<SchemaName extends string> {
 }
 
 export type DeclaredTableOptions = readonly TableOptionBuilderLike[]
-export type { DdlExpressionLike, IndexKeySpec, MatchingColumnArityInput, NonEmptyColumnInput, NonEmptyStringInput, NormalizeColumns, ReferentialAction } from "./table-options.js"
+export type { DdlExpressionLike, IndexKeySpec, LiteralStringInput, MatchingColumnArityInput, NonEmptyColumnInput, NonEmptyStringInput, NormalizeColumns, ReferentialAction } from "./table-options.js"
 export type { NonEmptyFieldMap }
 export type NonEmptySchemaNameInput<Value extends string | undefined> =
   Value extends string ? NonEmptyStringInput<Value> : Value
@@ -820,7 +821,7 @@ export const alias = <
   AliasName extends string
 >(
   table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, SchemaName> | TableClassStatic<Name, Fields, PrimaryKeyColumns, SchemaName>,
-  aliasName: NonEmptyStringInput<AliasName>
+  aliasName: LiteralStringInput<AliasName>
 ): TableDefinition<
   AliasName,
   Fields,

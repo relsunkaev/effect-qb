@@ -6,6 +6,7 @@ import { standardDatatypes } from "../standard/datatypes/index.js"
 import * as Expression from "./scalar.js"
 import * as Plan from "./row-set.js"
 import * as Table from "./table.js"
+import type { LiteralStringInput } from "./table-options.js"
 import type { CastTargetError, OperandCompatibilityError } from "./coercion/errors.js"
 import type { RuntimeOfDbType } from "./coercion/analysis.js"
 import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "./coercion/rules.js"
@@ -71,6 +72,7 @@ import {
   type ScopedNamesOfPlan,
   type SelectionOfPlan,
   type SelectionShape,
+  type SelectionProjectionAliasCollisionConstraint,
   type SetCompatiblePlan,
   type SetCompatibleRightPlan,
   type SchemaTableLike,
@@ -5442,7 +5444,7 @@ type AsCurriedResult<
   function as<
     Alias extends string
   >(
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): <Value extends AsCurriedInput<Dialect>>(
     value: Value
   ) => AsCurriedResult<Value, Alias, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
@@ -5451,7 +5453,7 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: Value,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): ProjectionAliasedExpression<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, Alias>
   function as<
     Rows extends ValuesRowsInput,
@@ -5462,7 +5464,7 @@ type AsCurriedResult<
       ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       Dialect
     >,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): ValuesSource<
     Rows,
     ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -5474,11 +5476,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: DerivedTableCompatiblePlan<PlanValue>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): DerivedSource<PlanValue, Alias>
   function as(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
-      return (value: unknown) => as(value as any, valueOrAlias as string)
+      return (value: unknown) => as(value as any, valueOrAlias as never)
     }
     const resolvedAlias = alias
     const value = valueOrAlias
@@ -5518,7 +5520,7 @@ type AsCurriedResult<
   function with_<
     Alias extends string
   >(
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: DerivedSourceCompatiblePlan<PlanValue>
   ) => import("./query.js").CteSource<PlanValue, Alias>
@@ -5527,11 +5529,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: DerivedSourceCompatiblePlan<PlanValue>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): import("./query.js").CteSource<PlanValue, Alias>
   function with_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
-      return (value: unknown) => with_(value as any, valueOrAlias as string)
+      return (value: unknown) => with_(value as any, valueOrAlias as never)
     }
     return makeCteSource(
       valueOrAlias as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
@@ -5542,7 +5544,7 @@ type AsCurriedResult<
   function withRecursive_<
     Alias extends string
   >(
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: DerivedSourceCompatiblePlan<PlanValue>
   ) => import("./query.js").CteSource<PlanValue, Alias>
@@ -5551,11 +5553,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: DerivedSourceCompatiblePlan<PlanValue>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): import("./query.js").CteSource<PlanValue, Alias>
   function withRecursive_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
-      return (value: unknown) => withRecursive_(value as any, valueOrAlias as string)
+      return (value: unknown) => withRecursive_(value as any, valueOrAlias as never)
     }
     return makeCteSource(
       valueOrAlias as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
@@ -5567,7 +5569,7 @@ type AsCurriedResult<
   function lateral<
     Alias extends string
   >(
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: LateralSourceCompatiblePlan<PlanValue>
   ) => import("./query.js").LateralSource<PlanValue, Alias>
@@ -5576,11 +5578,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     value: LateralSourceCompatiblePlan<PlanValue>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ): import("./query.js").LateralSource<PlanValue, Alias>
   function lateral(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
-      return (value: unknown) => lateral(value as any, valueOrAlias as string)
+      return (value: unknown) => lateral(value as any, valueOrAlias as never)
     }
     return makeLateralSource(
       valueOrAlias as QueryPlan<any, any, any, any, any, any, any, any, any, any>,
@@ -5607,7 +5609,7 @@ type AsCurriedResult<
     columns: Columns
       & UnnestColumnsShapeInput<Columns>
       & UnnestColumnsDialectInput<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    alias: Alias
+    alias: LiteralStringInput<Alias>
   ) => UnnestSource<
     UnnestOutputShape<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Alias,
@@ -5623,7 +5625,7 @@ type AsCurriedResult<
     start: Start & NumericExpressionDialectInput<Start, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     stop: Stop & NumericExpressionDialectInput<Stop, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     step?: Step & (Step extends NumericExpressionInput ? NumericExpressionDialectInput<Step, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> : unknown),
-    alias?: Alias
+    alias?: LiteralStringInput<Alias>
   ) => Dialect extends "postgres"
     ? TableFunctionSource<
         GenerateSeriesOutputShape<Start, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -5642,7 +5644,7 @@ type AsCurriedResult<
     start: Start & NumericExpressionDialectInput<Start, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     stop: Stop & NumericExpressionDialectInput<Stop, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     step?: Step & (Step extends NumericExpressionInput ? NumericExpressionDialectInput<Step, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> : unknown),
-    alias?: Alias
+    alias?: LiteralStringInput<Alias>
   ) => TableFunctionSource<
     {
       readonly value: Expression.Scalar<number, NumericDb, "never", Dialect, "scalar", never, string>
@@ -5680,8 +5682,8 @@ type AsCurriedResult<
   type SelectionNestedNonEmptyConstraint<Selection> =
     SelectionHasEmptyNestedObject<Selection, true> extends true ? SelectionNestedEmptyError<Selection> : unknown
 
-  export type SelectApi = <Selection extends SelectionShape = {}>(
-    selection?: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection>
+  export type SelectApi = <const Selection extends SelectionShape = {}>(
+    selection?: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & SelectionProjectionAliasCollisionConstraint<Selection>
   ) => QueryPlan<
     Selection,
     ExtractRequired<Selection>,
@@ -6143,8 +6145,8 @@ type AsCurriedResult<
         ? ReturningSelectionNonEmptyError<Selection>
         : unknown
 
-  type ReturningApi = <Selection extends SelectionShape>(
-    selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & ReturningSelectionNonEmptyConstraint<Selection>
+  type ReturningApi = <const Selection extends SelectionShape>(
+    selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & ReturningSelectionNonEmptyConstraint<Selection> & SelectionProjectionAliasCollisionConstraint<Selection>
   ) =>
     <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
       plan: PlanValue & RequireMutationStatement<PlanValue>
