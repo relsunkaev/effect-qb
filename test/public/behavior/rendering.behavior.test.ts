@@ -154,6 +154,51 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects malformed boolean combinators before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+    const matchesEmail = Standard.Query.eq(users.email, "alice@example.com")
+    const conjunction = Standard.Query.and(matchesEmail)
+    const disjunction = Standard.Query.or(matchesEmail)
+    ;(conjunction as any)[expressionAst].values = undefined
+    ;(disjunction as any)[expressionAst].values = undefined
+
+    const andPlan = Standard.Query.select({
+      ok: conjunction
+    }).pipe(Standard.Query.from(users))
+    const orPlan = Standard.Query.select({
+      ok: disjunction
+    }).pipe(Standard.Query.from(users))
+
+    expect(() => Standard.Renderer.make().render(andPlan)).toThrow(
+      "and(...) requires at least one predicate"
+    )
+    expect(() => Renderer.make().render(andPlan)).toThrow(
+      "and(...) requires at least one predicate"
+    )
+    expect(() => Mysql.Renderer.make().render(andPlan)).toThrow(
+      "and(...) requires at least one predicate"
+    )
+    expect(() => Sqlite.Renderer.make().render(andPlan)).toThrow(
+      "and(...) requires at least one predicate"
+    )
+
+    expect(() => Standard.Renderer.make().render(orPlan)).toThrow(
+      "or(...) requires at least one predicate"
+    )
+    expect(() => Renderer.make().render(orPlan)).toThrow(
+      "or(...) requires at least one predicate"
+    )
+    expect(() => Mysql.Renderer.make().render(orPlan)).toThrow(
+      "or(...) requires at least one predicate"
+    )
+    expect(() => Sqlite.Renderer.make().render(orPlan)).toThrow(
+      "or(...) requires at least one predicate"
+    )
+  })
+
   test("rejects malformed coalesce expressions before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {

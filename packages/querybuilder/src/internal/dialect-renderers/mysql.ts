@@ -1953,12 +1953,12 @@ export const renderExpression = (
     case "min":
       return `min(${renderExpression(ast.value, state, dialect)})`
     case "and":
-      if (ast.values.length === 0) {
+      if (!Array.isArray(ast.values) || ast.values.length === 0) {
         throw new Error("and(...) requires at least one predicate")
       }
       return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" and ")})`
     case "or":
-      if (ast.values.length === 0) {
+      if (!Array.isArray(ast.values) || ast.values.length === 0) {
         throw new Error("or(...) requires at least one predicate")
       }
       return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" or ")})`
