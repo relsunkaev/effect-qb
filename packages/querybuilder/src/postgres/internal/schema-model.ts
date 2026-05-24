@@ -120,10 +120,13 @@ const isDdlExpressionLike = (value: unknown): value is DdlExpressionLike =>
   (Expression.TypeId in value || SchemaExpression.TypeId in value)
 
 const mapIndexKey = (
-  key: IndexKeySpec,
+  key: unknown,
   casing: Casing.Options | undefined,
   expressionState: Partial<RenderState>
-): IndexKeySpec => {
+): unknown => {
+  if (typeof key !== "object" || key === null || !("kind" in key)) {
+    return key
+  }
   const kind = (key as { readonly kind?: unknown }).kind
   if (kind === "column") {
     const column = (key as { readonly column?: unknown }).column
@@ -175,7 +178,7 @@ const mapOption = (
               : [
                   mapIndexKey(option.keys[0], casing, expressionState),
                   ...option.keys.slice(1).map((key) => mapIndexKey(key, casing, expressionState))
-                ]
+                ] as unknown as readonly [IndexKeySpec, ...IndexKeySpec[]]
             : option.keys
       }
     case "primaryKey":
