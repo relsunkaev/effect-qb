@@ -6,7 +6,12 @@ import { postgresDatatypes } from "../datatypes/index.js"
 import * as Expression from "../../internal/scalar.js"
 import * as Plan from "../../internal/row-set.js"
 import * as Table from "../../internal/table.js"
-import type { LiteralStringInput, NonEmptyStringInput } from "../../internal/table-options.js"
+import type {
+  CollationIdentifierInput,
+  LiteralStringInput,
+  NonEmptyStringInput,
+  SafeSqlIdentifierPathInput
+} from "../../internal/table-options.js"
 import type { CastTargetError, OperandCompatibilityError } from "../../internal/coercion/errors.js"
 import type { RuntimeOfDbType } from "../../internal/coercion/analysis.js"
 import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "../../internal/coercion/rules.js"
@@ -2131,7 +2136,7 @@ type BinaryPredicateExpression<
     Collation extends string | readonly [string, ...string[]]
   >(
     value: Value & TextInput<NoInfer<Value>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "collate">,
-    collation: Collation
+    collation: CollationIdentifierInput<Collation>
   ): AstBackedExpression<
     Expression.RuntimeOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     Expression.DbTypeOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
@@ -2142,7 +2147,7 @@ type BinaryPredicateExpression<
     ExpressionAst.CollateNode<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, NormalizedCollation<Collation>>
   > => {
     const expression = toDialectStringExpression(value as any)
-    const normalizedCollation = (typeof collation === "string" ? [collation] : collation) as NormalizedCollation<Collation>
+    const normalizedCollation = (typeof collation === "string" ? [collation] : collation) as unknown as NormalizedCollation<Collation>
     return makeExpression({
       runtime: expression[Expression.TypeId].runtime as Expression.RuntimeOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       dbType: expression[Expression.TypeId].dbType as Expression.DbTypeOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
@@ -3807,7 +3812,7 @@ type BinaryPredicateExpression<
     Name extends string,
     Args extends readonly ExpressionInput[]
   >(
-    name: Name,
+    name: SafeSqlIdentifierPathInput<Name>,
     ...args: Args
   ): Expression.Any => {
     const expressions = args.map((value) => toDialectExpression(value)) as readonly Expression.Any[]

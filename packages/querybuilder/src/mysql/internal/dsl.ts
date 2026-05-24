@@ -6,7 +6,11 @@ import { mysqlDatatypes } from "../datatypes/index.js"
 import * as Expression from "../../internal/scalar.js"
 import * as Plan from "../../internal/row-set.js"
 import * as Table from "../../internal/table.js"
-import type { LiteralStringInput, NonEmptyStringInput } from "../../internal/table-options.js"
+import type {
+  LiteralStringInput,
+  NonEmptyStringInput,
+  SafeSqlIdentifierPathInput
+} from "../../internal/table-options.js"
 import type { CastTargetError, OperandCompatibilityError } from "../../internal/coercion/errors.js"
 import type { RuntimeOfDbType } from "../../internal/coercion/analysis.js"
 import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "../../internal/coercion/rules.js"
@@ -3789,7 +3793,7 @@ type BinaryPredicateExpression<
     Name extends string,
     Args extends readonly ExpressionInput[]
   >(
-    name: Name,
+    name: SafeSqlIdentifierPathInput<Name>,
     ...args: Args
   ): Expression.Any => {
     const expressions = args.map((value) => toDialectExpression(value)) as readonly Expression.Any[]

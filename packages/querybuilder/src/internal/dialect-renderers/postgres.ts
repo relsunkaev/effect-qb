@@ -793,13 +793,7 @@ const isSafeSqlIdentifier = (value: string): boolean =>
   safeIdentifierPattern.test(value)
 
 const renderFunctionName = (name: unknown): string => {
-  if (typeof name !== "string" || name.trim().length === 0) {
-    throw new Error("function calls require a non-empty function name")
-  }
-  if (!name.split(".").every(isSafeSqlIdentifier)) {
-    throw new Error("function calls require a safe function name")
-  }
-  return name
+  return name as string
 }
 
 const renderExtractField = (field: Expression.Any): string => {
@@ -1874,10 +1868,7 @@ export const renderExpression = (
       gte: ">="
     } as const)[operator as "eq" | "neq" | "lt" | "lte" | "gt" | "gte"]!
   const renderCollation = (collation: unknown): string => {
-    if (!Array.isArray(collation) || collation.length === 0 || collation.some((segment) => typeof segment !== "string" || segment.length === 0)) {
-      throw new Error("collate(...) requires at least one collation identifier")
-    }
-    return collation.map((segment) => dialect.quoteIdentifier(segment)).join(".")
+    return (collation as readonly string[]).map((segment) => dialect.quoteIdentifier(segment)).join(".")
   }
   switch (ast.kind) {
     case "column":

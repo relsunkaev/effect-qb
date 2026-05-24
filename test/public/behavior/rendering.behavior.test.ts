@@ -363,22 +363,6 @@ describe("rendering behavior", () => {
     }
   })
 
-  test("rejects collate expressions without collation identifiers before rendering SQL", () => {
-    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const email = Standard.Query.collate(Standard.Query.literal("alice@example.com"), "C")
-    ;(email as any)[expressionAst].collation = []
-    const plan = Standard.Query.select({
-      email
-    })
-
-    expect(() => Standard.Renderer.make().render(plan)).toThrow(
-      "collate(...) requires at least one collation identifier"
-    )
-    expect(() => Renderer.make().render(plan)).toThrow(
-      "collate(...) requires at least one collation identifier"
-    )
-  })
-
   test("rejects cast expressions without a target type before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const value = Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.text())
@@ -549,74 +533,6 @@ describe("rendering behavior", () => {
     )
     expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
       "extract(...) field must be a safe SQL identifier"
-    )
-  })
-
-  test("rejects function calls without a function name before rendering SQL", () => {
-    const value = Standard.Function.call("", Standard.Query.literal(1))
-    const plan = Standard.Query.select({
-      value
-    })
-
-    expect(() => Standard.Renderer.make().render(plan)).toThrow(
-      "function calls require a non-empty function name"
-    )
-    expect(() => Renderer.make().render(plan)).toThrow(
-      "function calls require a non-empty function name"
-    )
-    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
-      "function calls require a non-empty function name"
-    )
-    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
-      "function calls require a non-empty function name"
-    )
-  })
-
-  test("rejects unsafe function names before rendering SQL", () => {
-    const value = Standard.Function.call("lower); drop table users; --", Standard.Query.literal("ALICE"))
-    const plan = Standard.Query.select({
-      value
-    })
-
-    expect(() => Standard.Renderer.make().render(plan)).toThrow(
-      "function calls require a safe function name"
-    )
-    expect(() => Renderer.make().render(plan)).toThrow(
-      "function calls require a safe function name"
-    )
-    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
-      "function calls require a safe function name"
-    )
-    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
-      "function calls require a safe function name"
-    )
-  })
-
-  test("rejects grouped function calls without a function name before rendering SQL", () => {
-    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const users = Standard.Table.make("users", {
-      email: Standard.Column.text()
-    })
-    const value = Standard.Function.call("lower", users.email)
-    const plan = Standard.Query.select({
-      value
-    }).pipe(
-      Standard.Query.from(users),
-      Standard.Query.groupBy(value)
-    )
-    ;(value as any)[expressionAst].name = undefined
-
-    expect(() => Standard.Renderer.make().render(plan)).toThrow(
-      "function calls require a non-empty function name"
-    )
-    expect(() => Renderer.make().render(plan)).toThrow(
-      "function calls require a non-empty function name"
-    )
-    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
-      "function calls require a non-empty function name"
-    )
-    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
-      "function calls require a non-empty function name"
     )
   })
 

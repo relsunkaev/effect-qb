@@ -1,6 +1,7 @@
 import * as Std from "effect-qb"
 import * as Mysql from "effect-qb/mysql"
 import * as Postgres from "effect-qb/postgres"
+import * as Sqlite from "effect-qb/sqlite"
 import { Query as Q, Function as F } from "effect-qb/postgres"
 import type { BrandedErrorOf } from "../../helpers/branded-error.ts"
 
@@ -68,6 +69,32 @@ Q.concat(users.email)
 
 // @ts-expect-error orderBy(...) direction must be asc or desc
 Q.orderBy(users.email, "sideways")
+
+declare const dynamicFunctionName: string
+// @ts-expect-error standard function names must be literal strings
+Std.Function.call(dynamicFunctionName, users.email)
+// @ts-expect-error postgres function names must be literal strings
+Postgres.Function.call(dynamicFunctionName, users.email)
+// @ts-expect-error mysql function names must be literal strings
+Mysql.Function.call(dynamicFunctionName, users.email)
+// @ts-expect-error sqlite function names must be literal strings
+Sqlite.Function.call(dynamicFunctionName, users.email)
+// @ts-expect-error function names must be non-empty
+F.call("", users.email)
+// @ts-expect-error function names must be safe SQL identifiers
+F.call("lower); drop table users; --", users.email)
+// dotted function names are supported when every segment is safe
+F.call("pg_catalog.lower", users.email)
+
+declare const dynamicCollation: string
+// @ts-expect-error standard collation identifiers must be literal strings
+Std.Query.collate(users.email, dynamicCollation)
+// @ts-expect-error postgres collation identifiers must be literal strings
+Postgres.Query.collate(users.email, dynamicCollation)
+// @ts-expect-error collation identifiers must be non-empty
+Q.collate(users.email, "")
+// @ts-expect-error collation path identifiers must be non-empty
+Q.collate(users.email, ["pg_catalog", ""])
 
 const predicateHelpersPlan = Q.select({
   distinctEmail: Q.isDistinctFrom(users.email, "alice@example.com"),

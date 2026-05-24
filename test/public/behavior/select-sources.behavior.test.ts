@@ -120,17 +120,6 @@ describe("select sources behavior", () => {
     ).toThrow("Expected a finite numeric value")
   })
 
-  test("rejects unsafe postgres table-function names before rendering SQL", () => {
-    const series = Postgres.Query.generateSeries(1, 3, 1, "series")
-    ;(series as any).functionName = "generate_series); drop table users; --"
-
-    const plan = Postgres.Query.select({
-      value: series.value
-    }).pipe(Postgres.Query.from(series))
-
-    expect(() => renderPostgres(plan)).toThrow("function calls require a safe function name")
-  })
-
   test("renders postgres values rows by column name when row property order differs", () => {
     const valuesSource = Postgres.Query.values([
       { id: Postgres.Query.literal(1), email: Postgres.Query.literal("alice@example.com") },

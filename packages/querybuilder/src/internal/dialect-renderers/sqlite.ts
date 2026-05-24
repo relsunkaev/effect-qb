@@ -775,13 +775,7 @@ const isSafeSqlIdentifier = (value: string): boolean =>
   safeIdentifierPattern.test(value)
 
 const renderFunctionName = (name: unknown): string => {
-  if (typeof name !== "string" || name.trim().length === 0) {
-    throw new Error("function calls require a non-empty function name")
-  }
-  if (!name.split(".").every(isSafeSqlIdentifier)) {
-    throw new Error("function calls require a safe function name")
-  }
-  return name
+  return name as string
 }
 
 const renderExtractField = (field: Expression.Any): string => {

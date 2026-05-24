@@ -86,17 +86,8 @@ const escapeGroupingText = (value: string): string =>
     .replace(/=/g, "\\=")
     .replace(/>/g, "\\>")
 
-const safeIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
-
-const functionCallNameGroupingKey = (name: unknown): string => {
-  if (typeof name !== "string" || name.trim().length === 0) {
-    throw new Error("function calls require a non-empty function name")
-  }
-  if (!name.split(".").every((segment) => safeIdentifierPattern.test(segment))) {
-    throw new Error("function calls require a safe function name")
-  }
-  return escapeGroupingText(name)
-}
+const functionCallNameGroupingKey = (name: unknown): string =>
+  escapeGroupingText(name as string)
 
 const quantifiedComparisonGroupingName = (
   kind: "comparisonAny" | "comparisonAll"
@@ -113,10 +104,7 @@ const caseGroupingKey = (
 }
 
 const collationGroupingKey = (collation: unknown): string => {
-  if (!Array.isArray(collation) || collation.length === 0 || collation.some((segment) => typeof segment !== "string" || segment.length === 0)) {
-    throw new Error("collate(...) requires at least one collation identifier")
-  }
-  return collation.map(escapeGroupingText).join(",")
+  return (collation as readonly string[]).map(escapeGroupingText).join(",")
 }
 
 const jsonSegmentGroupingKey = (segment: unknown): string => {

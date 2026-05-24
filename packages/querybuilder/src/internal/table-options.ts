@@ -185,6 +185,72 @@ export type NonEmptyStringInput<Value extends string> =
 export type LiteralStringInput<Value extends string> =
   string extends Value ? never : NonEmptyStringInput<Value>
 
+type LowerAlpha =
+  | "a"
+  | "b"
+  | "c"
+  | "d"
+  | "e"
+  | "f"
+  | "g"
+  | "h"
+  | "i"
+  | "j"
+  | "k"
+  | "l"
+  | "m"
+  | "n"
+  | "o"
+  | "p"
+  | "q"
+  | "r"
+  | "s"
+  | "t"
+  | "u"
+  | "v"
+  | "w"
+  | "x"
+  | "y"
+  | "z"
+type UpperAlpha = Uppercase<LowerAlpha>
+type Digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+type IdentifierStart = LowerAlpha | UpperAlpha | "_"
+type IdentifierRest = IdentifierStart | Digit
+
+type SafeIdentifierRest<Value extends string> =
+  Value extends ""
+    ? Value
+    : Value extends `${infer Head}${infer Tail}`
+      ? Head extends IdentifierRest ? SafeIdentifierRest<Tail> : never
+      : never
+
+type SafeSqlIdentifier<Value extends string> =
+  Value extends `${infer Head}${infer Tail}`
+    ? Head extends IdentifierStart
+      ? SafeIdentifierRest<Tail> extends never ? never : Value
+      : never
+    : never
+
+export type SafeSqlIdentifierPathInput<Value extends string> =
+  string extends Value
+    ? never
+    : Value extends `${infer Head}.${infer Tail}`
+      ? SafeSqlIdentifier<Head> extends never
+        ? never
+        : SafeSqlIdentifierPathInput<Tail> extends never ? never : Value
+      : SafeSqlIdentifier<Value> extends never ? never : Value
+
+type LiteralStringTupleInput<Values extends readonly string[]> = {
+  readonly [K in keyof Values]: Values[K] extends string ? LiteralStringInput<Values[K]> : never
+} & Values
+
+export type CollationIdentifierInput<Value extends string | readonly [string, ...string[]]> =
+  Value extends string
+    ? LiteralStringInput<Value>
+    : Value extends readonly [string, ...string[]]
+      ? LiteralStringTupleInput<Value>
+      : never
+
 export type MatchingColumnArityInput<
   Left extends string | readonly string[],
   Right extends string | readonly string[]
