@@ -60,5 +60,25 @@ describe("postgres schema composition", () => {
       'insert into "analytics"."events" ("id", "createdAt", "meta") values ($1, $2, $3)'
     )
   })
-})
 
+  test("schema namespace casing maps enum and sequence schema identifiers", () => {
+    const Audit = Pg.Schema.make("AuditSchema").pipe(
+      Casing.withCasing({
+        schemas: "snake_case",
+        types: "snake_case",
+        sequences: "snake_case"
+      })
+    )
+    const status = Audit.enum("UserStatus", ["active", "disabled"] as const)
+    const userIds = Audit.sequence("UserIdSeq")
+
+    expect(status.type().kind).toBe("audit_schema.user_status")
+
+    const rendered = Pg.Renderer.make().render(Query.select({
+      nextId: Pg.Function.nextVal(userIds)
+    }))
+
+    expect(rendered.sql).toBe('select nextval(cast($1 as regclass)) as "nextId"')
+    expect(rendered.params).toEqual(["audit_schema.user_id_seq"])
+  })
+})

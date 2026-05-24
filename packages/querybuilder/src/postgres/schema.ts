@@ -84,6 +84,7 @@ export const make = <SchemaName extends string>(
   schemaName: SchemaName,
   options: { readonly casing?: Casing.Options } = {}
 ): SchemaNamespace<SchemaName> => {
+  const physicalSchemaName = Casing.applyCategory(options.casing, "schemas", schemaName)
   const tableNamespace = makeTableSchemaNamespace(schemaName)
   const namespace = Object.create(SchemaProto)
   namespace.schemaName = schemaName
@@ -97,12 +98,12 @@ export const make = <SchemaName extends string>(
   >(
     name: Name,
     values: Values
-  ) => enumType(Casing.applyCategory(options.casing, "types", name), values, schemaName) as unknown as EnumDefinition<Name, Values, SchemaName>
+  ) => enumType(Casing.applyCategory(options.casing, "types", name), values, physicalSchemaName) as unknown as EnumDefinition<Name, Values, SchemaName>
   namespace.sequence = <
     Name extends string
   >(
     name: Name
-  ) => sequence(Casing.applyCategory(options.casing, "sequences", name), schemaName) as unknown as SequenceDefinition<Name, SchemaName>
+  ) => sequence(Casing.applyCategory(options.casing, "sequences", name), physicalSchemaName) as unknown as SequenceDefinition<Name, SchemaName>
   namespace.withSchema = <
     Table extends BaseTable.TableDefinition<any, any, any, any, any>
   >(table: Table & ValidatePostgresSchemaTable<Table>) => BaseTable.withSchema(table, schemaName, options.casing)
