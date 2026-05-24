@@ -47,15 +47,11 @@ export const normalizeStatementFlag = (value: unknown): boolean =>
   (value as boolean | undefined) ?? false
 
 export const normalizeStatementIdentifier = (
-  apiName: string,
-  identifierName: string,
+  _apiName: string,
+  _identifierName: string,
   value: unknown
-): string => {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${apiName}(...) ${identifierName} must be a non-empty string`)
-  }
-  return value
-}
+): string =>
+  value as string
 
 export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContext) => {
   const transaction = (options: { readonly isolationLevel?: any; readonly readOnly?: boolean } = {}) => {

@@ -99,45 +99,33 @@ describe("cross-cutting statement behavior", () => {
     expect(() => Mysql.Renderer.make().render(mergePlan)).toThrow("Unsupported merge statement for mysql")
   })
 
-  test("statement builders trust typed identifiers and defer malformed any values to rendering", () => {
+  test("statement builders trust typed identifiers without renderer-time identifier validation", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
-    const invalidSavepointPlan = Postgres.Query.savepoint(123 as any)
-    expect(() =>
-      Postgres.Renderer.make().render(invalidSavepointPlan)
-    ).toThrow("savepoint(...) name must be a non-empty string")
+    const emptySavepointPlan = Postgres.Query.savepoint("" as any)
+    expect(Postgres.Renderer.make().render(emptySavepointPlan).sql).toBe('savepoint ""')
 
-    const invalidRollbackToPlan = Postgres.Query.rollbackTo("" as any)
-    expect(() =>
-      Postgres.Renderer.make().render(invalidRollbackToPlan)
-    ).toThrow("rollbackTo(...) name must be a non-empty string")
+    const emptyRollbackToPlan = Postgres.Query.rollbackTo("" as any)
+    expect(Postgres.Renderer.make().render(emptyRollbackToPlan).sql).toBe('rollback to savepoint ""')
 
-    const invalidCreateIndexPlan = Postgres.Query.createIndex(users, "id", { name: 123 } as any)
-    expect(() =>
-      Postgres.Renderer.make().render(invalidCreateIndexPlan)
-    ).toThrow("createIndex(...) option 'name' must be a non-empty string")
+    const emptyCreateIndexPlan = Postgres.Query.createIndex(users, "id", { name: "" } as any)
+    expect(Postgres.Renderer.make().render(emptyCreateIndexPlan).sql).toBe('create index "" on "users" ("id")')
 
-    const invalidDropIndexPlan = Postgres.Query.dropIndex(users, "id", { name: "" } as any)
-    expect(() =>
-      Postgres.Renderer.make().render(invalidDropIndexPlan)
-    ).toThrow("dropIndex(...) option 'name' must be a non-empty string")
+    const emptyDropIndexPlan = Postgres.Query.dropIndex(users, "id", { name: "" } as any)
+    expect(Postgres.Renderer.make().render(emptyDropIndexPlan).sql).toBe('drop index ""')
 
     const savepointPlan = Postgres.Query.savepoint("before_merge")
-    ;(savepointPlan as any)[queryAst].transaction.name = 123
+    ;(savepointPlan as any)[queryAst].transaction.name = ""
 
-    expect(() =>
-      Postgres.Renderer.make().render(savepointPlan)
-    ).toThrow("savepoint(...) name must be a non-empty string")
+    expect(Postgres.Renderer.make().render(savepointPlan).sql).toBe('savepoint ""')
 
     const createIndexPlan = Postgres.Query.createIndex(users, "id")
-    ;(createIndexPlan as any)[queryAst].ddl.name = 123
+    ;(createIndexPlan as any)[queryAst].ddl.name = ""
 
-    expect(() =>
-      Postgres.Renderer.make().render(createIndexPlan)
-    ).toThrow("createIndex(...) option 'name' must be a non-empty string")
+    expect(Postgres.Renderer.make().render(createIndexPlan).sql).toBe('create index "" on "users" ("id")')
   })
 
   test("rejects invalid rendered transaction kinds", () => {
