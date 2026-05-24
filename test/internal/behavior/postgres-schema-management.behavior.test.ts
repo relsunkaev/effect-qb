@@ -116,21 +116,27 @@ describe("postgres schema management", () => {
     )
   })
 
-  test("source table models reject malformed table option names before mapping metadata", () => {
+  test("source table models preserve table option names without runtime validation", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{ kind: "primaryKey", columns: ["id"], name: {} }]
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [
+      { kind: "primaryKey", columns: ["id"], name: {} },
+      { kind: "index", columns: ["id"], name: {} }
+    ]
 
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Option 'primaryKey' on table 'users' requires option names to be non-empty strings"
-    )
+    const model = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+    const primaryKey = model.options.find((option) => option.kind === "primaryKey")
+    const index = model.options.find((option) => option.kind === "index")
 
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{ kind: "index", columns: ["id"], name: {} }]
-
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Option 'index' on table 'users' requires option names to be non-empty strings"
-    )
+    expect(primaryKey).toMatchObject({
+      kind: "primaryKey",
+      name: {}
+    })
+    expect(index).toMatchObject({
+      kind: "index",
+      name: {}
+    })
   })
 
   test("source table models reject malformed table option flags before mapping metadata", () => {
