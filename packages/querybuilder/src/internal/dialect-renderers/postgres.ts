@@ -1804,8 +1804,9 @@ const renderSourceReference = (
     if (dialect.name !== "postgres") {
       throw new Error("Unsupported table function source for SQL rendering")
     }
+    const functionName = renderFunctionName(tableFunction.functionName)
     const columnNames = Object.keys(tableFunction.columns)
-    return `${tableFunction.functionName}(${tableFunction.args.map((arg) => renderExpression(arg, state, dialect)).join(", ")}) as ${dialect.quoteIdentifier(tableFunction.name)}(${columnNames.map((columnName) => dialect.quoteIdentifier(columnName)).join(", ")})`
+    return `${functionName}(${tableFunction.args.map((arg) => renderExpression(arg, state, dialect)).join(", ")}) as ${dialect.quoteIdentifier(tableFunction.name)}(${columnNames.map((columnName) => dialect.quoteIdentifier(columnName)).join(", ")})`
   }
   const schemaName = typeof source === "object" && source !== null && Table.TypeId in source
     ? casedSchemaName(source as Table.AnyTable, state)
