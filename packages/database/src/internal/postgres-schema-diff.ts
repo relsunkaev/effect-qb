@@ -143,6 +143,17 @@ const columnSignature = (column: ColumnModel): string =>
     identity: column.identity ?? null
   })
 
+const normalizedPredicateSql = (predicate: unknown): string | null => {
+  if (predicate === undefined) {
+    return null
+  }
+  try {
+    return normalizeDdlExpressionSql(predicate as never)
+  } catch {
+    return null
+  }
+}
+
 const constraintSignature = (
   table: TableModel,
   option: Exclude<TableOptionSpec, { readonly kind: "index" }>
@@ -200,7 +211,7 @@ const indexSignature = (
     unique: option.unique ?? false,
     method: option.method ?? null,
     include: option.include ?? [],
-    predicate: option.predicate ? normalizeDdlExpressionSql(option.predicate) : null,
+    predicate: normalizedPredicateSql(option.predicate),
     keys: indexKeysOf(option).map((key) => key.kind === "column"
       ? {
           kind: key.kind,
@@ -270,7 +281,7 @@ const indexShapeSignature = (
     unique: option.unique ?? false,
     method: option.method ?? null,
     include: option.include ?? [],
-    predicate: option.predicate ? normalizeDdlExpressionSql(option.predicate) : null,
+    predicate: normalizedPredicateSql(option.predicate),
     keys: indexKeysOf(option).map((key) => key.kind === "column"
       ? {
           kind: key.kind,

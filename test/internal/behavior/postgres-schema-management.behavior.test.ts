@@ -710,6 +710,42 @@ describe("postgres schema management", () => {
     )
   })
 
+  test("schema diff planning tolerates malformed index predicate metadata", () => {
+    const sourceUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    const sourceUsersModel = toTableModel(sourceUsers as unknown as Parameters<typeof toTableModel>[0])
+    ;(sourceUsersModel as any).options = [
+      ...(sourceUsersModel as any).options,
+      {
+        kind: "index",
+        columns: ["id"],
+        predicate: "id is not null"
+      }
+    ]
+
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [sourceUsersModel]
+    }
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: []
+    }
+
+    expect(() => planPostgresSchemaDiff(source, database)).not.toThrow()
+    expect(planPostgresSchemaDiff(source, database).changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "createTable",
+          key: "public.users"
+        })
+      ])
+    )
+  })
+
   test("pull planning tolerates malformed index keys in discovered source bindings", async () => {
     const tempDir = await mkdtemp(join(process.cwd(), ".tmp-pull-malformed-index-keys-"))
     try {

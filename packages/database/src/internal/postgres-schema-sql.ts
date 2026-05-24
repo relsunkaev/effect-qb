@@ -252,6 +252,17 @@ const renderIndexNulls = (nulls: unknown): string => {
   return ` nulls ${nulls}`
 }
 
+const renderOptionalIndexPredicate = (predicate: unknown): string => {
+  if (predicate === undefined) {
+    return ""
+  }
+  try {
+    return ` where ${SchemaExpression.renderDdlExpressionSql(predicate as never)}`
+  } catch {
+    return ""
+  }
+}
+
 export const renderIndexDefinition = (
   table: TableModel,
   option: Extract<TableOptionSpec, { readonly kind: "index" }>
@@ -271,7 +282,7 @@ export const renderIndexDefinition = (
       : `(${SchemaExpression.renderDdlExpressionSql(key.expression)})`
     return `${base}${key.collation ? ` collate ${qualifyIdentifier(key.collation)}` : ""}${key.operatorClass ? ` ${qualifyIdentifier(key.operatorClass)}` : ""}${renderIndexOrder(key.order)}${renderIndexNulls(key.nulls)}`
   }).join(", ")
-  return `create${option.unique ? " unique" : ""} index ${quote(name)} on ${qualify(table.schemaName, table.name)}${renderIndexMethod(option.method)} (${renderedKeys})${includeColumns.length > 0 ? ` include (${includeColumns.map(quote).join(", ")})` : ""}${option.predicate ? ` where ${SchemaExpression.renderDdlExpressionSql(option.predicate)}` : ""}`
+  return `create${option.unique ? " unique" : ""} index ${quote(name)} on ${qualify(table.schemaName, table.name)}${renderIndexMethod(option.method)} (${renderedKeys})${includeColumns.length > 0 ? ` include (${includeColumns.map(quote).join(", ")})` : ""}${renderOptionalIndexPredicate(option.predicate)}`
 }
 
 export const renderCreateTable = (table: TableModel): string => {
