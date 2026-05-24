@@ -426,6 +426,16 @@ describe("postgres insert behavior", () => {
     }))).toThrow("Expected a local-date value")
   })
 
+  test("rejects invalid Date expression-wrapped insert values before normalizing dates", () => {
+    const events = StdRoot.Table.make("expression_date_events", {
+      happenedOn: StdRoot.Column.date()
+    })
+
+    expect(() => render(Postgres.Query.insert(events, {
+      happenedOn: Postgres.Query.literal(new Date("not a date"))
+    }))).toThrow("Expected a valid Date value")
+  })
+
   test("rejects insert values that violate target column schemas after normalization", () => {
     const labels = StdRoot.Table.make("labels", {
       code: StdRoot.Column.varchar(3)

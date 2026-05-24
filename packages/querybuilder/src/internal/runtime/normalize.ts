@@ -23,6 +23,13 @@ const isPlainRecord = (value: unknown): value is Record<string, unknown> => {
 
 const pad = (value: number, width = 2): string => value.toString().padStart(width, "0")
 
+const validDate = (value: Date): Date => {
+  if (Number.isNaN(value.getTime())) {
+    throw new Error("Expected a valid Date value")
+  }
+  return value
+}
+
 const formatLocalDate = (value: Date): string =>
   `${pad(value.getUTCFullYear(), 4)}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())}`
 
@@ -125,7 +132,7 @@ const normalizeDecimalString = (value: unknown): string => {
 
 const normalizeLocalDate = (value: unknown): string => {
   if (value instanceof Date) {
-    return formatLocalDate(value)
+    return formatLocalDate(validDate(value))
   }
   const raw = expectString(value, "local date").trim()
   if (isValidLocalDateString(raw)) {
@@ -143,7 +150,7 @@ const normalizeLocalDate = (value: unknown): string => {
 
 const normalizeLocalTime = (value: unknown): string => {
   if (value instanceof Date) {
-    return formatLocalTime(value)
+    return formatLocalTime(validDate(value))
   }
   const raw = expectString(value, "local time").trim()
   if (isValidLocalTimeString(raw)) {
@@ -154,7 +161,7 @@ const normalizeLocalTime = (value: unknown): string => {
 
 const normalizeOffsetTime = (value: unknown): string => {
   if (value instanceof Date) {
-    return `${formatLocalTime(value)}Z`
+    return `${formatLocalTime(validDate(value))}Z`
   }
   const raw = expectString(value, "offset time").trim()
   if (isValidOffsetTimeString(raw)) {
@@ -165,7 +172,7 @@ const normalizeOffsetTime = (value: unknown): string => {
 
 const normalizeLocalDateTime = (value: unknown): string => {
   if (value instanceof Date) {
-    return formatLocalDateTime(value)
+    return formatLocalDateTime(validDate(value))
   }
   const raw = expectString(value, "local datetime").trim()
   const canonicalLocalDateTime = raw.replace(" ", "T")
@@ -184,7 +191,7 @@ const normalizeLocalDateTime = (value: unknown): string => {
 
 const normalizeInstant = (value: unknown): string => {
   if (value instanceof Date) {
-    return value.toISOString()
+    return validDate(value).toISOString()
   }
   const raw = expectString(value, "instant").trim()
   if (!/[zZ]|[+-]\d{2}:\d{2}$/.test(raw)) {
