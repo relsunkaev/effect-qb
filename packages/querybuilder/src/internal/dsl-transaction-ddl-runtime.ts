@@ -1,5 +1,4 @@
 import * as Plan from "./row-set.js"
-import * as Table from "./table.js"
 
 type DslTransactionDdlRuntimeContext = {
   readonly profile: {
@@ -59,27 +58,6 @@ export const normalizeStatementIdentifier = (
 }
 
 export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContext) => {
-  const isRecord = (value: unknown): value is Record<PropertyKey, unknown> =>
-    typeof value === "object" && value !== null
-
-  const assertTableTarget = (target: unknown, apiName: string): void => {
-    if (!isRecord(target) || !(Table.TypeId in target) || !(Plan.TypeId in target)) {
-      throw new Error(`${apiName}(...) requires a table target`)
-    }
-  }
-
-  const validateIndexColumns = (target: any, columns: readonly string[]): void => {
-    const fields = target[Table.TypeId]?.fields as Record<string, unknown> | undefined
-    if (fields === undefined) {
-      return
-    }
-    for (const columnName of columns) {
-      if (!(columnName in fields)) {
-        throw new Error(`effect-qb: unknown index column '${columnName}'`)
-      }
-    }
-  }
-
   const transaction = (options: { readonly isolationLevel?: any; readonly readOnly?: boolean } = {}) => {
     return ctx.makePlan({
       selection: {},
@@ -207,7 +185,6 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   }
 
   const createTable = (target: any, options: { readonly ifNotExists?: boolean } = {}) => {
-    assertTableTarget(target, "createTable")
     const ifNotExists = normalizeStatementFlag(options.ifNotExists)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
@@ -237,7 +214,6 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   }
 
   const dropTable = (target: any, options: { readonly ifExists?: boolean } = {}) => {
-    assertTableTarget(target, "dropTable")
     const ifExists = normalizeStatementFlag(options.ifExists)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
@@ -267,14 +243,12 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   }
 
   const createIndex = (target: any, columns: string | readonly string[], options: { readonly name?: string; readonly unique?: boolean; readonly ifNotExists?: boolean } = {}) => {
-    assertTableTarget(target, "createIndex")
     const normalizedColumns = ctx.normalizeColumnList(columns)
     const unique = normalizeStatementFlag(options.unique)
     const ifNotExists = normalizeStatementFlag(options.ifNotExists)
     const name = options.name === undefined
       ? undefined
       : normalizeStatementIdentifier("createIndex", "option 'name'", options.name)
-    validateIndexColumns(target, normalizedColumns)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
       selection: {},
@@ -306,13 +280,11 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   }
 
   const dropIndex = (target: any, columns: string | readonly string[], options: { readonly name?: string; readonly ifExists?: boolean } = {}) => {
-    assertTableTarget(target, "dropIndex")
     const normalizedColumns = ctx.normalizeColumnList(columns)
     const ifExists = normalizeStatementFlag(options.ifExists)
     const name = options.name === undefined
       ? undefined
       : normalizeStatementIdentifier("dropIndex", "option 'name'", options.name)
-    validateIndexColumns(target, normalizedColumns)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
       selection: {},

@@ -463,18 +463,6 @@ describe("sqlite behavior", () => {
     )
   })
 
-  test("rejects sqlite DDL references to unknown index columns at runtime", () => {
-    const employees = makeSqliteEmployees()
-
-    expect(() =>
-      render(Sqlite.Query.createIndex(employees, ["missing"]))
-    ).toThrow("effect-qb: unknown index column 'missing'")
-
-    expect(() =>
-      render(Sqlite.Query.dropIndex(employees, ["missing"]))
-    ).toThrow("effect-qb: unknown index column 'missing'")
-  })
-
   test("rejects sqlite mutation modifiers that would otherwise be ignored", () => {
     const { users, posts } = makeSqliteSocialGraph()
 
