@@ -190,10 +190,7 @@ const jsonKeysGroupingKey = (keys: unknown): string => {
   if (!Array.isArray(keys) || keys.length === 0) {
     return ""
   }
-  if (keys.some((key) => typeof key !== "string" || key.length === 0)) {
-    throw new Error("json key predicates require string keys")
-  }
-  return keys.map(escapeGroupingText).join(",")
+  return keys.map((key) => escapeGroupingText(String(key))).join(",")
 }
 
 const jsonBuildObjectGroupingKey = (entries: unknown): string => {

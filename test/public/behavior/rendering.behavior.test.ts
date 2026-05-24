@@ -466,6 +466,24 @@ describe("rendering behavior", () => {
     expect(Standard.Renderer.make().render(plan).sql).toContain("as undefined")
   })
 
+  test("groupBy builders trust typed json key predicates without grouping-key runtime validation", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+    const hasKey = PgJson.jsonb.hasKey(
+      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+      "email"
+    )
+    ;(hasKey as any)[expressionAst].keys = [0]
+
+    const plan = Q.select({
+      hasKey,
+      rowCount: F.count(Q.literal(1))
+    }).pipe(Q.groupBy(hasKey))
+
+    expect((plan as any)[queryAst].groupBy).toHaveLength(1)
+    expect((plan as any)[queryAst].groupBy[0]).toBe(hasKey)
+  })
+
   test("renders safe extract fields as SQL field syntax", () => {
     const timestamp = new Date("2024-01-02T03:04:05.000Z")
     const extracted = Standard.Function.call(
