@@ -203,25 +203,34 @@ const registerSourceReference = (
   tableName: string,
   state: RenderState
 ): void => {
-  if (typeof source !== "object" || source === null || !(Table.TypeId in source)) {
+  if (typeof source !== "object" || source === null) {
     return
   }
-  const table = source as Table.AnyTable
-  const tableState = table[Table.TypeId]
-  const casing = casingForTable(table, state)
-  const renderedTableName = tableState.kind === "alias"
-    ? tableName
-    : Casing.applyCategory(casing, "tables", tableState.baseName)
-  const columns = new Map(
-    Object.keys(tableState.fields).map((columnName) => [
-      columnName,
-      Casing.applyCategory(casing, "columns", columnName)
-    ] as const)
-  )
-  state.sourceNames?.set(tableName, {
-    tableName: renderedTableName,
-    columns
-  })
+  if (Table.TypeId in source) {
+    const table = source as Table.AnyTable
+    const tableState = table[Table.TypeId]
+    const casing = casingForTable(table, state)
+    const renderedTableName = tableState.kind === "alias"
+      ? tableName
+      : Casing.applyCategory(casing, "tables", tableState.baseName)
+    const columns = new Map(
+      Object.keys(tableState.fields).map((columnName) => [
+        columnName,
+        Casing.applyCategory(casing, "columns", columnName)
+      ] as const)
+    )
+    state.sourceNames?.set(tableName, {
+      tableName: renderedTableName,
+      columns
+    })
+    return
+  }
+  if ("columns" in source && typeof source.columns === "object" && source.columns !== null) {
+    state.sourceNames?.set(tableName, {
+      tableName,
+      columns: new Map(Object.keys(source.columns).map((columnName) => [columnName, columnName] as const))
+    })
+  }
 }
 
 const registerQuerySources = (

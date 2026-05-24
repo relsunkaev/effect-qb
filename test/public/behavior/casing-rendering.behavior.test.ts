@@ -63,6 +63,44 @@ describe("casing rendering behavior", () => {
     )
   })
 
+  test("renderer casing preserves query-local values source identifiers", () => {
+    const casing = {
+      tables: "snake_case",
+      columns: "snake_case"
+    } as const
+    const postgresSeed = Pg.Query.values([
+      { displayName: Pg.Query.literal("Alice") }
+    ] as const).pipe(Pg.Query.as("SeedRows"))
+    const mysqlSeed = Mysql.Query.values([
+      { displayName: Mysql.Query.literal("Alice") }
+    ] as const).pipe(Mysql.Query.as("SeedRows"))
+    const sqliteSeed = Sqlite.Query.values([
+      { displayName: Sqlite.Query.literal("Alice") }
+    ] as const).pipe(Sqlite.Query.as("SeedRows"))
+
+    expect(Pg.Renderer.make({ casing }).render(
+      Pg.Query.select({
+        displayName: postgresSeed.displayName
+      }).pipe(Pg.Query.from(postgresSeed))
+    ).sql).toBe(
+      'select "SeedRows"."displayName" as "displayName" from (select $1 as "displayName") as "SeedRows"("displayName")'
+    )
+    expect(Mysql.Renderer.make({ casing }).render(
+      Mysql.Query.select({
+        displayName: mysqlSeed.displayName
+      }).pipe(Mysql.Query.from(mysqlSeed))
+    ).sql).toBe(
+      "select `SeedRows`.`displayName` as `displayName` from (select ? as `displayName`) as `SeedRows`(`displayName`)"
+    )
+    expect(Sqlite.Renderer.make({ casing }).render(
+      Sqlite.Query.select({
+        displayName: sqliteSeed.displayName
+      }).pipe(Sqlite.Query.from(sqliteSeed))
+    ).sql).toBe(
+      'select "SeedRows"."displayName" as "displayName" from (select ? as "displayName") as "SeedRows"'
+    )
+  })
+
   test("mutation casing maps insert and conflict identifiers", () => {
     const users = StdRoot.Table.make("UserAccounts", {
       id: Column.uuid().pipe(Column.primaryKey),
