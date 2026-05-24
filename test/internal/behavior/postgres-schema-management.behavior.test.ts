@@ -230,30 +230,44 @@ describe("postgres schema management", () => {
     })
   })
 
-  test("source table models reject malformed foreign key reference identifiers before mapping metadata", () => {
+  test("source table models preserve foreign key reference identifiers without runtime validation", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       orgId: StdRoot.Column.uuid()
     })
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
-      kind: "foreignKey",
-      columns: ["orgId"],
-      references: () => ({ tableName: 0, columns: ["id"] })
-    }]
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [
+      {
+        kind: "foreignKey",
+        columns: ["orgId"],
+        references: () => ({ tableName: 0, columns: ["id"] })
+      },
+      {
+        kind: "foreignKey",
+        columns: ["orgId"],
+        references: () => ({ tableName: "orgs", schemaName: 0, columns: ["id"] })
+      }
+    ]
 
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Foreign key on table 'users' requires a referenced table name"
-    )
+    const model = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+    const firstForeignKey = model.options[0]
+    const secondForeignKey = model.options[1]
 
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
-      kind: "foreignKey",
-      columns: ["orgId"],
-      references: () => ({ tableName: "orgs", schemaName: 0, columns: ["id"] })
-    }]
+    if (firstForeignKey?.kind !== "foreignKey") {
+      throw new Error("expected first foreign key option")
+    }
+    if (secondForeignKey?.kind !== "foreignKey") {
+      throw new Error("expected second foreign key option")
+    }
 
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Foreign key on table 'users' requires referenced schema names to be strings"
-    )
+    expect(firstForeignKey.references()).toMatchObject({
+      tableName: 0,
+      columns: ["id"]
+    })
+    expect(secondForeignKey.references()).toMatchObject({
+      tableName: "orgs",
+      schemaName: 0,
+      columns: ["id"]
+    })
   })
 
   test("classifies safe and destructive schema changes", () => {
