@@ -446,31 +446,40 @@ describe("ddl rendering behavior", () => {
     ).toThrow()
   })
 
-  test("rejects malformed table option entries before rendering DDL", () => {
+  test("ignores malformed table option entries without runtime validation", () => {
     const postgresUsers = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    ;(postgresUsers as any)[StdRoot.Table.OptionsSymbol] = [null]
+    ;(postgresUsers as any)[StdRoot.Table.OptionsSymbol] = [
+      ...(postgresUsers as any)[StdRoot.Table.OptionsSymbol],
+      null
+    ]
 
     const mysqlUsers = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    ;(mysqlUsers as any)[StdRoot.Table.OptionsSymbol] = [null]
+    ;(mysqlUsers as any)[StdRoot.Table.OptionsSymbol] = [
+      ...(mysqlUsers as any)[StdRoot.Table.OptionsSymbol],
+      null
+    ]
 
     const sqliteUsers = StdRoot.Table.make("users", {
       id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey)
     })
-    ;(sqliteUsers as any)[StdRoot.Table.OptionsSymbol] = [null]
+    ;(sqliteUsers as any)[StdRoot.Table.OptionsSymbol] = [
+      ...(sqliteUsers as any)[StdRoot.Table.OptionsSymbol],
+      null
+    ]
 
-    expect(() =>
-      Postgres.Renderer.make().render(Postgres.Query.createTable(postgresUsers))
-    ).toThrow()
-    expect(() =>
-      Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlUsers))
-    ).toThrow()
-    expect(() =>
-      Sqlite.Renderer.make().render(Sqlite.Query.createTable(sqliteUsers))
-    ).toThrow()
+    expect(Postgres.Renderer.make().render(Postgres.Query.createTable(postgresUsers)).sql).toContain(
+      'create table "users" ("id" uuid not null, primary key ("id"))'
+    )
+    expect(Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlUsers)).sql).toContain(
+      "create table `users` (`id` char(36) not null, primary key (`id`))"
+    )
+    expect(Sqlite.Renderer.make().render(Sqlite.Query.createTable(sqliteUsers)).sql).toContain(
+      'create table "users" ("id" text not null, primary key ("id"))'
+    )
   })
 
   test("rejects malformed foreign key reference columns before rendering DDL", () => {

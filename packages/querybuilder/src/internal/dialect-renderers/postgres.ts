@@ -325,6 +325,9 @@ const renderCreateTableSql = (
   const tableOptions = options as readonly TableOptionSpec[]
   validateOptions(table[Table.TypeId].name, fields, tableOptions)
   for (const option of tableOptions) {
+    if (typeof option !== "object" || option === null || !("kind" in option)) {
+      continue
+    }
     switch (option.kind) {
       case "primaryKey":
         if (dialect.name !== "postgres" && (option.deferrable || option.initiallyDeferred)) {
