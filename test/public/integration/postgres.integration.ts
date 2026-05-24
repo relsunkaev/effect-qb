@@ -5,7 +5,8 @@ import * as SqlClient from "@effect/sql/SqlClient"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
-import { Column as C, Executor, Function as F, Query as Q, Table, Type } from "#postgres"
+import { Column as C, Table } from "#standard"
+import { Executor, Function as F, Query as Q, Type } from "#postgres"
 import { createDeferred, execPostgres, runPostgres } from "./helpers.ts"
 
 const eventsTableName = "integration_pg_events"

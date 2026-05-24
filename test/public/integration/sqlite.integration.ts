@@ -6,7 +6,8 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
-import { Column as C, Executor, Function as F, Json as J, Query as Q, Table } from "#sqlite"
+import { Column as C, Table } from "#standard"
+import { Executor, Function as F, Json as J, Query as Q } from "#sqlite"
 
 const runSqlite = <A, E>(effect: Effect.Effect<A, E, never>) =>
   Effect.runPromise(Effect.provide(effect, SqliteClient.layer({
