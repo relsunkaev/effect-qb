@@ -22,10 +22,20 @@ const postgresUsers = Std.Table.make("users", {
 Std.Table.make("", {
   id: Std.Column.uuid()
 })
+// @ts-expect-error table field names must be non-empty
+Std.Table.make("empty_field", {
+  "": Std.Column.uuid()
+})
+// @ts-expect-error class table field names must be non-empty
+Std.Table.Class<unknown>("empty_field_class")({ "": Std.Column.uuid() })
 const publicSchema = Postgres.Schema.make("public")
 // @ts-expect-error schema-scoped table names must be non-empty
 publicSchema.table("", {
   id: Std.Column.uuid()
+})
+// @ts-expect-error schema-scoped table field names must be non-empty
+publicSchema.table("empty_field", {
+  "": Std.Column.uuid()
 })
 // @ts-expect-error table aliases must be non-empty
 Std.Table.alias(postgresUsers, "")

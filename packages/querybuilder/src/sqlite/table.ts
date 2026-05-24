@@ -63,7 +63,7 @@ export type TableSchemaNamespace<SchemaName extends string> = {
     PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
   >(
     name: BaseTable.NonEmptyStringInput<Name>,
-    fields: Fields,
+    fields: Fields & BaseTable.NonEmptyFieldMap<Fields>,
     ...options: Options & BaseTable.ValidateDeclaredOptions<BaseTable.TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>, Options>
   ) => ApplySchemaTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, Options>
 }
@@ -80,10 +80,10 @@ export const make = <
   SchemaName extends string | undefined = undefined
 >(
   name: BaseTable.NonEmptyStringInput<Name>,
-  fields: Fields,
+  fields: Fields & BaseTable.NonEmptyFieldMap<Fields>,
   schemaName: SchemaName = undefined as SchemaName
 ): TableDefinition<Name, Fields> =>
-  BaseTable.make(name, fields, schemaName) as TableDefinition<Name, Fields>
+  BaseTable.make<Name, Fields, SchemaName>(name, fields, schemaName) as TableDefinition<Name, Fields>
 
 export const schema = <SchemaName extends string>(
   schemaName: BaseTable.NonEmptyStringInput<SchemaName>
@@ -95,12 +95,12 @@ export const schema = <SchemaName extends string>(
     PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
   >(
     name: BaseTable.NonEmptyStringInput<Name>,
-    fields: Fields,
+    fields: Fields & BaseTable.NonEmptyFieldMap<Fields>,
     ...declaredOptions: Options & BaseTable.ValidateDeclaredOptions<BaseTable.TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>, Options>
   ) =>
     (BaseTable.schema(schemaName).table as (
       name: BaseTable.NonEmptyStringInput<Name>,
-      fields: Fields,
+      fields: Fields & BaseTable.NonEmptyFieldMap<Fields>,
       ...options: BaseTable.DeclaredTableOptions
     ) => BaseTable.TableDefinition<any, any, any, "schema", any>)(
       name,
@@ -141,7 +141,7 @@ export const Class = <Self = never, SchemaName extends string | undefined = unde
   const base = BaseTable.Class<Self, SchemaName>(name, schemaName)
   return base as unknown as <
     Fields extends DialectFieldMap
-  >(fields: Fields) => [Self] extends [never]
+  >(fields: Fields & BaseTable.NonEmptyFieldMap<Fields>) => [Self] extends [never]
     ? BaseTable.MissingSelfGeneric
     : TableClassStatic<typeof name, Fields, InlinePrimaryKeyKeys<Fields>, SchemaName>
 }

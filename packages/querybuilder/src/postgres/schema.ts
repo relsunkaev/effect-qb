@@ -46,7 +46,7 @@ export type SchemaNamespace<SchemaName extends string> = Pipeable & {
     PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
   >(
     name: BaseTable.NonEmptyStringInput<Name>,
-    fields: Fields & ValidatePostgresSchemaFields<Fields>,
+    fields: Fields & BaseTable.NonEmptyFieldMap<Fields> & ValidatePostgresSchemaFields<Fields>,
     ...options: Options & BaseTable.ValidateDeclaredOptions<BaseTable.TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>, Options>
   ) => ApplySchemaTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, Options>
   readonly enum: <

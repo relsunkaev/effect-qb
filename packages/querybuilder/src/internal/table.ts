@@ -58,6 +58,8 @@ type TableDialect<Fields extends TableFieldMap> = [ConcreteFieldDialects<Fields>
   : ConcreteFieldDialects<Fields>
 type TableKind = "schema" | "alias"
 type DefaultSchemaName = "public"
+type NonEmptyFieldMap<Fields extends TableFieldMap> =
+  string extends keyof Fields ? Fields : "" extends keyof Fields ? never : Fields
 type FieldColumnName<Fields extends TableFieldMap> = Extract<keyof Fields, string>
 type FieldColumnList<Fields extends TableFieldMap> = readonly [FieldColumnName<Fields>, ...FieldColumnName<Fields>[]]
 type FieldIndexKeySpec<Fields extends TableFieldMap> =
@@ -197,13 +199,14 @@ export interface TableSchemaNamespace<SchemaName extends string> {
     PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
   >(
     name: NonEmptyStringInput<Name>,
-    fields: Fields,
+    fields: Fields & NonEmptyFieldMap<Fields>,
     ...options: Options & ValidateDeclaredOptions<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>, Options>
   ) => ApplyDeclaredOptions<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>, Options>
 }
 
 export type DeclaredTableOptions = readonly TableOptionBuilderLike[]
 export type { DdlExpressionLike, IndexKeySpec, MatchingColumnArityInput, NonEmptyColumnInput, NonEmptyStringInput, NormalizeColumns, ReferentialAction } from "./table-options.js"
+export type { NonEmptyFieldMap }
 
 export type TableDefinition<
   Name extends string,
@@ -680,13 +683,13 @@ export function make<
   SchemaName extends string | undefined = DefaultSchemaName
 >(
   name: NonEmptyStringInput<Name>,
-  fields: Fields,
+  fields: Fields & NonEmptyFieldMap<Fields>,
   schemaName?: SchemaName
 ): TableDefinition<Name, Fields, InlinePrimaryKeyKeys<Fields>, "schema", SchemaName> {
   const resolvedSchemaName = arguments.length >= 3
     ? schemaName
     : ("public" as SchemaName)
-  return makeTable(
+  return makeTable<Name, Fields, InlinePrimaryKeyKeys<Fields>, "schema", SchemaName>(
     name as Name,
     fields,
     [],
@@ -762,7 +765,7 @@ export const schema = <SchemaName extends string>(
     PrimaryKeyColumns extends keyof Fields & string = InlinePrimaryKeyKeys<Fields>
   >(
     name: NonEmptyStringInput<Name>,
-    fields: Fields,
+    fields: Fields & NonEmptyFieldMap<Fields>,
     ...options: Options & ValidateDeclaredOptions<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>, Options>
   ): ApplyDeclaredOptions<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName>, Options> =>
     applyDeclaredOptions(
@@ -862,7 +865,7 @@ export function Class<
   const resolvedSchemaName = arguments.length >= 2
     ? schemaName
     : ("public" as SchemaName)
-  return <Fields extends TableFieldMap>(fields: Fields): [Self] extends [never]
+  return <Fields extends TableFieldMap>(fields: Fields & NonEmptyFieldMap<Fields>): [Self] extends [never]
     ? MissingSelfGeneric
     : TableClassStatic<typeof name, Fields, InlinePrimaryKeyKeys<Fields>, SchemaName> => {
       abstract class TableClassBase {
