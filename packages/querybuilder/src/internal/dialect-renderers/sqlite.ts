@@ -767,41 +767,60 @@ const renderJsonOpaquePath = (
   throw new Error("Unsupported SQL/JSON path input")
 }
 
+const safeIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+const isSafeSqlIdentifier = (value: string): boolean =>
+  safeIdentifierPattern.test(value)
+
+const renderFunctionName = (name: unknown): string => {
+  if (typeof name !== "string" || name.trim().length === 0) {
+    throw new Error("function calls require a non-empty function name")
+  }
+  if (!name.split(".").every(isSafeSqlIdentifier)) {
+    throw new Error("function calls require a safe function name")
+  }
+  return name
+}
+
+const renderExtractField = (field: Expression.Any): string => {
+  const ast = (field as Expression.Any & {
+    readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+  })[ExpressionAst.TypeId]
+  if (ast.kind === "literal" && typeof ast.value === "string" && isSafeSqlIdentifier(ast.value)) {
+    return ast.value
+  }
+  throw new Error("extract(...) field must be a safe SQL identifier")
+}
+
 const renderFunctionCall = (
   name: unknown,
   args: unknown,
   state: RenderState,
   dialect: SqlDialect
 ): string => {
-  if (typeof name !== "string" || name.trim().length === 0) {
-    throw new Error("function calls require a non-empty function name")
-  }
+  const functionName = renderFunctionName(name)
   const functionArgs = args as readonly Expression.Any[]
-  if (name === "array") {
+  if (functionName === "array") {
     return `ARRAY[${functionArgs.map((arg) => renderExpression(arg, state, dialect)).join(", ")}]`
   }
-  if (name === "current_date" && functionArgs.length > 0) {
+  if (functionName === "current_date" && functionArgs.length > 0) {
     throw new Error("current_date does not accept arguments")
   }
-  if (name === "extract" && functionArgs.length !== 2) {
+  if (functionName === "extract" && functionArgs.length !== 2) {
     throw new Error("extract(...) requires exactly field and source arguments")
   }
-  if (name === "extract") {
+  if (functionName === "extract") {
     const field = functionArgs[0]!
     const source = functionArgs[1]!
-    const fieldRuntime = field[Expression.TypeId].dbType.kind === "text" && typeof field[Expression.TypeId].runtime === "string"
-      ? field[Expression.TypeId].runtime
-      : undefined
-    const renderedField = fieldRuntime ?? renderExpression(field, state, dialect)
-    return `extract(${renderedField} from ${renderExpression(source, state, dialect)})`
+    return `extract(${renderExtractField(field)} from ${renderExpression(source, state, dialect)})`
   }
   const renderedArgs = functionArgs.map((arg) => renderExpression(arg, state, dialect)).join(", ")
   if (functionArgs.length === 0) {
-    switch (name) {
+    switch (functionName) {
       case "current_date":
       case "current_time":
       case "current_timestamp":
-        return name
+        return functionName
       case "localtime":
         return "time('now', 'localtime')"
       case "localtimestamp":
@@ -809,10 +828,10 @@ const renderFunctionCall = (
       case "now":
         return "current_timestamp"
       default:
-        return `${name}()`
+        return `${functionName}()`
     }
   }
-  return `${name}(${renderedArgs})`
+  return `${functionName}(${renderedArgs})`
 }
 
 const renderJsonExpression = (

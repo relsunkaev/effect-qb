@@ -86,9 +86,14 @@ const escapeGroupingText = (value: string): string =>
     .replace(/=/g, "\\=")
     .replace(/>/g, "\\>")
 
+const safeIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+
 const functionCallNameGroupingKey = (name: unknown): string => {
   if (typeof name !== "string" || name.trim().length === 0) {
     throw new Error("function calls require a non-empty function name")
+  }
+  if (!name.split(".").every((segment) => safeIdentifierPattern.test(segment))) {
+    throw new Error("function calls require a safe function name")
   }
   return escapeGroupingText(name)
 }

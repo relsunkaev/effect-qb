@@ -470,6 +470,59 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("renders safe extract fields as SQL field syntax", () => {
+    const timestamp = new Date("2024-01-02T03:04:05.000Z")
+    const extracted = Standard.Function.call(
+      "extract",
+      Standard.Query.literal("year"),
+      Standard.Query.literal(timestamp)
+    )
+    const plan = Standard.Query.select({
+      extracted
+    })
+
+    expect(Standard.Renderer.make().render(plan)).toMatchObject({
+      sql: 'select extract(year from ?) as "extracted"',
+      params: [timestamp]
+    })
+    expect(Renderer.make().render(plan)).toMatchObject({
+      sql: 'select extract(year from $1) as "extracted"',
+      params: [timestamp]
+    })
+    expect(Mysql.Renderer.make().render(plan)).toMatchObject({
+      sql: "select extract(year from ?) as `extracted`",
+      params: [timestamp]
+    })
+    expect(Sqlite.Renderer.make().render(plan)).toMatchObject({
+      sql: 'select extract(year from ?) as "extracted"',
+      params: [timestamp]
+    })
+  })
+
+  test("rejects unsafe extract fields before rendering SQL", () => {
+    const extracted = Standard.Function.call(
+      "extract",
+      Standard.Query.literal("year from now()); drop table users; --"),
+      Standard.Query.literal(new Date("2024-01-02T03:04:05.000Z"))
+    )
+    const plan = Standard.Query.select({
+      extracted
+    })
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "extract(...) field must be a safe SQL identifier"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "extract(...) field must be a safe SQL identifier"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "extract(...) field must be a safe SQL identifier"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "extract(...) field must be a safe SQL identifier"
+    )
+  })
+
   test("rejects function calls without a function name before rendering SQL", () => {
     const value = Standard.Function.call("", Standard.Query.literal(1))
     const plan = Standard.Query.select({
@@ -487,6 +540,26 @@ describe("rendering behavior", () => {
     )
     expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
       "function calls require a non-empty function name"
+    )
+  })
+
+  test("rejects unsafe function names before rendering SQL", () => {
+    const value = Standard.Function.call("lower); drop table users; --", Standard.Query.literal("ALICE"))
+    const plan = Standard.Query.select({
+      value
+    })
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "function calls require a safe function name"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "function calls require a safe function name"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "function calls require a safe function name"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "function calls require a safe function name"
     )
   })
 
