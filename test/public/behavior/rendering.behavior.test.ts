@@ -45,6 +45,52 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("standard ctes, joins, grouping, ordering, and pagination render across built-in SQL renderers", () => {
+    const users = Standard.Table.make("users", {
+      id: Standard.Column.uuid().pipe(Standard.Column.primaryKey),
+      email: Standard.Column.text()
+    })
+    const posts = Standard.Table.make("posts", {
+      id: Standard.Column.uuid().pipe(Standard.Column.primaryKey),
+      userId: Standard.Column.uuid(),
+      title: Standard.Column.text().pipe(Standard.Column.nullable)
+    })
+    const activePosts = Standard.Query.select({
+      userId: posts.userId,
+      title: posts.title
+    }).pipe(
+      Standard.Query.from(posts),
+      Standard.Query.where(Standard.Query.isNotNull(posts.title)),
+      Standard.Query.with("active_posts")
+    )
+    const postCount = Standard.Function.count(activePosts.title)
+    const plan = Standard.Query.select({
+      email: users.email,
+      postCount
+    }).pipe(
+      Standard.Query.from(users),
+      Standard.Query.leftJoin(activePosts, Standard.Query.eq(users.id, activePosts.userId)),
+      Standard.Query.groupBy(users.email),
+      Standard.Query.having(Standard.Query.gt(postCount, 0)),
+      Standard.Query.orderBy(users.email),
+      Standard.Query.limit(10),
+      Standard.Query.offset(5)
+    )
+
+    expect(Standard.Renderer.make().render(plan).sql).toBe(
+      'with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."email" as "email", count("active_posts"."title") as "postCount" from "users" left join "active_posts" on ("users"."id" = "active_posts"."userId") group by "users"."email" having (count("active_posts"."title") > ?) order by "users"."email" asc limit ? offset ?'
+    )
+    expect(Renderer.make().render(plan).sql).toBe(
+      'with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."email" as "email", count("active_posts"."title") as "postCount" from "users" left join "active_posts" on ("users"."id" = "active_posts"."userId") group by "users"."email" having (count("active_posts"."title") > $1) order by "users"."email" asc limit $2 offset $3'
+    )
+    expect(Mysql.Renderer.make().render(plan).sql).toBe(
+      "with `active_posts` as (select `posts`.`userId` as `userId`, `posts`.`title` as `title` from `posts` where (`posts`.`title` is not null)) select `users`.`email` as `email`, count(`active_posts`.`title`) as `postCount` from `users` left join `active_posts` on (`users`.`id` = `active_posts`.`userId`) group by `users`.`email` having (count(`active_posts`.`title`) > ?) order by `users`.`email` asc limit ? offset ?"
+    )
+    expect(Sqlite.Renderer.make().render(plan).sql).toBe(
+      'with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."email" as "email", count("active_posts"."title") as "postCount" from "users" left join "active_posts" on ("users"."id" = "active_posts"."userId") group by "users"."email" having (count("active_posts"."title") > ?) order by "users"."email" asc limit ? offset ?'
+    )
+  })
+
   test("postgres renders clause combinations with stable parameter ordering", () => {
     const { users, posts } = makeRootSocialGraph()
 
