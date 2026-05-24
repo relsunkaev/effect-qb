@@ -21,10 +21,9 @@ const subqueryPlanGroupingKey = (plan: unknown): string => {
 
 const literalGroupingKey = (value: unknown): string => {
   if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) {
-      throw new Error("Expected a valid Date value")
-    }
-    return `date:${value.toISOString()}`
+    return Number.isNaN(value.getTime())
+      ? "date:invalid"
+      : `date:${value.toISOString()}`
   }
   if (value === null) {
     return "null"
