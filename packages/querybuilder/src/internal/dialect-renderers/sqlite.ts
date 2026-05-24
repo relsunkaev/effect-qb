@@ -423,6 +423,18 @@ const extractJsonPathSegments = (node: Record<string, unknown>): ReadonlyArray<J
   return []
 }
 
+const extractJsonKeys = (
+  node: Record<string, unknown>,
+  segments: ReadonlyArray<JsonPath.AnySegment>
+): readonly unknown[] =>
+  Array.isArray(node.keys)
+    ? node.keys
+    : segments.map((segment) =>
+        typeof segment === "object" && segment !== null && segment.kind === "key"
+          ? segment.key
+          : segment
+      )
+
 const extractJsonValue = (node: Record<string, unknown>): unknown =>
   node.newValue ?? node.insert ?? node.right
 
@@ -773,22 +785,26 @@ const renderJsonExpression = (
       const baseSql = dialect.name === "postgres"
         ? renderPostgresJsonValue(base, state, dialect)
         : renderExpression(base, state, dialect)
-      const keys = segments
+      const keys = extractJsonKeys(ast, segments)
       if (keys.length === 0) {
         return undefined
       }
+      if (keys.some((key) => typeof key !== "string" || key.length === 0)) {
+        throw new Error("json key predicates require string keys")
+      }
+      const keyNames = keys as readonly string[]
       if (dialect.name === "postgres") {
         if (kind === "jsonHasAnyKeys") {
-          return `(${baseSql} ?| array[${keys.map((key) => renderPostgresTextLiteral(String(key), state, dialect)).join(", ")}])`
+          return `(${baseSql} ?| array[${keyNames.map((key) => renderPostgresTextLiteral(key, state, dialect)).join(", ")}])`
         }
         if (kind === "jsonHasAllKeys") {
-          return `(${baseSql} ?& array[${keys.map((key) => renderPostgresTextLiteral(String(key), state, dialect)).join(", ")}])`
+          return `(${baseSql} ?& array[${keyNames.map((key) => renderPostgresTextLiteral(key, state, dialect)).join(", ")}])`
         }
-        return `(${baseSql} ? ${renderPostgresTextLiteral(String(keys[0]!), state, dialect)})`
+        return `(${baseSql} ? ${renderPostgresTextLiteral(keyNames[0]!, state, dialect)})`
       }
       if (dialect.name === "sqlite") {
         const renderBase = () => renderExpression(base, state, dialect)
-        const checks = keys.map((segment) => `json_type(${renderBase()}, ${renderSqliteJsonPath([segment], state, dialect)}) is not null`)
+        const checks = keyNames.map((segment) => `json_type(${renderBase()}, ${renderSqliteJsonPath([segment], state, dialect)}) is not null`)
         return `(${checks.join(kind === "jsonHasAllKeys" ? " and " : " or ")})`
       }
       return undefined

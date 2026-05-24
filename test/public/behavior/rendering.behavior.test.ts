@@ -780,6 +780,35 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects json key predicates without string keys before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const pgHasKey = PgJson.jsonb.hasKey(
+      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+      "email"
+    )
+    const mysqlHasKey = Mysql.Json.json.hasKey(
+      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
+      "email"
+    )
+    const sqliteHasKey = Sqlite.Json.json.hasKey(
+      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
+      "email"
+    )
+    ;(pgHasKey as any)[expressionAst].keys = [0]
+    ;(mysqlHasKey as any)[expressionAst].keys = [0]
+    ;(sqliteHasKey as any)[expressionAst].keys = [0]
+
+    expect(() => Renderer.make().render(Q.select({ hasKey: pgHasKey }))).toThrow(
+      "json key predicates require string keys"
+    )
+    expect(() => Mysql.Renderer.make().render(Mysql.Query.select({ hasKey: mysqlHasKey }))).toThrow(
+      "json key predicates require string keys"
+    )
+    expect(() => Sqlite.Renderer.make().render(Sqlite.Query.select({ hasKey: sqliteHasKey }))).toThrow(
+      "json key predicates require string keys"
+    )
+  })
+
   test("rejects malformed concat expressions before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {
