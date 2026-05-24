@@ -1,4 +1,5 @@
 import type { RenderState, RenderValueContext, SqlDialect } from "../../internal/dialect.js"
+import { renderExpression, renderQueryAst } from "../../internal/dialect-renderers/mysql.js"
 import { toDriverValue } from "../../internal/runtime/driver-value-mapping.js"
 import { standardDialect } from "../../standard/dialect.js"
 
@@ -43,5 +44,7 @@ export const mysqlDialect: SqlDialect<"mysql"> = {
   },
   renderConcat(values) {
     return `concat(${values.join(", ")})`
-  }
+  },
+  renderQueryAst,
+  renderExpression
 }

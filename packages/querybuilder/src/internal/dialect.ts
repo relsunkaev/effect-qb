@@ -1,5 +1,7 @@
 import type * as Schema from "effect/Schema"
 
+import type * as QueryAst from "./query-ast.js"
+import type { Projection } from "./projections.js"
 import type * as Expression from "./scalar.js"
 
 /**
@@ -27,6 +29,11 @@ export interface RenderValueContext {
   readonly driverValueMapping?: Expression.DriverValueMapping
 }
 
+export interface RenderedAst {
+  readonly sql: string
+  readonly projections: readonly Projection[]
+}
+
 /**
  * Minimal runtime contract for a SQL dialect.
  *
@@ -40,4 +47,14 @@ export interface SqlDialect<Name extends string = string> {
   renderLiteral(value: unknown, state: RenderState, context?: RenderValueContext): string
   renderTableReference(tableName: string, baseTableName: string, schemaName?: string): string
   renderConcat(values: readonly string[]): string
+  renderQueryAst(
+    ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
+    state: RenderState,
+    dialect: SqlDialect<Name>
+  ): RenderedAst
+  renderExpression(
+    expression: Expression.Any,
+    state: RenderState,
+    dialect: SqlDialect<Name>
+  ): string
 }

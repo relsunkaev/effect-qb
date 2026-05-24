@@ -1,4 +1,5 @@
 import type { RenderState, RenderValueContext, SqlDialect } from "../internal/dialect.js"
+import { renderExpression, renderQueryAst } from "../internal/dialect-renderers/postgres.js"
 import { toDriverValue } from "../internal/runtime/driver-value-mapping.js"
 
 const quoteIdentifier = (value: string): string => `"${value.replaceAll("\"", "\"\"")}"`
@@ -33,5 +34,7 @@ export const standardDialect: SqlDialect<"standard"> = {
   },
   renderConcat(values) {
     return `(${values.join(" || ")})`
-  }
+  },
+  renderQueryAst,
+  renderExpression
 }

@@ -1,4 +1,5 @@
 import type { RenderState, RenderValueContext, SqlDialect } from "../../internal/dialect.js"
+import { renderExpression, renderQueryAst } from "../../internal/dialect-renderers/sqlite.js"
 import { toDriverValue } from "../../internal/runtime/driver-value-mapping.js"
 import { standardDialect } from "../../standard/dialect.js"
 
@@ -35,5 +36,7 @@ export const sqliteDialect: SqlDialect<"sqlite"> = {
   },
   renderConcat(values) {
     return `(${values.join(" || ")})`
-  }
+  },
+  renderQueryAst,
+  renderExpression
 }
