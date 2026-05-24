@@ -30,6 +30,9 @@ const inlineLiteralDialect: SqlDialect<"postgres"> = {
       return String(value)
     }
     if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) {
+        throw new Error("Expected a valid Date value")
+      }
       return escapeString(value.toISOString())
     }
     return escapeString(String(value))

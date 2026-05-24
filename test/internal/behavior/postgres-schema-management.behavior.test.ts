@@ -71,6 +71,18 @@ describe("postgres schema management", () => {
     expect(Pg.SchemaExpression.normalizeDdlExpressionSql(check.predicate)).toBe("account_status = ('active')")
   })
 
+  test("source table models reject invalid Date defaults before normalizing DDL expressions", () => {
+    const events = StdRoot.Table.make("events", {
+      happenedAt: StdRoot.Column.timestamp().pipe(
+        StdRoot.Column.default(StdRoot.Query.literal(new Date("not a date")))
+      )
+    })
+
+    expect(() => toTableModel(events as unknown as Parameters<typeof toTableModel>[0])).toThrow(
+      "Expected a valid Date value"
+    )
+  })
+
   test("classifies safe and destructive schema changes", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid(),
