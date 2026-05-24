@@ -5,7 +5,9 @@ import {
   type IsNullable
 } from "./column-state.js"
 import type * as Casing from "./casing.js"
+import * as Expression from "./scalar.js"
 import type { Any as AnyExpression } from "./scalar.js"
+import * as SchemaExpression from "./schema-expression.js"
 import type { Any as AnySchemaExpression } from "./schema-expression.js"
 import type { TableFieldMap } from "./schema-derivation.js"
 
@@ -55,6 +57,11 @@ const requireOptionalColumnArray = (
   message: string
 ): readonly string[] =>
   value === undefined ? [] : requireColumnArray(value, message)
+
+const isDdlExpressionLike = (value: unknown): value is DdlExpressionLike =>
+  typeof value === "object" &&
+  value !== null &&
+  (Expression.TypeId in value || SchemaExpression.TypeId in value)
 
 export type IndexKeySpec =
   | {
@@ -418,6 +425,12 @@ export const validateOptions = <Fields extends TableFieldMap>(
         break
       }
       case "check": {
+        if (typeof option.name !== "string" || option.name.length === 0) {
+          throw new Error(`Check constraint on table '${tableName}' requires a constraint name`)
+        }
+        if (!isDdlExpressionLike(option.predicate)) {
+          throw new Error(`Check constraint on table '${tableName}' requires a predicate expression`)
+        }
         break
       }
     }

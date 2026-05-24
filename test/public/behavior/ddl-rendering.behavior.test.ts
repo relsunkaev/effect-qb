@@ -421,6 +421,44 @@ describe("ddl rendering behavior", () => {
     ).toThrow("Foreign key on table 'users' requires referenced columns to be an array")
   })
 
+  test("rejects malformed check constraints before rendering DDL", () => {
+    const postgresUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(postgresUsers as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "check",
+      name: "users_id_check"
+    }]
+
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(mysqlUsers as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "check",
+      name: 123,
+      predicate: Mysql.Query.eq(mysqlUsers.id, "user-id")
+    }]
+
+    const sqliteUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(sqliteUsers as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "check",
+      name: "users_id_check",
+      predicate: "id is not null"
+    }]
+
+    expect(() =>
+      Postgres.Renderer.make().render(Postgres.Query.createTable(postgresUsers))
+    ).toThrow("Check constraint on table 'users' requires a predicate expression")
+    expect(() =>
+      Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlUsers))
+    ).toThrow("Check constraint on table 'users' requires a constraint name")
+    expect(() =>
+      Sqlite.Renderer.make().render(Sqlite.Query.createTable(sqliteUsers))
+    ).toThrow("Check constraint on table 'users' requires a predicate expression")
+  })
+
   test("rejects mismatched ddl payload kinds at render time", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
 
