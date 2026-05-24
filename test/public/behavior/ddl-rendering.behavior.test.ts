@@ -517,6 +517,54 @@ describe("ddl rendering behavior", () => {
     ).toThrow("Unsupported sqlite unique constraint options")
   })
 
+  test("rejects check constraints with unsupported postgres-only options", () => {
+    const standardUsersBase = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+    const standardUsers = standardUsersBase.pipe(
+      Postgres.Table.check({
+        name: "email_not_empty",
+        predicate: Standard.Query.neq(standardUsersBase.email, ""),
+        noInherit: true
+      })
+    )
+
+    const mysqlUsersBase = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+    const mysqlUsers = mysqlUsersBase.pipe(
+      Postgres.Table.check({
+        name: "email_not_empty",
+        predicate: Mysql.Query.neq(mysqlUsersBase.email, ""),
+        noInherit: true
+      })
+    )
+
+    const sqliteUsersBase = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+    const sqliteUsers = sqliteUsersBase.pipe(
+      Postgres.Table.check({
+        name: "email_not_empty",
+        predicate: Sqlite.Query.neq(sqliteUsersBase.email, ""),
+        noInherit: true
+      })
+    )
+
+    expect(() =>
+      Standard.Renderer.make().render(Standard.Query.createTable(standardUsers))
+    ).toThrow("Unsupported standard check constraint options")
+    expect(() =>
+      Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlUsers))
+    ).toThrow("Unsupported mysql check constraint options")
+    expect(() =>
+      Sqlite.Renderer.make().render(Sqlite.Query.createTable(sqliteUsers))
+    ).toThrow("Unsupported sqlite check constraint options")
+  })
+
   test("postgres drop index qualifies indexes for schema-scoped tables", () => {
     const analytics = Postgres.Schema.make("analytics")
     const events = analytics.table("events", {

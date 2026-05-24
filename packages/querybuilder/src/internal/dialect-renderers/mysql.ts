@@ -327,6 +327,9 @@ const renderCreateTableSql = (
         break
       }
       case "check":
+        if (option.noInherit) {
+          throw new Error("Unsupported mysql check constraint options")
+        }
         definitions.push(
           `constraint ${dialect.quoteIdentifier(Casing.applyCategory(tableCasing, "constraints", option.name))} check (${renderDdlExpression(option.predicate, { ...state, casing: tableCasing, rowLocalColumns: true }, dialect)})${option.noInherit ? " no inherit" : ""}`
         )
