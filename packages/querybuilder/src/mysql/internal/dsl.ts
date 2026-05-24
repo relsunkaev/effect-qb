@@ -1072,6 +1072,9 @@ type JsonPathInput = JsonPath.Path<any> | JsonPath.CanonicalSegment
 
 type JsonQueryInput = JsonPath.Path<any> | StringExpressionInput
 
+type JsonQueryValue<Query extends JsonQueryInput> =
+  Query extends string ? LiteralStringInput<Query> : Query
+
 type JsonPathOutputOf<
   Root,
   Target extends JsonPathInput,
@@ -3047,9 +3050,12 @@ type BinaryPredicateExpression<
     }
   )
 
-  const jsonPathExists = <Base extends JsonExpressionLike<any>>(
+  const jsonPathExists = <
+    Base extends JsonExpressionLike<any>,
+    Query extends JsonQueryInput
+  >(
     base: Base,
-    query: JsonQueryInput
+    query: JsonQueryValue<Query>
   ) => {
     if (isJsonPathValue(query)) {
       return buildJsonNodeExpression(
@@ -3097,9 +3103,12 @@ type BinaryPredicateExpression<
     }
   )
 
-  const jsonPathMatch = <Base extends JsonExpressionLike<any>>(
+  const jsonPathMatch = <
+    Base extends JsonExpressionLike<any>,
+    Query extends JsonQueryInput
+  >(
     base: Base,
-    query: JsonQueryInput
+    query: JsonQueryValue<Query>
   ) => {
     if (isJsonPathValue(query)) {
       return buildJsonNodeExpression(

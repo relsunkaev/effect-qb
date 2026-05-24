@@ -197,6 +197,9 @@ Q.ilike(users.email, "%@example.com")
 Q.inSubquery(users.id, ids)
 Json.json.get(users.payload, Json.json.key("tags"))
 Json.json.path(Json.json.key("tags"), Json.json.index(-1))
+Json.json.pathExists(users.payload, Json.json.path(Json.json.key("tags"), Json.json.index(0)))
+// @ts-expect-error sqlite SQL/JSON path predicates require non-empty string paths
+Json.json.pathExists(users.payload, "")
 Json.json.insert(users.payload, Json.json.key("source"), "imported")
 
 const tagsIndexPath = Json.json.path(Json.json.key("tags"), Json.json.index(0))

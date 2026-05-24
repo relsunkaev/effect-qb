@@ -32,6 +32,9 @@ const tagWildcardPath = J.json.path(
   J.json.key("tags"),
   J.json.wildcard()
 )
+const tagWildcardExistsExpr = J.json.pathExists(docs.payload, tagWildcardPath)
+// @ts-expect-error MySQL SQL/JSON path predicates require non-empty string paths
+J.json.pathExists(docs.payload, "")
 
 const setWithoutCreateExpr = J.json.set(docs.payload, suitePath, "12A", {
   createMissing: false
@@ -77,6 +80,7 @@ type InsertAfterLastPairValue = E.RuntimeOf<typeof insertAfterLastPairValueExpr>
 type ScalarLength = E.RuntimeOf<typeof scalarLengthExpr>
 type ObjectType = E.RuntimeOf<typeof objectTypeExpr>
 type ScalarType = E.RuntimeOf<typeof scalarTypeExpr>
+type TagWildcardExists = E.RuntimeOf<typeof tagWildcardExistsExpr>
 
 const tagsKeys: TagsKeys = null
 const lastPairValue: LastPairValue = 1

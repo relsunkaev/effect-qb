@@ -183,6 +183,10 @@ const jsonbLengthExpr = J.jsonb.length(docs.payloadJsonb)
 const jsonbKeysExpr = J.jsonb.keys(docs.payloadJsonb)
 const jsonbPathExistsExpr = J.jsonb.pathExists(docs.payloadJsonb, wildcardPath)
 const jsonbPathMatchExpr = J.jsonb.pathMatch(docs.payloadJsonb, '$.profile.tags[*] ? (@ == "x")')
+// @ts-expect-error SQL/JSON path predicates require non-empty string paths
+J.jsonb.pathExists(docs.payloadJsonb, "")
+// @ts-expect-error SQL/JSON path predicates require non-empty string paths
+J.jsonb.pathMatch(docs.payloadJsonb, "")
 const jsonbStrippedExpr = J.jsonb.stripNulls(docs.payloadJsonb)
 const jsonbStrippedSetExpr = J.jsonb.set(sharedJsonbStrippedExpr, postcodePath, "1000")
 const variantKindExpr = J.jsonb.text(variantDocs.payload, J.jsonb.key("kind"))

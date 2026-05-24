@@ -9,6 +9,7 @@ import type {
   JsonTextResult,
   JsonValueAtPath
 } from "../internal/json/types.js"
+import type { LiteralStringInput } from "../internal/table-options.js"
 import { json as postgresJson, jsonb as postgresJsonb } from "./internal/dsl.js"
 
 type PostgresJsonExpression<Runtime = unknown> = Expression.Scalar<
@@ -30,6 +31,20 @@ type PostgresJsonbExpression<Runtime = unknown> = Expression.Scalar<
 >
 
 type ExactJsonPathInput = JsonPath.ExactSegment | JsonPath.Path<any>
+
+type JsonPathPredicateExpression = Expression.Scalar<
+  string | null,
+  Expression.DbType.Any,
+  Expression.Nullability,
+  string,
+  Expression.ScalarKind,
+  Expression.BindingId
+>
+
+type JsonPathPredicateQuery = JsonPath.Path<any> | JsonPathPredicateExpression | string
+
+type JsonPathPredicateQueryInput<Query extends JsonPathPredicateQuery> =
+  Query extends string ? LiteralStringInput<Query> : Query
 
 type ExactJsonPathUsageError<Target> = {
   readonly __effect_qb_error__: "effect-qb: postgres json helpers only accept exact key/index paths"
@@ -514,16 +529,18 @@ const jsonb = {
     base: Base & JsonbBaseGuard<Base, "jsonb.stripNulls">
   ) => postgresJsonb.stripNulls(base as Base),
   pathExists: <
-    Base extends PostgresJsonExpression<any>
+    Base extends PostgresJsonExpression<any>,
+    Query extends JsonPathPredicateQuery
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.pathExists">,
-    query: Parameters<typeof postgresJsonb.pathExists>[1]
+    query: JsonPathPredicateQueryInput<Query>
   ) => postgresJsonb.pathExists(base as Base, query),
   pathMatch: <
-    Base extends PostgresJsonExpression<any>
+    Base extends PostgresJsonExpression<any>,
+    Query extends JsonPathPredicateQuery
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.pathMatch">,
-    query: Parameters<typeof postgresJsonb.pathMatch>[1]
+    query: JsonPathPredicateQueryInput<Query>
   ) => postgresJsonb.pathMatch(base as Base, query)
 }
 
