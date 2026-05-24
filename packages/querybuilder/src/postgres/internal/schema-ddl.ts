@@ -36,15 +36,21 @@ const inlineLiteralDialect: SqlDialect<"postgres"> = {
   }
 }
 
-export const renderDdlExpressionSql = (expression: DdlExpressionLike): string =>
+const makeExpressionState = (state: Partial<RenderState> = {}): RenderState => ({
+  ...state,
+  params: [],
+  ctes: [],
+  cteNames: new Set(),
+  cteSources: new Map()
+})
+
+export const renderDdlExpressionSql = (
+  expression: DdlExpressionLike,
+  state?: Partial<RenderState>
+): string =>
   SchemaExpression.isSchemaExpression(expression)
     ? SchemaExpression.render(expression)
-    : renderExpression(expression as Expression.Any, {
-        params: [],
-        ctes: [],
-        cteNames: new Set(),
-        cteSources: new Map()
-      }, inlineLiteralDialect)
+    : renderExpression(expression as Expression.Any, makeExpressionState(state), inlineLiteralDialect)
 
 const stripRedundantOuterParens = (value: string): string => {
   let current = value.trim()
@@ -99,8 +105,11 @@ const canonicalizeDdlExpressionSql = (value: string): string =>
       )
   )
 
-export const normalizeDdlExpressionSql = (expression: DdlExpressionLike): string => {
-  const rendered = renderDdlExpressionSql(expression)
+export const normalizeDdlExpressionSql = (
+  expression: DdlExpressionLike,
+  state?: Partial<RenderState>
+): string => {
+  const rendered = renderDdlExpressionSql(expression, state)
   try {
     return canonicalizeDdlExpressionSql(toSql.expr(parse(rendered, "expr")))
   } catch {

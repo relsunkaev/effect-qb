@@ -1,7 +1,10 @@
 import * as Table from "../../internal/table.js"
 import type { AnyColumnDefinition } from "../../internal/column-state.js"
+import type { RenderState } from "../../internal/dialect.js"
+import * as Casing from "../../internal/casing.js"
+import * as SchemaExpression from "../../internal/schema-expression.js"
 import { normalizeDdlExpressionSql } from "./schema-ddl.js"
-import type { TableOptionSpec } from "../../internal/table-options.js"
+import type { ColumnList, DdlExpressionLike, IndexKeySpec, TableOptionSpec } from "../../internal/table-options.js"
 import type { EnumDefinition } from "../schema-management.js"
 import { EnumTypeId } from "../schema-management.js"
 
@@ -52,15 +55,130 @@ export const isTableDefinition = (value: unknown): value is Table.AnyTable =>
 export const isEnumDefinition = (value: unknown): value is EnumDefinition =>
   typeof value === "object" && value !== null && EnumTypeId in value
 
+const applyCasing = (
+  casing: Casing.Options | undefined,
+  category: Casing.Category,
+  name: string
+): string =>
+  Casing.applyCategory(casing, category, name)
+
+const mapColumnList = (
+  columns: ColumnList,
+  casing: Casing.Options | undefined
+): ColumnList =>
+  columns.map((column) => applyCasing(casing, "columns", column)) as unknown as ColumnList
+
+const expressionStateForTable = (
+  state: Table.AnyTable[typeof Table.TypeId],
+  tableName: string,
+  columns: ReadonlyMap<string, string>,
+  casing: Casing.Options | undefined
+): Partial<RenderState> => ({
+  casing,
+  rowLocalColumns: true,
+  sourceNames: new Map([
+    [state.name, { tableName, columns }],
+    [state.baseName, { tableName, columns }]
+  ])
+})
+
+const mapDdlExpression = (
+  expression: DdlExpressionLike,
+  state: Partial<RenderState>
+): SchemaExpression.SchemaExpression =>
+  SchemaExpression.fromSql(normalizeDdlExpressionSql(expression, state))
+
+const mapIndexKey = (
+  key: IndexKeySpec,
+  casing: Casing.Options | undefined,
+  expressionState: Partial<RenderState>
+): IndexKeySpec =>
+  key.kind === "column"
+    ? {
+        ...key,
+        column: applyCasing(casing, "columns", key.column)
+      }
+    : {
+        ...key,
+        expression: mapDdlExpression(key.expression, expressionState)
+      }
+
+const mapOption = (
+  option: TableOptionSpec,
+  casing: Casing.Options | undefined,
+  expressionState: Partial<RenderState>
+): TableOptionSpec => {
+  switch (option.kind) {
+    case "index":
+      return {
+        ...option,
+        columns: option.columns === undefined ? undefined : mapColumnList(option.columns, casing),
+        name: option.name === undefined ? undefined : applyCasing(casing, "indexes", option.name),
+        include: option.include?.map((column) => applyCasing(casing, "columns", column)),
+        predicate: option.predicate === undefined ? undefined : mapDdlExpression(option.predicate, expressionState),
+        keys: option.keys === undefined
+          ? undefined
+          : option.keys.map((key) => mapIndexKey(key, casing, expressionState)) as unknown as typeof option.keys
+      }
+    case "primaryKey":
+      return {
+        ...option,
+        columns: mapColumnList(option.columns, casing),
+        name: option.name === undefined ? undefined : applyCasing(casing, "constraints", option.name)
+      }
+    case "unique":
+      return {
+        ...option,
+        columns: mapColumnList(option.columns, casing),
+        name: option.name === undefined ? undefined : applyCasing(casing, "constraints", option.name)
+      }
+    case "foreignKey":
+      return {
+        ...option,
+        columns: mapColumnList(option.columns, casing),
+        name: option.name === undefined ? undefined : applyCasing(casing, "constraints", option.name),
+        references: () => {
+          const reference = option.references()
+          const referenceCasing = reference.casing
+          return {
+            ...reference,
+            tableName: applyCasing(referenceCasing, "tables", reference.tableName),
+            schemaName: reference.schemaName === undefined
+              ? undefined
+              : applyCasing(referenceCasing, "schemas", reference.schemaName),
+            columns: mapColumnList(reference.columns, referenceCasing),
+            knownColumns: reference.knownColumns?.map((column) =>
+              applyCasing(referenceCasing, "columns", column))
+          }
+        }
+      }
+    case "check":
+      return {
+        ...option,
+        name: applyCasing(casing, "constraints", option.name),
+        predicate: mapDdlExpression(option.predicate, expressionState)
+      }
+  }
+}
+
 export const toTableModel = (table: Table.AnyTable): TableModel => {
   const state = table[Table.TypeId]
+  const casing = state.casing
+  const tableName = applyCasing(casing, "tables", state.baseName)
+  const schemaName = state.schemaName === undefined
+    ? undefined
+    : applyCasing(casing, "schemas", state.schemaName)
   const fields = state.fields as Record<string, AnyColumnDefinition>
+  const columnNames = new Map(
+    Object.keys(fields).map((name) => [name, applyCasing(casing, "columns", name)] as const)
+  )
+  const expressionState = expressionStateForTable(state, tableName, columnNames, casing)
   const columns = Object.entries(fields).map(([name, column]) => {
     const metadata = column.metadata
     const enumDefinition = metadata.enum
     const ddlType = metadata.ddlType ?? metadata.dbType.kind
     return {
-      name,
+      name: columnNames.get(name) ?? name,
       ddlType,
       dbTypeKind: enumDefinition?.name ?? column.metadata.dbType.kind,
       typeKind: enumDefinition === undefined ? undefined : "e",
@@ -70,20 +188,20 @@ export const toTableModel = (table: Table.AnyTable): TableModel => {
       generated: column.metadata.generated,
       defaultSql: column.metadata.defaultValue === undefined
         ? undefined
-        : normalizeDdlExpressionSql(column.metadata.defaultValue),
+        : normalizeDdlExpressionSql(column.metadata.defaultValue, expressionState),
       generatedSql: column.metadata.generatedValue === undefined
         ? undefined
-        : normalizeDdlExpressionSql(column.metadata.generatedValue),
+        : normalizeDdlExpressionSql(column.metadata.generatedValue, expressionState),
       identity: column.metadata.identity,
       column
     }
   }) satisfies ReadonlyArray<ColumnModel>
   return {
     kind: "table",
-    schemaName: state.schemaName,
-    name: state.baseName,
+    schemaName,
+    name: tableName,
     columns,
-    options: table[Table.OptionsSymbol],
+    options: table[Table.OptionsSymbol].map((option) => mapOption(option, casing, expressionState)),
     table
   }
 }

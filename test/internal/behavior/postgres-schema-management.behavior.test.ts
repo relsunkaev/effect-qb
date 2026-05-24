@@ -8,6 +8,7 @@ import * as Schema from "effect/Schema"
 import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 import * as ExpressionAst from "../../../packages/querybuilder/src/internal/expression-ast.js"
+import { Casing } from "../../../packages/querybuilder/src/index.ts"
 import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/postgres-schema-diff.js"
 import { fromDiscoveredValues, toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
 import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
@@ -17,6 +18,59 @@ import * as StdRoot from "#standard"
 const repoRoot = process.cwd()
 
 describe("postgres schema management", () => {
+  test("source table models use casing metadata as physical identifiers", () => {
+    const organizations = StdRoot.Table.make("OrganizationAccounts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      accountSlug: StdRoot.Column.text().pipe(StdRoot.Column.unique)
+    }).pipe(
+      Casing.withCasing({
+        tables: "snake_case",
+        columns: "snake_case"
+      })
+    )
+
+    const membershipsBase = StdRoot.Table.make("MembershipRecords", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      organizationSlug: StdRoot.Column.text().pipe(
+        StdRoot.Column.references(() => organizations.accountSlug)
+      ),
+      accountStatus: StdRoot.Column.text(),
+      createdAt: StdRoot.Column.datetime()
+    }).pipe(
+      Casing.withCasing({
+        tables: "snake_case",
+        columns: "snake_case",
+        indexes: "snake_case",
+        constraints: "snake_case"
+      })
+    )
+    const memberships = membershipsBase.pipe(
+      StdRoot.Table.index("accountStatus"),
+      StdRoot.Table.check("AccountStatusCheck", StdRoot.Query.eq(membershipsBase.accountStatus, "active"))
+    )
+
+    const model = toTableModel(memberships as unknown as Parameters<typeof toTableModel>[0])
+    const foreignKey = model.options.find((option) => option.kind === "foreignKey") as any
+    const index = model.options.find((option) => option.kind === "index") as any
+    const check = model.options.find((option) => option.kind === "check") as any
+
+    expect(model.name).toBe("membership_records")
+    expect(model.columns.map((column) => column.name)).toEqual([
+      "id",
+      "organization_slug",
+      "account_status",
+      "created_at"
+    ])
+    expect(foreignKey.columns).toEqual(["organization_slug"])
+    expect(foreignKey.references()).toMatchObject({
+      tableName: "organization_accounts",
+      columns: ["account_slug"]
+    })
+    expect(index.columns).toEqual(["account_status"])
+    expect(check.name).toBe("account_status_check")
+    expect(Pg.SchemaExpression.normalizeDdlExpressionSql(check.predicate)).toBe("account_status = ('active')")
+  })
+
   test("classifies safe and destructive schema changes", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid(),
@@ -1302,7 +1356,7 @@ export const metrics = Analytics.table("UserMetrics", {
         "tableSchema"
       ])
       expect(discovered.model.tables.map((table) => `${table.schemaName ?? "public"}.${table.name}`)).toEqual([
-        "analytics.UserMetrics"
+        "analytics.user_metrics"
       ])
     } finally {
       await rm(tempDir, { recursive: true, force: true })
