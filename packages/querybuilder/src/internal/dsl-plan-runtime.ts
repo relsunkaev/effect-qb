@@ -54,6 +54,13 @@ export const renderMysqlMutationLockMode = (
   )
 }
 
+export const normalizeLockFlag = (name: "nowait" | "skipLocked", value: unknown): boolean => {
+  if (value !== undefined && typeof value !== "boolean") {
+    throw new Error(`lock(...) option '${name}' must be boolean`)
+  }
+  return value ?? false
+}
+
 export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const aliasedSourceKinds = new Set(["derived", "cte", "lateral", "values", "unnest", "tableFunction"])
   const isRecord = (value: unknown): value is Record<PropertyKey, unknown> =>
@@ -456,8 +463,8 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
         lock: {
           kind: "lock",
           mode,
-          nowait: options.nowait ?? false,
-          skipLocked: options.skipLocked ?? false
+          nowait: normalizeLockFlag("nowait", options.nowait),
+          skipLocked: normalizeLockFlag("skipLocked", options.skipLocked)
         }
       }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
     }

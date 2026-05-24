@@ -7,7 +7,7 @@ import * as QueryAst from "../query-ast.js"
 import type { RenderState, RenderValueContext, SqlDialect } from "../dialect.js"
 import * as ExpressionAst from "../expression-ast.js"
 import * as JsonPath from "../json/path.js"
-import { renderMysqlMutationLockMode, renderSelectLockMode } from "../dsl-plan-runtime.js"
+import { normalizeLockFlag, renderMysqlMutationLockMode, renderSelectLockMode } from "../dsl-plan-runtime.js"
 import { expectConflictClause, expectInsertSourceKind, expectInsertValues } from "../dsl-mutation-runtime.js"
 import { expectDdlClauseKind, expectTruncateClause, renderTransactionIsolationLevel } from "../dsl-transaction-ddl-runtime.js"
 import {
@@ -1419,11 +1419,13 @@ export const renderQueryAst = (
         clauses.push(`offset ${renderExpression(ast.offset, state, dialect)}`)
       }
       if (ast.lock) {
-        if (ast.lock.nowait && ast.lock.skipLocked) {
+        const nowait = normalizeLockFlag("nowait", ast.lock.nowait)
+        const skipLocked = normalizeLockFlag("skipLocked", ast.lock.skipLocked)
+        if (nowait && skipLocked) {
           throw new Error("lock(...) cannot specify both nowait and skipLocked")
         }
         clauses.push(
-          `${renderSelectLockMode(ast.lock.mode)}${ast.lock.nowait ? " nowait" : ""}${ast.lock.skipLocked ? " skip locked" : ""}`
+          `${renderSelectLockMode(ast.lock.mode)}${nowait ? " nowait" : ""}${skipLocked ? " skip locked" : ""}`
         )
       }
       sql = clauses.join(" ")

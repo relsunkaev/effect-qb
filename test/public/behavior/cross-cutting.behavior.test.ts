@@ -650,6 +650,32 @@ describe("cross-cutting statement behavior", () => {
     )
   })
 
+  test("rejects malformed row lock flags before rendering SQL", () => {
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    const selectUsers = () =>
+      Postgres.Query.select({ id: users.id }).pipe(
+        Postgres.Query.from(users)
+      )
+
+    expect(() =>
+      selectUsers().pipe(Postgres.Query.lock("update", { nowait: "yes" } as any))
+    ).toThrow("lock(...) option 'nowait' must be boolean")
+
+    expect(() =>
+      selectUsers().pipe(Postgres.Query.lock("update", { skipLocked: "yes" } as any))
+    ).toThrow("lock(...) option 'skipLocked' must be boolean")
+
+    const renderedSelect = selectUsers().pipe(Postgres.Query.lock("update"))
+    ;(renderedSelect as any)[queryAst].lock.skipLocked = "yes"
+
+    expect(() =>
+      Postgres.Renderer.make().render(renderedSelect)
+    ).toThrow("lock(...) option 'skipLocked' must be boolean")
+  })
+
   test("rejects invalid rendered row lock modes", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
     const postgresUsers = StdRoot.Table.make("users", {
