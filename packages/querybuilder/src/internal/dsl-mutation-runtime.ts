@@ -342,13 +342,19 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       const updateWhere = options.where === undefined
         ? undefined
         : ctx.toDialectExpression(options.where)
+      const targetWhere = conflictTarget.kind === "columns" ? conflictTarget.where : undefined
+      if (ctx.profile.dialect === "mysql" && (conflictTarget.kind === "constraint" || targetWhere !== undefined)) {
+        throw new Error("effect-qb: mysql does not support named or predicate-scoped conflict targets")
+      }
+      if (ctx.profile.dialect === "sqlite" && conflictTarget.kind === "constraint") {
+        throw new Error("effect-qb: sqlite does not support named conflict constraints")
+      }
       if (updateWhere !== undefined && updateAssignments.length === 0) {
         throw new Error("effect-qb: conflict action where(...) requires update assignments")
       }
       if (ctx.profile.dialect === "mysql" && updateWhere !== undefined) {
         throw new Error("effect-qb: mysql does not support conflict where(...) predicates")
       }
-      const targetWhere = conflictTarget.kind === "columns" ? conflictTarget.where : undefined
       const required = [
         ...ctx.currentRequiredList(current.required),
         ...updateAssignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies)),

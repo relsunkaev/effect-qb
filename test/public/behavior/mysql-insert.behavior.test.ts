@@ -241,6 +241,30 @@ describe("mysql insert behavior", () => {
     }))).toThrow("effect-qb: unknown conflict target column")
   })
 
+  test("rejects mysql named and predicate-scoped conflict targets", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+
+    const insert = Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    })
+    const update = {
+      email: Mysql.Query.excluded(users.email)
+    }
+
+    expect(() => Mysql.Query.onConflict({
+      constraint: "users_email_key"
+    } as any, { update })(insert)).toThrow("effect-qb: mysql does not support named or predicate-scoped conflict targets")
+
+    expect(() => Mysql.Query.onConflict({
+      columns: ["email"] as const,
+      where: Mysql.Query.isNotNull(users.email)
+    } as any, { update })(insert)).toThrow("effect-qb: mysql does not support named or predicate-scoped conflict targets")
+  })
+
   test("rejects mysql conflict action predicates", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
