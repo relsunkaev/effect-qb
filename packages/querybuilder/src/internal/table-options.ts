@@ -67,6 +67,17 @@ const requireOptionalNonEmptyString = (
   }
 }
 
+const requireOptionalBooleanFlag = (
+  optionKind: string,
+  tableName: string,
+  flagName: string,
+  value: unknown
+): void => {
+  if (value !== undefined && typeof value !== "boolean") {
+    throw new Error(`Option '${optionKind}' on table '${tableName}' requires boolean flag '${flagName}'`)
+  }
+}
+
 const isDdlExpressionLike = (value: unknown): value is DdlExpressionLike =>
   typeof value === "object" &&
   value !== null &&
@@ -367,6 +378,17 @@ export const validateOptions = <Fields extends TableFieldMap>(
         if (optionName !== undefined && (typeof optionName !== "string" || optionName.length === 0)) {
           throw new Error(`Option '${option.kind}' on table '${tableName}' requires option names to be non-empty strings`)
         }
+        const flags = option as Record<string, unknown>
+        if (option.kind === "index") {
+          requireOptionalBooleanFlag(option.kind, tableName, "unique", flags.unique)
+        }
+        if (option.kind === "unique") {
+          requireOptionalBooleanFlag(option.kind, tableName, "nullsNotDistinct", flags.nullsNotDistinct)
+        }
+        if (option.kind === "primaryKey" || option.kind === "unique" || option.kind === "foreignKey") {
+          requireOptionalBooleanFlag(option.kind, tableName, "deferrable", flags.deferrable)
+          requireOptionalBooleanFlag(option.kind, tableName, "initiallyDeferred", flags.initiallyDeferred)
+        }
         const columns = option.kind === "index"
           ? requireOptionalColumnArray(
             option.columns,
@@ -476,6 +498,7 @@ export const validateOptions = <Fields extends TableFieldMap>(
         if (typeof option.name !== "string" || option.name.length === 0) {
           throw new Error(`Check constraint on table '${tableName}' requires a constraint name`)
         }
+        requireOptionalBooleanFlag(option.kind, tableName, "noInherit", (option as Record<string, unknown>).noInherit)
         if (!isDdlExpressionLike(option.predicate)) {
           throw new Error(`Check constraint on table '${tableName}' requires a predicate expression`)
         }

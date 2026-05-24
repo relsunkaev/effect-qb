@@ -133,6 +133,34 @@ describe("postgres schema management", () => {
     )
   })
 
+  test("source table models reject malformed table option flags before mapping metadata", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{ kind: "unique", columns: ["id"], deferrable: "yes" }]
+
+    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
+      "Option 'unique' on table 'users' requires boolean flag 'deferrable'"
+    )
+
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{ kind: "index", columns: ["id"], unique: "yes" }]
+
+    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
+      "Option 'index' on table 'users' requires boolean flag 'unique'"
+    )
+
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "check",
+      name: "users_id_check",
+      predicate: users.id,
+      noInherit: "yes"
+    }]
+
+    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
+      "Option 'check' on table 'users' requires boolean flag 'noInherit'"
+    )
+  })
+
   test("source table models reject malformed index key metadata before mapping metadata", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
