@@ -21,6 +21,7 @@ type DiscoveryImportInfo = {
   readonly standardNamespaceAliases: Set<string>
   readonly tableAliases: Set<string>
   readonly schemaAliases: Set<string>
+  readonly schemaNamespaceAliases: Set<string>
 }
 
 export type SourceDeclaration =
@@ -95,35 +96,43 @@ const isPostgresModule = (value: string): boolean =>
 const isStandardModule = (value: string): boolean =>
   value === "effect-qb" || value === "#standard"
 
-const isSchemaCall = (
-  expression: ts.Expression,
-  importInfo: DiscoveryImportInfo
-): boolean => {
-  if (!ts.isCallExpression(expression)) {
-    return false
-  }
-  if (ts.isIdentifier(expression.expression)) {
-    return importInfo.schemaAliases.has(expression.expression.text)
-  }
-  if (!ts.isPropertyAccessExpression(expression.expression)) {
-    return false
-  }
-  const target = expression.expression
-  if (target.name.text !== "schema") {
-    return false
-  }
-  if (ts.isIdentifier(target.expression)) {
-    return importInfo.postgresNamespaceAliases.has(target.expression.text)
-  }
-  return false
-}
-
 const unwrapPipeRoot = (expression: ts.Expression): ts.Expression => {
   let current = expression
   while (ts.isCallExpression(current) && ts.isPropertyAccessExpression(current.expression) && current.expression.name.text === "pipe") {
     current = current.expression.expression
   }
   return current
+}
+
+const isSchemaCall = (
+  expression: ts.Expression,
+  importInfo: DiscoveryImportInfo
+): boolean => {
+  const root = unwrapPipeRoot(expression)
+  if (!ts.isCallExpression(root)) {
+    return false
+  }
+  if (ts.isIdentifier(root.expression)) {
+    return importInfo.schemaAliases.has(root.expression.text)
+  }
+  if (!ts.isPropertyAccessExpression(root.expression)) {
+    return false
+  }
+  const target = root.expression
+  if (target.name.text === "schema") {
+    return ts.isIdentifier(target.expression)
+      && importInfo.postgresNamespaceAliases.has(target.expression.text)
+  }
+  if (target.name.text === "make") {
+    if (ts.isIdentifier(target.expression)) {
+      return importInfo.schemaNamespaceAliases.has(target.expression.text)
+    }
+    return ts.isPropertyAccessExpression(target.expression)
+      && ts.isIdentifier(target.expression.expression)
+      && importInfo.postgresNamespaceAliases.has(target.expression.expression.text)
+      && target.expression.name.text === "Schema"
+  }
+  return false
 }
 
 const isTableMakeRoot = (
@@ -374,6 +383,7 @@ const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
   const standardNamespaceAliases = new Set<string>()
   const tableAliases = new Set<string>()
   const schemaAliases = new Set<string>()
+  const schemaNamespaceAliases = new Set<string>()
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || statement.importClause === undefined) {
       continue
@@ -408,6 +418,8 @@ const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
         tableAliases.add(element.name.text)
       } else if (postgresModule && imported === "schema") {
         schemaAliases.add(element.name.text)
+      } else if (postgresModule && imported === "Schema") {
+        schemaNamespaceAliases.add(element.name.text)
       }
     }
   }
@@ -417,7 +429,8 @@ const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
     standardModules,
     standardNamespaceAliases,
     tableAliases,
-    schemaAliases
+    schemaAliases,
+    schemaNamespaceAliases
   }
 }
 
@@ -434,6 +447,7 @@ const discoverInFile = (
     && importInfo.standardNamespaceAliases.size === 0
     && importInfo.tableAliases.size === 0
     && importInfo.schemaAliases.size === 0
+    && importInfo.schemaNamespaceAliases.size === 0
   ) {
     return []
   }

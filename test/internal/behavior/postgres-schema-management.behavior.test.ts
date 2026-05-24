@@ -1275,6 +1275,40 @@ export class Sessions extends Table.Class<Sessions>("sessions")({
     }
   })
 
+  test("discovers schema namespaces built from Pg.Schema.make with casing pipes", async () => {
+    const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-schema-make-"))
+    try {
+await Bun.write(join(tempDir, "schema-make.ts"), `
+import { Casing, Column } from "effect-qb"
+import * as Pg from "#postgres"
+
+const Analytics = Pg.Schema.make("analytics").pipe(
+  Casing.withCasing({
+    tables: "snake_case",
+    columns: "snake_case"
+  })
+)
+
+export const metrics = Analytics.table("UserMetrics", {
+  id: Column.uuid()
+})
+`)
+
+      const discovered = await discoverSourceSchema(repoRoot, {
+        include: [`${relative(repoRoot, tempDir).replaceAll("\\", "/")}/**/*.ts`]
+      })
+
+      expect(discovered.declarations.map((declaration) => declaration.kind)).toEqual([
+        "tableSchema"
+      ])
+      expect(discovered.model.tables.map((table) => `${table.schemaName ?? "public"}.${table.name}`)).toEqual([
+        "analytics.UserMetrics"
+      ])
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("rejects nested schema declarations", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-nested-"))
     try {
