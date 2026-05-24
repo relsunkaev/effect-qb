@@ -209,6 +209,27 @@ describe("table definitions", () => {
       knownColumns: "id"
     })
 
+    const brokenReferenceResolverMemberships = StdRoot.Table.make("broken_reference_resolver_memberships", {
+      orgId: StdRoot.Column.uuid()
+    }).pipe(
+      StdRoot.Table.option(unsafeAny({
+        kind: "foreignKey",
+        columns: ["orgId"],
+        references: {
+          tableName: "orgs",
+          columns: ["id"]
+        }
+      }))
+    )
+    const brokenReferenceResolverForeignKey = brokenReferenceResolverMemberships[StdRoot.Table.OptionsSymbol].find((option: { kind: string }) => option.kind === "foreignKey")
+    if (!brokenReferenceResolverForeignKey || brokenReferenceResolverForeignKey.kind !== "foreignKey") {
+      throw new Error("expected a foreign key option")
+    }
+    expect(brokenReferenceResolverForeignKey.references).toEqual({
+      tableName: "orgs",
+      columns: ["id"]
+    })
+
     const brokenMembershipsArity = StdRoot.Table.make("broken_memberships_arity", {
       orgId: StdRoot.Column.uuid(),
       slug: StdRoot.Column.text()

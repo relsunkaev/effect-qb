@@ -487,10 +487,9 @@ export const validateOptions = <Fields extends TableFieldMap>(
         if (option.kind === "foreignKey") {
           validateReferentialAction(option.onUpdate)
           validateReferentialAction(option.onDelete)
-          if (typeof option.references !== "function") {
-            throw new Error(`Foreign key on table '${tableName}' requires a reference resolver`)
-          }
-          const reference = option.references()
+          const reference = typeof option.references === "function"
+            ? option.references()
+            : option.references
           if (typeof reference !== "object" || reference === null) {
             throw new Error(`Foreign key on table '${tableName}' requires a reference target`)
           }
