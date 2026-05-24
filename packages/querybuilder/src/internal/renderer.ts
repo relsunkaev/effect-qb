@@ -179,8 +179,11 @@ const visitExpression = (
     case "jsonMerge":
       return visitExpression(ast.right, visitExpression(ast.left, next, context), context)
     case "case": {
-      const withBranches = ast.branches.reduce(
-        (current, branch) => visitExpression(branch.then, visitExpression(branch.when, current, context), context),
+      const branches = Array.isArray(ast.branches) ? ast.branches : []
+      const withBranches = branches.reduce(
+        (current, branch) => isObject(branch)
+          ? visitExpression(branch.then, visitExpression(branch.when, current, context), context)
+          : current,
         next
       )
       return visitExpression(ast.else, withBranches, context)

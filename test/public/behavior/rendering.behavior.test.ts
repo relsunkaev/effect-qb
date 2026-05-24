@@ -270,6 +270,33 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects case expressions without a branch array before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+    const label = Standard.Query.case()
+      .when(Standard.Query.eq(users.email, "alice@example.com"), "match")
+      .else("missing")
+    ;(label as any)[expressionAst].branches = undefined
+    const plan = Standard.Query.select({
+      label
+    }).pipe(Standard.Query.from(users))
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "case(...) requires at least one branch"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "case(...) requires at least one branch"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "case(...) requires at least one branch"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "case(...) requires at least one branch"
+    )
+  })
+
   test("rejects case expressions without a fallback before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {
