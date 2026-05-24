@@ -1597,7 +1597,19 @@ describe("rendering behavior", () => {
   test("rejects invalid Date literals before rendering params", () => {
     expect(() => Renderer.make().render(Q.select({
       value: Q.literal(new Date("not a date"))
-    }))).toThrow()
+    }))).toThrow("Expected a valid Date value")
+  })
+
+  test("rejects grouped invalid Date literals before rendering SQL", () => {
+    expect(() => {
+      const value = Q.literal(new Date("not a date"))
+      const plan = Q.select({
+        value,
+        rowCount: F.count(Q.literal(1))
+      }).pipe(Q.groupBy(value))
+
+      Renderer.make().render(plan)
+    }).toThrow("Expected a valid Date value")
   })
 
   test("rejects incomplete plans that still require sources", () => {
