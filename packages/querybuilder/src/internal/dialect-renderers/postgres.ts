@@ -653,13 +653,16 @@ const renderJsonOpaquePath = (
 }
 
 const renderFunctionCall = (
-  name: string,
-  args: readonly Expression.Any[],
+  name: unknown,
+  args: unknown,
   state: RenderState,
   dialect: SqlDialect
 ): string => {
   if (typeof name !== "string" || name.trim().length === 0) {
     throw new Error("function calls require a non-empty function name")
+  }
+  if (!Array.isArray(args)) {
+    throw new Error("function calls require an argument array")
   }
   if (name === "array") {
     return `ARRAY[${args.map((arg) => renderExpression(arg, state, dialect)).join(", ")}]`
@@ -1852,7 +1855,7 @@ export const renderExpression = (
     case "collate":
       return `(${renderExpression(ast.value, state, dialect)} collate ${renderCollation(ast.collation)})`
     case "function":
-      return renderFunctionCall(ast.name, Array.isArray(ast.args) ? ast.args : [], state, dialect)
+      return renderFunctionCall(ast.name, ast.args, state, dialect)
     case "eq":
       return `(${renderExpression(ast.left, state, dialect)} = ${renderExpression(ast.right, state, dialect)})`
     case "neq":

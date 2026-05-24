@@ -539,6 +539,28 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects function calls without an argument array before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const value = Standard.Function.call("lower", Standard.Query.literal("ALICE"))
+    ;(value as any)[expressionAst].args = undefined
+    const plan = Standard.Query.select({
+      value
+    })
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "function calls require an argument array"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "function calls require an argument array"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "function calls require an argument array"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "function calls require an argument array"
+    )
+  })
+
   test("rejects malformed coalesce expressions before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {
