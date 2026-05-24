@@ -1318,14 +1318,25 @@ const normalizedIndexInclude = (
     ? option.include.filter((column): column is string => typeof column === "string")
     : []
 
+const normalizedPredicateSql = (predicate: unknown): string | null => {
+  if (predicate === undefined) {
+    return null
+  }
+  try {
+    return normalizeDdlExpressionSql(predicate as never)
+  } catch {
+    return null
+  }
+}
+
 const indexShapeSignature = (option: Extract<TableOptionSpec, { readonly kind: "index" }>): string => {
   const keys = normalizedIndexKeys(option)
   return JSON.stringify({
     kind: option.kind,
     unique: option.unique ?? false,
     method: option.method ?? null,
-    include: option.include ?? [],
-    predicate: option.predicate ? normalizeDdlExpressionSql(option.predicate) : null,
+    include: normalizedIndexInclude(option),
+    predicate: normalizedPredicateSql(option.predicate),
     keys: keys.map((key) => key.kind === "column"
       ? {
           kind: key.kind,
@@ -1735,8 +1746,9 @@ const renderIndexOption = (
   if (includeColumns.length > 0) {
     parts.push(`include: [${includeColumns.map(renderStringLiteral).join(", ")}]`)
   }
-  if (option.predicate) {
-    parts.push(`predicate: ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)}`)
+  const normalizedPredicate = normalizedPredicateSql(option.predicate)
+  if (normalizedPredicate !== null) {
+    parts.push(`predicate: ${renderTableScopedDdlExpressionCode(table, normalizedPredicate, context)}`)
   }
   return `${POSTGRES_TABLE_ALIAS}.index({ ${parts.join(", ")} })`
 }
@@ -2402,8 +2414,9 @@ const countTableReferences = (
         enumKeys
       })
     } else if (option.kind === "index") {
-      if (option.predicate !== undefined) {
-        collectExpressionReferences(renderDdlExpressionSql(option.predicate), {
+      const normalizedPredicate = normalizedPredicateSql(option.predicate)
+      if (normalizedPredicate !== null) {
+        collectExpressionReferences(normalizedPredicate, {
           fallbackSchemaName: table.schemaName,
           enumUsageByKey,
           sequenceUsageByKey,

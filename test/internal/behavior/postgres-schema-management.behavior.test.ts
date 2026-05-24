@@ -956,6 +956,49 @@ describe("postgres schema management", () => {
     }
   })
 
+  test("pull planning tolerates malformed index predicate metadata in database additions", async () => {
+    const tempDir = await mkdtemp(join(process.cwd(), ".tmp-pull-malformed-index-predicate-"))
+    try {
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+      })
+      const usersModel = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+      ;(usersModel as any).options = [
+        ...(usersModel as any).options,
+        {
+          kind: "index",
+          columns: ["id"],
+          predicate: {}
+        }
+      ]
+
+      const discovered: DiscoveredSourceSchema = {
+        declarations: [],
+        bindings: [],
+        model: {
+          dialect: "postgres",
+          enums: [],
+          tables: []
+        }
+      }
+      const database: SchemaModel = {
+        dialect: "postgres",
+        enums: [],
+        tables: [usersModel]
+      }
+
+      await expect(planPostgresPull(tempDir, { include: ["**/*.ts"] }, discovered, database)).resolves.toMatchObject({
+        updates: [
+          expect.objectContaining({
+            filePath: join(tempDir, "public.schema.ts")
+          })
+        ]
+      })
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("pull planning tolerates malformed check predicate metadata in database additions", async () => {
     const tempDir = await mkdtemp(join(process.cwd(), ".tmp-pull-malformed-check-predicate-"))
     try {
