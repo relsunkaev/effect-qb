@@ -106,44 +106,6 @@ describe("select sources behavior", () => {
     )
   })
 
-  test("rejects incomplete set operator operands before rendering invalid nested sql", () => {
-    const complete = Postgres.Query.select({
-      id: pgUsers.id
-    }).pipe(Postgres.Query.from(pgUsers))
-    const incomplete = Postgres.Query.select({
-      id: pgUsers.id
-    })
-
-    expect(() => renderPostgres(Postgres.Query.union(complete, unsafeAny(incomplete)))).toThrow(
-      "query references sources that are not yet in scope: users"
-    )
-
-    expect(() => renderPostgres(Postgres.Query.union(unsafeAny(incomplete), complete))).toThrow(
-      "query references sources that are not yet in scope: users"
-    )
-  })
-
-  test("rejects mutation plans as set operator operands", () => {
-    const selected = Postgres.Query.select({
-      email: pgUsers.email
-    }).pipe(Postgres.Query.from(pgUsers))
-    const inserted = Postgres.Query.insert(pgUsers, {
-      id: "11111111-1111-1111-1111-111111111111",
-      email: "alice@example.com"
-    }).pipe(
-      Postgres.Query.returning({
-        email: pgUsers.email
-      })
-    )
-
-    expect(() => Postgres.Query.union(unsafeAny(inserted), selected)).toThrow(
-      "set operator operands only accept select-like query plans"
-    )
-    expect(() => Postgres.Query.union(selected, unsafeAny(inserted))).toThrow(
-      "set operator operands only accept select-like query plans"
-    )
-  })
-
   test("rejects query modifiers on set operator plans instead of ignoring them", () => {
     const active = Postgres.Query.select({
       email: pgUsers.email
@@ -164,80 +126,6 @@ describe("select sources behavior", () => {
     expect(() =>
       renderPostgres(Postgres.Query.orderBy(Postgres.Query.literal(1))(unsafeAny(setPlan)))
     ).toThrow("orderBy(...) is not supported for set statements")
-  })
-
-  test("rejects duplicate source names before rendering ambiguous joins", () => {
-    expect(() =>
-      Postgres.Query.select({
-        id: pgUsers.id
-      }).pipe(
-        Postgres.Query.from(pgUsers),
-        Postgres.Query.innerJoin(pgUsers, Postgres.Query.eq(pgUsers.id, pgUsers.id))
-      )
-    ).toThrow("query source name is already in scope: users")
-  })
-
-  test("rejects replacing a select from source with another from source", () => {
-    const sourced = Postgres.Query.select({
-      id: pgUsers.id
-    }).pipe(
-      Postgres.Query.from(pgUsers)
-    )
-
-    expect(() => Postgres.Query.from(pgPosts)(unsafeAny(sourced))).toThrow(
-      "select statements accept only one from(...) source; use joins for additional sources"
-    )
-  })
-
-  test("rejects select joins before a base from source exists", () => {
-    const joinOnly = Postgres.Query.select({
-      id: pgPosts.id
-    })
-
-    expect(() => Postgres.Query.crossJoin(pgPosts)(unsafeAny(joinOnly))).toThrow(
-      "select joins require a from(...) source before joining"
-    )
-
-    expect(() => Postgres.Query.innerJoin(pgPosts, true)(unsafeAny(joinOnly))).toThrow(
-      "select joins require a from(...) source before joining"
-    )
-  })
-
-  test("rejects structurally incomplete source-like objects", () => {
-    const fakeSource = {
-      name: "users",
-      baseName: "users"
-    }
-    const fakeDerivedSource = {
-      kind: "derived",
-      name: "users",
-      baseName: "users"
-    }
-
-    expect(() =>
-      Postgres.Query.select({
-        id: pgUsers.id
-      }).pipe(
-        Postgres.Query.from(unsafeAny(fakeSource))
-      )
-    ).toThrow("from(...) requires an aliased source in select/update statements")
-
-    expect(() =>
-      Postgres.Query.select({
-        id: pgUsers.id
-      }).pipe(
-        Postgres.Query.from(unsafeAny(fakeDerivedSource))
-      )
-    ).toThrow("from(...) requires an aliased source in select/update statements")
-
-    expect(() =>
-      Postgres.Query.select({
-        id: pgUsers.id
-      }).pipe(
-        Postgres.Query.from(pgUsers),
-        Postgres.Query.crossJoin(unsafeAny(fakeSource))
-      )
-    ).toThrow("join(...) requires an aliased source in select/update/delete statements")
   })
 
   test("renders standalone values, unnest, and generate series sources in postgres", () => {

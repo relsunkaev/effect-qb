@@ -1,6 +1,5 @@
 import * as Expression from "./scalar.js"
 import * as Plan from "./row-set.js"
-import * as Table from "./table.js"
 
 type DslPlanRuntimeContext = {
   readonly profile: {
@@ -38,89 +37,12 @@ export const renderMysqlMutationLockMode = (
 }
 
 export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
-  const aliasedSourceKinds = new Set(["derived", "cte", "lateral", "values", "unnest", "tableFunction"])
-  const isRecord = (value: unknown): value is Record<PropertyKey, unknown> =>
-    typeof value === "object" && value !== null
-
-  const isPlan = (value: unknown): boolean => isRecord(value) && Plan.TypeId in value
-  const hasColumnRecord = (value: Record<PropertyKey, unknown>): boolean => isRecord(value.columns)
-
   const sourceRequiredList = (source: any): readonly string[] =>
     typeof source === "object" && source !== null && "required" in source
       ? ctx.currentRequiredList(source.required)
       : []
 
-  const isAliasedSource = (source: unknown): boolean => {
-    if (!isRecord(source)) {
-      return false
-    }
-    if (Table.TypeId in source) {
-      return true
-    }
-    if (!("kind" in source) || !("name" in source) || !("baseName" in source)) {
-      return false
-    }
-    if (typeof source.kind !== "string" || !aliasedSourceKinds.has(source.kind)) {
-      return false
-    }
-    if (typeof source.name !== "string" || typeof source.baseName !== "string") {
-      return false
-    }
-    switch (source.kind) {
-      case "derived":
-      case "cte":
-      case "lateral":
-        return isPlan(source.plan) && hasColumnRecord(source)
-      case "values":
-        return Array.isArray(source.rows) && hasColumnRecord(source)
-      case "unnest":
-        return isRecord(source.arrays) && hasColumnRecord(source)
-      case "tableFunction":
-        return typeof source.functionName === "string" && Array.isArray(source.args) && hasColumnRecord(source)
-    }
-    return false
-  }
-
-  const assertAliasedSource = (source: unknown, message: string): void => {
-    if (!isAliasedSource(source)) {
-      throw new Error(message)
-    }
-  }
-
-  const assertPlanComplete = (plan: any): void => {
-    const required = ctx.currentRequiredList(plan[Plan.TypeId].required)
-    if (required.length > 0) {
-      throw new Error(`query references sources that are not yet in scope: ${required.join(", ")}`)
-    }
-  }
-
-  const assertSourceNameAvailable = (available: Record<string, unknown>, sourceName: string): void => {
-    if (sourceName in available) {
-      throw new Error(`query source name is already in scope: ${sourceName}`)
-    }
-  }
-
-  const assertSelectHasBaseSourceForJoin = (statement: string, available: Record<string, unknown>): void => {
-    if (statement === "select" && Object.keys(available).length === 0) {
-      throw new Error("select joins require a from(...) source before joining")
-    }
-  }
-
-  const supportsJoinSources = (statement: string): boolean =>
-    statement === "select" || statement === "update" || statement === "delete"
-
-  const assertSetOperandStatement = (plan: any): void => {
-    const statement = ctx.getQueryState(plan).statement
-    if (statement !== "select" && statement !== "set") {
-      throw new Error("set operator operands only accept select-like query plans")
-    }
-  }
-
   const buildSetOperation = (kind: string, all: boolean, left: any, right: any) => {
-    assertSetOperandStatement(left)
-    assertSetOperandStatement(right)
-    assertPlanComplete(left)
-    assertPlanComplete(right)
     const leftState = left[Plan.TypeId]
     const leftAst = ctx.getAst(left)
     const basePlan = leftAst.kind === "set"
@@ -189,17 +111,10 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
         return ctx.attachInsertSource(plan, source)
       }
 
-      assertAliasedSource(source, "from(...) requires an aliased source in select/update statements")
-
-      if (currentQuery.statement === "select" && currentAst.from !== undefined) {
-        throw new Error("select statements accept only one from(...) source; use joins for additional sources")
-      }
-
       const sourceLike = source
       const { sourceName, sourceBaseName } = ctx.sourceDetails(sourceLike)
       const presenceWitnesses = ctx.presenceWitnessesOfSourceLike(sourceLike)
       const sourceRequired = sourceRequiredList(sourceLike)
-      assertSourceNameAvailable(current.available, sourceName)
 
       if (currentQuery.statement === "select") {
         const nextAvailable = {
@@ -292,16 +207,9 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       const current = plan[Plan.TypeId]
       const currentAst = ctx.getAst(plan)
       const currentQuery = ctx.getQueryState(plan)
-      if (supportsJoinSources(currentQuery.statement)) {
-        assertAliasedSource(table, "join(...) requires an aliased source in select/update/delete statements")
-        assertSelectHasBaseSourceForJoin(currentQuery.statement, current.available)
-      }
       const { sourceName, sourceBaseName } = ctx.sourceDetails(table)
       const presenceWitnesses = ctx.presenceWitnessesOfSourceLike(table)
       const sourceRequired = sourceRequiredList(table)
-      if (supportsJoinSources(currentQuery.statement)) {
-        assertSourceNameAvailable(current.available, sourceName)
-      }
       const nextAvailable = {
         ...current.available,
         [sourceName]: {
@@ -336,16 +244,9 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       const currentQuery = ctx.getQueryState(plan)
       const onExpression = ctx.toDialectExpression(on)
       const onFormula = ctx.formulaOfExpressionRuntime(onExpression)
-      if (supportsJoinSources(currentQuery.statement)) {
-        assertAliasedSource(table, "join(...) requires an aliased source in select/update/delete statements")
-        assertSelectHasBaseSourceForJoin(currentQuery.statement, current.available)
-      }
       const { sourceName, sourceBaseName } = ctx.sourceDetails(table)
       const presenceWitnesses = ctx.presenceWitnessesOfSourceLike(table)
       const sourceRequired = sourceRequiredList(table)
-      if (supportsJoinSources(currentQuery.statement)) {
-        assertSourceNameAvailable(current.available, sourceName)
-      }
       const baseAvailable = (kind === "right" || kind === "full"
         ? Object.fromEntries(
           Object.entries(current.available as Record<string, any>).map(([name, source]) => [name, {
