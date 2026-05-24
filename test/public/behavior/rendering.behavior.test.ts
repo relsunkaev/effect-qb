@@ -130,6 +130,25 @@ describe("rendering behavior", () => {
     expect(Sqlite.Renderer.make().render(delete_).sql).toBe('delete from "users" where ("users"."id" = ?)')
   })
 
+  test("standard renderer rejects regular-expression predicates", () => {
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+
+    const plans = [
+      Standard.Query.select({ ok: Standard.Query.regexMatch(users.email, "@example\\.com$") }).pipe(Standard.Query.from(users)),
+      Standard.Query.select({ ok: Standard.Query.regexIMatch(users.email, "@example\\.com$") }).pipe(Standard.Query.from(users)),
+      Standard.Query.select({ ok: Standard.Query.regexNotMatch(users.email, "@example\\.com$") }).pipe(Standard.Query.from(users)),
+      Standard.Query.select({ ok: Standard.Query.regexNotIMatch(users.email, "@example\\.com$") }).pipe(Standard.Query.from(users))
+    ]
+
+    for (const plan of plans) {
+      expect(() => Standard.Renderer.make().render(plan)).toThrow(
+        "Unsupported standard regular-expression predicates"
+      )
+    }
+  })
+
   test("rejects malformed between predicates before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {

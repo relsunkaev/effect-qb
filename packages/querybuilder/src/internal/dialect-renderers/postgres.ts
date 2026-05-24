@@ -2071,24 +2071,36 @@ export const renderExpression = (
     }
     case "regexMatch": {
       const [left, right] = expectBinaryExpressions("regexMatch", ast.left, ast.right)
+      if (dialect.name === "standard") {
+        throw new Error("Unsupported standard regular-expression predicates")
+      }
       return dialect.name === "postgres"
         ? `(${renderExpression(left, state, dialect)} ~ ${renderExpression(right, state, dialect)})`
         : `(${renderExpression(left, state, dialect)} regexp ${renderExpression(right, state, dialect)})`
     }
     case "regexIMatch": {
       const [left, right] = expectBinaryExpressions("regexIMatch", ast.left, ast.right)
+      if (dialect.name === "standard") {
+        throw new Error("Unsupported standard regular-expression predicates")
+      }
       return dialect.name === "postgres"
         ? `(${renderExpression(left, state, dialect)} ~* ${renderExpression(right, state, dialect)})`
         : `(${renderExpression(left, state, dialect)} regexp ${renderExpression(right, state, dialect)})`
     }
     case "regexNotMatch": {
       const [left, right] = expectBinaryExpressions("regexNotMatch", ast.left, ast.right)
+      if (dialect.name === "standard") {
+        throw new Error("Unsupported standard regular-expression predicates")
+      }
       return dialect.name === "postgres"
         ? `(${renderExpression(left, state, dialect)} !~ ${renderExpression(right, state, dialect)})`
         : `(${renderExpression(left, state, dialect)} not regexp ${renderExpression(right, state, dialect)})`
     }
     case "regexNotIMatch": {
       const [left, right] = expectBinaryExpressions("regexNotIMatch", ast.left, ast.right)
+      if (dialect.name === "standard") {
+        throw new Error("Unsupported standard regular-expression predicates")
+      }
       return dialect.name === "postgres"
         ? `(${renderExpression(left, state, dialect)} !~* ${renderExpression(right, state, dialect)})`
         : `(${renderExpression(left, state, dialect)} not regexp ${renderExpression(right, state, dialect)})`
