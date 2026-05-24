@@ -1949,6 +1949,9 @@ export const renderExpression = (
       if (!Array.isArray(ast.branches) || ast.branches.length === 0) {
         throw new Error("case(...) requires at least one branch")
       }
+      if (!isExpression(ast.else)) {
+        throw new Error("case(...) requires an else expression")
+      }
       return `case ${ast.branches.map((branch) =>
         `when ${renderExpression(branch.when, state, dialect)} then ${renderExpression(branch.then, state, dialect)}`
       ).join(" ")} else ${renderExpression(ast.else, state, dialect)} end`

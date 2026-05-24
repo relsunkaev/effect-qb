@@ -270,6 +270,33 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects case expressions without a fallback before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+    const label = Standard.Query.case()
+      .when(Standard.Query.eq(users.email, "alice@example.com"), "match")
+      .else("missing")
+    ;(label as any)[expressionAst].else = undefined
+    const plan = Standard.Query.select({
+      label
+    }).pipe(Standard.Query.from(users))
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "case(...) requires an else expression"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "case(...) requires an else expression"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "case(...) requires an else expression"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "case(...) requires an else expression"
+    )
+  })
+
   test("rejects malformed coalesce expressions before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {
