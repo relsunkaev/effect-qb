@@ -96,14 +96,16 @@ type RuntimeDialectContext = {
 }
 
 const visitExpressionList = (
-  values: readonly unknown[],
+  values: unknown,
   dialect: string | undefined,
   context: RuntimeDialectContext
 ): string | undefined =>
-  values.reduce<string | undefined>(
-    (current, child) => visitExpression(child, current, context),
-    dialect
-  )
+  Array.isArray(values)
+    ? values.reduce<string | undefined>(
+        (current, child) => visitExpression(child, current, context),
+        dialect
+      )
+    : dialect
 
 const visitExpression = (
   value: unknown,
