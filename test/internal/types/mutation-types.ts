@@ -29,6 +29,14 @@ const insertPlan = Q.insert(users, {
   email: "alice@example.com",
   bio: null
 })
+const badInsertUnknownColumn = Q.insert(users, {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: null,
+  // @ts-expect-error insert values only accept known table columns
+  missing: "nope"
+})
+void badInsertUnknownColumn
 const seedRows = [
   {
     id: Cast.to(Q.literal("user-id"), Type.uuid()),
@@ -95,6 +103,12 @@ const badUpdateMysqlValue = Q.update(users, {
   email: Mysql.Query.literal("wrong-dialect")
 })
 void badUpdateMysqlValue
+
+const badUpdateUnknownColumn = Q.update(users, {
+  // @ts-expect-error update values only accept known table columns
+  missing: "nope"
+})
+void badUpdateUnknownColumn
 
 const badUpdateMysqlWhere = Q.update(users, {
   email: "updated@example.com"

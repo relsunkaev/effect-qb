@@ -1136,26 +1136,6 @@ describe("postgres dialect behavior", () => {
     ).toThrow()
   })
 
-  test("rejects postgres inserts with unknown mutation columns", () => {
-    const { users } = makePostgresSocialGraph()
-
-    expect(() =>
-      Postgres.Renderer.make().render(Postgres.Query.insert(users, unsafeAny({
-        nope: "missing"
-      })))
-    ).toThrow("effect-qb: unknown mutation column")
-  })
-
-  test("rejects postgres updates with unknown mutation columns", () => {
-    const { users } = makePostgresSocialGraph()
-
-    expect(() =>
-      Postgres.Renderer.make().render(Postgres.Query.update(users, unsafeAny({
-        nope: "missing"
-      })))
-    ).toThrow("effect-qb: unknown mutation column")
-  })
-
   test("renders postgres update from joined sources", () => {
     const { users, posts } = makePostgresSocialGraph()
 

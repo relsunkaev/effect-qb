@@ -4016,9 +4016,6 @@ type BinaryPredicateExpression<
     ExpressionAst.ExcludedNode<AstOf<Value> extends ExpressionAst.ColumnNode<any, infer ColumnName extends string> ? ColumnName : string>
   > => {
     const ast = ((value as unknown) as Expression.Any & { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
-    if (ast.kind !== "column") {
-      throw new Error("excluded(...) only accepts bound table columns")
-    }
     return makeExpression({
       runtime: undefined as Expression.RuntimeOf<Value>,
       dbType: value[Expression.TypeId].dbType as Expression.DbTypeOf<Value>,
@@ -4031,7 +4028,7 @@ type BinaryPredicateExpression<
       dependencies: {}
     }, {
       kind: "excluded",
-      columnName: ast.columnName
+      columnName: (ast as ExpressionAst.ColumnNode<any, string>).columnName
     }) as unknown as AstBackedExpression<
       Expression.RuntimeOf<Value>,
       Expression.DbTypeOf<Value>,
@@ -4275,13 +4272,7 @@ type BinaryPredicateExpression<
   const getMutationColumn = (
     columns: Record<string, unknown>,
     columnName: string
-  ): Expression.Any => {
-    const column = columns[columnName]
-    if (column === undefined || column === null || typeof column !== "object" || !(Expression.TypeId in column)) {
-      throw new Error("effect-qb: unknown mutation column")
-    }
-    return column as Expression.Any
-  }
+  ): Expression.Any => columns[columnName] as Expression.Any
 
   const buildMutationAssignments = <Target extends MutationTargetInput, Values>(
     target: Target,
@@ -4379,10 +4370,6 @@ type BinaryPredicateExpression<
     const expectedLength = normalized[0]!.values.length
     if (normalized.some((entry) => entry.values.length !== expectedLength)) {
       throw new Error("unnest(...) expects every column array to have the same length")
-    }
-    const knownColumns = new Set(Object.keys(target[Table.TypeId].fields))
-    if (columns.some((columnName) => !knownColumns.has(columnName))) {
-      throw new Error("unnest(...) received a column that does not exist on the target table")
     }
     return {
       columns,

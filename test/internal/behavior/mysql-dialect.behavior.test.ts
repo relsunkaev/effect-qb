@@ -835,26 +835,6 @@ describe("mysql dialect behavior", () => {
     ).toThrow()
   })
 
-  test("rejects mysql inserts with unknown mutation columns", () => {
-    const { users } = makeMysqlSocialGraph()
-
-    expect(() =>
-      Mysql.Renderer.make().render(Mysql.Query.insert(users, unsafeAny({
-        nope: "missing"
-      })))
-    ).toThrow("effect-qb: unknown mutation column")
-  })
-
-  test("rejects mysql updates with unknown mutation columns", () => {
-    const { users } = makeMysqlSocialGraph()
-
-    expect(() =>
-      Mysql.Renderer.make().render(Mysql.Query.update(users, unsafeAny({
-        nope: "missing"
-      })))
-    ).toThrow("effect-qb: unknown mutation column")
-  })
-
   test("renders mysql joined update modifiers order and limit", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
