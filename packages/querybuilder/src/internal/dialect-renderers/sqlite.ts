@@ -2003,7 +2003,7 @@ export const renderExpression = (
     }
     case "window": {
       if (!Array.isArray(ast.partitionBy) || !Array.isArray(ast.orderBy) || typeof ast.function !== "string") {
-        break
+        throw new Error("window expressions require partitionBy and orderBy arrays")
       }
       if (ast.function === "over" && !isExpression(ast.value)) {
         throw new Error("window over(...) requires an aggregate expression")

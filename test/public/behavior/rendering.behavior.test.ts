@@ -460,6 +460,34 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects window expressions without clause arrays before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+    const rowNumber = Standard.Function.rowNumber({
+      partitionBy: [users.email],
+      orderBy: [{ value: users.email, direction: "asc" }]
+    })
+    ;(rowNumber as any)[expressionAst].orderBy = undefined
+    const plan = Standard.Query.select({
+      rowNumber
+    }).pipe(Standard.Query.from(users))
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "window expressions require partitionBy and orderBy arrays"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "window expressions require partitionBy and orderBy arrays"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "window expressions require partitionBy and orderBy arrays"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "window expressions require partitionBy and orderBy arrays"
+    )
+  })
+
   test("rejects invalid quantified comparison operators before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {

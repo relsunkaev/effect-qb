@@ -2024,7 +2024,7 @@ export const renderExpression = (
       return `(${renderExpression(ast.left, state, dialect)} ${renderComparisonOperator(ast.operator)} all (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
     case "window": {
       if (!Array.isArray(ast.partitionBy) || !Array.isArray(ast.orderBy) || typeof ast.function !== "string") {
-        break
+        throw new Error("window expressions require partitionBy and orderBy arrays")
       }
       if (ast.function === "over" && !isExpression(ast.value)) {
         throw new Error("window over(...) requires an aggregate expression")

@@ -197,8 +197,10 @@ const visitExpression = (
       return visitPlan(ast.plan, visitExpression(ast.left, next, context), context)
     case "window": {
       const withValue = visitExpression(ast.value, next, context)
-      const withPartitions = ast.partitionBy.reduce((current, child) => visitExpression(child, current, context), withValue)
-      return ast.orderBy.reduce((current, order) => visitExpression(order.value, current, context), withPartitions)
+      const partitions = Array.isArray(ast.partitionBy) ? ast.partitionBy : []
+      const orderBy = Array.isArray(ast.orderBy) ? ast.orderBy : []
+      const withPartitions = partitions.reduce((current, child) => visitExpression(child, current, context), withValue)
+      return orderBy.reduce((current, order) => isObject(order) ? visitExpression(order.value, current, context) : current, withPartitions)
     }
     case "jsonGet":
     case "jsonPath":
