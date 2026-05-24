@@ -40,6 +40,22 @@ const validateReferentialAction = (action: unknown): void => {
   }
 }
 
+const requireColumnArray = (
+  value: unknown,
+  message: string
+): readonly string[] => {
+  if (!Array.isArray(value) || value.some((column) => typeof column !== "string" || column.length === 0)) {
+    throw new Error(message)
+  }
+  return value
+}
+
+const requireOptionalColumnArray = (
+  value: unknown,
+  message: string
+): readonly string[] =>
+  value === undefined ? [] : requireColumnArray(value, message)
+
 export type IndexKeySpec =
   | {
       readonly kind: "column"
@@ -325,8 +341,14 @@ export const validateOptions = <Fields extends TableFieldMap>(
       case "unique":
       case "foreignKey": {
         const columns = option.kind === "index"
-          ? option.columns ?? []
-          : option.columns
+          ? requireOptionalColumnArray(
+            option.columns,
+            `Option '${option.kind}' on table '${tableName}' requires a column array`
+          )
+          : requireColumnArray(
+            option.columns,
+            `Option '${option.kind}' on table '${tableName}' requires a column array`
+          )
         if (columns.length === 0 && option.kind !== "index") {
           throw new Error(`Option '${option.kind}' on table '${tableName}' requires at least one column`)
         }
@@ -338,13 +360,26 @@ export const validateOptions = <Fields extends TableFieldMap>(
         if (option.kind === "foreignKey") {
           validateReferentialAction(option.onUpdate)
           validateReferentialAction(option.onDelete)
+          if (typeof option.references !== "function") {
+            throw new Error(`Foreign key on table '${tableName}' requires a reference resolver`)
+          }
           const reference = option.references()
-          if (reference.columns.length !== columns.length) {
+          if (typeof reference !== "object" || reference === null) {
+            throw new Error(`Foreign key on table '${tableName}' requires a reference target`)
+          }
+          const referenceColumns = requireColumnArray(
+            reference.columns,
+            `Foreign key on table '${tableName}' requires referenced columns to be an array`
+          )
+          if (referenceColumns.length !== columns.length) {
             throw new Error(`Foreign key on table '${tableName}' must reference the same number of columns`)
           }
           if (reference.knownColumns) {
+            if (!Array.isArray(reference.knownColumns)) {
+              throw new Error(`Foreign key on table '${tableName}' requires known referenced columns to be an array`)
+            }
             const referenced = new Set(reference.knownColumns)
-            for (const column of reference.columns) {
+            for (const column of referenceColumns) {
               if (!referenced.has(column)) {
                 throw new Error(`Unknown referenced column '${column}' on table '${reference.tableName}'`)
               }
@@ -352,17 +387,28 @@ export const validateOptions = <Fields extends TableFieldMap>(
           }
         }
         if (option.kind === "index") {
-          for (const column of option.include ?? []) {
+          const includedColumns = requireOptionalColumnArray(
+            option.include,
+            `Index on table '${tableName}' requires included columns to be an array`
+          )
+          for (const column of includedColumns) {
             if (!knownColumns.has(column)) {
               throw new Error(`Unknown included column '${column}' on table '${tableName}'`)
             }
           }
-          for (const key of option.keys ?? []) {
+          if (option.keys !== undefined && !Array.isArray(option.keys)) {
+            throw new Error(`Index on table '${tableName}' requires keys to be an array`)
+          }
+          const keys = option.keys ?? []
+          for (const key of keys) {
+            if (typeof key !== "object" || key === null || !("kind" in key)) {
+              throw new Error(`Index on table '${tableName}' requires key metadata objects`)
+            }
             if (key.kind === "column" && !knownColumns.has(key.column)) {
               throw new Error(`Unknown index key column '${key.column}' on table '${tableName}'`)
             }
           }
-          if (columns.length === 0 && (option.keys === undefined || option.keys.length === 0)) {
+          if (columns.length === 0 && keys.length === 0) {
             throw new Error(`Index on table '${tableName}' requires at least one column or key`)
           }
         }

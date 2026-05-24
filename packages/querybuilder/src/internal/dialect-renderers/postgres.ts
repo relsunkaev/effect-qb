@@ -19,7 +19,7 @@ import { normalizeDbValue } from "../runtime/normalize.js"
 import { flattenSelection, type Projection } from "../projections.js"
 import { type SelectionValue, validateAggregationSelection } from "../aggregation-validation.js"
 import * as SchemaExpression from "../schema-expression.js"
-import { renderReferentialAction, type DdlExpressionLike } from "../table-options.js"
+import { renderReferentialAction, validateOptions, type DdlExpressionLike, type TableOptionSpec } from "../table-options.js"
 import * as Casing from "../casing.js"
 
 const renderDbType = (
@@ -305,7 +305,13 @@ const renderCreateTableSql = (
   const definitions = Object.entries(fields).map(([columnName, column]) =>
     renderColumnDefinition(dialect, state, columnName, column, targetSource.tableName, tableCasing)
   )
-  for (const option of table[Table.OptionsSymbol]) {
+  const options = table[Table.OptionsSymbol] as unknown
+  if (!Array.isArray(options)) {
+    throw new Error(`Table '${table[Table.TypeId].name}' options require an array`)
+  }
+  const tableOptions = options as readonly TableOptionSpec[]
+  validateOptions(table[Table.TypeId].name, fields, tableOptions)
+  for (const option of tableOptions) {
     switch (option.kind) {
       case "primaryKey":
         definitions.push(`${option.name ? `constraint ${dialect.quoteIdentifier(Casing.applyCategory(tableCasing, "constraints", option.name))} ` : ""}primary key (${option.columns.map((column) => quoteColumn(column, state, dialect, targetSource.tableName)).join(", ")})${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`)

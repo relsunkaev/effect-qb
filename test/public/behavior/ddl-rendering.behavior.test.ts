@@ -330,6 +330,70 @@ describe("ddl rendering behavior", () => {
     ).toThrow("Unsupported table option kind")
   })
 
+  test("rejects malformed table option columns before rendering DDL", () => {
+    const postgresUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(postgresUsers as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "primaryKey",
+      columns: "id"
+    }]
+
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(mysqlUsers as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "primaryKey",
+      columns: "id"
+    }]
+
+    const sqliteUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(sqliteUsers as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "primaryKey",
+      columns: "id"
+    }]
+
+    expect(() =>
+      Postgres.Renderer.make().render(Postgres.Query.createTable(postgresUsers))
+    ).toThrow("Option 'primaryKey' on table 'users' requires a column array")
+    expect(() =>
+      Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlUsers))
+    ).toThrow("Option 'primaryKey' on table 'users' requires a column array")
+    expect(() =>
+      Sqlite.Renderer.make().render(Sqlite.Query.createTable(sqliteUsers))
+    ).toThrow("Option 'primaryKey' on table 'users' requires a column array")
+  })
+
+  test("rejects malformed foreign key reference columns before rendering DDL", () => {
+    const orgs = StdRoot.Table.make("orgs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      orgId: StdRoot.Column.uuid()
+    }).pipe(
+      StdRoot.Table.foreignKey("orgId", () => orgs, "id")
+    )
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = (users as any)[StdRoot.Table.OptionsSymbol].map((option: any) =>
+      option.kind === "foreignKey"
+        ? {
+          ...option,
+          references: () => ({
+            tableName: "orgs",
+            columns: "id",
+            knownColumns: ["id"]
+          })
+        }
+        : option
+    )
+
+    expect(() =>
+      Postgres.Renderer.make().render(Postgres.Query.createTable(users))
+    ).toThrow("Foreign key on table 'users' requires referenced columns to be an array")
+  })
+
   test("rejects mismatched ddl payload kinds at render time", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
 
