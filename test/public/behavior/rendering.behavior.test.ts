@@ -546,6 +546,66 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects subquery predicates without left operands before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      id: Standard.Column.uuid().pipe(Standard.Column.primaryKey)
+    })
+    const userIds = Standard.Query.select({
+      value: users.id
+    }).pipe(Standard.Query.from(users))
+    const matchesAny = Standard.Query.inSubquery(users.id, userIds)
+    ;(matchesAny as any)[expressionAst].left = undefined
+    const plan = Standard.Query.select({
+      matchesAny
+    }).pipe(Standard.Query.from(users))
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "inSubquery(...) requires a value expression"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "inSubquery(...) requires a value expression"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "inSubquery(...) requires a value expression"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "inSubquery(...) requires a value expression"
+    )
+  })
+
+  test("rejects grouped quantified comparisons without left operands before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      id: Standard.Column.uuid().pipe(Standard.Column.primaryKey)
+    })
+    const userIds = Standard.Query.select({
+      value: users.id
+    }).pipe(Standard.Query.from(users))
+    const matchesAny = Standard.Query.compareAny(users.id, userIds, "eq")
+    const plan = Standard.Query.select({
+      matchesAny,
+      userCount: Standard.Function.count(users.id)
+    }).pipe(
+      Standard.Query.from(users),
+      Standard.Query.groupBy(matchesAny)
+    )
+    ;(matchesAny as any)[expressionAst].left = undefined
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "compareAny(...) requires a value expression"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "compareAny(...) requires a value expression"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "compareAny(...) requires a value expression"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "compareAny(...) requires a value expression"
+    )
+  })
+
   test("rejects collate expressions without collation identifiers before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const email = Standard.Query.collate(Standard.Query.literal("alice@example.com"), "C")

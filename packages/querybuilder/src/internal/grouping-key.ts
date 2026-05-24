@@ -150,6 +150,11 @@ const functionCallNameGroupingKey = (name: unknown): string => {
   return escapeGroupingText(name)
 }
 
+const quantifiedComparisonGroupingName = (
+  kind: "comparisonAny" | "comparisonAll"
+): "compareAny" | "compareAll" =>
+  kind === "comparisonAny" ? "compareAny" : "compareAll"
+
 const caseGroupingKey = (
   branches: unknown,
   fallback: unknown
@@ -285,10 +290,10 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
     case "scalarSubquery":
       return `scalarSubquery(${subqueryPlanGroupingKey(ast.plan)})`
     case "inSubquery":
-      return `inSubquery(${groupingKeyOfExpression(ast.left)},${subqueryPlanGroupingKey(ast.plan)})`
+      return `inSubquery(${requiredExpressionGroupingKey("inSubquery", ast.left)},${subqueryPlanGroupingKey(ast.plan)})`
     case "comparisonAny":
     case "comparisonAll":
-      return `${ast.kind}(${ast.operator},${groupingKeyOfExpression(ast.left)},${subqueryPlanGroupingKey(ast.plan)})`
+      return `${ast.kind}(${ast.operator},${requiredExpressionGroupingKey(quantifiedComparisonGroupingName(ast.kind), ast.left)},${subqueryPlanGroupingKey(ast.plan)})`
     case "jsonGet":
     case "jsonPath":
     case "jsonAccess":

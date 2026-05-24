@@ -2075,20 +2075,22 @@ export const renderExpression = (
     case "scalarSubquery":
       return `(${renderSubqueryExpressionPlan(ast.plan, state, dialect)})`
     case "inSubquery":
-      return `(${renderExpression(ast.left, state, dialect)} in (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
+      return `(${renderExpression(expectValueExpression("inSubquery", ast.left), state, dialect)} in (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
     case "comparisonAny": {
+      const left = expectValueExpression("compareAny", ast.left)
       const operator = renderComparisonOperator(ast.operator)
       if (dialect.name === "sqlite") {
         throw new Error("Unsupported sqlite quantified comparison")
       }
-      return `(${renderExpression(ast.left, state, dialect)} ${operator} any (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
+      return `(${renderExpression(left, state, dialect)} ${operator} any (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
     }
     case "comparisonAll": {
+      const left = expectValueExpression("compareAll", ast.left)
       const operator = renderComparisonOperator(ast.operator)
       if (dialect.name === "sqlite") {
         throw new Error("Unsupported sqlite quantified comparison")
       }
-      return `(${renderExpression(ast.left, state, dialect)} ${operator} all (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
+      return `(${renderExpression(left, state, dialect)} ${operator} all (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
     }
     case "window": {
       if (!Array.isArray(ast.partitionBy) || !Array.isArray(ast.orderBy) || typeof ast.function !== "string") {
