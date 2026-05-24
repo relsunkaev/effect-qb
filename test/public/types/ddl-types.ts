@@ -44,6 +44,21 @@ const richColumnsOnlyIndexTable = memberships.pipe(Pg.Table.index({
   columns: ["role"] as const
 }))
 
+// @ts-expect-error check constraint names must be non-empty
+Std.Table.check("", Q.eq(memberships.role, "admin"))
+// @ts-expect-error postgres primary key option names must be non-empty
+Pg.Table.primaryKey({ columns: ["id"] as const, name: "" })
+// @ts-expect-error postgres unique option names must be non-empty
+Pg.Table.unique({ columns: ["role"] as const, name: "" })
+// @ts-expect-error postgres index option names must be non-empty
+Pg.Table.index({ columns: ["role"] as const, name: "" })
+// @ts-expect-error postgres foreign key option names must be non-empty
+Pg.Table.foreignKey({ columns: "orgId", target: () => orgs, referencedColumns: "id", name: "" })
+// @ts-expect-error postgres check constraint names must be non-empty
+Pg.Table.check("", Q.eq(memberships.role, "admin"))
+// @ts-expect-error postgres rich check constraint names must be non-empty
+Pg.Table.check({ name: "", predicate: Q.eq(memberships.role, "admin") })
+
 type CreateTableStatement = Q.StatementOfPlan<typeof createTablePlan>
 type DropTableStatement = Q.StatementOfPlan<typeof dropTablePlan>
 type CreateIndexStatement = Q.StatementOfPlan<typeof createIndexPlan>

@@ -160,7 +160,7 @@ export declare const foreignKey: <const LocalColumns extends string | readonly s
     };
 }>;
 /** Declares a check constraint expression. */
-export declare const check: <Name extends string>(name: Name, predicate: DdlExpressionLike) => TableOption<{
+export declare const check: <const Name extends string>(name: NonEmptyStringInput<Name>, predicate: DdlExpressionLike) => TableOption<{
     readonly kind: "check";
     readonly name: Name;
     readonly predicate: DdlExpressionLike;

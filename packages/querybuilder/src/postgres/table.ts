@@ -315,12 +315,13 @@ type RichForeignKeyOptionSpec<
 type RichForeignKeyInput<
   LocalColumns extends string | readonly string[],
   TargetTable extends AnyTable,
-  TargetColumns extends string | readonly string[]
+  TargetColumns extends string | readonly string[],
+  Name extends string = string
 > = {
   readonly columns: LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>
   readonly target: () => TargetTable
   readonly referencedColumns: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns> & KnownTargetColumnsInput<NoInfer<TargetTable>, TargetColumns>
-  readonly name?: string
+  readonly name?: BaseTable.NonEmptyStringInput<Name>
   readonly onUpdate?: ReferentialAction
   readonly onDelete?: ReferentialAction
   readonly deferrable?: boolean
@@ -332,6 +333,10 @@ type RichCheckInput<Name extends string = string> = {
   readonly predicate: DdlExpressionLike
   readonly noInherit?: boolean
 }
+
+type NonEmptyOptionNameInput<Spec> = Spec extends { readonly name: infer Name extends string }
+  ? BaseTable.NonEmptyStringInput<Name> extends never ? never : unknown
+  : unknown
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -390,8 +395,8 @@ export const primaryKey: {
     readonly kind: "primaryKey"
     readonly columns: BaseTable.NormalizeColumns<Columns>
   }>
-  <const Columns extends string | readonly string[]>(
-    spec: RichPrimaryKeyInput<Columns>
+  <const Columns extends string | readonly string[], const Spec extends RichPrimaryKeyInput<Columns>>(
+    spec: Spec & NonEmptyOptionNameInput<Spec>
   ): BaseTable.TableOption<RichPrimaryKeyOptionSpec<Columns>>
 } = ((input: unknown) =>
   isObject(input) && "columns" in input
@@ -411,8 +416,8 @@ export const unique: {
     readonly kind: "unique"
     readonly columns: BaseTable.NormalizeColumns<Columns>
   }>
-  <const Columns extends string | readonly string[]>(
-    spec: RichUniqueInput<Columns>
+  <const Columns extends string | readonly string[], const Spec extends RichUniqueInput<Columns>>(
+    spec: Spec & NonEmptyOptionNameInput<Spec>
   ): BaseTable.TableOption<RichUniqueOptionSpec<Columns>>
 } = ((input: unknown) =>
   isObject(input) && "columns" in input && ("name" in input || "nullsNotDistinct" in input || "deferrable" in input || "initiallyDeferred" in input)
@@ -436,10 +441,10 @@ export const index: {
   <Table extends SchemaTable, const Columns extends string | readonly string[], const Spec extends Omit<RichIndexInput<Columns>, "predicate"> & {
       readonly predicate: TableExpressionFactory<Table>
   }>(
-    spec: Spec & RichIndexColumnsConstraint<Spec>
+    spec: Spec & RichIndexColumnsConstraint<Spec> & NonEmptyOptionNameInput<Spec>
   ): TableScopedOptionBuilder<Table, RichIndexOptionSpec<Spec>>
   <const Columns extends string | readonly string[], const Spec extends RichIndexInput<Columns>>(
-    spec: Spec & RichIndexColumnsConstraint<Spec>
+    spec: Spec & RichIndexColumnsConstraint<Spec> & NonEmptyOptionNameInput<Spec>
   ): BaseTable.TableOption<RichIndexOptionSpec<Spec>>
 } = ((input: unknown) =>
   isObject(input) && ("columns" in input || "keys" in input || "name" in input || "unique" in input || "method" in input || "include" in input || "predicate" in input)
@@ -476,15 +481,16 @@ export const index: {
 export const foreignKey = <
   const LocalColumns extends string | readonly string[],
   TargetTable extends AnyTable,
-  const TargetColumns extends string | readonly string[]
+  const TargetColumns extends string | readonly string[],
+  const Name extends string = string
 >(
-  columnsOrSpec: (LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>) | RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns>,
+  columnsOrSpec: (LocalColumns & BaseTable.NonEmptyColumnInput<LocalColumns>) | RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns, Name>,
   target?: () => TargetTable,
   referencedColumns?: TargetColumns & BaseTable.NonEmptyColumnInput<TargetColumns> & BaseTable.MatchingColumnArityInput<LocalColumns, TargetColumns> & KnownTargetColumnsInput<NoInfer<TargetTable>, TargetColumns>
 ): BaseTable.TableOption<RichForeignKeyOptionSpec<LocalColumns, TargetTable, TargetColumns>> =>
   isObject(columnsOrSpec) && "columns" in columnsOrSpec && "target" in columnsOrSpec
     ? (() => {
-        const spec = columnsOrSpec as RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns>
+        const spec = columnsOrSpec as RichForeignKeyInput<LocalColumns, TargetTable, TargetColumns, Name>
         const targetTable = spec.target()
         const targetState = targetTable[BaseTable.TypeId]
         const knownColumns = Object.keys(targetState.fields).map((key) => key as ColumnNamesOfTable<TargetTable>)
@@ -511,17 +517,18 @@ export const foreignKey = <
       )
 
 export const check: {
-  <Name extends string>(name: Name, predicate: DdlExpressionLike): BaseTable.TableOption
-  <Name extends string, Table extends SchemaTable>(
-    name: Name,
+  <const Name extends string>(name: BaseTable.NonEmptyStringInput<Name>, predicate: DdlExpressionLike): BaseTable.TableOption
+  <const Name extends string, Table extends SchemaTable>(
+    name: BaseTable.NonEmptyStringInput<Name>,
     predicate: TableExpressionFactory<Table>
   ): TableScopedOptionBuilder<Table, {
     readonly kind: "check"
     readonly name: Name
     readonly predicate: DdlExpressionLike
   }>
-  <Name extends string, Table extends SchemaTable>(
+  <const Name extends string, Table extends SchemaTable>(
     spec: Omit<RichCheckInput<Name>, "predicate"> & {
+      readonly name: BaseTable.NonEmptyStringInput<Name>
       readonly predicate: TableExpressionFactory<Table>
     }
   ): TableScopedOptionBuilder<Table, {
@@ -530,7 +537,9 @@ export const check: {
     readonly predicate: DdlExpressionLike
     readonly noInherit?: boolean
   }>
-  <Name extends string>(spec: RichCheckInput<Name>): BaseTable.TableOption
+  <const Name extends string>(spec: RichCheckInput<Name> & {
+    readonly name: BaseTable.NonEmptyStringInput<Name>
+  }): BaseTable.TableOption
 } = ((nameOrSpec: string | RichCheckInput, predicate?: DdlExpressionLike) =>
   isObject(nameOrSpec)
     ? (() => {

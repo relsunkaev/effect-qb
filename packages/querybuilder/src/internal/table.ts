@@ -1040,8 +1040,8 @@ export const foreignKey = <
 })
 
 /** Declares a check constraint expression. */
-export const check = <Name extends string>(
-  name: Name,
+export const check = <const Name extends string>(
+  name: NonEmptyStringInput<Name>,
   predicate: DdlExpressionLike
 ): TableOption<{
   readonly kind: "check"
