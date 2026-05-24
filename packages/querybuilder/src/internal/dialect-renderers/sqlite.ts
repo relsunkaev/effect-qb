@@ -1986,6 +1986,13 @@ export const renderExpression = (
       if (ast.function === "over" && !isExpression(ast.value)) {
         throw new Error("window over(...) requires an aggregate expression")
       }
+      if (ast.orderBy.some((entry) =>
+        typeof entry !== "object" ||
+        entry === null ||
+        ((entry as { readonly direction?: unknown }).direction !== "asc" && (entry as { readonly direction?: unknown }).direction !== "desc")
+      )) {
+        throw new Error("window order direction must be asc or desc")
+      }
       const clauses: string[] = []
       if (ast.partitionBy.length > 0) {
         clauses.push(`partition by ${ast.partitionBy.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}`)
