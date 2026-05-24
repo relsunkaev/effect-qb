@@ -312,4 +312,14 @@ describe("casing rendering behavior", () => {
       'insert into "user_accounts" ("id", "created_at") values ($1, $2)'
     )
   })
+
+  test("casing pipes trust typed targets without invalid-target validation", () => {
+    try {
+      Casing.withCasing({ columns: "snake_case" })("not-a-casing-target" as any)
+    } catch (error) {
+      expect(String(error)).not.toContain(
+        "Casing.withCasing can only be applied to tables or schema factories"
+      )
+    }
+  })
 })

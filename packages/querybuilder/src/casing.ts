@@ -22,21 +22,12 @@ type CasingTarget =
 const isTable = (value: unknown): value is BaseTable.TableDefinition<any, any, any, any, any> =>
   typeof value === "object" && value !== null && BaseTable.TypeId in value
 
-const isCasingTarget = (value: unknown): value is Exclude<CasingTarget, BaseTable.TableDefinition<any, any, any, any, any>> =>
-  typeof value === "object" &&
-  value !== null &&
-  InternalCasing.TypeId in value &&
-  typeof (value as { readonly withCasing?: CasingTarget["withCasing"] }).withCasing === "function"
-
 export const withCasing = (options: Options) =>
   <Value extends CasingTarget>(value: Value): Value => {
     if (isTable(value)) {
       return BaseTable.withCasing(value, options) as Value
     }
-    if (isCasingTarget(value)) {
-      return value.withCasing(options) as Value
-    }
-    throw new Error("Casing.withCasing can only be applied to tables or schema factories")
+    return (value as Exclude<CasingTarget, BaseTable.TableDefinition<any, any, any, any, any>>).withCasing(options) as Value
   }
 
 export const casing = (options: Options): TableFactory => {

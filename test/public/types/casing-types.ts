@@ -37,6 +37,8 @@ Table.make("UserAccounts", {
 
 // @ts-expect-error casing pipes only apply to tables or schema factories
 snakePlan.pipe(Casing.withCasing({ columns: "snake_case" }))
+// @ts-expect-error casing helpers only apply to tables or schema factories
+Casing.withCasing({ columns: "snake_case" })("not-a-casing-target")
 
 // @ts-expect-error casing styles are a closed set unless a custom function is supplied
 Casing.casing({ columns: "snakeCase" })
