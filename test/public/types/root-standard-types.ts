@@ -1,15 +1,18 @@
+import { Column, Function, Query, Renderer, Table } from "effect-qb"
+
+// @ts-expect-error root exports portable modules directly, not the transitional Sql namespace
 import { Sql } from "effect-qb"
 
-const users = Sql.Table.make("users", {
-  id: Sql.Column.uuid().pipe(Sql.Column.primaryKey),
-  email: Sql.Column.text()
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
 })
 
-const rootPlan = Sql.Query.select({
+const rootPlan = Query.select({
   id: users.id,
-  email: Sql.Function.lower(users.email)
+  email: Function.lower(users.email)
 }).pipe(
-  Sql.Query.from(users)
+  Query.from(users)
 )
 
-Sql.Renderer.make().render(rootPlan)
+Renderer.make().render(rootPlan)

@@ -3,18 +3,18 @@
 // Code fences: 145-159
 
 // README.md:145-159
-import { Sql } from "effect-qb"
+import { Column, Function, Query, Table } from "effect-qb"
 
-const users = Sql.Table.make("users", {
-  id: Sql.Column.uuid().pipe(Sql.Column.primaryKey),
-  email: Sql.Column.text()
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
 })
 
-const userEmails = Sql.Query.select({
+const userEmails = Query.select({
   id: users.id,
-  email: Sql.Function.lower(users.email)
+  email: Function.lower(users.email)
 }).pipe(
-  Sql.Query.from(users)
+  Query.from(users)
 )
 
 export {};
