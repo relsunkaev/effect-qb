@@ -83,6 +83,17 @@ describe("postgres schema management", () => {
     )
   })
 
+  test("source table models reject malformed table options before mapping metadata", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [null]
+
+    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
+      "Table 'users' options require option metadata objects"
+    )
+  })
+
   test("classifies safe and destructive schema changes", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid(),

@@ -4,7 +4,7 @@ import type { RenderState } from "../../internal/dialect.js"
 import * as Casing from "../../internal/casing.js"
 import * as SchemaExpression from "../../internal/schema-expression.js"
 import { normalizeDdlExpressionSql } from "./schema-ddl.js"
-import type { ColumnList, DdlExpressionLike, IndexKeySpec, TableOptionSpec } from "../../internal/table-options.js"
+import { validateOptions, type ColumnList, type DdlExpressionLike, type IndexKeySpec, type TableOptionSpec } from "../../internal/table-options.js"
 import type { EnumDefinition } from "../schema-management.js"
 import { EnumTypeId } from "../schema-management.js"
 
@@ -169,6 +169,8 @@ export const toTableModel = (table: Table.AnyTable): TableModel => {
     ? undefined
     : applyCasing(casing, "schemas", state.schemaName)
   const fields = state.fields as Record<string, AnyColumnDefinition>
+  const options = table[Table.OptionsSymbol]
+  validateOptions(state.name, fields, options)
   const columnNames = new Map(
     Object.keys(fields).map((name) => [name, applyCasing(casing, "columns", name)] as const)
   )
@@ -201,7 +203,7 @@ export const toTableModel = (table: Table.AnyTable): TableModel => {
     schemaName,
     name: tableName,
     columns,
-    options: table[Table.OptionsSymbol].map((option) => mapOption(option, casing, expressionState)),
+    options: options.map((option) => mapOption(option, casing, expressionState)),
     table
   }
 }
