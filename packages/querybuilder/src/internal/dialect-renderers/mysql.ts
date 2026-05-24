@@ -1037,8 +1037,9 @@ const renderJoinPredicatesForMutation = (
 
 const renderDeleteTargets = (
   targets: readonly QueryAst.FromClause[],
+  state: RenderState,
   dialect: SqlDialect
-): string => targets.map((target) => dialect.quoteIdentifier(target.tableName)).join(", ")
+): string => targets.map((target) => dialect.quoteIdentifier(casedTableReferenceName(target.tableName, state))).join(", ")
 
 const renderMysqlMutationLock = (
   lock: QueryAst.LockClause | undefined,
@@ -1480,7 +1481,7 @@ export const renderQueryAst = (
       if (dialect.name === "mysql") {
         const modifiers = renderMysqlMutationLock(deleteAst.lock, "delete")
         const hasJoinedSources = deleteAst.joins.length > 0 || targets.length > 1
-        const targetList = renderDeleteTargets(targets, dialect)
+        const targetList = renderDeleteTargets(targets, state, dialect)
         const fromSources = targets.map((entry) =>
           renderSourceReference(entry.source, entry.tableName, entry.baseTableName, state, dialect)
         ).join(", ")

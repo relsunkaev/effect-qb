@@ -116,6 +116,35 @@ describe("casing rendering behavior", () => {
     )
   })
 
+  test("mysql delete target casing maps joined delete identifiers", () => {
+    const users = StdRoot.Table.make("UserAccounts", {
+      id: Column.uuid().pipe(Column.primaryKey),
+      emailAddress: Column.text()
+    }).pipe(
+      Casing.withCasing({
+        tables: "snake_case",
+        columns: "snake_case"
+      })
+    )
+    const posts = StdRoot.Table.make("PostEntries", {
+      id: Column.uuid().pipe(Column.primaryKey),
+      userId: Column.uuid()
+    }).pipe(
+      Casing.withCasing({
+        tables: "snake_case",
+        columns: "snake_case"
+      })
+    )
+
+    const plan = Mysql.Query.innerJoin(posts, Mysql.Query.eq(posts.userId, users.id))(
+      Mysql.Query.delete(users)
+    )
+
+    expect(Mysql.Renderer.make().render(plan).sql).toBe(
+      "delete `user_accounts` from `user_accounts` inner join `post_entries` on (`post_entries`.`user_id` = `user_accounts`.`id`)"
+    )
+  })
+
   test("table casing overrides renderer casing", () => {
     const users = StdRoot.Table.make("UserAccounts", {
       id: Column.uuid().pipe(Column.primaryKey),
