@@ -139,32 +139,38 @@ describe("postgres schema management", () => {
     })
   })
 
-  test("source table models reject malformed table option flags before mapping metadata", () => {
+  test("source table models preserve table option flags without runtime validation", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{ kind: "unique", columns: ["id"], deferrable: "yes" }]
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [
+      { kind: "unique", columns: ["id"], deferrable: "yes" },
+      { kind: "index", columns: ["id"], unique: "yes" },
+      {
+        kind: "check",
+        name: "users_id_check",
+        predicate: users.id,
+        noInherit: "yes"
+      }
+    ]
 
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Option 'unique' on table 'users' requires boolean flag 'deferrable'"
-    )
+    const model = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+    const unique = model.options.find((option) => option.kind === "unique")
+    const index = model.options.find((option) => option.kind === "index")
+    const check = model.options.find((option) => option.kind === "check")
 
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{ kind: "index", columns: ["id"], unique: "yes" }]
-
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Option 'index' on table 'users' requires boolean flag 'unique'"
-    )
-
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
+    expect(unique).toMatchObject({
+      kind: "unique",
+      deferrable: "yes"
+    })
+    expect(index).toMatchObject({
+      kind: "index",
+      unique: "yes"
+    })
+    expect(check).toMatchObject({
       kind: "check",
-      name: "users_id_check",
-      predicate: users.id,
       noInherit: "yes"
-    }]
-
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Option 'check' on table 'users' requires boolean flag 'noInherit'"
-    )
+    })
   })
 
   test("source table models reject malformed index key metadata before mapping metadata", () => {
