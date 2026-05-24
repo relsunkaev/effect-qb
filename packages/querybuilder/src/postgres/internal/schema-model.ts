@@ -207,7 +207,9 @@ const mapOption = (
       return {
         ...option,
         name: mapOptionName(option.name, casing, "constraints"),
-        predicate: mapDdlExpression(option.predicate, expressionState)
+        predicate: isDdlExpressionLike(option.predicate)
+          ? mapDdlExpression(option.predicate, expressionState)
+          : option.predicate
       }
   }
 }

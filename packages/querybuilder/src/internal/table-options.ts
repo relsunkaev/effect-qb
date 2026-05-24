@@ -463,12 +463,6 @@ export const validateOptions = <Fields extends TableFieldMap>(
         break
       }
       case "check": {
-        if (typeof option.name !== "string" || option.name.length === 0) {
-          throw new Error(`Check constraint on table '${tableName}' requires a constraint name`)
-        }
-        if (!isDdlExpressionLike(option.predicate)) {
-          throw new Error(`Check constraint on table '${tableName}' requires a predicate expression`)
-        }
         break
       }
       default:

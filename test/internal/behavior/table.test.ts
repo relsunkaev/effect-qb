@@ -433,6 +433,28 @@ describe("table definitions", () => {
     )
   })
 
+  test("table definitions trust malformed check option metadata without runtime validation", () => {
+    const users = StdRoot.Table.make("malformed_check_option_users", {
+      id: StdRoot.Column.uuid()
+    }).pipe(
+      StdRoot.Table.option(unsafeAny({
+        kind: "check",
+        name: {},
+        predicate: "id is not null"
+      }))
+    )
+
+    expect(users[StdRoot.Table.OptionsSymbol]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "check",
+          name: {},
+          predicate: "id is not null"
+        })
+      ])
+    )
+  })
+
   test("operator expressions feed query selection and source tracking", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),

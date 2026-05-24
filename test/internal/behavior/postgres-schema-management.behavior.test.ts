@@ -178,6 +178,29 @@ describe("postgres schema management", () => {
     })
   })
 
+  test("source table models preserve malformed check metadata without runtime validation", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    }).pipe(
+      Casing.withCasing({
+        constraints: "snake_case"
+      })
+    )
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
+      kind: "check",
+      name: {},
+      predicate: "id is not null"
+    }]
+
+    const model = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+    const check = model.options.find((option) => option.kind === "check")
+    expect(check).toMatchObject({
+      kind: "check",
+      name: {},
+      predicate: "id is not null"
+    })
+  })
+
   test("source table models preserve empty option column arrays with casing", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
