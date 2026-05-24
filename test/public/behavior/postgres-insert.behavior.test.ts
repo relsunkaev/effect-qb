@@ -185,6 +185,44 @@ describe("postgres insert behavior", () => {
     expect(() => render(plan)).toThrow("insert sources require a column array")
   })
 
+  test("rejects unnest insert metadata without value arrays before rendering SQL", () => {
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+    const makePlan = () => Postgres.Query.insert(users).pipe(
+      Postgres.Query.from(Postgres.Query.unnest({
+        id: [userId],
+        email: ["alice@example.com"]
+      }, "seed"))
+    )
+    const invalidValues = makePlan()
+    ;(invalidValues as any)[queryAst].insertSource.values = {}
+    const invalidEntryValues = makePlan()
+    ;(invalidEntryValues as any)[queryAst].insertSource.values[0].values = {}
+
+    expect(() => render(invalidValues)).toThrow("unnest insert sources require a value array")
+    expect(() => render(invalidEntryValues)).toThrow("unnest insert source entries require value arrays")
+  })
+
+  test("rejects unnest insert metadata with unknown target columns before rendering SQL", () => {
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+    const plan = Postgres.Query.insert(users).pipe(
+      Postgres.Query.from(Postgres.Query.unnest({
+        id: [userId],
+        email: ["alice@example.com"]
+      }, "seed"))
+    )
+    ;(plan as any)[queryAst].insertSource.values[0].columnName = "missing"
+
+    expect(() => render(plan)).toThrow("unnest insert sources require known target columns")
+  })
+
   test("renders postgres default-only inserts and rich conflict clauses", () => {
     const auditLogs = StdRoot.Table.make("audit_logs", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.default(Postgres.Query.literal("audit-log-id"))),

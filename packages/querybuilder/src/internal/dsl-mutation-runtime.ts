@@ -26,7 +26,8 @@ type DslMutationRuntimeContext = {
 export const expectInsertSourceKind = <
   Source extends { readonly kind: string } | undefined
 >(
-  source: Source
+  source: Source,
+  fields?: Record<string, unknown>
 ): Source => {
   if (source === undefined) {
     return source
@@ -40,6 +41,23 @@ export const expectInsertSourceKind = <
   }
   if (!Array.isArray((source as { readonly columns?: unknown }).columns)) {
     throw new Error("insert sources require a column array")
+  }
+  if (source.kind === "unnest") {
+    const values = (source as { readonly values?: unknown }).values
+    if (!Array.isArray(values)) {
+      throw new Error("unnest insert sources require a value array")
+    }
+    for (const entry of values) {
+      if (typeof entry !== "object" || entry === null || typeof (entry as { readonly columnName?: unknown }).columnName !== "string") {
+        throw new Error("unnest insert sources require known target columns")
+      }
+      if (fields !== undefined && !((entry as { readonly columnName: string }).columnName in fields)) {
+        throw new Error("unnest insert sources require known target columns")
+      }
+      if (!Array.isArray((entry as { readonly values?: unknown }).values)) {
+        throw new Error("unnest insert source entries require value arrays")
+      }
+    }
   }
   return source
 }

@@ -1438,7 +1438,7 @@ export const renderQueryAst = (
       const targetSource = insertAst.into!
       const target = renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)
       const targetCasingState = stateWithTableCasing(state, targetSource.source)
-      const insertSource = expectInsertSourceKind(insertAst.insertSource)
+      const insertSource = expectInsertSourceKind(insertAst.insertSource, (targetSource.source as Table.AnyTable)[Table.TypeId].fields)
       const conflict = expectConflictClause(insertAst.conflict)
       sql = `insert into ${target}`
       if (insertSource?.kind === "values") {
