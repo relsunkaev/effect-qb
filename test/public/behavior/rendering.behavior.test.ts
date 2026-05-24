@@ -529,6 +529,28 @@ describe("rendering behavior", () => {
     expect((plan as any)[queryAst].groupBy[0]).toBe(value)
   })
 
+  test("groupBy builders trust typed collations without grouping-key runtime validation", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+    const users = Table.make("users", {
+      id: C.uuid().pipe(C.primaryKey),
+      email: C.text()
+    })
+    const value = Q.collate(users.email, "C")
+    ;(value as any)[expressionAst].collation = "C"
+
+    const plan = Q.select({
+      value,
+      rowCount: F.count(Q.literal(1))
+    }).pipe(
+      Q.from(users),
+      Q.groupBy(value)
+    )
+
+    expect((plan as any)[queryAst].groupBy).toHaveLength(1)
+    expect((plan as any)[queryAst].groupBy[0]).toBe(value)
+  })
+
   test("renders safe extract fields as SQL field syntax", () => {
     const timestamp = new Date("2024-01-02T03:04:05.000Z")
     const extracted = Standard.Function.call(

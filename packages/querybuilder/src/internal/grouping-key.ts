@@ -96,7 +96,10 @@ const caseGroupingKey = (
 }
 
 const collationGroupingKey = (collation: unknown): string => {
-  return (collation as readonly string[]).map(escapeGroupingText).join(",")
+  if (Array.isArray(collation)) {
+    return collation.map((part) => escapeGroupingText(String(part))).join(",")
+  }
+  return escapeGroupingText(String(collation))
 }
 
 const jsonSegmentGroupingKey = (segment: unknown): string => {
