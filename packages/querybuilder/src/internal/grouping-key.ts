@@ -229,9 +229,41 @@ const jsonOpaquePathGroupingKey = (value: unknown): string => {
   return "jsonpath:unknown"
 }
 
-const jsonEntryGroupingKey = (
-  entry: { readonly key: string; readonly value: Expression.Any }
-): string => `${escapeGroupingText(entry.key)}=>${groupingKeyOfExpression(entry.value)}`
+const jsonKeysGroupingKey = (keys: unknown): string => {
+  if (!Array.isArray(keys) || keys.length === 0) {
+    return ""
+  }
+  if (keys.some((key) => typeof key !== "string" || key.length === 0)) {
+    throw new Error("json key predicates require string keys")
+  }
+  return keys.map(escapeGroupingText).join(",")
+}
+
+const jsonBuildObjectGroupingKey = (entries: unknown): string => {
+  if (!Array.isArray(entries)) {
+    throw new Error("json build object expressions require an entries array")
+  }
+  if (entries.some((entry) =>
+    typeof entry !== "object" ||
+    entry === null ||
+    typeof (entry as { readonly key?: unknown }).key !== "string" ||
+    !isExpression((entry as { readonly value?: unknown }).value)
+  )) {
+    throw new Error("json build object entries require string keys and value expressions")
+  }
+  return entries.map((entry: { readonly key: string; readonly value: Expression.Any }) =>
+    `${escapeGroupingText(entry.key)}=>${groupingKeyOfExpression(entry.value)}`).join("|")
+}
+
+const jsonBuildArrayGroupingKey = (values: unknown): string => {
+  if (!Array.isArray(values)) {
+    throw new Error("json build array expressions require a value array")
+  }
+  if (values.some((value) => !isExpression(value))) {
+    throw new Error("json build array entries require value expressions")
+  }
+  return values.map(groupingKeyOfExpression).join(",")
+}
 
 export const groupingKeyOfExpression = (expression: Expression.Any): string => {
   const ast = (expression as Expression.Any & {
@@ -307,7 +339,7 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
     case "jsonKeyExists":
     case "jsonHasAnyKeys":
     case "jsonHasAllKeys":
-      return `json(${ast.kind},${expressionGroupingKey(ast.base)},${(ast.keys ?? []).map(escapeGroupingText).join(",")})`
+      return `json(${ast.kind},${expressionGroupingKey(ast.base)},${jsonKeysGroupingKey(ast.keys)})`
     case "jsonConcat":
     case "jsonMerge":
       return `json(${ast.kind},${expressionGroupingKey(ast.left)},${expressionGroupingKey(ast.right)},)`
@@ -323,9 +355,9 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
     case "jsonPathMatch":
       return `json(${ast.kind},${expressionGroupingKey(ast.base)},${jsonOpaquePathGroupingKey(ast.query)})`
     case "jsonBuildObject":
-      return `json(${ast.kind},${(ast.entries ?? []).map(jsonEntryGroupingKey).join("|")})`
+      return `json(${ast.kind},${jsonBuildObjectGroupingKey(ast.entries)})`
     case "jsonBuildArray":
-      return `json(${ast.kind},${(ast.values ?? []).map(groupingKeyOfExpression).join(",")})`
+      return `json(${ast.kind},${jsonBuildArrayGroupingKey(ast.values)})`
     case "jsonToJson":
     case "jsonToJsonb":
     case "jsonTypeOf":

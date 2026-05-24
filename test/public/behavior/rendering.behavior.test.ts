@@ -1132,6 +1132,44 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects grouped json build object expressions without an entries array before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const pgBuiltObject = PgJson.json.buildObject({
+      email: "alice@example.com"
+    })
+    const mysqlBuiltObject = Mysql.Json.json.buildObject({
+      email: "alice@example.com"
+    })
+    const sqliteBuiltObject = Sqlite.Json.json.buildObject({
+      email: "alice@example.com"
+    })
+    const pgPlan = Q.select({
+      builtObject: pgBuiltObject,
+      rowCount: F.count(Q.literal(1))
+    }).pipe(Q.groupBy(pgBuiltObject))
+    const mysqlPlan = Mysql.Query.select({
+      builtObject: mysqlBuiltObject,
+      rowCount: Mysql.Function.count(Mysql.Query.literal(1))
+    }).pipe(Mysql.Query.groupBy(mysqlBuiltObject))
+    const sqlitePlan = Sqlite.Query.select({
+      builtObject: sqliteBuiltObject,
+      rowCount: Sqlite.Function.count(Sqlite.Query.literal(1))
+    }).pipe(Sqlite.Query.groupBy(sqliteBuiltObject))
+    ;(pgBuiltObject as any)[expressionAst].entries = {}
+    ;(mysqlBuiltObject as any)[expressionAst].entries = {}
+    ;(sqliteBuiltObject as any)[expressionAst].entries = {}
+
+    expect(() => Renderer.make().render(pgPlan)).toThrow(
+      "json build object expressions require an entries array"
+    )
+    expect(() => Mysql.Renderer.make().render(mysqlPlan)).toThrow(
+      "json build object expressions require an entries array"
+    )
+    expect(() => Sqlite.Renderer.make().render(sqlitePlan)).toThrow(
+      "json build object expressions require an entries array"
+    )
+  })
+
   test("rejects json build array expressions without a value array before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const pgBuiltArray = PgJson.json.buildArray("alice@example.com")
@@ -1148,6 +1186,38 @@ describe("rendering behavior", () => {
       "json build array expressions require a value array"
     )
     expect(() => Sqlite.Renderer.make().render(Sqlite.Query.select({ builtArray: sqliteBuiltArray }))).toThrow(
+      "json build array expressions require a value array"
+    )
+  })
+
+  test("rejects grouped json build array expressions without a value array before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const pgBuiltArray = PgJson.json.buildArray("alice@example.com")
+    const mysqlBuiltArray = Mysql.Json.json.buildArray("alice@example.com")
+    const sqliteBuiltArray = Sqlite.Json.json.buildArray("alice@example.com")
+    const pgPlan = Q.select({
+      builtArray: pgBuiltArray,
+      rowCount: F.count(Q.literal(1))
+    }).pipe(Q.groupBy(pgBuiltArray))
+    const mysqlPlan = Mysql.Query.select({
+      builtArray: mysqlBuiltArray,
+      rowCount: Mysql.Function.count(Mysql.Query.literal(1))
+    }).pipe(Mysql.Query.groupBy(mysqlBuiltArray))
+    const sqlitePlan = Sqlite.Query.select({
+      builtArray: sqliteBuiltArray,
+      rowCount: Sqlite.Function.count(Sqlite.Query.literal(1))
+    }).pipe(Sqlite.Query.groupBy(sqliteBuiltArray))
+    ;(pgBuiltArray as any)[expressionAst].values = {}
+    ;(mysqlBuiltArray as any)[expressionAst].values = {}
+    ;(sqliteBuiltArray as any)[expressionAst].values = {}
+
+    expect(() => Renderer.make().render(pgPlan)).toThrow(
+      "json build array expressions require a value array"
+    )
+    expect(() => Mysql.Renderer.make().render(mysqlPlan)).toThrow(
+      "json build array expressions require a value array"
+    )
+    expect(() => Sqlite.Renderer.make().render(sqlitePlan)).toThrow(
       "json build array expressions require a value array"
     )
   })
@@ -1178,6 +1248,44 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects grouped json build object entries without value expressions before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const pgBuiltObject = PgJson.json.buildObject({
+      email: "alice@example.com"
+    })
+    const mysqlBuiltObject = Mysql.Json.json.buildObject({
+      email: "alice@example.com"
+    })
+    const sqliteBuiltObject = Sqlite.Json.json.buildObject({
+      email: "alice@example.com"
+    })
+    const pgPlan = Q.select({
+      builtObject: pgBuiltObject,
+      rowCount: F.count(Q.literal(1))
+    }).pipe(Q.groupBy(pgBuiltObject))
+    const mysqlPlan = Mysql.Query.select({
+      builtObject: mysqlBuiltObject,
+      rowCount: Mysql.Function.count(Mysql.Query.literal(1))
+    }).pipe(Mysql.Query.groupBy(mysqlBuiltObject))
+    const sqlitePlan = Sqlite.Query.select({
+      builtObject: sqliteBuiltObject,
+      rowCount: Sqlite.Function.count(Sqlite.Query.literal(1))
+    }).pipe(Sqlite.Query.groupBy(sqliteBuiltObject))
+    ;(pgBuiltObject as any)[expressionAst].entries[0] = null
+    ;(mysqlBuiltObject as any)[expressionAst].entries[0] = null
+    ;(sqliteBuiltObject as any)[expressionAst].entries[0] = null
+
+    expect(() => Renderer.make().render(pgPlan)).toThrow(
+      "json build object entries require string keys and value expressions"
+    )
+    expect(() => Mysql.Renderer.make().render(mysqlPlan)).toThrow(
+      "json build object entries require string keys and value expressions"
+    )
+    expect(() => Sqlite.Renderer.make().render(sqlitePlan)).toThrow(
+      "json build object entries require string keys and value expressions"
+    )
+  })
+
   test("rejects json build array entries without value expressions before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const pgBuiltArray = PgJson.json.buildArray("alice@example.com")
@@ -1194,6 +1302,38 @@ describe("rendering behavior", () => {
       "json build array entries require value expressions"
     )
     expect(() => Sqlite.Renderer.make().render(Sqlite.Query.select({ builtArray: sqliteBuiltArray }))).toThrow(
+      "json build array entries require value expressions"
+    )
+  })
+
+  test("rejects grouped json build array entries without value expressions before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const pgBuiltArray = PgJson.json.buildArray("alice@example.com")
+    const mysqlBuiltArray = Mysql.Json.json.buildArray("alice@example.com")
+    const sqliteBuiltArray = Sqlite.Json.json.buildArray("alice@example.com")
+    const pgPlan = Q.select({
+      builtArray: pgBuiltArray,
+      rowCount: F.count(Q.literal(1))
+    }).pipe(Q.groupBy(pgBuiltArray))
+    const mysqlPlan = Mysql.Query.select({
+      builtArray: mysqlBuiltArray,
+      rowCount: Mysql.Function.count(Mysql.Query.literal(1))
+    }).pipe(Mysql.Query.groupBy(mysqlBuiltArray))
+    const sqlitePlan = Sqlite.Query.select({
+      builtArray: sqliteBuiltArray,
+      rowCount: Sqlite.Function.count(Sqlite.Query.literal(1))
+    }).pipe(Sqlite.Query.groupBy(sqliteBuiltArray))
+    ;(pgBuiltArray as any)[expressionAst].values[0] = undefined
+    ;(mysqlBuiltArray as any)[expressionAst].values[0] = undefined
+    ;(sqliteBuiltArray as any)[expressionAst].values[0] = undefined
+
+    expect(() => Renderer.make().render(pgPlan)).toThrow(
+      "json build array entries require value expressions"
+    )
+    expect(() => Mysql.Renderer.make().render(mysqlPlan)).toThrow(
+      "json build array entries require value expressions"
+    )
+    expect(() => Sqlite.Renderer.make().render(sqlitePlan)).toThrow(
       "json build array entries require value expressions"
     )
   })
@@ -1223,6 +1363,47 @@ describe("rendering behavior", () => {
       "json key predicates require string keys"
     )
     expect(() => Sqlite.Renderer.make().render(Sqlite.Query.select({ hasKey: sqliteHasKey }))).toThrow(
+      "json key predicates require string keys"
+    )
+  })
+
+  test("rejects grouped json key predicates without string keys before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const pgHasKey = PgJson.jsonb.hasKey(
+      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+      "email"
+    )
+    const mysqlHasKey = Mysql.Json.json.hasKey(
+      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
+      "email"
+    )
+    const sqliteHasKey = Sqlite.Json.json.hasKey(
+      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
+      "email"
+    )
+    const pgPlan = Q.select({
+      hasKey: pgHasKey,
+      rowCount: F.count(Q.literal(1))
+    }).pipe(Q.groupBy(pgHasKey))
+    const mysqlPlan = Mysql.Query.select({
+      hasKey: mysqlHasKey,
+      rowCount: Mysql.Function.count(Mysql.Query.literal(1))
+    }).pipe(Mysql.Query.groupBy(mysqlHasKey))
+    const sqlitePlan = Sqlite.Query.select({
+      hasKey: sqliteHasKey,
+      rowCount: Sqlite.Function.count(Sqlite.Query.literal(1))
+    }).pipe(Sqlite.Query.groupBy(sqliteHasKey))
+    ;(pgHasKey as any)[expressionAst].keys = [0]
+    ;(mysqlHasKey as any)[expressionAst].keys = [0]
+    ;(sqliteHasKey as any)[expressionAst].keys = [0]
+
+    expect(() => Renderer.make().render(pgPlan)).toThrow(
+      "json key predicates require string keys"
+    )
+    expect(() => Mysql.Renderer.make().render(mysqlPlan)).toThrow(
+      "json key predicates require string keys"
+    )
+    expect(() => Sqlite.Renderer.make().render(sqlitePlan)).toThrow(
       "json key predicates require string keys"
     )
   })
