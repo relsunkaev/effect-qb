@@ -20,8 +20,13 @@ events.pipe(
   })
 )
 
+Pg.Schema.make("analytics").table("events", { id: Column.uuid() })
+
 // @ts-expect-error portable tables are created from effect-qb/Table, not effect-qb/postgres
 Pg.Table.make("events", { id: Column.uuid() })
+
+// @ts-expect-error postgres schemas are created from effect-qb/postgres Schema.make
+Pg.schema("analytics")
 
 // @ts-expect-error portable table APIs are not exported from effect-qb/mysql
 My.Table.make("events", { id: Column.uuid() })
