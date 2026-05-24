@@ -199,6 +199,50 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects malformed membership predicates before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+    const includesEmail = Standard.Query.in(users.email, "alice@example.com")
+    const excludesEmail = Standard.Query.notIn(users.email, "alice@example.com")
+    ;(includesEmail as any)[expressionAst].values = undefined
+    ;(excludesEmail as any)[expressionAst].values = undefined
+
+    const inPlan = Standard.Query.select({
+      ok: includesEmail
+    }).pipe(Standard.Query.from(users))
+    const notInPlan = Standard.Query.select({
+      ok: excludesEmail
+    }).pipe(Standard.Query.from(users))
+
+    expect(() => Standard.Renderer.make().render(inPlan)).toThrow(
+      "in(...) requires at least one candidate value"
+    )
+    expect(() => Renderer.make().render(inPlan)).toThrow(
+      "in(...) requires at least one candidate value"
+    )
+    expect(() => Mysql.Renderer.make().render(inPlan)).toThrow(
+      "in(...) requires at least one candidate value"
+    )
+    expect(() => Sqlite.Renderer.make().render(inPlan)).toThrow(
+      "in(...) requires at least one candidate value"
+    )
+
+    expect(() => Standard.Renderer.make().render(notInPlan)).toThrow(
+      "notIn(...) requires at least one candidate value"
+    )
+    expect(() => Renderer.make().render(notInPlan)).toThrow(
+      "notIn(...) requires at least one candidate value"
+    )
+    expect(() => Mysql.Renderer.make().render(notInPlan)).toThrow(
+      "notIn(...) requires at least one candidate value"
+    )
+    expect(() => Sqlite.Renderer.make().render(notInPlan)).toThrow(
+      "notIn(...) requires at least one candidate value"
+    )
+  })
+
   test("rejects malformed coalesce expressions before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {

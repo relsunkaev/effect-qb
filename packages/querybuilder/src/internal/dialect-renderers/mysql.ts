@@ -1968,12 +1968,12 @@ export const renderExpression = (
       }
       return `coalesce(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")})`
     case "in":
-      if (ast.values.length < 2) {
+      if (!Array.isArray(ast.values) || ast.values.length < 2) {
         throw new Error("in(...) requires at least one candidate value")
       }
       return `(${renderExpression(ast.values[0]!, state, dialect)} in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
     case "notIn":
-      if (ast.values.length < 2) {
+      if (!Array.isArray(ast.values) || ast.values.length < 2) {
         throw new Error("notIn(...) requires at least one candidate value")
       }
       return `(${renderExpression(ast.values[0]!, state, dialect)} not in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
