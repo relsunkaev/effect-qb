@@ -5170,9 +5170,11 @@ type SourceDialectConstraint<
   Dialect extends string
 > = [SourceDialectOf<CurrentSource>] extends [never]
   ? unknown
-  : Extract<SourceDialectOf<CurrentSource>, Dialect> extends never
-    ? never
-    : unknown
+  : Exclude<SourceDialectOf<CurrentSource>, Dialect | "standard"> extends never
+    ? unknown
+    : Dialect extends "standard"
+      ? unknown
+      : never
 
 type SourceRequirementConstraint<
   PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,

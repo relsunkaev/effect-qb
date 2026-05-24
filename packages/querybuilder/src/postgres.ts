@@ -25,6 +25,7 @@ export * as Metadata from "./postgres/metadata.js"
 /** Postgres schema-expression helpers for DDL-only metadata. */
 export * as SchemaExpression from "./postgres/schema-expression.js"
 /** Postgres schema-scoped table and enum builder helpers. */
+export * as Schema from "./postgres/schema.js"
 export { schema } from "./postgres/schema.js"
 export type { SchemaNamespace } from "./postgres/schema.js"
 /** Postgres enum and sequence definition helpers. */

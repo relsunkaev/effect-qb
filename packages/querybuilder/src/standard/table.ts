@@ -1,14 +1,9 @@
-import type * as Expression from "../internal/scalar.js"
-import { ColumnTypeId, type AnyColumnDefinition } from "../internal/column-state.js"
+import type { AnyColumnDefinition } from "../internal/column-state.js"
 import * as BaseTable from "../internal/table.js"
 
-type Dialect = "standard"
+type Dialect = string
 
-type DialectColumn = AnyColumnDefinition & {
-  readonly [ColumnTypeId]: {
-    readonly dbType: Expression.DbType.Any & { readonly dialect: Dialect }
-  }
-}
+type DialectColumn = AnyColumnDefinition
 
 type DialectFieldMap = Record<string, DialectColumn>
 

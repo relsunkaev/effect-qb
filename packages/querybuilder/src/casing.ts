@@ -8,15 +8,29 @@ export type Options = InternalCasing.Options
 export interface TableFactory {
   readonly table: typeof Table.make
   readonly schema: typeof Table.schema
+  readonly [InternalCasing.TypeId]: InternalCasing.State
+  readonly withCasing: (options: Options) => TableFactory
 }
 
 const isTable = (value: unknown): value is BaseTable.TableDefinition<any, any, any, any, any> =>
   typeof value === "object" && value !== null && BaseTable.TypeId in value
 
+const isCasingTarget = (value: unknown): value is {
+  readonly [InternalCasing.TypeId]: InternalCasing.State
+  readonly withCasing: (options: Options) => unknown
+} =>
+  typeof value === "object" &&
+  value !== null &&
+  InternalCasing.TypeId in value &&
+  typeof (value as { readonly withCasing?: unknown }).withCasing === "function"
+
 export const withCasing = (options: Options) =>
   <Value>(value: Value): Value => {
     if (isTable(value)) {
       return BaseTable.withCasing(value, options) as Value
+    }
+    if (isCasingTarget(value)) {
+      return value.withCasing(options) as Value
     }
     throw new Error("Casing.withCasing can only be applied to tables or schema factories")
   }
@@ -36,13 +50,17 @@ export const casing = (options: Options): TableFactory => {
       table: schemaTable
     }
   }) as typeof Table.schema
-  return {
+  const factory = {
     table,
-    schema
+    schema,
+    [InternalCasing.TypeId]: {
+      casing: options
+    },
+    withCasing: (override: Options) => casing(InternalCasing.merge(options, override) ?? {})
   }
+  return factory
 }
 
 export const apply = InternalCasing.apply
 export const applyCategory = InternalCasing.applyCategory
 export const merge = InternalCasing.merge
-

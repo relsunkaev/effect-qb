@@ -50,7 +50,11 @@ type InlinePrimaryKeyKeys<Fields extends TableFieldMap> = Extract<{
   [K in keyof Fields]: Fields[K]["metadata"]["primaryKey"] extends true ? K : never
 }[keyof Fields], string>
 
-type TableDialect<Fields extends TableFieldMap> = Fields[keyof Fields][typeof import("./column-state.js").ColumnTypeId]["dbType"]["dialect"]
+type FieldDialects<Fields extends TableFieldMap> = Fields[keyof Fields][typeof import("./column-state.js").ColumnTypeId]["dbType"]["dialect"]
+type ConcreteFieldDialects<Fields extends TableFieldMap> = Exclude<FieldDialects<Fields>, "standard">
+type TableDialect<Fields extends TableFieldMap> = [ConcreteFieldDialects<Fields>] extends [never]
+  ? "standard"
+  : ConcreteFieldDialects<Fields>
 type TableKind = "schema" | "alias"
 type DefaultSchemaName = "public"
 type FieldColumnName<Fields extends TableFieldMap> = Extract<keyof Fields, string>
@@ -561,10 +565,12 @@ const resolveFieldDialect = (fields: TableFieldMap): string => {
   if (dialects.length === 0) {
     throw new Error("Cannot infer table dialect from an empty field set")
   }
-  if (dialects.length > 1) {
+  const concreteDialects = dialects.filter((dialect) => dialect !== "standard")
+  const uniqueConcreteDialects = [...new Set(concreteDialects)]
+  if (uniqueConcreteDialects.length > 1) {
     throw new Error(`Mixed table dialects are not supported: ${dialects.join(", ")}`)
   }
-  return dialects[0]!
+  return uniqueConcreteDialects[0] ?? "standard"
 }
 
 const validateFieldDialects = (tableName: string, fields: TableFieldMap): void => {
@@ -706,6 +712,39 @@ export const withCasing = <
     "explicit",
     Casing.merge(state.casing, casing)
   ) as Table
+}
+
+export const withSchema = <
+  Table extends TableDefinition<any, any, any, any, any>,
+  SchemaName extends string
+>(
+  table: Table,
+  schemaName: SchemaName,
+  schemaCasing?: Casing.Options
+): TableDefinition<
+  Table[typeof TypeId]["name"],
+  Table[typeof TypeId]["fields"],
+  Table[typeof TypeId]["primaryKey"][number],
+  Table[typeof TypeId]["kind"],
+  SchemaName
+> => {
+  const state = table[TypeId]
+  return makeTable(
+    state.name,
+    state.fields,
+    table[DeclaredOptionsSymbol],
+    state.baseName,
+    state.kind,
+    schemaName,
+    "explicit",
+    Casing.merge(schemaCasing, state.casing)
+  ) as TableDefinition<
+    Table[typeof TypeId]["name"],
+    Table[typeof TypeId]["fields"],
+    Table[typeof TypeId]["primaryKey"][number],
+    Table[typeof TypeId]["kind"],
+    SchemaName
+  >
 }
 
 /**
