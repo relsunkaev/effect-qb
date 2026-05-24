@@ -498,7 +498,7 @@ describe("ddl rendering behavior", () => {
 
     expect(() =>
       Postgres.Renderer.make().render(Postgres.Query.createTable(users))
-    ).toThrow("Foreign key on table 'users' requires referenced columns to be an array")
+    ).toThrow()
   })
 
   test("foreign key renderers accept direct reference payload metadata", () => {

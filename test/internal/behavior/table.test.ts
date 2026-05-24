@@ -245,6 +245,27 @@ describe("table definitions", () => {
     }
     expect(brokenReferenceTargetForeignKey.references).toBe(0)
 
+    const brokenReferenceColumnsMemberships = StdRoot.Table.make("broken_reference_columns_memberships", {
+      orgId: StdRoot.Column.uuid()
+    }).pipe(
+      StdRoot.Table.option(unsafeAny({
+        kind: "foreignKey",
+        columns: ["orgId"],
+        references: {
+          tableName: "orgs",
+          columns: "id"
+        }
+      }))
+    )
+    const brokenReferenceColumnsForeignKey = brokenReferenceColumnsMemberships[StdRoot.Table.OptionsSymbol].find((option: { kind: string }) => option.kind === "foreignKey")
+    if (!brokenReferenceColumnsForeignKey || brokenReferenceColumnsForeignKey.kind !== "foreignKey") {
+      throw new Error("expected a foreign key option")
+    }
+    expect(brokenReferenceColumnsForeignKey.references).toMatchObject({
+      tableName: "orgs",
+      columns: "id"
+    })
+
     const brokenMembershipsArity = StdRoot.Table.make("broken_memberships_arity", {
       orgId: StdRoot.Column.uuid(),
       slug: StdRoot.Column.text()

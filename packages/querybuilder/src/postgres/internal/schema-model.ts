@@ -67,8 +67,10 @@ const mapColumnList = (
   columns: ColumnList,
   casing: Casing.Options | undefined
 ): ColumnList =>
-  columns.length === 0
-    ? columns as unknown as ColumnList
+  !Array.isArray(columns)
+    ? columns
+    : columns.length === 0
+      ? columns
     : [
         mapCasedValue(columns[0], casing, "columns"),
         ...columns.slice(1).map((column) => mapCasedValue(column, casing, "columns"))
@@ -206,8 +208,12 @@ const mapOption = (
               ? undefined
               : mapCasedValue(reference.schemaName, referenceCasing, "schemas"),
             columns: mapColumnList(reference.columns, referenceCasing),
-            knownColumns: reference.knownColumns?.map((column) =>
-              mapCasedValue(column, referenceCasing, "columns")) as unknown as readonly string[] | undefined
+            knownColumns: reference.knownColumns === undefined
+              ? undefined
+              : Array.isArray(reference.knownColumns)
+                ? reference.knownColumns.map((column) =>
+                  mapCasedValue(column, referenceCasing, "columns")) as unknown as readonly string[]
+                : reference.knownColumns
           }
         }
       }

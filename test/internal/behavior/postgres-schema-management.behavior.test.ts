@@ -345,6 +345,15 @@ describe("postgres schema management", () => {
         kind: "foreignKey",
         columns: ["orgId"],
         references: 0
+      },
+      {
+        kind: "foreignKey",
+        columns: ["orgId"],
+        references: () => ({
+          tableName: "orgs",
+          columns: "id",
+          knownColumns: "id"
+        })
       }
     ]
 
@@ -353,6 +362,7 @@ describe("postgres schema management", () => {
     const secondForeignKey = model.options[1]
     const thirdForeignKey = model.options[2]
     const fourthForeignKey = model.options[3]
+    const fifthForeignKey = model.options[4]
 
     if (firstForeignKey?.kind !== "foreignKey") {
       throw new Error("expected first foreign key option")
@@ -365,6 +375,9 @@ describe("postgres schema management", () => {
     }
     if (fourthForeignKey?.kind !== "foreignKey") {
       throw new Error("expected fourth foreign key option")
+    }
+    if (fifthForeignKey?.kind !== "foreignKey") {
+      throw new Error("expected fifth foreign key option")
     }
 
     expect(firstForeignKey.references()).toMatchObject({
@@ -383,6 +396,11 @@ describe("postgres schema management", () => {
       knownColumns: [0]
     })
     expect(fourthForeignKey.references()).toBe(0)
+    expect(fifthForeignKey.references()).toMatchObject({
+      tableName: "orgs",
+      columns: "id",
+      knownColumns: "id"
+    })
   })
 
   test("source table models accept direct foreign key reference payload metadata", () => {

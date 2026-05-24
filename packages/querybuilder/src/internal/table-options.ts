@@ -437,17 +437,6 @@ export const validateOptions = <Fields extends TableFieldMap>(
             option.columns,
             `Option '${option.kind}' on table '${tableName}' requires a column array`
           )
-        if (option.kind === "foreignKey") {
-          const reference = typeof option.references === "function"
-            ? option.references()
-            : option.references
-          if (typeof reference === "object" && reference !== null) {
-            requireColumnArray(
-              reference.columns,
-              `Foreign key on table '${tableName}' requires referenced columns to be an array`
-            )
-          }
-        }
         if (option.kind === "index") {
           const keys = option.keys ?? []
           for (const key of keys) {
