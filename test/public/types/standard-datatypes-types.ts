@@ -38,6 +38,9 @@ const blobValue = Q.cast("deadbeef", Q.type.blob())
 const blobRuntime: E.RuntimeOf<typeof blobValue> = new Uint8Array()
 void blobRuntime
 
+// @ts-expect-error custom db type names must be non-empty
+Q.type.custom("")
+
 // @ts-expect-error bigint columns expose canonical bigint strings, not numbers
 const invalidSize: Row["size"] = 1024
 void invalidSize

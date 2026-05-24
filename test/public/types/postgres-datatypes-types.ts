@@ -118,6 +118,9 @@ void sameTemporal
 const sizedEmailExpr = Pg.Cast.to(users.email, Pg.Type.custom("varchar(255)"))
 const sizedMatchExpr = Q.eq(users.email, "alice@example.com")
 
+// @ts-expect-error custom db type names must be non-empty
+Pg.Type.custom("")
+
 const sizedEmail: E.RuntimeOf<typeof sizedEmailExpr> = "alice@example.com"
 const sizedMatch: E.RuntimeOf<typeof sizedMatchExpr> = true
 void sizedEmail
@@ -136,6 +139,21 @@ const profileExpr = Pg.Cast.to("{}", Pg.Type.record("user_profile", {
 }))
 const domainEmailExpr = Pg.Cast.to(users.email, Pg.Type.domain("email_domain", Pg.Type.text()))
 const enumStatusExpr = Pg.Cast.to("status_enum", Pg.Type.enum("status_enum"))
+
+// @ts-expect-error range db type names must be non-empty
+Pg.Type.range("", Pg.Type.int4())
+// @ts-expect-error multirange db type names must be non-empty
+Pg.Type.multirange("", Pg.Type.range("int4range", Pg.Type.int4()))
+// @ts-expect-error record db type names must be non-empty
+Pg.Type.record("", {
+  displayName: Pg.Type.text()
+})
+// @ts-expect-error domain db type names must be non-empty
+Pg.Type.domain("", Pg.Type.text())
+// @ts-expect-error enum db type names must be non-empty
+Pg.Type.enum("")
+// @ts-expect-error set db type names must be non-empty
+Pg.Type.set("")
 
 const nestedTextArray: E.RuntimeOf<typeof nestedTextArrayExpr> = [[]]
 const intRange: E.RuntimeOf<typeof intRangeExpr> = {} as unknown

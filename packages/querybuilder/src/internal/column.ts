@@ -581,11 +581,11 @@ export const generated = <Value extends DdlExpression>(value: Value) =>
     }) as GeneratedColumn<Column>
 
 /** Preserves the exact SQL type used for DDL rendering. */
-export const ddlType = <SqlType extends string>(sqlType: SqlType) =>
+export const ddlType = <SqlType extends string>(sqlType: NonEmptyStringInput<SqlType>) =>
   <Column extends AnyColumnDefinition>(column: Column): DdlTypedColumn<Column> =>
     mapColumn(column, {
       ...column.metadata,
-      ddlType: sqlType
+      ddlType: sqlType as SqlType
     }) as DdlTypedColumn<Column>
 
 /** Overrides how a column crosses the SQL driver boundary. */

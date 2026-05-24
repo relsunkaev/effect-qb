@@ -72,6 +72,8 @@ Pg.Table.check({ name: "", predicate: Q.eq(memberships.role, "admin") })
 Std.Column.text().pipe(Std.Column.unique.options({ name: "" }))
 // @ts-expect-error postgres inline unique constraint names must be non-empty
 Std.Column.text().pipe(Pg.Column.unique.options({ name: "" }))
+// @ts-expect-error postgres inline ddl type names must be non-empty
+Std.Column.text().pipe(Pg.Column.ddlType(""))
 // @ts-expect-error postgres inline index names must be non-empty
 Std.Column.text().pipe(Pg.Column.index({ name: "" }))
 // @ts-expect-error postgres inline index methods must be non-empty

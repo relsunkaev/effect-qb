@@ -1,5 +1,6 @@
 import type { DatatypeModule } from "../../internal/datatypes/define.js"
 import type * as Expression from "../../internal/scalar.js"
+import type { NonEmptyStringInput } from "../../internal/table-options.js"
 import { mysqlDatatypeFamilies, mysqlDatatypeKinds } from "./spec.js"
 
 const withMetadata = <Kind extends keyof typeof mysqlDatatypeKinds & string>(
@@ -19,9 +20,9 @@ const withMetadata = <Kind extends keyof typeof mysqlDatatypeKinds & string>(
 }
 
 const mysqlDatatypeModule = {
-  custom: (kind: string) => ({
+  custom: <Kind extends string>(kind: NonEmptyStringInput<Kind>) => ({
     dialect: "mysql",
-    kind
+    kind: kind as Kind
   }),
   uuid: () => ({
     dialect: "mysql",

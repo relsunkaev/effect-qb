@@ -6,7 +6,7 @@ import { standardDatatypes } from "../standard/datatypes/index.js"
 import * as Expression from "./scalar.js"
 import * as Plan from "./row-set.js"
 import * as Table from "./table.js"
-import type { LiteralStringInput } from "./table-options.js"
+import type { LiteralStringInput, NonEmptyStringInput } from "./table-options.js"
 import type { CastTargetError, OperandCompatibilityError } from "./coercion/errors.js"
 import type { RuntimeOfDbType } from "./coercion/analysis.js"
 import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "./coercion/rules.js"
@@ -2209,62 +2209,62 @@ type BinaryPredicateExpression<
   })
 
   const range = <Kind extends string, Subtype extends Expression.DbType.Any>(
-    kind: Kind,
+    kind: NonEmptyStringInput<Kind>,
     subtype: Subtype
   ): Expression.DbType.Range<Dialect, Subtype, Kind> => ({
     dialect: profile.dialect,
-    kind,
+    kind: kind as Kind,
     subtype
   })
 
   const multirange = <Kind extends string, Subtype extends Expression.DbType.Any>(
-    kind: Kind,
+    kind: NonEmptyStringInput<Kind>,
     subtype: Subtype
   ): Expression.DbType.Multirange<Dialect, Subtype, Kind> => ({
     dialect: profile.dialect,
-    kind,
+    kind: kind as Kind,
     subtype
   })
 
   const record = <Kind extends string, Fields extends Record<string, Expression.DbType.Any>>(
-    kind: Kind,
+    kind: NonEmptyStringInput<Kind>,
     fields: Fields
   ): Expression.DbType.Composite<Dialect, Fields, Kind> => ({
     dialect: profile.dialect,
-    kind,
+    kind: kind as Kind,
     fields
   })
 
   const domain = <Kind extends string, Base extends Expression.DbType.Any>(
-    kind: Kind,
+    kind: NonEmptyStringInput<Kind>,
     base: Base
   ): Expression.DbType.Domain<Dialect, Base, Kind> => ({
     dialect: profile.dialect,
-    kind,
+    kind: kind as Kind,
     base
   })
 
   const enum_ = <Kind extends string>(
-    kind: Kind
+    kind: NonEmptyStringInput<Kind>
   ): Expression.DbType.Enum<Dialect, Kind> => ({
     dialect: profile.dialect,
-    kind,
+    kind: kind as Kind,
     variant: "enum"
   })
 
   const set = <Kind extends string>(
-    kind: Kind
+    kind: NonEmptyStringInput<Kind>
   ): Expression.DbType.Set<Dialect, Kind> => ({
     dialect: profile.dialect,
-    kind,
+    kind: kind as Kind,
     variant: "set"
   })
 
   const custom = <Kind extends string>(
-    kind: Kind
+    kind: NonEmptyStringInput<Kind>
   ): Expression.DbType.Base<Dialect, Kind> => ({
     dialect: profile.dialect,
-    kind
+    kind: kind as Kind
   })
 
   const driverValueMapping = <Db extends Expression.DbType.Any>(

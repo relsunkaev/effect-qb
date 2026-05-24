@@ -1,4 +1,5 @@
 import type * as Expression from "../scalar.js"
+import type { NonEmptyStringInput } from "../table-options.js"
 import type { DatatypeFamilySpec, DatatypeKindSpec } from "./shape.js"
 
 type DatatypeWitness<
@@ -20,7 +21,7 @@ export type DatatypeModule<
   Families extends Record<string, DatatypeFamilySpec>,
   Aliases extends Record<string, string> = Record<never, never>
 > = {
-  readonly custom: <Kind extends string>(kind: Kind) => Expression.DbType.Base<Dialect, Kind>
+  readonly custom: <Kind extends string>(kind: NonEmptyStringInput<Kind>) => Expression.DbType.Base<Dialect, Kind>
 } & {
   readonly [Kind in keyof Kinds]: () => DatatypeWitness<Dialect, Kinds, Families, Kind & string>
 } & {

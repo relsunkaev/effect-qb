@@ -52,6 +52,9 @@ void sameTemporal
 const decimalLeft = Q.cast(1, Q.type.custom("decimal(10,2)"))
 const decimalRight = Q.cast(2, Q.type.custom("decimal(10,2)"))
 
+// @ts-expect-error MySQL custom db type names must be non-empty
+Q.type.custom("")
+
 const customPlan = Q.select({
   scaledValue: decimalLeft,
   scaledMatch: Q.eq(decimalLeft, decimalRight)
@@ -65,6 +68,11 @@ void scaledMatch
 
 const enumLeft = Q.cast("draft", Q.type.enum("enum('draft','published')"))
 const enumRight = Q.cast("published", Q.type.enum("enum('draft','published')"))
+
+// @ts-expect-error MySQL enum db type names must be non-empty
+Q.type.enum("")
+// @ts-expect-error MySQL set db type names must be non-empty
+Q.type.set("")
 
 const customEnumPlan = Q.select({
   enumMatch: Q.eq(enumLeft, enumRight),

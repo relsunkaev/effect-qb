@@ -19,6 +19,9 @@ const posts = Std.Table.make("posts", {
   userId: Std.Column.text()
 })
 
+// @ts-expect-error sqlite custom db type names must be non-empty
+Q.type.custom("")
+
 // @ts-expect-error sqlite select statements require at least one selected expression
 Q.select({})
 

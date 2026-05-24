@@ -1,5 +1,6 @@
 import type { DatatypeModule } from "../../internal/datatypes/define.js"
 import type * as Expression from "../../internal/scalar.js"
+import type { NonEmptyStringInput } from "../../internal/table-options.js"
 import { postgresDatatypeFamilies, postgresDatatypeKinds } from "./spec.js"
 
 const withMetadata = <Kind extends keyof typeof postgresDatatypeKinds & string>(
@@ -19,9 +20,9 @@ const withMetadata = <Kind extends keyof typeof postgresDatatypeKinds & string>(
 }
 
 const postgresDatatypeModule = {
-  custom: (kind: string) => ({
+  custom: <Kind extends string>(kind: NonEmptyStringInput<Kind>) => ({
     dialect: "postgres",
-    kind
+    kind: kind as Kind
   }),
   boolean: () => withMetadata("bool")
 } as Record<string, (...args: readonly any[]) => Expression.DbType.Base<"postgres", string>>

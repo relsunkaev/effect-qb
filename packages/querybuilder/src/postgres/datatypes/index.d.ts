@@ -1,7 +1,8 @@
 import type * as Expression from "../../internal/scalar.js";
+import type { NonEmptyStringInput } from "../../internal/table-options.js";
 import { postgresDatatypeFamilies, postgresDatatypeKinds } from "./spec.js";
 export declare const postgresDatatypes: {
-    custom: <Kind extends string>(kind: Kind) => Expression.DbType.Base<"postgres", Kind>;
+    custom: <Kind extends string>(kind: NonEmptyStringInput<Kind>) => Expression.DbType.Base<"postgres", Kind>;
     text: () => Expression.DbType.Base<"postgres", "text"> & {
         readonly family: "text";
         readonly runtime: "string";
