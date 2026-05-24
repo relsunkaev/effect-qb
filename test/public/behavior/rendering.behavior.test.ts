@@ -158,6 +158,32 @@ describe("rendering behavior", () => {
     }
   })
 
+  test("standard renderer rejects insert conflict clauses", () => {
+    const users = Standard.Table.make("users", {
+      id: Standard.Column.uuid().pipe(Standard.Column.primaryKey),
+      email: Standard.Column.text()
+    })
+    const id = "11111111-1111-1111-1111-111111111111"
+    const insert = Standard.Query.insert(users, {
+      id,
+      email: "alice@example.com"
+    })
+    const plans = [
+      Standard.Query.onConflict(["email"] as const)(insert),
+      Standard.Query.onConflict(["email"] as const, {
+        update: {
+          email: Standard.Query.excluded(users.email)
+        }
+      })(insert)
+    ]
+
+    for (const plan of plans) {
+      expect(() => Standard.Renderer.make().render(plan)).toThrow(
+        "Unsupported standard insert conflict"
+      )
+    }
+  })
+
   test("standard renderer rejects regular-expression predicates", () => {
     const users = Standard.Table.make("users", {
       email: Standard.Column.text()

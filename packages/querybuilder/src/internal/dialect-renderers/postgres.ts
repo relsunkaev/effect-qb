@@ -1569,6 +1569,9 @@ export const renderQueryAst = (
         }
       }
       if (conflict) {
+        if (dialect.name === "standard") {
+          throw new Error("Unsupported standard insert conflict")
+        }
         const updateValues = (conflict.values ?? []).map((entry) =>
           `${quoteColumn(entry.columnName, state, dialect, targetSource.tableName)} = ${renderExpression(entry.value, targetCasingState, dialect)}`
         ).join(", ")
