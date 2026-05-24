@@ -1,3 +1,4 @@
+import * as Std from "effect-qb"
 import * as Effect from "effect/Effect"
 
 import * as Mysql from "effect-qb/mysql"
@@ -31,8 +32,8 @@ if (Mysql.Errors.hasNumber(normalized, "1062")) {
   void number
 }
 
-const users = Mysql.Table.make("users", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey)
 })
 
 const plan = Mysql.Query.select({

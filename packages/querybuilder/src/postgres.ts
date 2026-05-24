@@ -1,5 +1,5 @@
-/** Postgres-specialized column-definition DSL. */
-export * as Column from "./postgres/column.js"
+/** Postgres-specific column extensions. Portable columns are exported from `effect-qb`. */
+export * as Column from "./postgres/column-extension.js"
 /** Postgres datatype witnesses and coercion families. */
 export * as Datatypes from "./postgres/datatypes/index.js"
 /** Postgres SQLSTATE catalog and error normalization helpers. */
@@ -31,7 +31,7 @@ export type { SchemaNamespace } from "./postgres/schema.js"
 /** Postgres enum and sequence definition helpers. */
 export { enumType as enum, sequence } from "./postgres/schema-management.js"
 export type { EnumDefinition, SequenceDefinition } from "./postgres/schema-management.js"
-/** Postgres-specialized table-definition DSL. */
-export * as Table from "./postgres/table.js"
+/** Postgres-specific table extensions. Portable tables are exported from `effect-qb`. */
+export * as Table from "./postgres/table-extension.js"
 /** Postgres-specialized built-in renderer entrypoint. */
 export * as Renderer from "./postgres/renderer.js"

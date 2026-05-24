@@ -5,6 +5,7 @@ import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import * as Sqlite from "#sqlite"
 import * as Standard from "#standard"
+import * as StdRoot from "#standard"
 
 describe("ddl rendering behavior", () => {
   test("standard table DDL uses each renderer's portable type spelling", () => {
@@ -31,9 +32,9 @@ describe("ddl rendering behavior", () => {
   })
 
   test("postgres check constraints render row-local column references", () => {
-    const usersBase = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const usersBase = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const users = usersBase.pipe(
       Postgres.Table.check("email_not_empty", Postgres.Query.neq(usersBase.email, ""))
@@ -42,18 +43,18 @@ describe("ddl rendering behavior", () => {
     const rendered = Postgres.Renderer.make().render(Postgres.Query.createTable(users))
 
     expect(rendered.sql).toBe(
-      'create table "public"."users" ("id" uuid not null, "email" text not null, primary key ("id"), constraint "email_not_empty" check (("email" <> \'\')))'
+      'create table "users" ("id" uuid not null, "email" text not null, primary key ("id"), constraint "email_not_empty" check (("email" <> \'\')))'
     )
     expect(rendered.params).toEqual([])
   })
 
   test("mysql check constraints render row-local column references", () => {
-    const usersBase = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const usersBase = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const users = usersBase.pipe(
-      Mysql.Table.check("email_not_empty", Mysql.Query.neq(usersBase.email, ""))
+      StdRoot.Table.check("email_not_empty", Mysql.Query.neq(usersBase.email, ""))
     )
 
     const rendered = Mysql.Renderer.make().render(Mysql.Query.createTable(users))
@@ -65,20 +66,20 @@ describe("ddl rendering behavior", () => {
   })
 
   test("postgres and mysql DDL expressions inline literals instead of bind parameters", () => {
-    const postgresUsersBase = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text().pipe(Postgres.Column.default(Postgres.Query.literal("guest@example.com")))
+    const postgresUsersBase = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text().pipe(StdRoot.Column.default(Postgres.Query.literal("guest@example.com")))
     })
     const postgresUsers = postgresUsersBase.pipe(
       Postgres.Table.check("email_not_empty", Postgres.Query.neq(postgresUsersBase.email, ""))
     )
 
-    const mysqlUsersBase = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text().pipe(Mysql.Column.default(Mysql.Query.literal("guest@example.com")))
+    const mysqlUsersBase = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text().pipe(StdRoot.Column.default(Mysql.Query.literal("guest@example.com")))
     })
     const mysqlUsers = mysqlUsersBase.pipe(
-      Mysql.Table.check("email_not_empty", Mysql.Query.neq(mysqlUsersBase.email, ""))
+      StdRoot.Table.check("email_not_empty", Mysql.Query.neq(mysqlUsersBase.email, ""))
     )
 
     const renderedPostgres = Postgres.Renderer.make().render(Postgres.Query.createTable(postgresUsers))
@@ -94,26 +95,26 @@ describe("ddl rendering behavior", () => {
   })
 
   test("rejects invalid foreign key actions at runtime", () => {
-    const postgresOrgs = Postgres.Table.make("orgs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const postgresOrgs = StdRoot.Table.make("orgs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     expect(() =>
-      Postgres.Table.make("memberships", {
-        id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-        orgId: Postgres.Column.uuid().pipe(Postgres.Column.foreignKey({
+      StdRoot.Table.make("memberships", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+        orgId: StdRoot.Column.uuid().pipe(Postgres.Column.foreignKey({
           target: () => postgresOrgs.id,
           onDelete: "cascade; drop table orgs"
         } as never))
       })
     ).toThrow("Foreign key action must be noAction, restrict, cascade, setNull, or setDefault")
 
-    const mysqlMemberships = Mysql.Table.make("memberships", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      orgId: Mysql.Column.uuid()
+    const mysqlMemberships = StdRoot.Table.make("memberships", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      orgId: StdRoot.Column.uuid()
     })
-    ;(mysqlMemberships as any)[Mysql.Table.OptionsSymbol] = [
-      ...(mysqlMemberships as any)[Mysql.Table.OptionsSymbol],
+    ;(mysqlMemberships as any)[StdRoot.Table.OptionsSymbol] = [
+      ...(mysqlMemberships as any)[StdRoot.Table.OptionsSymbol],
       {
         kind: "foreignKey",
         columns: ["orgId"],
@@ -129,12 +130,12 @@ describe("ddl rendering behavior", () => {
       Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlMemberships))
     ).toThrow("Foreign key action must be noAction, restrict, cascade, setNull, or setDefault")
 
-    const sqliteMemberships = Sqlite.Table.make("memberships", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      orgId: Sqlite.Column.text()
+    const sqliteMemberships = StdRoot.Table.make("memberships", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      orgId: StdRoot.Column.text()
     })
-    ;(sqliteMemberships as any)[Sqlite.Table.OptionsSymbol] = [
-      ...(sqliteMemberships as any)[Sqlite.Table.OptionsSymbol],
+    ;(sqliteMemberships as any)[StdRoot.Table.OptionsSymbol] = [
+      ...(sqliteMemberships as any)[StdRoot.Table.OptionsSymbol],
       {
         kind: "foreignKey",
         columns: ["orgId"],
@@ -152,33 +153,33 @@ describe("ddl rendering behavior", () => {
   })
 
   test("rejects unknown table option kinds at render time", () => {
-    const postgresUsers = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const postgresUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    ;(postgresUsers as any)[Postgres.Table.OptionsSymbol] = [
-      ...(postgresUsers as any)[Postgres.Table.OptionsSymbol],
+    ;(postgresUsers as any)[StdRoot.Table.OptionsSymbol] = [
+      ...(postgresUsers as any)[StdRoot.Table.OptionsSymbol],
       { kind: "partition", columns: ["id"] }
     ]
     expect(() =>
       Postgres.Renderer.make().render(Postgres.Query.createTable(postgresUsers))
     ).toThrow("Unsupported table option kind")
 
-    const mysqlUsers = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    ;(mysqlUsers as any)[Mysql.Table.OptionsSymbol] = [
-      ...(mysqlUsers as any)[Mysql.Table.OptionsSymbol],
+    ;(mysqlUsers as any)[StdRoot.Table.OptionsSymbol] = [
+      ...(mysqlUsers as any)[StdRoot.Table.OptionsSymbol],
       { kind: "partition", columns: ["id"] }
     ]
     expect(() =>
       Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlUsers))
     ).toThrow("Unsupported table option kind")
 
-    const sqliteUsers = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey)
+    const sqliteUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey)
     })
-    ;(sqliteUsers as any)[Sqlite.Table.OptionsSymbol] = [
-      ...(sqliteUsers as any)[Sqlite.Table.OptionsSymbol],
+    ;(sqliteUsers as any)[StdRoot.Table.OptionsSymbol] = [
+      ...(sqliteUsers as any)[StdRoot.Table.OptionsSymbol],
       { kind: "partition", columns: ["id"] }
     ]
     expect(() =>
@@ -189,8 +190,8 @@ describe("ddl rendering behavior", () => {
   test("rejects mismatched ddl payload kinds at render time", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
 
-    const postgresUsers = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const postgresUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     const postgresCreate = Postgres.Query.createTable(postgresUsers, { ifNotExists: true })
     ;(postgresCreate as any)[queryAst].ddl.kind = "dropTable"
@@ -198,8 +199,8 @@ describe("ddl rendering behavior", () => {
       Postgres.Renderer.make().render(postgresCreate)
     ).toThrow("Unsupported DDL statement kind")
 
-    const mysqlUsers = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     const mysqlCreate = Mysql.Query.createTable(mysqlUsers, { ifNotExists: true })
     ;(mysqlCreate as any)[queryAst].ddl.kind = "dropTable"
@@ -207,8 +208,8 @@ describe("ddl rendering behavior", () => {
       Mysql.Renderer.make().render(mysqlCreate)
     ).toThrow("Unsupported DDL statement kind")
 
-    const sqliteUsers = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey)
+    const sqliteUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey)
     })
     const sqliteCreate = Sqlite.Query.createTable(sqliteUsers, { ifNotExists: true })
     ;(sqliteCreate as any)[queryAst].ddl.kind = "dropTable"
@@ -218,9 +219,9 @@ describe("ddl rendering behavior", () => {
   })
 
   test("rejects mysql unique constraints with unsupported postgres-only options", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text().pipe(Mysql.Column.unique.options({
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text().pipe(StdRoot.Column.unique.options({
         nullsNotDistinct: true
       }))
     })
@@ -231,9 +232,9 @@ describe("ddl rendering behavior", () => {
   })
 
   test("rejects sqlite unique constraints with unsupported postgres-only options", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text().pipe(Sqlite.Column.unique.options({
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text().pipe(StdRoot.Column.unique.options({
         deferrable: true,
         initiallyDeferred: true
       }))
@@ -247,8 +248,8 @@ describe("ddl rendering behavior", () => {
   test("postgres drop index qualifies indexes for schema-scoped tables", () => {
     const analytics = Postgres.schema("analytics")
     const events = analytics.table("events", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      userId: Postgres.Column.uuid()
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid()
     })
 
     const rendered = Postgres.Renderer.make().render(Postgres.Query.dropIndex(events, ["userId"], {
@@ -281,9 +282,9 @@ describe("ddl rendering behavior", () => {
   })
 
   test("rejects postgres createIndex with unknown columns at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -292,9 +293,9 @@ describe("ddl rendering behavior", () => {
   })
 
   test("rejects postgres dropIndex with unknown columns at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -303,9 +304,9 @@ describe("ddl rendering behavior", () => {
   })
 
   test("rejects mysql createIndex with unknown columns at runtime", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -314,9 +315,9 @@ describe("ddl rendering behavior", () => {
   })
 
   test("rejects mysql dropIndex with unknown columns at runtime", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>

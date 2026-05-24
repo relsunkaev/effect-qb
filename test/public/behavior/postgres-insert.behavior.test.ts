@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 
 import * as Postgres from "#postgres"
 import { unsafeAny } from "../../helpers/unsafe.ts"
+import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const secondUserId = "22222222-2222-2222-2222-222222222222"
@@ -10,15 +11,15 @@ const render = (plan: unknown) => Postgres.Renderer.make().render(unsafeAny(plan
 
 describe("postgres insert behavior", () => {
   test("renders postgres multi-row and source-backed inserts", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text(),
-      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
-    const archivedUsers = Postgres.Table.make("archived_users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text(),
-      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    const archivedUsers = StdRoot.Table.make("archived_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const valuesSource = unsafeAny(Postgres.Query.as(Postgres.Query.values([
@@ -48,7 +49,7 @@ describe("postgres insert behavior", () => {
     )
 
     expect(render(multiRowPlan).sql).toBe(
-      'insert into "public"."users" ("id", "email", "bio") values ($1, $2, null), ($3, $4, $5)'
+      'insert into "users" ("id", "email", "bio") values ($1, $2, null), ($3, $4, $5)'
     )
     expect(render(multiRowPlan).params).toEqual([
       userId,
@@ -59,12 +60,12 @@ describe("postgres insert behavior", () => {
     ])
 
     expect(render(insertSelectPlan).sql).toBe(
-      'insert into "public"."archived_users" ("id", "email", "bio") select "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio" from "public"."users"'
+      'insert into "archived_users" ("id", "email", "bio") select "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio" from "users"'
     )
     expect(render(insertSelectPlan).params).toEqual([])
 
     expect(render(insertUnnestPlan).sql).toBe(
-      'insert into "public"."users" ("id", "email", "bio") select * from unnest(cast($1 as uuid[]), cast($2 as text[]), cast($3 as text[]))'
+      'insert into "users" ("id", "email", "bio") select * from unnest(cast($1 as uuid[]), cast($2 as text[]), cast($3 as text[]))'
     )
     expect(render(insertUnnestPlan).params).toEqual([
       [userId, secondUserId],
@@ -80,7 +81,7 @@ describe("postgres insert behavior", () => {
     )
 
     expect(render(updateFromValuesPlan).sql).toBe(
-      'update "public"."users" set "email" = "seed"."email" from (select $1 as "id", $2 as "email", null as "bio" union all select $3 as "id", $4 as "email", $5 as "bio") as "seed"("id", "email", "bio") where ("users"."id" = "seed"."id")'
+      'update "users" set "email" = "seed"."email" from (select $1 as "id", $2 as "email", null as "bio" union all select $3 as "id", $4 as "email", $5 as "bio") as "seed"("id", "email", "bio") where ("users"."id" = "seed"."id")'
     )
     expect(render(updateFromValuesPlan).params).toEqual([
       userId,
@@ -92,10 +93,10 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects incomplete insert-select sources even when they reference the target table", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text(),
-      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const source = Postgres.Query.select({
@@ -113,10 +114,10 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects nested insert-select source selections at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text(),
-      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const source = Postgres.Query.select({
@@ -137,9 +138,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects mutation plans used as insert sources at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const source = Postgres.Query.insert(users, {
@@ -156,9 +157,9 @@ describe("postgres insert behavior", () => {
 
   test("rejects invalid rendered postgres insert source kinds", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const seed = unsafeAny(Postgres.Query.as(Postgres.Query.values([
       { id: Postgres.Query.literal(userId), email: "alice@example.com" }
@@ -170,14 +171,14 @@ describe("postgres insert behavior", () => {
   })
 
   test("renders postgres default-only inserts and rich conflict clauses", () => {
-    const auditLogs = Postgres.Table.make("audit_logs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey, Postgres.Column.default(Postgres.Query.literal("audit-log-id"))),
-      note: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    const auditLogs = StdRoot.Table.make("audit_logs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.default(Postgres.Query.literal("audit-log-id"))),
+      note: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text(),
-      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const defaultInsertPlan = Postgres.Query.insert(auditLogs)
@@ -207,11 +208,11 @@ describe("postgres insert behavior", () => {
     }))
 
     expect(render(defaultInsertPlan).sql).toBe(
-      'insert into "public"."audit_logs" default values'
+      'insert into "audit_logs" default values'
     )
 
     expect(render(partialIndexConflictPlan).sql).toBe(
-      'insert into "public"."users" ("id", "email", "bio") values ($1, $2, $3) on conflict ("email") where ("users"."bio" is not null) do update set "bio" = excluded."bio" where (excluded."bio" is not null)'
+      'insert into "users" ("id", "email", "bio") values ($1, $2, $3) on conflict ("email") where ("users"."bio" is not null) do update set "bio" = excluded."bio" where (excluded."bio" is not null)'
     )
     expect(render(partialIndexConflictPlan).params).toEqual([
       userId,
@@ -220,7 +221,7 @@ describe("postgres insert behavior", () => {
     ])
 
     expect(render(namedConstraintPlan).sql).toBe(
-      'insert into "public"."users" ("id", "email", "bio") values ($1, $2, null) on conflict on constraint "users_email_key" do update set "email" = excluded."email"'
+      'insert into "users" ("id", "email", "bio") values ($1, $2, null) on conflict on constraint "users_email_key" do update set "email" = excluded."email"'
     )
     expect(render(namedConstraintPlan).params).toEqual([
       userId,
@@ -229,9 +230,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects postgres conflict targets with unknown columns at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Postgres.Query.onConflict(unsafeAny(["missing"]), {
@@ -245,9 +246,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects onConflict on non-insert statements at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -261,9 +262,9 @@ describe("postgres insert behavior", () => {
 
   test("rejects invalid rendered postgres conflict discriminants", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const invalidActionPlan = Postgres.Query.onConflict(["email"] as const, {
@@ -290,9 +291,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("renders postgres string conflict targets", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Postgres.Query.onConflict("email", {
@@ -305,14 +306,14 @@ describe("postgres insert behavior", () => {
     }))
 
     expect(render(plan).sql).toBe(
-      'insert into "public"."users" ("id", "email") values ($1, $2) on conflict ("email") do update set "email" = excluded."email"'
+      'insert into "users" ("id", "email") values ($1, $2) on conflict ("email") do update set "email" = excluded."email"'
     )
   })
 
   test("rejects postgres empty returning selections before omitting returning", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Postgres.Query.returning({})(Postgres.Query.insert(users, {
@@ -322,9 +323,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects postgres conflict update actions without assignments", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Postgres.Query.onConflict(["email"] as const, {
@@ -336,9 +337,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects postgres upsert update actions without assignments", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Postgres.Query.upsert(users, {
@@ -348,9 +349,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects postgres upsert conflict columns with unknown columns at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Postgres.Query.upsert(users, {
@@ -362,8 +363,8 @@ describe("postgres insert behavior", () => {
   })
 
   test("canonicalizes insert values using the target column runtime contract", () => {
-    const metrics = Postgres.Table.make("metrics", {
-      total: Postgres.Column.number(),
+    const metrics = StdRoot.Table.make("metrics", {
+      total: StdRoot.Column.number(),
       counter: Postgres.Column.int8()
     })
 
@@ -379,8 +380,8 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects invalid insert values before rendering params", () => {
-    const events = Postgres.Table.make("events", {
-      happenedOn: Postgres.Column.date()
+    const events = StdRoot.Table.make("events", {
+      happenedOn: StdRoot.Column.date()
     })
 
     expect(() => render(Postgres.Query.insert(events, {
@@ -389,8 +390,8 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects invalid Date insert values before rendering params", () => {
-    const events = Postgres.Table.make("date_object_events", {
-      happenedOn: Postgres.Column.date()
+    const events = StdRoot.Table.make("date_object_events", {
+      happenedOn: StdRoot.Column.date()
     })
 
     expect(() => render(Postgres.Query.insert(events, {
@@ -399,8 +400,8 @@ describe("postgres insert behavior", () => {
   })
 
   test("canonicalizes expression-wrapped insert values using the target column runtime contract", () => {
-    const metrics = Postgres.Table.make("expression_metrics", {
-      total: Postgres.Column.number(),
+    const metrics = StdRoot.Table.make("expression_metrics", {
+      total: StdRoot.Column.number(),
       counter: Postgres.Column.int8()
     })
 
@@ -416,8 +417,8 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects invalid expression-wrapped insert values before rendering params", () => {
-    const events = Postgres.Table.make("expression_events", {
-      happenedOn: Postgres.Column.date()
+    const events = StdRoot.Table.make("expression_events", {
+      happenedOn: StdRoot.Column.date()
     })
 
     expect(() => render(Postgres.Query.insert(events, {
@@ -426,8 +427,8 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects insert values that violate target column schemas after normalization", () => {
-    const labels = Postgres.Table.make("labels", {
-      code: Postgres.Column.varchar(3)
+    const labels = StdRoot.Table.make("labels", {
+      code: StdRoot.Column.varchar(3)
     })
 
     expect(() => render(Postgres.Query.insert(labels, {
@@ -436,9 +437,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("canonicalizes update values using the target column runtime contract", () => {
-    const metrics = Postgres.Table.make("update_metrics", {
-      id: Postgres.Column.text().pipe(Postgres.Column.primaryKey),
-      total: Postgres.Column.number(),
+    const metrics = StdRoot.Table.make("update_metrics", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      total: StdRoot.Column.number(),
       counter: Postgres.Column.int8()
     })
 
@@ -457,9 +458,9 @@ describe("postgres insert behavior", () => {
   })
 
   test("canonicalizes conflict update values using the target column runtime contract", () => {
-    const metrics = Postgres.Table.make("conflict_metrics", {
-      id: Postgres.Column.text().pipe(Postgres.Column.primaryKey),
-      total: Postgres.Column.number(),
+    const metrics = StdRoot.Table.make("conflict_metrics", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      total: StdRoot.Column.number(),
       counter: Postgres.Column.int8()
     })
 
@@ -486,8 +487,8 @@ describe("postgres insert behavior", () => {
   })
 
   test("canonicalizes unnest insert arrays using the target column runtime contract", () => {
-    const metrics = Postgres.Table.make("unnest_metrics", {
-      total: Postgres.Column.number(),
+    const metrics = StdRoot.Table.make("unnest_metrics", {
+      total: StdRoot.Column.number(),
       counter: Postgres.Column.int8()
     })
 
@@ -505,8 +506,8 @@ describe("postgres insert behavior", () => {
   })
 
   test("rejects invalid unnest insert arrays before rendering params", () => {
-    const events = Postgres.Table.make("unnest_events", {
-      happenedOn: Postgres.Column.date()
+    const events = StdRoot.Table.make("unnest_events", {
+      happenedOn: StdRoot.Column.date()
     })
 
     expect(() => render(Postgres.Query.insert(events).pipe(

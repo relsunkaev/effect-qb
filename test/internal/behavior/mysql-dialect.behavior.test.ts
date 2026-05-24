@@ -10,6 +10,7 @@ import * as Mysql from "#mysql"
 import { makeMysqlSocialGraph } from "../../fixtures/schema.ts"
 import { buildGroupedConcatPlan } from "../../helpers/dialect-matrix.ts"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
+import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const secondUserId = "22222222-2222-2222-2222-222222222222"
@@ -17,10 +18,10 @@ const render = (plan: unknown) => Mysql.Renderer.make().render(unsafeAny(plan))
 
 describe("mysql dialect behavior", () => {
   test("escapes backtick identifiers for aliased table references", () => {
-    const events = Mysql.Table.make("audit`logs", {
-      ["event`payload"]: Mysql.Column.text()
+    const events = StdRoot.Table.make("audit`logs", {
+      ["event`payload"]: StdRoot.Column.text()
     })
-    const aliased = unsafeAny(Mysql.Table.alias(unsafeAny(events), "daily`rollup"))
+    const aliased = unsafeAny(StdRoot.Table.alias(unsafeAny(events), "daily`rollup"))
 
     const plan = Mysql.Query.select({
       payload: Mysql.Query.as(unsafeAny(aliased["event`payload"]), "payload`alias")
@@ -607,10 +608,10 @@ describe("mysql dialect behavior", () => {
   })
 
   test("rejects mysql data-modifying ctes with returning projections", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const insertedUsers = Mysql.Query.insert(users, {
@@ -692,10 +693,10 @@ describe("mysql dialect behavior", () => {
   })
 
   test("rejects mysql upsert statements with returning projections", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const upsertPlan = Mysql.Query.returning({
@@ -803,10 +804,10 @@ describe("mysql dialect behavior", () => {
   })
 
   test("rejects mysql insert update and delete mutations with returning projections", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const insertPlan = Mysql.Query.returning({
@@ -1018,15 +1019,15 @@ describe("mysql dialect behavior", () => {
   })
 
   test("renders mysql multi-row and source-backed inserts", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
-    const archivedUsers = Mysql.Table.make("archived_users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const archivedUsers = StdRoot.Table.make("archived_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const valuesSource = unsafeAny(Mysql.Query.as(Mysql.Query.values([
@@ -1084,14 +1085,14 @@ describe("mysql dialect behavior", () => {
   })
 
   test("renders mysql default-values and duplicate-key conflict clauses", () => {
-    const auditLogs = Mysql.Table.make("audit_logs", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey, Mysql.Column.default(Mysql.Query.literal("audit-log-id"))),
-      note: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const auditLogs = StdRoot.Table.make("audit_logs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.default(Mysql.Query.literal("audit-log-id"))),
+      note: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const defaultInsertPlan = Mysql.Query.insert(auditLogs)
@@ -1120,10 +1121,10 @@ describe("mysql dialect behavior", () => {
   })
 
   test("rejects mysql conflict action predicates instead of ignoring them", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Mysql.Query.onConflict(["email"] as const, {
@@ -1138,22 +1139,22 @@ describe("mysql dialect behavior", () => {
   })
 
   test("renders mysql ddl statements from schema tables", () => {
-    const orgs = Mysql.Table.make("orgs", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      slug: Mysql.Column.text().pipe(Mysql.Column.unique)
+    const orgs = StdRoot.Table.make("orgs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      slug: StdRoot.Column.text().pipe(StdRoot.Column.unique)
     })
     const membershipsFields = {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      orgId: Mysql.Column.uuid(),
-      role: Mysql.Column.text(),
-      note: Mysql.Column.text().pipe(Mysql.Column.nullable)
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      orgId: StdRoot.Column.uuid(),
+      role: StdRoot.Column.text(),
+      note: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     }
-    const membershipsBase = Mysql.Table.make("memberships", membershipsFields)
+    const membershipsBase = StdRoot.Table.make("memberships", membershipsFields)
     const memberships = membershipsBase.pipe(
-      Mysql.Table.foreignKey("orgId", () => orgs, "id"),
-      Mysql.Table.unique(["orgId", "role"] as const),
-      Mysql.Table.index(["role", "orgId"] as const),
-      Mysql.Table.check("role_not_empty", Mysql.Query.neq(membershipsBase.role, Mysql.Query.literal("")))
+      StdRoot.Table.foreignKey("orgId", () => orgs, "id"),
+      StdRoot.Table.unique(["orgId", "role"] as const),
+      StdRoot.Table.index(["role", "orgId"] as const),
+      StdRoot.Table.check("role_not_empty", Mysql.Query.neq(membershipsBase.role, Mysql.Query.literal("")))
     )
 
     expect(Mysql.Renderer.make().render(Mysql.Query.createTable(memberships, {
@@ -1184,13 +1185,13 @@ describe("mysql dialect behavior", () => {
   })
 
   test("renders schema-qualified mysql tables in queries and ddl", () => {
-    const analytics = Mysql.Table.schema("analytics")
+    const analytics = StdRoot.Table.schema("analytics")
     const users = analytics.table("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     const events = analytics.table("events", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      userId: Mysql.Column.uuid().pipe(Mysql.Column.references(() => users.id))
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid().pipe(StdRoot.Column.references(() => users.id))
     })
 
     const plan = Mysql.Query.select({

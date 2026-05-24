@@ -1,6 +1,8 @@
+import { Column as PgColumn } from "effect-qb/postgres"
+import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Scalar as E, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
+import { Scalar as E, Function as F, Json as J, Query as Q } from "effect-qb/postgres"
 import type { BrandedErrorOf } from "../../helpers/branded-error.ts"
 
 type IsAny<Value> = 0 extends (1 & Value) ? true : false
@@ -23,10 +25,10 @@ const payloadSchema = Schema.Struct({
   note: Schema.NullOr(Schema.String)
 })
 
-const docs = Table.make("docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(payloadSchema),
-  payloadJsonb: C.jsonb(payloadSchema)
+const docs = Std.Table.make("docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(payloadSchema),
+  payloadJsonb: PgColumn.jsonb(payloadSchema)
 })
 
 const metricsSchema = Schema.Struct({
@@ -34,14 +36,14 @@ const metricsSchema = Schema.Struct({
   active: Schema.Boolean
 })
 
-const metricDocs = Table.make("metric_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(metricsSchema)
+const metricDocs = Std.Table.make("metric_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(metricsSchema)
 })
 
-const nullableObjectDocs = Table.make("nullable_object_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(Schema.NullOr(Schema.Struct({
+const nullableObjectDocs = Std.Table.make("nullable_object_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(Schema.NullOr(Schema.Struct({
     a: Schema.String
   })))
 })
@@ -61,9 +63,9 @@ const variantPayloadSchema = Schema.Union(
   })
 )
 
-const variantDocs = Table.make("variant_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.jsonb(variantPayloadSchema)
+const variantDocs = Std.Table.make("variant_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: PgColumn.jsonb(variantPayloadSchema)
 })
 
 const nestedVariantPayloadSchema = Schema.Struct({
@@ -79,9 +81,9 @@ const nestedVariantPayloadSchema = Schema.Struct({
   )
 })
 
-const nestedVariantDocs = Table.make("nested_variant_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.jsonb(nestedVariantPayloadSchema)
+const nestedVariantDocs = Std.Table.make("nested_variant_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: PgColumn.jsonb(nestedVariantPayloadSchema)
 })
 
 const dottedPathPayloadSchema = Schema.Struct({
@@ -102,14 +104,14 @@ const collisionPayloadSchema = Schema.Struct({
   })
 })
 
-const dottedPathDocs = Table.make("dotted_path_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.jsonb(dottedPathPayloadSchema)
+const dottedPathDocs = Std.Table.make("dotted_path_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: PgColumn.jsonb(dottedPathPayloadSchema)
 })
 
-const jsonPathCollisionDocs = Table.make("json_path_collision_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.jsonb(collisionPayloadSchema)
+const jsonPathCollisionDocs = Std.Table.make("json_path_collision_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: PgColumn.jsonb(collisionPayloadSchema)
 })
 
 const cityPath = J.json.path(

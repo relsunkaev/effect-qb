@@ -13,7 +13,7 @@ import { json as postgresJson, jsonb as postgresJsonb } from "./internal/dsl.js"
 
 type PostgresJsonExpression<Runtime = unknown> = Expression.Scalar<
   Runtime,
-  Expression.DbType.Json<"postgres", "json" | "jsonb">,
+  Expression.DbType.Json<"postgres" | "standard", "json" | "jsonb">,
   Expression.Nullability,
   string,
   Expression.ScalarKind,

@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 
 import { Casing, Column, Query, Table } from "../../../packages/querybuilder/src/index.ts"
 import * as Pg from "#postgres"
+import * as StdRoot from "#standard"
 
 describe("postgres schema composition", () => {
   test("schema namespaces assign schemas and inherited casing to tables", () => {
@@ -38,7 +39,7 @@ describe("postgres schema composition", () => {
       })
     )
 
-    const events = Table.make("Events", {
+    const events = StdRoot.Table.make("Events", {
       id: Column.uuid().pipe(Column.primaryKey),
       createdAt: Column.datetime(),
       meta: Pg.Column.jsonb(Schema.Struct({

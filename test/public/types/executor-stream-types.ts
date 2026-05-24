@@ -1,8 +1,9 @@
-import { Executor, Column as C, Query as Q, Table } from "effect-qb/postgres"
+import * as Std from "effect-qb"
+import { Executor, Query as Q } from "effect-qb/postgres"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
 const readPlan = Q.select({

@@ -1,4 +1,6 @@
+import * as Std from "effect-qb"
 import type * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
@@ -33,14 +35,14 @@ type _AssertNormalizeConflict = Assert<IsExact<
   RootQuery.DialectConflictError<"postgres" | "mysql", "postgres" | "mysql">
 >>
 
-const pgUsers = Postgres.Table.make("users", {
-  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-  email: Postgres.Column.text()
+const pgUsers = Std.Table.make("users", {
+  id: Postgres.Column.custom(Schema.UUID, Postgres.Type.uuid()).pipe(Std.Column.primaryKey),
+  email: Postgres.Column.custom(Schema.String, Postgres.Type.text())
 })
 
-const myUsers = Mysql.Table.make("users", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-  email: Mysql.Column.text()
+const myUsers = Std.Table.make("users", {
+  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
+  email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
 })
 
 const stdUsers = Standard.Table.make("users", {

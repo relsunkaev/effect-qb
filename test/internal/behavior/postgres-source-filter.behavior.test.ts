@@ -5,11 +5,12 @@ import * as Pg from "#postgres"
 import { Column as C, Table } from "#postgres"
 import { toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
 import { filterDiscoveredSourceSchema } from "../../../packages/database/src/internal/postgres-source-filter.js"
+import * as StdRoot from "#standard"
 
 describe("postgres source filter", () => {
   test("keeps table-referenced enums with quoted qualified ddl types", () => {
     const status = Pg.schema("audit\"schema").enum("status\"type", ["active"] as const)
-    const users = Table.make("users", {
+    const users = StdRoot.Table.make("users", {
       status: C.custom(Schema.String, status.type()).pipe(
         C.ddlType("\"audit\"\"schema\".\"status\"\"type\"")
       )

@@ -4,21 +4,22 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import { Column as C, Executor, Query as Q, Function as F, Renderer, Table, Type } from "#postgres"
+import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const postId = "22222222-2222-2222-2222-222222222222"
 
 describe("implication behavior", () => {
   test("fromDriver remaps nested projection paths while preserving null joined siblings", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -63,14 +64,14 @@ describe("implication behavior", () => {
   })
 
   test("runtime decoding rejects impossible rows after implication pruning", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -109,10 +110,10 @@ describe("implication behavior", () => {
   })
 
   test("runtime decoding rejects non-null payloads for always-null proofs", () => {
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -143,16 +144,16 @@ describe("implication behavior", () => {
   })
 
   test("renderer stays schema-free for implication-heavy plans while preserving projection metadata", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      status: C.text(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      status: StdRoot.Column.text(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -169,7 +170,7 @@ describe("implication behavior", () => {
     const rendered = Renderer.make("postgres").render(plan)
 
     expect("rowSchema" in (rendered as Record<string, unknown>)).toBe(false)
-    expect(rendered.sql).toBe('select "users"."id" as "userId", case when ("posts"."status" = $1) then $2 else $3 end as "label" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where ("posts"."status" = $4)')
+    expect(rendered.sql).toBe('select "users"."id" as "userId", case when ("posts"."status" = $1) then $2 else $3 end as "label" from "users" left join "posts" on ("users"."id" = "posts"."userId") where ("posts"."status" = $4)')
     expect(rendered.params).toEqual(["draft", 1, 2, "draft"])
     expect(rendered.projections).toEqual([
       {
@@ -184,9 +185,9 @@ describe("implication behavior", () => {
   })
 
   test("runtime decoding prunes equality-proven case branches", () => {
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      status: C.text()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      status: StdRoot.Column.text()
     })
 
     const plan = Q.select({
@@ -217,10 +218,10 @@ describe("implication behavior", () => {
   })
 
   test("predicate facts keep dotted table and column names distinct", () => {
-    const dottedTable = Table.make("a.b", {
+    const dottedTable = StdRoot.Table.make("a.b", {
       status: C.custom(Schema.Literal("left", "right"), Type.text())
     })
-    const splitTable = Table.make("a", {
+    const splitTable = StdRoot.Table.make("a", {
       "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
     })
 
@@ -248,13 +249,13 @@ describe("implication behavior", () => {
   })
 
   test("predicate facts do not promote split sources for dotted table names", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    const dottedTable = Table.make("a.b", {
+    const dottedTable = StdRoot.Table.make("a.b", {
       status: C.custom(Schema.Literal("left", "right"), Type.text())
     })
-    const splitTable = Table.make("a", {
+    const splitTable = StdRoot.Table.make("a", {
       "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
     })
 
@@ -286,20 +287,20 @@ describe("implication behavior", () => {
   })
 
   test("isNull collapses dependent left joins to always-null projections", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
-    const comments = Table.make("comments", {
-      id: C.uuid().pipe(C.primaryKey),
-      postId: C.uuid(),
-      body: C.text()
+    const comments = StdRoot.Table.make("comments", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      postId: StdRoot.Column.uuid(),
+      body: StdRoot.Column.text()
     })
 
     const plan = Q.select({
@@ -339,19 +340,19 @@ describe("implication behavior", () => {
   })
 
   test("isNull rejects non-null payloads from dependent left joins", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid()
     })
 
-    const comments = Table.make("comments", {
-      id: C.uuid().pipe(C.primaryKey),
-      postId: C.uuid(),
-      body: C.text()
+    const comments = StdRoot.Table.make("comments", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      postId: StdRoot.Column.uuid(),
+      body: StdRoot.Column.text()
     })
 
     const plan = Q.select({

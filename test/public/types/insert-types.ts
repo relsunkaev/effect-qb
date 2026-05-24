@@ -1,21 +1,22 @@
+import * as Std from "effect-qb"
 import * as Mysql from "effect-qb/mysql"
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb/postgres"
+import { Function as F, Query as Q } from "effect-qb/postgres"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text(),
+  bio: Std.Column.text().pipe(Std.Column.nullable)
 })
 
-const auditLogs = Table.make("audit_logs", {
-  id: C.uuid().pipe(C.primaryKey, C.default(Q.literal("audit-log-id"))),
-  note: C.text().pipe(C.nullable)
+const auditLogs = Std.Table.make("audit_logs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey, Std.Column.default(Q.literal("audit-log-id"))),
+  note: Std.Column.text().pipe(Std.Column.nullable)
 })
 
-const mysqlUsers = Mysql.Table.make("users", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-  email: Mysql.Column.text(),
-  bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+const mysqlUsers = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text(),
+  bio: Std.Column.text().pipe(Std.Column.nullable)
 })
 
 const seedRows = [

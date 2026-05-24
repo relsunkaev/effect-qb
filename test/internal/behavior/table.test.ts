@@ -10,35 +10,36 @@ import * as Postgres from "#postgres"
 import { renderMysqlPlan } from "../../../packages/querybuilder/src/mysql/internal/renderer.ts"
 import { Column as C, Executor, Scalar, RowSet, Query as Q, Function as F, Renderer, Table } from "#postgres"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
+import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
 describe("table definitions", () => {
   test("factory tables expose direct columns and schemas", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
-      email: C.text().pipe(C.unique),
-      bio: C.text().pipe(C.nullable),
-      createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.generated(Q.literal("generated-user-id"))),
+      email: StdRoot.Column.text().pipe(C.unique),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable),
+      createdAt: StdRoot.Column.timestamp().pipe(StdRoot.Column.default(F.localTimestamp()))
     }).pipe(Table.index("email"))
 
     expect(users.columns.id).toBe(users.id)
     expect(users.columns.email).toBe(users.email)
     expect(users.id[Scalar.TypeId].dbType.kind).toBe("uuid")
-    expect(users.id[Scalar.TypeId].dialect).toBe("postgres")
+    expect(users.id[Scalar.TypeId].dialect).toBe("standard")
     expect(users.id[Scalar.TypeId].nullability).toBe("never")
     expect(users[RowSet.TypeId].selection.id).toBe(users.id)
     expect(users[RowSet.TypeId].available.users.name).toBe("users")
     expect(users[RowSet.TypeId].available.users.mode).toBe("required")
-    expect(Schema.isSchema(Table.selectSchema(users))).toBe(true)
-    expect(Schema.isSchema(Table.insertSchema(users))).toBe(true)
-    expect(Schema.isSchema(Table.updateSchema(users))).toBe(true)
+    expect(Schema.isSchema(StdRoot.Table.selectSchema(users))).toBe(true)
+    expect(Schema.isSchema(StdRoot.Table.insertSchema(users))).toBe(true)
+    expect(Schema.isSchema(StdRoot.Table.updateSchema(users))).toBe(true)
 
-    const insert = Schema.decodeUnknownSync(Table.insertSchema(users))({
+    const insert = Schema.decodeUnknownSync(StdRoot.Table.insertSchema(users))({
       email: "alice@example.com",
       bio: null
     })
-    const update = Schema.decodeUnknownSync(Table.updateSchema(users))({
+    const update = Schema.decodeUnknownSync(StdRoot.Table.updateSchema(users))({
       email: "next@example.com"
     })
 
@@ -46,22 +47,22 @@ describe("table definitions", () => {
     expect(insert.bio).toBeNull()
     expect(update.email).toBe("next@example.com")
 
-    const options = users[Table.OptionsSymbol]
+    const options = users[StdRoot.Table.OptionsSymbol]
     expect(options.map((option) => option.kind)).toEqual(["primaryKey", "unique", "index"])
   })
 
   test("table schema helpers derive and cache individual variants lazily", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text(),
-      bio: C.text().pipe(C.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
     const schemaCacheSymbol = Symbol.for("effect-qb/Table/schemaCache")
 
     expect(unsafeAny(users)[schemaCacheSymbol]).toBeUndefined()
 
-    const insert = Table.insertSchema(users)
-    expect(Table.insertSchema(users)).toBe(insert)
+    const insert = StdRoot.Table.insertSchema(users)
+    expect(StdRoot.Table.insertSchema(users)).toBe(insert)
     expect(unsafeAny(users)[schemaCacheSymbol].insert).toBe(insert)
     expect("select" in unsafeAny(users)[schemaCacheSymbol]).toBe(false)
     expect("update" in unsafeAny(users)[schemaCacheSymbol]).toBe(false)
@@ -70,103 +71,103 @@ describe("table definitions", () => {
     expect(users.schemas).toBe(schemas)
     expect("select" in unsafeAny(users)[schemaCacheSymbol]).toBe(false)
     expect(schemas.insert).toBe(insert)
-    expect(schemas.select).toBe(Table.selectSchema(users))
+    expect(schemas.select).toBe(StdRoot.Table.selectSchema(users))
   })
 
   test("table schema namespaces preserve physical schema metadata", () => {
     const analytics = Postgres.schema("analytics")
     const events = analytics.table("events", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid()
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid()
     })
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     expect(analytics.schemaName).toBe("analytics")
-    expect(events[Table.TypeId].schemaName).toBe("analytics")
-    expect(events[Table.TypeId].baseName).toBe("events")
-    expect(users[Table.TypeId].schemaName).toBe("public")
+    expect(events[StdRoot.Table.TypeId].schemaName).toBe("analytics")
+    expect(events[StdRoot.Table.TypeId].baseName).toBe("events")
+    expect(users[StdRoot.Table.TypeId].schemaName).toBeUndefined()
   })
 
   test("class tables expose inherited static columns and schemas", () => {
-    class Users extends Table.Class<Users>("users")({
-      id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
-      email: C.text().pipe(C.unique),
-      bio: C.text().pipe(C.nullable)
+    class Users extends StdRoot.Table.Class<Users>("users")({
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.generated(Q.literal("generated-user-id"))),
+      email: StdRoot.Column.text().pipe(C.unique),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     }) {
-      static override readonly [Table.options] = [Table.index("email")]
+      static override readonly [StdRoot.Table.options] = [Table.index("email")]
     }
 
     expect(Users.email).toBe(Users.columns.email)
-    expect(Schema.isSchema(Table.insertSchema(Users))).toBe(true)
-    expect(Users[Table.OptionsSymbol].map((option) => option.kind)).toEqual(["primaryKey", "unique", "index"])
+    expect(Schema.isSchema(StdRoot.Table.insertSchema(Users))).toBe(true)
+    expect(Users[StdRoot.Table.OptionsSymbol].map((option) => option.kind)).toEqual(["primaryKey", "unique", "index"])
   })
 
   test("inline references are stored lazily", () => {
-    const orgs = Table.make("orgs", {
-      id: C.uuid().pipe(C.primaryKey),
-      name: C.text()
+    const orgs = StdRoot.Table.make("orgs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      name: StdRoot.Column.text()
     })
 
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      orgId: C.uuid().pipe(C.references(() => orgs.id))
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      orgId: StdRoot.Column.uuid().pipe(StdRoot.Column.references(() => orgs.id))
     })
 
-    const foreignKey = users[Table.OptionsSymbol].find((option) => option.kind === "foreignKey")
+    const foreignKey = users[StdRoot.Table.OptionsSymbol].find((option) => option.kind === "foreignKey")
     expect(foreignKey?.kind).toBe("foreignKey")
     if (foreignKey?.kind !== "foreignKey") {
       throw new Error("expected a foreign key option")
     }
     expect(foreignKey.references()).toEqual({
       tableName: "orgs",
-      schemaName: "public",
+      schemaName: undefined,
       columns: ["id"]
     })
   })
 
   test("mixed-dialect table fields are rejected", () => {
-    expect(() => Table.make("mixed_users", {
-      id: Postgres.Column.uuid(),
-      email: Mysql.Column.text()
+    expect(() => StdRoot.Table.make("mixed_users", {
+      id: Postgres.Column.custom(Schema.UUID, Postgres.Type.uuid()),
+      email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
     })).toThrow("Invalid dialects for table 'mixed_users': Mixed table dialects are not supported: postgres, mysql")
   })
 
   test("table-level foreign keys validate referenced columns and use physical table names", () => {
-    const orgs = Table.make("orgs", {
-      id: C.uuid().pipe(C.primaryKey),
-      slug: C.text().pipe(C.unique)
+    const orgs = StdRoot.Table.make("orgs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      slug: StdRoot.Column.text().pipe(C.unique)
     })
-    const orgAlias = Table.alias(orgs, "org_alias")
+    const orgAlias = StdRoot.Table.alias(orgs, "org_alias")
 
-    const memberships = Table.make("memberships", {
-      orgId: C.uuid()
+    const memberships = StdRoot.Table.make("memberships", {
+      orgId: StdRoot.Column.uuid()
     }).pipe(
       Table.foreignKey("orgId", () => orgAlias, "id")
     )
 
-    const foreignKey = memberships[Table.OptionsSymbol].find((option: { kind: string }) => option.kind === "foreignKey")
+    const foreignKey = memberships[StdRoot.Table.OptionsSymbol].find((option: { kind: string }) => option.kind === "foreignKey")
     if (!foreignKey || foreignKey.kind !== "foreignKey") {
       throw new Error("expected a foreign key option")
     }
 
     expect(foreignKey.references()).toEqual({
       tableName: "orgs",
-      schemaName: "public",
+      schemaName: undefined,
       columns: ["id"],
       knownColumns: ["id", "slug"]
     })
 
-    expect(() => Table.make("broken_memberships", {
-      orgId: C.uuid()
+    expect(() => StdRoot.Table.make("broken_memberships", {
+      orgId: StdRoot.Column.uuid()
     }).pipe(
       Table.foreignKey("orgId", () => orgs, "missing")
     )).toThrow("Unknown referenced column 'missing' on table 'orgs'")
 
-    expect(() => Table.make("broken_memberships_arity", {
-      orgId: C.uuid(),
-      slug: C.text()
+    expect(() => StdRoot.Table.make("broken_memberships_arity", {
+      orgId: StdRoot.Column.uuid(),
+      slug: StdRoot.Column.text()
     }).pipe(
       unsafeAny(Table.foreignKey(["orgId", "slug"], () => orgs, "id"))
     )).toThrow("Foreign key on table 'broken_memberships_arity' must reference the same number of columns")
@@ -177,14 +178,14 @@ describe("table definitions", () => {
   })
 
   test("postgres rich index specs normalize columns-only input", () => {
-    const users = Table.make("rich_index_users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("rich_index_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     }).pipe(
       Table.index({ columns: ["email"] as const })
     )
 
-    expect(users[Table.OptionsSymbol].find((option) => option.kind === "index")).toMatchObject({
+    expect(users[StdRoot.Table.OptionsSymbol].find((option) => option.kind === "index")).toMatchObject({
       kind: "index",
       columns: ["email"]
     })
@@ -193,40 +194,40 @@ describe("table definitions", () => {
       "Table options require at least one column"
     )
 
-    expect(() => Table.make("empty_manual_index_users", {
-      id: C.uuid()
+    expect(() => StdRoot.Table.make("empty_manual_index_users", {
+      id: StdRoot.Column.uuid()
     }).pipe(
-      Table.option(unsafeAny({ kind: "index", columns: [] }))
+      StdRoot.Table.option(unsafeAny({ kind: "index", columns: [] }))
     )).toThrow("Index on table 'empty_manual_index_users' requires at least one column or key")
   })
 
   test("class tables reject table-level primary keys", () => {
-    class BadClassTable extends Table.Class<BadClassTable>("bad_class_table")({
-      id: C.uuid(),
-      slug: C.text()
+    class BadClassTable extends StdRoot.Table.Class<BadClassTable>("bad_class_table")({
+      id: StdRoot.Column.uuid(),
+      slug: StdRoot.Column.text()
     }) {
-      static override readonly [Table.options] = [unsafeAny(Table.primaryKey(["id", "slug"] as const))]
+      static override readonly [StdRoot.Table.options] = [unsafeAny(Table.primaryKey(["id", "slug"] as const))]
     }
 
     expect(() => BadClassTable.schemas).toThrow("Table.Class does not support table-level primary keys; declare primary keys inline on columns")
   })
 
   test("aliased tables reject schema-level options", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
-    expect(() => Table.index("email")(unsafeAny(Table.alias(users, "users_alias")))).toThrow(
+    expect(() => Table.index("email")(unsafeAny(StdRoot.Table.alias(users, "users_alias")))).toThrow(
       "Table options can only be applied to schema tables, not aliased query sources"
     )
   })
 
   test("operator expressions feed query selection and source tracking", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text(),
-      bio: C.text().pipe(C.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const selection = Q.select({
@@ -246,15 +247,15 @@ describe("table definitions", () => {
   })
 
   test("where and joins reconcile required and available sources", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text()
     })
 
     const query = Q.select({
@@ -289,15 +290,15 @@ describe("table definitions", () => {
   })
 
   test("renderer and executor use Query.ResultRow as the canonical output contract", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text()
     })
 
     const plan = Q.select({
@@ -313,7 +314,7 @@ describe("table definitions", () => {
     const renderer = Renderer.make("postgres")
 
     const rendered = renderer.render(plan)
-    expect(rendered.sql).toBe('select "users"."id" as "userId", "posts"."id" as "postId", upper("posts"."title") as "postTitleUpper" from "public"."users" left join "public"."posts" on true where ("users"."email" = $1)')
+    expect(rendered.sql).toBe('select "users"."id" as "userId", "posts"."id" as "postId", upper("posts"."title") as "postTitleUpper" from "users" left join "posts" on true where ("users"."email" = $1)')
     expect(rendered.dialect).toBe("postgres")
     expect(rendered.params).toEqual(["alice@example.com"])
     expect(rendered.projections).toEqual([
@@ -344,15 +345,15 @@ describe("table definitions", () => {
   })
 
   test("groupBy and orderBy render aggregate queries through the expression AST", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -372,19 +373,19 @@ describe("table definitions", () => {
     const renderer = Renderer.make("postgres")
     const rendered = renderer.render(plan)
 
-    expect(rendered.sql).toBe('select upper("users"."email") as "emailUpper", count("posts"."id") as "postCount", max("posts"."title") as "maxPostTitle", min("posts"."title") as "minPostTitle", coalesce(max("posts"."title"), $1) as "fallbackTitle" from "public"."users" inner join "public"."posts" on (("users"."id" = "posts"."userId") and (not false)) group by upper("users"."email") order by count("posts"."id") desc, upper("users"."email") asc')
+    expect(rendered.sql).toBe('select upper("users"."email") as "emailUpper", count("posts"."id") as "postCount", max("posts"."title") as "maxPostTitle", min("posts"."title") as "minPostTitle", coalesce(max("posts"."title"), $1) as "fallbackTitle" from "users" inner join "posts" on (("users"."id" = "posts"."userId") and (not false)) group by upper("users"."email") order by count("posts"."id") desc, upper("users"."email") asc')
     expect(rendered.params).toEqual(["NONE"])
   })
 
   test("runtime validation rejects invalid aggregate and scalar mixing without groupBy", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid()
     })
 
     const invalid = Q.select({
@@ -401,14 +402,14 @@ describe("table definitions", () => {
   })
 
   test("runtime validation requires exact grouped-expression matches", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid()
     })
 
     const groupedByDerived = Q.select({
@@ -438,11 +439,11 @@ describe("table definitions", () => {
   })
 
   test("runtime grouped validation keeps dotted table and column names distinct", () => {
-    const dottedTable = Table.make("a.b", {
-      status: C.text()
+    const dottedTable = StdRoot.Table.make("a.b", {
+      status: StdRoot.Column.text()
     })
-    const splitTable = Table.make("a", {
-      "b.status": C.text()
+    const splitTable = StdRoot.Table.make("a", {
+      "b.status": StdRoot.Column.text()
     })
 
     const groupedByDotted = Q.select({
@@ -460,9 +461,9 @@ describe("table definitions", () => {
   })
 
   test("Executor.fromDriver renders, runs, and decodes nested rows", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Q.select({
@@ -477,7 +478,7 @@ describe("table definitions", () => {
 
     const renderer = Renderer.make("postgres")
     const driver = Executor.driver("postgres", (query) => {
-      expect(query.sql).toBe('select "users"."id" as "user__id", "users"."email" as "user__email", $1 as "kind" from "public"."users"')
+      expect(query.sql).toBe('select "users"."id" as "user__id", "users"."email" as "user__email", $1 as "kind" from "users"')
       expect(query.params).toEqual(["user"])
       return Effect.succeed([
         {
@@ -503,9 +504,9 @@ describe("table definitions", () => {
   })
 
   test("explicit projection aliases control SQL aliases without changing decoded result paths", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Q.select({
@@ -521,7 +522,7 @@ describe("table definitions", () => {
     const renderer = Renderer.make("postgres")
     const rendered = renderer.render(plan)
 
-    expect(rendered.sql).toBe('select "users"."id" as "user_identifier", lower("users"."email") as "email_lower", $1 as "kind_label" from "public"."users"')
+    expect(rendered.sql).toBe('select "users"."id" as "user_identifier", lower("users"."email") as "email_lower", $1 as "kind_label" from "users"')
     expect(rendered.projections).toEqual([
       { path: ["profile", "id"], alias: "user_identifier" },
       { path: ["profile", "email"], alias: "email_lower" },
@@ -552,8 +553,8 @@ describe("table definitions", () => {
   })
 
   test("custom renderer projection aliases decode through their result paths", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Q.select({
@@ -589,9 +590,9 @@ describe("table definitions", () => {
   })
 
   test("renderer rejects duplicate explicit projection aliases", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const invalid = Q.select({
@@ -672,9 +673,9 @@ describe("table definitions", () => {
   })
 
   test("Executor.fromSqlClient uses SqlClient and decodes rendered rows", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Q.select({
@@ -690,7 +691,7 @@ describe("table definitions", () => {
     const executor = Executor.make({ renderer })
     const sql = {
       unsafe<A extends object>(statement: string, params?: ReadonlyArray<any>) {
-        expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "public"."users"')
+        expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "users"')
         expect(params).toEqual([])
         return Effect.succeed([
           {
@@ -716,14 +717,14 @@ describe("table definitions", () => {
   })
 
   test("aliased tables keep self-join source identity distinct at the plan layer", () => {
-    const employees = Table.make("employees", {
-      id: C.uuid().pipe(C.primaryKey),
-      managerId: C.uuid().pipe(C.nullable),
-      name: C.text()
+    const employees = StdRoot.Table.make("employees", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      managerId: StdRoot.Column.uuid().pipe(StdRoot.Column.nullable),
+      name: StdRoot.Column.text()
     })
 
-    const manager = Table.alias(employees, "manager")
-    const report = Table.alias(employees, "report")
+    const manager = StdRoot.Table.alias(employees, "manager")
+    const report = StdRoot.Table.alias(employees, "report")
 
     const plan = Q.select({
       managerId: manager.id,
@@ -747,14 +748,14 @@ describe("table definitions", () => {
   })
 
   test("renderer emits aliased self-joins with base tables and logical source names", () => {
-    const employees = Table.make("employees", {
-      id: C.uuid().pipe(C.primaryKey),
-      managerId: C.uuid().pipe(C.nullable),
-      name: C.text()
+    const employees = StdRoot.Table.make("employees", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      managerId: StdRoot.Column.uuid().pipe(StdRoot.Column.nullable),
+      name: StdRoot.Column.text()
     })
 
-    const manager = Table.alias(employees, "manager")
-    const report = Table.alias(employees, "report")
+    const manager = StdRoot.Table.alias(employees, "manager")
+    const report = StdRoot.Table.alias(employees, "report")
 
     const plan = Q.select({
       managerId: manager.id,
@@ -766,14 +767,14 @@ describe("table definitions", () => {
 
     const rendered = Renderer.make("postgres").render(plan)
 
-    expect(rendered.sql).toBe('select "manager"."id" as "managerId", "report"."name" as "reportName" from "public"."employees" as "manager" left join "public"."employees" as "report" on ("report"."managerId" = "manager"."id")')
+    expect(rendered.sql).toBe('select "manager"."id" as "managerId", "report"."name" as "reportName" from "employees" as "manager" left join "employees" as "report" on ("report"."managerId" = "manager"."id")')
     expect(rendered.params).toEqual([])
   })
 
   test("internal mysql renderer sketch uses mysql quoting, placeholders, and concat semantics", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.select({
@@ -796,18 +797,18 @@ describe("table definitions", () => {
     ])
   })
 
-  test("dialect entrypoints expose specialized columns and built-in renderers", () => {
-    const mysqlUsers = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid(),
-      email: Mysql.Column.text()
+  test("dialect entrypoints render standard root tables through built-in renderers", () => {
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid(),
+      email: StdRoot.Column.text()
     })
-    const postgresUsers = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid(),
-      email: Postgres.Column.text()
+    const postgresUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid(),
+      email: StdRoot.Column.text()
     })
 
-    expect(mysqlUsers.id[Scalar.TypeId].dbType.dialect).toBe("mysql")
-    expect(postgresUsers.id[Scalar.TypeId].dbType.dialect).toBe("postgres")
+    expect(mysqlUsers.id[Scalar.TypeId].dbType.dialect).toBe("standard")
+    expect(postgresUsers.id[Scalar.TypeId].dbType.dialect).toBe("standard")
 
     const mysqlPlan = Mysql.Query.select({
       id: mysqlUsers.id
@@ -821,13 +822,13 @@ describe("table definitions", () => {
     )
 
     expect(Mysql.Renderer.make().render(mysqlPlan).sql).toBe("select `users`.`id` as `id` from `users`")
-    expect(Postgres.Renderer.make().render(postgresPlan).sql).toBe('select "users"."id" as "id" from "public"."users"')
+    expect(Postgres.Renderer.make().render(postgresPlan).sql).toBe('select "users"."id" as "id" from "users"')
   })
 
   test("mysql query entrypoint specializes literal and operator rendering", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid(),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid(),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.select({

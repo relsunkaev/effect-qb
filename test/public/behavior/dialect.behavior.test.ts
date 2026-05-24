@@ -1,9 +1,11 @@
 // @ts-nocheck
 import { describe, expect, test } from "bun:test";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 import * as Mysql from "#mysql";
 import * as Postgres from "#postgres";
+import * as StdRoot from "#standard";
 import {
   makeMysqlEmployees,
   makeMysqlSocialGraph,
@@ -54,10 +56,10 @@ describe("dialect behavior", () => {
     const pgEmployees = makePostgresEmployees();
     const myEmployees = makeMysqlEmployees();
 
-    const pgManager = Postgres.Table.alias(pgEmployees, "manager");
-    const pgReport = Postgres.Table.alias(pgEmployees, "report");
-    const myManager = Mysql.Table.alias(myEmployees, "manager");
-    const myReport = Mysql.Table.alias(myEmployees, "report");
+    const pgManager = StdRoot.Table.alias(pgEmployees, "manager");
+    const pgReport = StdRoot.Table.alias(pgEmployees, "report");
+    const myManager = StdRoot.Table.alias(myEmployees, "manager");
+    const myReport = StdRoot.Table.alias(myEmployees, "report");
 
     const pgPlan = Postgres.Query.select({
       managerId: pgManager.id,
@@ -75,7 +77,7 @@ describe("dialect behavior", () => {
     );
 
     expect(Postgres.Renderer.make().render(pgPlan).sql).toBe(
-      'select "manager"."id" as "managerId", "report"."name" as "reportName" from "public"."employees" as "manager" left join "public"."employees" as "report" on ("report"."managerId" = "manager"."id")',
+      'select "manager"."id" as "managerId", "report"."name" as "reportName" from "employees" as "manager" left join "employees" as "report" on ("report"."managerId" = "manager"."id")',
     );
     expect(Mysql.Renderer.make().render(myPlan).sql).toBe(
       "select `manager`.`id` as `managerId`, `report`.`name` as `reportName` from `employees` as `manager` left join `employees` as `report` on (`report`.`managerId` = `manager`.`id`)",
@@ -95,9 +97,9 @@ describe("dialect behavior", () => {
 
   test("mixed-dialect tables are rejected consistently from the shared table layer", () => {
     expect(() =>
-      Postgres.Table.make("mixed_users", {
-        id: Postgres.Column.uuid(),
-        email: Mysql.Column.text(),
+      StdRoot.Table.make("mixed_users", {
+        id: Postgres.Column.custom(Schema.UUID, Postgres.Type.uuid()),
+        email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text()),
       }),
     ).toThrow(
       "Invalid dialects for table 'mixed_users': Mixed table dialects are not supported: postgres, mysql",

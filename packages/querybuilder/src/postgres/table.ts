@@ -32,13 +32,17 @@ export type TableClassStatic<
   SchemaName extends string | undefined = "public"
 > = BaseTable.TableClassStatic<Name, Fields, PrimaryKeyColumns, SchemaName>
 
-export type AnyTable = BaseTable.AnyTable<Dialect>
+export type AnyTable = BaseTable.AnyTable<Dialect | "standard">
 
 type FieldsOfTable<Table extends BaseTable.AnyTable> = Table[typeof BaseTable.TypeId]["fields"] extends infer Fields extends DialectFieldMap
   ? Fields
   : never
 
-type ColumnNamesOfTable<Table extends BaseTable.AnyTable> = Extract<keyof FieldsOfTable<Table>, string>
+type FieldsOfAnyTable<Table extends BaseTable.AnyTable> = Table[typeof BaseTable.TypeId]["fields"] extends infer Fields extends Record<string, AnyColumnDefinition>
+  ? Fields
+  : never
+
+type ColumnNamesOfTable<Table extends BaseTable.AnyTable> = Extract<keyof FieldsOfAnyTable<Table>, string>
 
 type PrimaryKeyOfTable<Table extends BaseTable.AnyTable> = Table[typeof BaseTable.TypeId]["primaryKey"][number]
 

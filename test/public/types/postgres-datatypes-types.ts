@@ -1,10 +1,12 @@
+import { Column as PgColumn } from "effect-qb/postgres"
+import * as Std from "effect-qb"
 import * as Pg from "effect-qb/postgres"
-import { Query as Q, Table, Column as C, Scalar as E } from "effect-qb/postgres"
+import { Query as Q, Scalar as E } from "effect-qb/postgres"
 import * as Schema from "effect/Schema"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
 const status = Pg.enum("status", ["pending", "active"])
@@ -22,26 +24,26 @@ void statusValues
 void scopedStatusValues
 void quotedStatusKind
 
-const builtinColumns = Table.make("builtin_columns", {
-  shortName: C.varchar(32),
-  code: C.char(1),
-  amount: C.number({ precision: 10, scale: 4 }),
-  payload: C.jsonb(Schema.Struct({
+const builtinColumns = Std.Table.make("builtin_columns", {
+  shortName: Std.Column.varchar(32),
+  code: Std.Column.char(1),
+  amount: Std.Column.number({ precision: 10, scale: 4 }),
+  payload: PgColumn.jsonb(Schema.Struct({
     ok: Schema.Boolean
   })),
-  tags: C.text().pipe(C.array()),
-  nullableTags: C.text().pipe(C.array({ nullableElements: true })),
-  quantity: C.int8(),
-  createdAt: C.timestamptz()
+  tags: Std.Column.text().pipe(PgColumn.array()),
+  nullableTags: Std.Column.text().pipe(PgColumn.array({ nullableElements: true })),
+  quantity: PgColumn.int8(),
+  createdAt: PgColumn.timestamptz()
 })
 
 const auditSeq = Pg.sequence("awsdms_ddl_audit_c_key_seq")
 const scopedAuditSeq = Pg.schema("audit").sequence("awsdms_ddl_audit_c_key_seq")
-const sequenceDefaultColumn = C.int8().pipe(
-  C.default(Pg.Function.nextVal(auditSeq))
+const sequenceDefaultColumn = PgColumn.int8().pipe(
+  Std.Column.default(Pg.Function.nextVal(auditSeq))
 )
-const scopedSequenceDefaultColumn = C.int8().pipe(
-  C.default(Pg.Function.nextVal(scopedAuditSeq))
+const scopedSequenceDefaultColumn = PgColumn.int8().pipe(
+  Std.Column.default(Pg.Function.nextVal(scopedAuditSeq))
 )
 void auditSeq
 void scopedAuditSeq

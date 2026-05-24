@@ -5,6 +5,7 @@ import { RowSet, Query as Q, Function as F, Table } from "#postgres"
 import { Column as C } from "#postgres"
 import { makeRootEmployees, makeRootSocialGraph } from "../../fixtures/schema.ts"
 import { unsafeAny } from "../../helpers/unsafe.ts"
+import * as StdRoot from "#standard"
 
 describe("query behavior", () => {
   test("literal-only selections stay complete and source-free", () => {
@@ -46,8 +47,8 @@ describe("query behavior", () => {
 
   test("self-join aliases remain distinct through required and available source tracking", () => {
     const employees = makeRootEmployees()
-    const manager = Table.alias(employees, "manager")
-    const report = Table.alias(employees, "report")
+    const manager = StdRoot.Table.alias(employees, "manager")
+    const report = StdRoot.Table.alias(employees, "report")
 
     const selected = Q.select({
       managerId: manager.id,

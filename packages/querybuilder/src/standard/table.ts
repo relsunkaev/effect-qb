@@ -68,6 +68,7 @@ export type TableOption = BaseTable.TableOption
 export const TypeId = BaseTable.TypeId
 export const OptionsSymbol = BaseTable.OptionsSymbol
 export const options = BaseTable.options
+export const option = BaseTable.option
 
 export const make = <
   Name extends string,

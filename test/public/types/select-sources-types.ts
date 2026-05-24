@@ -1,6 +1,7 @@
+import * as Std from "effect-qb"
 import * as Mysql from "effect-qb/mysql"
 import * as Postgres from "effect-qb/postgres"
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import { Query as Q } from "effect-qb/postgres"
 import type { BrandedErrorOf, BrandedHintOf } from "../../helpers/branded-error.ts"
 
 type IsExact<A, B> =
@@ -14,14 +15,14 @@ type IsExact<A, B> =
 
 type Assert<T extends true> = T
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid()
+const posts = Std.Table.make("posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  userId: Std.Column.uuid()
 })
 
 const active = Q.select({

@@ -1,3 +1,4 @@
+import * as Std from "effect-qb"
 import * as Effect from "effect/Effect"
 
 import * as Postgres from "effect-qb/postgres"
@@ -23,8 +24,8 @@ if (Postgres.Errors.hasSqlState(normalized, "23505")) {
   void constraint
 }
 
-const users = Postgres.Table.make("users", {
-  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey)
 })
 
 const plan = Postgres.Query.select({
@@ -61,9 +62,9 @@ class EmailAlreadyTaken extends Error {
   }
 }
 
-const writeUsers = Postgres.Table.make("write_users", {
-  id: Postgres.Column.text().pipe(Postgres.Column.primaryKey),
-  email: Postgres.Column.text()
+const writeUsers = Std.Table.make("write_users", {
+  id: Std.Column.text().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
 const writePlan = Postgres.Query.insert(writeUsers, {

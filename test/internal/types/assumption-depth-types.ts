@@ -1,7 +1,8 @@
-import { Column as C, Query as Q, Table } from "effect-qb/postgres"
+import * as Std from "effect-qb"
+import { Query as Q } from "effect-qb/postgres"
 
-const stress = Table.make("stress", {
-  value: C.text().pipe(C.nullable)
+const stress = Std.Table.make("stress", {
+  value: Std.Column.text().pipe(Std.Column.nullable)
 })
 
 const p0 = Q.select({ value: stress.value }).pipe(

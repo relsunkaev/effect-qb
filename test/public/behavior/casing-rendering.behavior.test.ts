@@ -2,10 +2,11 @@ import { describe, expect, test } from "bun:test"
 
 import { Casing, Column, Query, Table } from "../../../packages/querybuilder/src/index.ts"
 import * as Pg from "#postgres"
+import * as StdRoot from "#standard"
 
 describe("casing rendering behavior", () => {
   test("renderer casing maps physical table and column identifiers without changing model keys", () => {
-    const users = Table.make("UserAccounts", {
+    const users = StdRoot.Table.make("UserAccounts", {
       id: Column.uuid().pipe(Column.primaryKey),
       createdAt: Column.datetime(),
       displayName: Column.text()
@@ -34,7 +35,7 @@ describe("casing rendering behavior", () => {
   })
 
   test("table casing overrides renderer casing", () => {
-    const users = Table.make("UserAccounts", {
+    const users = StdRoot.Table.make("UserAccounts", {
       id: Column.uuid().pipe(Column.primaryKey),
       createdAt: Column.datetime()
     }).pipe(

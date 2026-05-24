@@ -1,10 +1,12 @@
+import { Column as PgColumn } from "effect-qb/postgres"
+import * as Std from "effect-qb"
 import * as Schema from "effect/Schema";
 
-import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres";
+import { Function as F, Json as J, Query as Q } from "effect-qb/postgres"
 
-const docs = Table.make("docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.jsonb(
+const docs = Std.Table.make("docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: PgColumn.jsonb(
     Schema.Struct({
       profile: Schema.Struct({
         address: Schema.Struct({
@@ -18,16 +20,16 @@ const docs = Table.make("docs", {
   ),
 });
 
-const notes = Table.make("notes", {
-  id: C.uuid().pipe(C.primaryKey),
-  docId: C.uuid().pipe(C.unique),
-  authorId: C.uuid(),
-  text: C.text(),
+const notes = Std.Table.make("notes", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  docId: Std.Column.uuid().pipe(Std.Column.unique),
+  authorId: Std.Column.uuid(),
+  text: Std.Column.text(),
 });
 
-const authors = Table.make("authors", {
-  id: C.uuid().pipe(C.primaryKey),
-  name: C.text(),
+const authors = Std.Table.make("authors", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  name: Std.Column.text(),
 });
 
 const result = Q.select({ id: docs.id, note: notes.text, author: authors.name }).pipe(

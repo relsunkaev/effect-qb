@@ -6,6 +6,7 @@ import * as Stream from "effect/Stream"
 
 import * as Mysql from "#mysql"
 import { unsafeAny } from "../../helpers/unsafe.ts"
+import * as StdRoot from "#standard"
 
 describe("mysql errors", () => {
   test("catalog descriptors expose official MySQL metadata", () => {
@@ -50,9 +51,9 @@ describe("mysql errors", () => {
   })
 
   test("fromDriver remaps write-required server failures behind query-requirements errors", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.select({
@@ -96,9 +97,9 @@ describe("mysql errors", () => {
   })
 
   test("fromDriver preserves write-required failures for write plans", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.insert(users, {
@@ -134,9 +135,9 @@ describe("mysql errors", () => {
   })
 
   test("fromDriver remaps write-required server failures on the stream path", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.select({
@@ -176,8 +177,8 @@ describe("mysql errors", () => {
   })
 
   test("fromDriver normalizes known client failures by number", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Mysql.Query.select({
@@ -211,8 +212,8 @@ describe("mysql errors", () => {
   })
 
   test("fromSqlClient normalizes allowed mysql failures through SqlClient", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Mysql.Query.select({
@@ -264,8 +265,8 @@ describe("mysql errors", () => {
   })
 
   test("fromSqlClient normalizes allowed mysql failures on the stream path", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Mysql.Query.select({
@@ -317,8 +318,8 @@ describe("mysql errors", () => {
   })
 
   test("unknown mysql codes with write-required sqlstate still map to query-requirements for read plans", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Mysql.Query.select({

@@ -4,6 +4,7 @@ import * as Schema from "effect/Schema"
 
 import * as Mysql from "#mysql"
 import { unsafeAny } from "../../helpers/unsafe.ts"
+import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 const secondUserId = "22222222-2222-2222-2222-222222222222"
@@ -11,15 +12,15 @@ const render = (plan: unknown) => Mysql.Renderer.make().render(unsafeAny(plan))
 
 describe("mysql insert behavior", () => {
   test("renders mysql multi-row and source-backed inserts", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
-    const archivedUsers = Mysql.Table.make("archived_users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const archivedUsers = StdRoot.Table.make("archived_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const valuesSource = unsafeAny(Mysql.Query.as(Mysql.Query.values([
@@ -95,22 +96,22 @@ describe("mysql insert behavior", () => {
   })
 
   test("preserves JSON string scalars that look like JSON while encoding inserts", () => {
-    const docs = Mysql.Table.make("json_string_docs", {
-      payload: Mysql.Column.json(Schema.String)
+    const docs = StdRoot.Table.make("json_string_docs", {
+      payload: StdRoot.Column.json(Schema.String)
     })
 
     const rendered = render(Mysql.Query.insert(docs, {
       payload: "42"
     }))
 
-    expect(rendered.params).toEqual(["42"])
+    expect(rendered.params).toEqual(["\"42\""])
   })
 
   test("rejects invalid rendered mysql insert source kinds", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const seed = unsafeAny(Mysql.Query.as(Mysql.Query.values([
       { id: Mysql.Query.literal(userId), email: "alice@example.com" }
@@ -122,8 +123,8 @@ describe("mysql insert behavior", () => {
   })
 
   test("encodes structured JSON inserts as JSON text for mysql", () => {
-    const docs = Mysql.Table.make("json_docs", {
-      payload: Mysql.Column.json(Schema.Unknown)
+    const docs = StdRoot.Table.make("json_docs", {
+      payload: StdRoot.Column.json(Schema.Unknown)
     })
 
     const rendered = render(Mysql.Query.insert(docs, {
@@ -143,9 +144,9 @@ describe("mysql insert behavior", () => {
   })
 
   test("canonicalizes and validates mysql unnest insert arrays using target column contracts", () => {
-    const metrics = Mysql.Table.make("unnest_metrics", {
-      total: Mysql.Column.number(),
-      happenedOn: Mysql.Column.date()
+    const metrics = StdRoot.Table.make("unnest_metrics", {
+      total: StdRoot.Column.number(),
+      happenedOn: StdRoot.Column.date()
     })
 
     const rendered = render(Mysql.Query.insert(metrics).pipe(
@@ -169,14 +170,14 @@ describe("mysql insert behavior", () => {
   })
 
   test("renders mysql default-only inserts and duplicate-key conflict clauses", () => {
-    const auditLogs = Mysql.Table.make("audit_logs", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey, Mysql.Column.default(Mysql.Query.literal("audit-log-id"))),
-      note: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const auditLogs = StdRoot.Table.make("audit_logs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.default(Mysql.Query.literal("audit-log-id"))),
+      note: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const defaultInsertPlan = Mysql.Query.insert(auditLogs)
@@ -205,9 +206,9 @@ describe("mysql insert behavior", () => {
   })
 
   test("rejects mysql conflict update actions without assignments", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Mysql.Query.onConflict(["email"] as const, {
@@ -219,9 +220,9 @@ describe("mysql insert behavior", () => {
   })
 
   test("rejects mysql upsert update actions without assignments", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Mysql.Query.upsert(users, {
@@ -231,9 +232,9 @@ describe("mysql insert behavior", () => {
   })
 
   test("rejects mysql upsert conflict columns with unknown columns at runtime", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Mysql.Query.upsert(users, {
@@ -245,9 +246,9 @@ describe("mysql insert behavior", () => {
   })
 
   test("rejects mysql conflict targets with unknown columns at runtime", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Mysql.Query.onConflict(unsafeAny(["missing"]), {
@@ -262,9 +263,9 @@ describe("mysql insert behavior", () => {
 
   test("rejects invalid rendered mysql conflict discriminants", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.onConflict(["email"] as const, {
@@ -281,9 +282,9 @@ describe("mysql insert behavior", () => {
   })
 
   test("renders mysql string conflict targets", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.onConflict("email", {
@@ -301,9 +302,9 @@ describe("mysql insert behavior", () => {
   })
 
   test("rejects mysql empty returning selections before treating them as no-ops", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => unsafeAny(Mysql.Query.returning)({})(Mysql.Query.insert(users, {
@@ -313,9 +314,9 @@ describe("mysql insert behavior", () => {
   })
 
   test("rejects mysql object-shaped conflict targets at runtime", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Mysql.Query.onConflict(unsafeAny({

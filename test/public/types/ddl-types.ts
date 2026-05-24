@@ -1,21 +1,23 @@
+import * as Std from "effect-qb"
 import * as Effect from "effect/Effect"
 
-import { Column as C, Executor, Query as Q, Renderer, Table } from "effect-qb/postgres"
+import * as Pg from "effect-qb/postgres"
+import { Executor, Query as Q, Renderer } from "effect-qb/postgres"
 
-const orgs = Table.make("orgs", {
-  id: C.uuid().pipe(C.primaryKey),
-  slug: C.text().pipe(C.unique)
+const orgs = Std.Table.make("orgs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  slug: Std.Column.text().pipe(Std.Column.unique)
 })
 
-const memberships = Table.make("memberships", {
-  id: C.uuid().pipe(C.primaryKey),
-  orgId: C.uuid(),
-  role: C.text(),
-  note: C.text().pipe(C.nullable)
+const memberships = Std.Table.make("memberships", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  orgId: Std.Column.uuid(),
+  role: Std.Column.text(),
+  note: Std.Column.text().pipe(Std.Column.nullable)
 }).pipe(
-  Table.foreignKey("orgId", () => orgs, "id"),
-  Table.unique(["orgId", "role"]),
-  Table.index(["role", "orgId"])
+  Std.Table.foreignKey("orgId", () => orgs, "id"),
+  Std.Table.unique(["orgId", "role"]),
+  Std.Table.index(["role", "orgId"])
 )
 
 const createTablePlan = Q.createTable(memberships, {
@@ -30,7 +32,7 @@ const dropIndexPlan = Q.dropIndex(memberships, ["role", "orgId"], {
 })
 const createSingleColumnIndexPlan = Q.createIndex(memberships, "role")
 const dropSingleColumnIndexPlan = Q.dropIndex(memberships, "role")
-const richColumnsOnlyIndexTable = memberships.pipe(Table.index({
+const richColumnsOnlyIndexTable = memberships.pipe(Pg.Table.index({
   columns: ["role"] as const
 }))
 
@@ -81,7 +83,7 @@ Q.createIndex(memberships, ["missing"])
 Q.dropIndex(memberships, ["missing"])
 
 // @ts-expect-error rich index columns cannot be empty
-Table.index({ columns: [] as const })
+Pg.Table.index({ columns: [] as const })
 
 const renderer = Renderer.make()
 const executor = Executor.custom(<PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(

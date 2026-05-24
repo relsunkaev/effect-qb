@@ -9,6 +9,7 @@ import * as Stream from "effect/Stream"
 import * as Mysql from "#mysql"
 import * as Standard from "#standard"
 import { Cast, Column as C, Executor, Query as Q, Function as F, Renderer, Table, Type } from "#postgres"
+import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
@@ -32,9 +33,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver decodes nested rows with null leaves", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text().pipe(C.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -67,8 +68,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver returns empty arrays unchanged", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     const plan = Q.select({
       id: users.id
@@ -84,9 +85,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver ignores extra columns while decoding projected columns", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const plan = Q.select({
       profile: {
@@ -118,9 +119,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects rows missing required projected aliases", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const plan = Q.select({
       id: users.id,
@@ -152,9 +153,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects nested rows missing required projected aliases", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const plan = Q.select({
       profile: {
@@ -188,9 +189,9 @@ describe("executor behavior", () => {
   })
 
   test("explicit projection aliases still decode into the original result paths", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const plan = Q.select({
       profile: {
@@ -221,9 +222,9 @@ describe("executor behavior", () => {
   })
 
   test("fromSqlClient forwards rendered SQL and params before remapping rows", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const plan = Q.select({
       profile: {
@@ -238,7 +239,7 @@ describe("executor behavior", () => {
     const executor = Executor.make()
     const sql = {
       unsafe<Row extends object>(statement: string, params?: ReadonlyArray<any>) {
-        expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "public"."users" where ("users"."email" = $1)')
+        expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "users" where ("users"."email" = $1)')
         expect(params).toEqual(["alice@example.com"])
         return Effect.succeed([
           {
@@ -264,9 +265,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects missing nested projected aliases instead of omitting paths", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const plan = Q.select({
       profile: {
@@ -298,9 +299,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects raw values that cannot be normalized into the canonical runtime contract", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      createdAt: C.timestamp()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      createdAt: StdRoot.Column.timestamp()
     })
     const plan = Q.select({
       profile: {
@@ -327,7 +328,7 @@ describe("executor behavior", () => {
         alias: "profile__createdAt"
       },
       dbType: {
-        dialect: "postgres",
+        dialect: "standard",
         kind: "timestamp"
       },
       raw: "not-a-date"
@@ -335,8 +336,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects impossible local-date values", () => {
-    const events = Table.make("events", {
-      happenedOn: C.date()
+    const events = StdRoot.Table.make("events", {
+      happenedOn: StdRoot.Column.date()
     })
 
     const plan = Q.select({
@@ -362,7 +363,7 @@ describe("executor behavior", () => {
           alias: "happenedOn"
         },
         dbType: {
-          dialect: "postgres",
+          dialect: "standard",
           kind: "date"
         }
       }
@@ -370,8 +371,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects prefixed local-date strings", () => {
-    const events = Table.make("prefixed_date_events", {
-      happenedOn: C.date()
+    const events = StdRoot.Table.make("prefixed_date_events", {
+      happenedOn: StdRoot.Column.date()
     })
 
     const plan = Q.select({
@@ -397,7 +398,7 @@ describe("executor behavior", () => {
           alias: "happenedOn"
         },
         dbType: {
-          dialect: "postgres",
+          dialect: "standard",
           kind: "date"
         }
       }
@@ -405,8 +406,8 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode rejects impossible local-date values", () => {
-    const events = Table.make("normalized_date_events", {
-      happenedOn: C.date()
+    const events = StdRoot.Table.make("normalized_date_events", {
+      happenedOn: StdRoot.Column.date()
     })
 
     const plan = Q.select({
@@ -433,7 +434,7 @@ describe("executor behavior", () => {
           alias: "happenedOn"
         },
         dbType: {
-          dialect: "postgres",
+          dialect: "standard",
           kind: "date"
         }
       }
@@ -444,18 +445,20 @@ describe("executor behavior", () => {
     {
       name: "fromDriver rejects impossible local-time values",
       tableName: "invalid_time_events",
-      column: () => C.time(),
+      column: () => StdRoot.Column.time(),
       raw: "25:61:00",
       stage: "normalize",
+      dialect: "standard",
       kind: "time"
     },
     {
       name: "normalized driver mode rejects impossible local-time values",
       tableName: "normalized_invalid_time_events",
-      column: () => C.time(),
+      column: () => StdRoot.Column.time(),
       raw: "25:61:00",
       driverMode: "normalized",
       stage: "schema",
+      dialect: "standard",
       kind: "time"
     },
     {
@@ -464,6 +467,7 @@ describe("executor behavior", () => {
       column: () => C.timetz(),
       raw: "25:61:00+99:99",
       stage: "normalize",
+      dialect: "postgres",
       kind: "timetz"
     },
     {
@@ -473,23 +477,26 @@ describe("executor behavior", () => {
       raw: "25:61:00+99:99",
       driverMode: "normalized",
       stage: "schema",
+      dialect: "postgres",
       kind: "timetz"
     },
     {
       name: "fromDriver rejects impossible local-datetime values",
       tableName: "invalid_datetime_events",
-      column: () => C.timestamp(),
+      column: () => StdRoot.Column.timestamp(),
       raw: "2026-02-31 10:00:00",
       stage: "normalize",
+      dialect: "standard",
       kind: "timestamp"
     },
     {
       name: "normalized driver mode rejects impossible local-datetime values",
       tableName: "normalized_invalid_datetime_events",
-      column: () => C.timestamp(),
+      column: () => StdRoot.Column.timestamp(),
       raw: "2026-02-31T10:00:00",
       driverMode: "normalized",
       stage: "schema",
+      dialect: "standard",
       kind: "timestamp"
     },
     {
@@ -498,6 +505,7 @@ describe("executor behavior", () => {
       column: () => C.timestamptz(),
       raw: "2026-02-31T10:00:00Z",
       stage: "normalize",
+      dialect: "postgres",
       kind: "timestamptz"
     },
     {
@@ -507,13 +515,14 @@ describe("executor behavior", () => {
       raw: "2026-02-31T10:00:00Z",
       driverMode: "normalized",
       stage: "schema",
+      dialect: "postgres",
       kind: "timestamptz"
     }
   ]
 
   for (const invalidCase of invalidTemporalCases) {
     test(invalidCase.name, () => {
-      const events = Table.make(invalidCase.tableName, {
+      const events = StdRoot.Table.make(invalidCase.tableName, {
         value: invalidCase.column()
       })
 
@@ -541,7 +550,7 @@ describe("executor behavior", () => {
             alias: "value"
           },
           dbType: {
-            dialect: "postgres",
+            dialect: invalidCase.dialect,
             kind: invalidCase.kind
           }
         }
@@ -550,10 +559,10 @@ describe("executor behavior", () => {
   }
 
   test("fromDriver normalizes canonical scalar outputs across raw driver variants", () => {
-    const metrics = Table.make("metrics", {
-      id: C.uuid().pipe(C.primaryKey),
-      createdAt: C.timestamp(),
-      total: C.number(),
+    const metrics = StdRoot.Table.make("metrics", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      createdAt: StdRoot.Column.timestamp(),
+      total: StdRoot.Column.number(),
       counter: C.custom(Schema.String, {
         dialect: "postgres",
         kind: "int8"
@@ -608,9 +617,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver normalizes byte and array outputs", () => {
-    const files = Table.make("files", {
+    const files = StdRoot.Table.make("files", {
       payload: C.bytea(),
-      tags: C.text().pipe(C.array())
+      tags: StdRoot.Column.text().pipe(C.array())
     })
 
     const plan = Q.select({
@@ -634,8 +643,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver applies schema pipes after canonical date normalization", () => {
-    const events = Table.make("events", {
-      happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
+    const events = StdRoot.Table.make("events", {
+      happenedOn: StdRoot.Column.date().pipe(StdRoot.Column.schema(Schema.DateFromString))
     })
 
     const plan = Q.select({
@@ -662,7 +671,7 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver accepts canonical instant outputs with milliseconds", () => {
-    const events = Table.make("events", {
+    const events = StdRoot.Table.make("events", {
       happenedAt: C.timestamptz()
     })
 
@@ -694,9 +703,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver preserves four-digit years when normalizing Date values", () => {
-    const events = Table.make("early_events", {
-      happenedOn: C.date(),
-      happenedAt: C.timestamp()
+    const events = StdRoot.Table.make("early_events", {
+      happenedOn: StdRoot.Column.date(),
+      happenedAt: StdRoot.Column.timestamp()
     })
 
     const happenedOn = new Date(Date.UTC(0, 0, 1))
@@ -729,13 +738,13 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver decodes searched case projections over left joins", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -764,13 +773,13 @@ describe("executor behavior", () => {
   })
 
   test("fromSqlClient forwards searched case SQL and params before remapping rows", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -788,7 +797,7 @@ describe("executor behavior", () => {
     const sql = {
       unsafe<Row extends object>(statement: string, params?: ReadonlyArray<any>) {
         expect(statement).toBe(
-          'select case when ("posts"."title" is null) then $1 when (lower("posts"."title") = $2) then $3 else upper(coalesce("posts"."title", $4)) end as "titleState" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where ("users"."id" = $5)'
+          'select case when ("posts"."title" is null) then $1 when (lower("posts"."title") = $2) then $3 else upper(coalesce("posts"."title", $4)) end as "titleState" from "users" left join "posts" on ("users"."id" = "posts"."userId") where ("users"."id" = $5)'
         )
         expect(params).toEqual(["missing", "draft", "draft", "published", userId])
         return Effect.succeed([
@@ -811,13 +820,13 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver decodes aggregate searched case projections", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      userId: C.uuid(),
-      title: C.text().pipe(C.nullable)
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const plan = Q.select({
@@ -849,12 +858,12 @@ describe("executor behavior", () => {
   })
 
   test("renderer output does not expose a row schema", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    const posts = Table.make("posts", {
-      id: C.uuid().pipe(C.primaryKey),
-      title: C.text()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      title: StdRoot.Column.text()
     })
 
     const plan = Q.select({
@@ -871,9 +880,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver enforces runtime schemas for aliased JSON projections", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      profile: C.json(Schema.Struct({
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      profile: StdRoot.Column.json(Schema.Struct({
         displayName: Schema.String
       }))
     })
@@ -899,7 +908,7 @@ describe("executor behavior", () => {
         alias: "profile_alias"
       },
       dbType: {
-        dialect: "postgres",
+        dialect: "standard",
         kind: "json"
       },
       raw: {}
@@ -907,8 +916,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver accepts top-level JSON nulls allowed by the JSON schema", () => {
-    const docs = Table.make("nullable_json_docs", {
-      payload: C.json(Schema.NullOr(Schema.Struct({
+    const docs = StdRoot.Table.make("nullable_json_docs", {
+      payload: StdRoot.Column.json(Schema.NullOr(Schema.Struct({
         kind: Schema.String
       })))
     })
@@ -935,8 +944,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects non-finite JSON numbers", () => {
-    const docs = Table.make("json_number_docs", {
-      payload: C.json(Schema.Number)
+    const docs = StdRoot.Table.make("json_number_docs", {
+      payload: StdRoot.Column.json(Schema.Number)
     })
 
     const plan = Q.select({
@@ -962,7 +971,7 @@ describe("executor behavior", () => {
           alias: "payload"
         },
         dbType: {
-          dialect: "postgres",
+          dialect: "standard",
           kind: "json"
         }
       }
@@ -970,8 +979,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects non-plain JSON object values", () => {
-    const docs = Table.make("json_object_domain_docs", {
-      payload: C.json(Schema.Unknown)
+    const docs = StdRoot.Table.make("json_object_domain_docs", {
+      payload: StdRoot.Column.json(Schema.Unknown)
     })
 
     const plan = Q.select({
@@ -997,7 +1006,7 @@ describe("executor behavior", () => {
           alias: "payload"
         },
         dbType: {
-          dialect: "postgres",
+          dialect: "standard",
           kind: "json"
         }
       }
@@ -1005,8 +1014,8 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode rejects non-finite JSON numbers", () => {
-    const docs = Table.make("normalized_json_number_docs", {
-      payload: C.json(Schema.Number)
+    const docs = StdRoot.Table.make("normalized_json_number_docs", {
+      payload: StdRoot.Column.json(Schema.Number)
     })
 
     const plan = Q.select({
@@ -1033,7 +1042,7 @@ describe("executor behavior", () => {
           alias: "payload"
         },
         dbType: {
-          dialect: "postgres",
+          dialect: "standard",
           kind: "json"
         }
       }
@@ -1041,8 +1050,8 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode rejects non-plain JSON object values", () => {
-    const docs = Table.make("normalized_json_object_domain_docs", {
-      payload: C.json(Schema.Unknown)
+    const docs = StdRoot.Table.make("normalized_json_object_domain_docs", {
+      payload: StdRoot.Column.json(Schema.Unknown)
     })
 
     const plan = Q.select({
@@ -1069,7 +1078,7 @@ describe("executor behavior", () => {
           alias: "payload"
         },
         dbType: {
-          dialect: "postgres",
+          dialect: "standard",
           kind: "json"
         }
       }
@@ -1077,7 +1086,7 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode rejects non-finite numeric values", () => {
-    const metrics = Table.make("normalized_metrics", {
+    const metrics = StdRoot.Table.make("normalized_metrics", {
       total: C.float8()
     })
 
@@ -1113,7 +1122,7 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver rejects non-decimal numeric strings", () => {
-    const metrics = Table.make("non_decimal_numeric_metrics", {
+    const metrics = StdRoot.Table.make("non_decimal_numeric_metrics", {
       total: C.float8()
     })
 
@@ -1148,8 +1157,8 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode rejects non-canonical numeric strings", () => {
-    const metrics = Table.make("normalized_canonical_metrics", {
-      total: C.number(),
+    const metrics = StdRoot.Table.make("normalized_canonical_metrics", {
+      total: StdRoot.Column.number(),
       counter: C.int8()
     })
 
@@ -1180,7 +1189,7 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode rejects non-canonical bigint strings", () => {
-    const metrics = Table.make("normalized_canonical_bigint_metrics", {
+    const metrics = StdRoot.Table.make("normalized_canonical_bigint_metrics", {
       counter: C.int8()
     })
 
@@ -1216,8 +1225,8 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode rejects non-finite aggregate numbers", () => {
-    const users = Table.make("normalized_aggregate_users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("normalized_aggregate_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Q.select({
@@ -1248,8 +1257,8 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode rejects non-finite window numbers", () => {
-    const users = Table.make("normalized_window_users", {
-      id: C.uuid().pipe(C.primaryKey)
+    const users = StdRoot.Table.make("normalized_window_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Q.select({
@@ -1316,9 +1325,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver enforces declared string length limits", () => {
-    const users = Table.make("users", {
-      shortName: C.varchar(3),
-      code: C.char(2)
+    const users = StdRoot.Table.make("users", {
+      shortName: StdRoot.Column.varchar(3),
+      code: StdRoot.Column.char(2)
     })
 
     const plan = Q.select({
@@ -1344,7 +1353,7 @@ describe("executor behavior", () => {
         alias: "shortName"
       },
       dbType: {
-        dialect: "postgres",
+        dialect: "standard",
         kind: "varchar"
       },
       raw: "toolong"
@@ -1352,8 +1361,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver enforces char length limits", () => {
-    const users = Table.make("users", {
-      code: C.char(2)
+    const users = StdRoot.Table.make("users", {
+      code: StdRoot.Column.char(2)
     })
 
     const plan = Q.select({
@@ -1377,7 +1386,7 @@ describe("executor behavior", () => {
         alias: "code"
       },
       dbType: {
-        dialect: "postgres",
+        dialect: "standard",
         kind: "char"
       },
       raw: "abcd"
@@ -1385,9 +1394,9 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver applies schema transforms after JSON normalization", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      profile: C.json(Schema.Struct({
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      profile: StdRoot.Column.json(Schema.Struct({
         visits: Schema.NumberFromString
       }))
     })
@@ -1416,8 +1425,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver accepts already-decoded JSON string scalars", () => {
-    const docs = Table.make("json_string_docs", {
-      payload: C.json(Schema.String)
+    const docs = StdRoot.Table.make("json_string_docs", {
+      payload: StdRoot.Column.json(Schema.String)
     })
 
     const plan = Q.select({
@@ -1442,8 +1451,8 @@ describe("executor behavior", () => {
   })
 
   test("fromDriver preserves already-decoded JSON string scalars that look like JSON", () => {
-    const docs = Table.make("json_numeric_string_docs", {
-      payload: C.json(Schema.String)
+    const docs = StdRoot.Table.make("json_numeric_string_docs", {
+      payload: StdRoot.Column.json(Schema.String)
     })
 
     const plan = Q.select({
@@ -1468,9 +1477,9 @@ describe("executor behavior", () => {
   })
 
   test("normalized driver mode skips raw scalar normalization but still validates schemas", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      createdAt: C.timestamp()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      createdAt: StdRoot.Column.timestamp()
     })
 
     const plan = Q.select({
@@ -1500,10 +1509,10 @@ describe("executor behavior", () => {
 
   describe("stream", () => {
     test("decodes the same rows as execute for read plans", () => {
-      const users = Table.make("users", {
-        id: C.uuid().pipe(C.primaryKey),
-        email: C.text().pipe(C.nullable),
-        createdAt: C.timestamp()
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+        email: StdRoot.Column.text().pipe(StdRoot.Column.nullable),
+        createdAt: StdRoot.Column.timestamp()
       })
 
       const plan = Q.select({
@@ -1561,8 +1570,8 @@ describe("executor behavior", () => {
     })
 
     test("preserves row order across streamed chunks", () => {
-      const users = Table.make("users", {
-        id: C.uuid().pipe(C.primaryKey)
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
       })
 
       const plan = Q.select({
@@ -1596,9 +1605,9 @@ describe("executor behavior", () => {
     })
 
     test("fails with RowDecodeError when streamed rows violate runtime decoding", () => {
-      const users = Table.make("users", {
-        id: C.uuid().pipe(C.primaryKey),
-        createdAt: C.timestamp()
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+        createdAt: StdRoot.Column.timestamp()
       })
 
       const plan = Q.select({
@@ -1630,7 +1639,7 @@ describe("executor behavior", () => {
           alias: "createdAt"
         },
         dbType: {
-          dialect: "postgres",
+          dialect: "standard",
           kind: "timestamp"
         },
         raw: "not-a-date"
@@ -1638,9 +1647,9 @@ describe("executor behavior", () => {
     })
 
     test("fails with RowDecodeError when streamed nested rows miss required aliases", () => {
-      const users = Table.make("users", {
-        id: C.uuid().pipe(C.primaryKey),
-        email: C.text()
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+        email: StdRoot.Column.text()
       })
 
       const plan = Q.select({
@@ -1679,8 +1688,8 @@ describe("executor behavior", () => {
     })
 
     test("uses the driver's stream path without calling execute", () => {
-      const users = Table.make("users", {
-        id: C.uuid().pipe(C.primaryKey)
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
       })
 
       const plan = Q.select({
@@ -1715,8 +1724,8 @@ describe("executor behavior", () => {
     })
 
     test("runs driver stream finalizers when consumers stop early", () => {
-      const users = Table.make("users", {
-        id: C.uuid().pipe(C.primaryKey)
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
       })
 
       const plan = Q.select({
@@ -1751,9 +1760,9 @@ describe("executor behavior", () => {
     })
 
     test("forwards rendered SQL and params to the ambient SqlClient stream", () => {
-      const users = Table.make("users", {
-        id: C.uuid().pipe(C.primaryKey),
-        email: C.text()
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+        email: StdRoot.Column.text()
       })
 
       const plan = Q.select({
@@ -1773,7 +1782,7 @@ describe("executor behavior", () => {
             statement: string,
             params?: ReadonlyArray<any>
           ) {
-            expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "public"."users" where ("users"."email" = $1)')
+            expect(statement).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__email" from "users" where ("users"."email" = $1)')
             expect(params).toEqual(["alice@example.com"])
             return Stream.fromIterable([
               {

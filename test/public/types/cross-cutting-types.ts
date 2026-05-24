@@ -1,17 +1,18 @@
+import * as Std from "effect-qb"
 import * as Mysql from "effect-qb/mysql";
 import * as Postgres from "effect-qb/postgres";
-import { Column as C, Query as Q, Table } from "effect-qb/postgres";
+import { Query as Q } from "effect-qb/postgres"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable),
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text(),
+  bio: Std.Column.text().pipe(Std.Column.nullable),
 });
 
-const incomingUsers = Table.make("incoming_users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable),
+const incomingUsers = Std.Table.make("incoming_users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text(),
+  bio: Std.Column.text().pipe(Std.Column.nullable),
 });
 
 const truncatePlan = Q.truncate(users, {

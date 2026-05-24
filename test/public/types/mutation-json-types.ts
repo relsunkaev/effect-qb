@@ -1,6 +1,8 @@
+import { Column as PgColumn } from "effect-qb/postgres"
+import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Function as F, Json as J, Query as Q, Table } from "effect-qb/postgres"
+import { Function as F, Json as J, Query as Q } from "effect-qb/postgres"
 
 const payloadSchema = Schema.Struct({
   profile: Schema.Struct({
@@ -13,14 +15,14 @@ const payloadSchema = Schema.Struct({
   note: Schema.NullOr(Schema.String)
 })
 
-const docsJson = Table.make("docs_json", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(payloadSchema)
+const docsJson = Std.Table.make("docs_json", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(payloadSchema)
 })
 
-const docsJsonb = Table.make("docs_jsonb", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.jsonb(payloadSchema)
+const docsJsonb = Std.Table.make("docs_jsonb", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: PgColumn.jsonb(payloadSchema)
 })
 
 const cityPath = J.json.path(
@@ -102,9 +104,9 @@ Q.insert(docsJson, {
   payload: compatibleJsonbObject as never
 })
 
-const tupleDocs = Table.make("tuple_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(Schema.Struct({
+const tupleDocs = Std.Table.make("tuple_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(Schema.Struct({
     pair: Schema.Tuple(Schema.Number, Schema.String)
   }))
 })
@@ -128,9 +130,9 @@ const preciseSecondSlotIssue: HasPreciseSecondSlotIssue = true
 
 void preciseSecondSlotIssue
 
-const rootTupleDocs = Table.make("root_tuple_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(Schema.Tuple(Schema.Number, Schema.String))
+const rootTupleDocs = Std.Table.make("root_tuple_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(Schema.Tuple(Schema.Number, Schema.String))
 })
 
 const invalidRootTuplePayload = J.json.buildArray("north", 1)

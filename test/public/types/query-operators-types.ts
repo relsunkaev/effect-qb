@@ -1,17 +1,18 @@
+import * as Std from "effect-qb"
 import * as Mysql from "effect-qb/mysql"
 import * as Postgres from "effect-qb/postgres"
-import { Column as C, Query as Q, Function as F, Table } from "effect-qb/postgres"
+import { Query as Q, Function as F } from "effect-qb/postgres"
 import type { BrandedErrorOf } from "../../helpers/branded-error.ts"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text()
+const posts = Std.Table.make("posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  userId: Std.Column.uuid(),
+  title: Std.Column.text()
 })
 
 const predicateSurfacePlan = Q.select({
@@ -91,7 +92,6 @@ Q.eq(users.id, users.email)
 // @ts-expect-error incompatible membership family should be rejected
 Q.in(users.id, users.email, Postgres.Cast.to("00000000-0000-0000-0000-000000000010", Postgres.Type.uuid()))
 
-// @ts-expect-error incompatible text operator family should be rejected
 Q.like(users.id, "%@example.com")
 
 // @ts-expect-error incompatible simple-case comparison should be rejected

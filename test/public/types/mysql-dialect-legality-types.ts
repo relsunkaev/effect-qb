@@ -1,13 +1,14 @@
-import { Column as C, Query as Q, Table } from "effect-qb/mysql"
+import * as Std from "effect-qb"
+import { Query as Q } from "effect-qb/mysql"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid()
+const posts = Std.Table.make("posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  userId: Std.Column.uuid()
 })
 
 // @ts-expect-error MySQL select statements require at least one selected expression.
@@ -36,14 +37,14 @@ const restartIdentityTruncate = Q.truncate(users, {
   restartIdentity: true
 })
 
-C.text().pipe(C.unique.options({ name: "users_email_key" }))
+Std.Column.text().pipe(Std.Column.unique.options({ name: "users_email_key" }))
 
-C.text().pipe(C.unique.options({
+Std.Column.text().pipe(Std.Column.unique.options({
   // @ts-expect-error MySQL unique constraints do not support PostgreSQL NULLS NOT DISTINCT.
   nullsNotDistinct: true
 }))
 
-C.text().pipe(C.unique.options({
+Std.Column.text().pipe(Std.Column.unique.options({
   // @ts-expect-error MySQL unique constraints do not support deferrable mode.
   deferrable: true
 }))

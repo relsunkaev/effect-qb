@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
+import * as StdRoot from "#standard"
 
 const payloadSchema = Schema.Struct({
   profile: Schema.Struct({
@@ -23,16 +24,16 @@ const mutationSchema = Schema.Struct({
   })
 })
 
-const makeJsonTable = (table: any) =>
-  table.Table.make("docs", {
-    id: table.Column.uuid().pipe(table.Column.primaryKey),
-    payload: table.Column.json(payloadSchema)
+const makeJsonTable = (_table: any) =>
+  StdRoot.Table.make("docs", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    payload: StdRoot.Column.json(payloadSchema)
   })
 
-const makeJsonbTable = (table: typeof Postgres) =>
-  table.Table.make("docs", {
-    id: table.Column.uuid().pipe(table.Column.primaryKey),
-    payload: table.Column.jsonb(payloadSchema)
+const makeJsonbTable = (_table: typeof Postgres) =>
+  StdRoot.Table.make("docs", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    payload: Postgres.Column.jsonb(payloadSchema)
   })
 
 describe("json behavior", () => {
@@ -64,7 +65,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", json_build_object($9, $10, $11, $12) as "builtObject", json_build_array($13, $14, true) as "builtArray", to_json($15) as "toJson", json_typeof("docs"."payload") as "typeName", (case when json_typeof("docs"."payload") = \'array\' then json_array_length("docs"."payload") when json_typeof("docs"."payload") = \'object\' then (select count(*)::int from json_object_keys("docs"."payload")) else null end) as "length", (case when json_typeof("docs"."payload") = \'object\' then to_json(array(select json_object_keys("docs"."payload"))) else null end) as "keys", json_strip_nulls("docs"."payload") as "stripNulls" from "public"."docs"'
+      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", json_build_object($9, $10, $11, $12) as "builtObject", json_build_array($13, $14, true) as "builtArray", to_json($15) as "toJson", json_typeof("docs"."payload") as "typeName", (case when json_typeof("docs"."payload") = \'array\' then json_array_length("docs"."payload") when json_typeof("docs"."payload") = \'object\' then (select count(*)::int from json_object_keys("docs"."payload")) else null end) as "length", (case when json_typeof("docs"."payload") = \'object\' then to_json(array(select json_object_keys("docs"."payload"))) else null end) as "keys", json_strip_nulls("docs"."payload") as "stripNulls" from "docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -104,7 +105,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" #> array[$1, $2, $3]) as "cityJson", ("docs"."payload" #>> array[$4, $5, $6]) as "cityText", jsonb_typeof("docs"."payload") as "typeName", jsonb_strip_nulls("docs"."payload") as "stripNulls" from "public"."docs"'
+      'select ("docs"."payload" #> array[$1, $2, $3]) as "cityJson", ("docs"."payload" #>> array[$4, $5, $6]) as "cityText", jsonb_typeof("docs"."payload") as "typeName", jsonb_strip_nulls("docs"."payload") as "stripNulls" from "docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -117,8 +118,8 @@ describe("json behavior", () => {
   })
 
   test("json path predicate facts keep dotted key segments distinct", () => {
-    const docs = Postgres.Table.make("docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Struct({
         "a.b": Schema.Struct({
           kind: Schema.Literal("flat", "other")
@@ -198,7 +199,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" #>> array[$1, $2, $3]) as "city", count("docs"."id") as "count" from "public"."docs" group by ("docs"."payload" #>> array[$4, $5, $6])'
+      'select ("docs"."payload" #>> array[$1, $2, $3]) as "city", count("docs"."id") as "count" from "docs" group by ("docs"."payload" #>> array[$4, $5, $6])'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -211,8 +212,8 @@ describe("json behavior", () => {
   })
 
   test("postgres binds direct json array indexes as numbers", () => {
-    const docs = Postgres.Table.make("docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Array(Schema.String))
     })
 
@@ -225,7 +226,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" -> $1) as "firstJson", ("docs"."payload" ->> $2) as "secondText", ("docs"."payload" - $3) as "withoutFirst" from "public"."docs"'
+      'select ("docs"."payload" -> $1) as "firstJson", ("docs"."payload" ->> $2) as "secondText", ("docs"."payload" - $3) as "withoutFirst" from "docs"'
     )
     expect(rendered.params).toEqual([
       0,
@@ -244,14 +245,14 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select (case when json_typeof("docs"."payload") = \'object\' then to_json(array(select json_object_keys("docs"."payload"))) else null end) as "keys" from "public"."docs"'
+      'select (case when json_typeof("docs"."payload") = \'object\' then to_json(array(select json_object_keys("docs"."payload"))) else null end) as "keys" from "docs"'
     )
     expect(rendered.params).toEqual([])
   })
 
   test("runtime grouped validation keeps json path segment boundaries distinct", () => {
-    const docs = Postgres.Table.make("docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Unknown)
     })
     const flatKey = Postgres.Json.jsonb.text(
@@ -341,7 +342,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", jsonb_path_query_first("docs"."payload", $9) as "wildcardJson", ("docs"."payload" ? cast($10 as text)) as "hasProfile", ("docs"."payload" ?| array[cast($11 as text), cast($12 as text)]) as "hasAny", ("docs"."payload" ?& array[cast($13 as text), cast($14 as text)]) as "hasAll", ("docs"."payload" @> cast($15 as jsonb)) as "contains", ("docs"."payload" <@ cast($16 as jsonb)) as "containedBy", ("docs"."payload" - $17) as "deleteNote", ("docs"."payload" - $18) as "removeNote", jsonb_set("docs"."payload", array[$19, $20, $21], cast($22 as jsonb), true) as "setPostcode", jsonb_insert("docs"."payload", array[$23, $24, $25], cast($26 as jsonb), false) as "insertSuite", (cast($27 as jsonb) || cast($28 as jsonb)) as "concatValue", (cast($29 as jsonb) || cast($30 as jsonb)) as "mergeValue", jsonb_build_object($31, $32, $33, $34) as "builtObject", jsonb_build_array($35, $36, true) as "builtArray", to_jsonb($37) as "toJsonb", jsonb_typeof("docs"."payload") as "typeName", (case when jsonb_typeof("docs"."payload") = \'array\' then jsonb_array_length("docs"."payload") when jsonb_typeof("docs"."payload") = \'object\' then (select count(*)::int from jsonb_object_keys("docs"."payload")) else null end) as "length", (case when jsonb_typeof("docs"."payload") = \'object\' then to_json(array(select jsonb_object_keys("docs"."payload"))) else null end) as "keys", ("docs"."payload" @? $38) as "pathExists", ("docs"."payload" @@ $39) as "pathMatch", jsonb_strip_nulls("docs"."payload") as "stripNulls" from "public"."docs"'
+      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", jsonb_path_query_first("docs"."payload", $9) as "wildcardJson", ("docs"."payload" ? cast($10 as text)) as "hasProfile", ("docs"."payload" ?| array[cast($11 as text), cast($12 as text)]) as "hasAny", ("docs"."payload" ?& array[cast($13 as text), cast($14 as text)]) as "hasAll", ("docs"."payload" @> cast($15 as jsonb)) as "contains", ("docs"."payload" <@ cast($16 as jsonb)) as "containedBy", ("docs"."payload" - $17) as "deleteNote", ("docs"."payload" - $18) as "removeNote", jsonb_set("docs"."payload", array[$19, $20, $21], cast($22 as jsonb), true) as "setPostcode", jsonb_insert("docs"."payload", array[$23, $24, $25], cast($26 as jsonb), false) as "insertSuite", (cast($27 as jsonb) || cast($28 as jsonb)) as "concatValue", (cast($29 as jsonb) || cast($30 as jsonb)) as "mergeValue", jsonb_build_object($31, $32, $33, $34) as "builtObject", jsonb_build_array($35, $36, true) as "builtArray", to_jsonb($37) as "toJsonb", jsonb_typeof("docs"."payload") as "typeName", (case when jsonb_typeof("docs"."payload") = \'array\' then jsonb_array_length("docs"."payload") when jsonb_typeof("docs"."payload") = \'object\' then (select count(*)::int from jsonb_object_keys("docs"."payload")) else null end) as "length", (case when jsonb_typeof("docs"."payload") = \'object\' then to_json(array(select jsonb_object_keys("docs"."payload"))) else null end) as "keys", ("docs"."payload" @? $38) as "pathExists", ("docs"."payload" @@ $39) as "pathMatch", jsonb_strip_nulls("docs"."payload") as "stripNulls" from "docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -425,7 +426,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" #> array[$1, $2, $3]) as "cityJson", ("docs"."payload" #>> array[$4, $5, $6]) as "cityText", jsonb_set("docs"."payload", array[$7, $8, $9], cast($10 as jsonb), true) as "setCity", ("docs"."payload" #- array[$11, $12, $13]) as "deleteCity" from "public"."docs"'
+      'select ("docs"."payload" #> array[$1, $2, $3]) as "cityJson", ("docs"."payload" #>> array[$4, $5, $6]) as "cityText", jsonb_set("docs"."payload", array[$7, $8, $9], cast($10 as jsonb), true) as "setCity", ("docs"."payload" #- array[$11, $12, $13]) as "deleteCity" from "docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -458,7 +459,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" @? $1) as "exists" from "public"."docs"'
+      'select ("docs"."payload" @? $1) as "exists" from "docs"'
     )
     expect(rendered.params).toEqual([
       '$."line\\nbreak"."tab\\tkey"'
@@ -483,7 +484,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select jsonb_set("docs"."payload", array[$1, $2, $3], cast($4 as jsonb), false) as "setSuite" from "public"."docs"'
+      'select jsonb_set("docs"."payload", array[$1, $2, $3], cast($4 as jsonb), false) as "setSuite" from "docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -948,12 +949,12 @@ describe("json behavior", () => {
   })
 
   test("postgres renders json and jsonb mutations with separate helper surfaces", () => {
-    const docsJson = Postgres.Table.make("docs_json", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      payload: Postgres.Column.json(mutationSchema)
+    const docsJson = StdRoot.Table.make("docs_json", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      payload: StdRoot.Column.json(mutationSchema)
     })
-    const docsJsonb = Postgres.Table.make("docs_jsonb", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docsJsonb = StdRoot.Table.make("docs_jsonb", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       payload: Postgres.Column.jsonb(mutationSchema)
     })
 
@@ -979,7 +980,7 @@ describe("json behavior", () => {
 
     const insert = Postgres.Renderer.make().render(insertPlan)
     expect(insert.sql).toBe(
-      'insert into "public"."docs_json" ("id", "payload") values ($1, json_build_object($2, $3))'
+      'insert into "docs_json" ("id", "payload") values ($1, json_build_object($2, $3))'
     )
     expect(insert.params).toEqual([
       jsonDocId,
@@ -991,7 +992,7 @@ describe("json behavior", () => {
 
     const update = Postgres.Renderer.make().render(updatePlan)
     expect(update.sql).toBe(
-      'update "public"."docs_jsonb" set "payload" = ("docs_jsonb"."payload" || jsonb_build_object($1, $2))'
+      'update "docs_jsonb" set "payload" = ("docs_jsonb"."payload" || jsonb_build_object($1, $2))'
     )
     expect(update.params).toEqual([
       "profile",
@@ -1002,9 +1003,9 @@ describe("json behavior", () => {
   })
 
   test("mysql keeps a single json mutation surface", () => {
-    const docs = Mysql.Table.make("docs", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      payload: Mysql.Column.json(mutationSchema)
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      payload: StdRoot.Column.json(mutationSchema)
     })
 
     const insertPlan = Mysql.Query.insert(docs, {

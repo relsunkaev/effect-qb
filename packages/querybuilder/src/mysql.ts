@@ -1,5 +1,5 @@
-/** MySQL-specialized column-definition DSL. */
-export * as Column from "./mysql/column.js"
+/** MySQL-specific column extensions. Portable columns are exported from `effect-qb`. */
+export * as Column from "./mysql/column-extension.js"
 /** MySQL datatype witnesses and coercion families. */
 export * as Datatypes from "./mysql/datatypes/index.js"
 /** MySQL error catalog and error normalization helpers. */
@@ -16,7 +16,5 @@ export * as Executor from "./mysql/executor.js"
 export * as RowSet from "./internal/row-set.js"
 /** MySQL-specialized query-construction DSL. */
 export * as Query from "./mysql/query.js"
-/** MySQL-specialized table-definition DSL. */
-export * as Table from "./mysql/table.js"
 /** MySQL-specialized built-in renderer entrypoint. */
 export * as Renderer from "./mysql/renderer.js"

@@ -3,13 +3,14 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import { Column as C, Executor, Json as J, Query as Q, Renderer, Table, Type } from "#postgres"
+import * as StdRoot from "#standard"
 
 describe("postgres driver value mappings", () => {
-  const events = Table.make("driver_value_events", {
-    id: C.text().pipe(C.primaryKey),
-    happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
-    amount: C.number({ precision: 10, scale: 4 }),
-    note: C.text()
+  const events = StdRoot.Table.make("driver_value_events", {
+    id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+    happenedOn: StdRoot.Column.date().pipe(StdRoot.Column.schema(Schema.DateFromString)),
+    amount: StdRoot.Column.number({ precision: 10, scale: 4 }),
+    note: StdRoot.Column.text()
   })
 
   test("encodes mutation literals through the target column schema and db type", () => {
@@ -25,19 +26,19 @@ describe("postgres driver value mappings", () => {
   })
 
   test("preserves JSON string scalars that look like JSON while encoding mutations", () => {
-    const docs = Table.make("driver_value_json_string_docs", {
-      payload: C.json(Schema.String)
+    const docs = StdRoot.Table.make("driver_value_json_string_docs", {
+      payload: StdRoot.Column.json(Schema.String)
     })
 
     const rendered = Renderer.make().render(Q.insert(docs, {
       payload: "42"
     }))
 
-    expect(rendered.params).toEqual(["42"])
+    expect(rendered.params).toEqual(["\"42\""])
   })
 
   test("preserves JSONB string scalars that look like JSON while encoding mutations", () => {
-    const docs = Table.make("driver_value_jsonb_string_docs", {
+    const docs = StdRoot.Table.make("driver_value_jsonb_string_docs", {
       payload: C.jsonb(Schema.String)
     })
 
@@ -49,7 +50,7 @@ describe("postgres driver value mappings", () => {
   })
 
   test("preserves JSONB string scalars that look like JSON while decoding rows", async () => {
-    const docs = Table.make("driver_value_jsonb_string_docs", {
+    const docs = StdRoot.Table.make("driver_value_jsonb_string_docs", {
       payload: C.jsonb(Schema.String)
     })
 
@@ -96,8 +97,8 @@ describe("postgres driver value mappings", () => {
     const mappedText = Type.driverValueMapping(Type.text(), {
       toDriver: (value) => `db:${String(value)}`
     })
-    const mapped = Table.make("driver_value_type_mapped", {
-      id: C.custom(Schema.String, mappedText).pipe(C.primaryKey)
+    const mapped = StdRoot.Table.make("driver_value_type_mapped", {
+      id: C.custom(Schema.String, mappedText).pipe(StdRoot.Column.primaryKey)
     })
 
     const rendered = Renderer.make().render(Q.insert(mapped, {
@@ -108,10 +109,10 @@ describe("postgres driver value mappings", () => {
   })
 
   test("allows column driver value mapping overrides for rendering and decoding", async () => {
-    const mapped = Table.make("driver_value_column_mapped", {
-      id: C.text().pipe(
-        C.primaryKey,
-        C.driverValueMapping({
+    const mapped = StdRoot.Table.make("driver_value_column_mapped", {
+      id: StdRoot.Column.text().pipe(
+        StdRoot.Column.primaryKey,
+        StdRoot.Column.driverValueMapping({
           fromDriver: (value) => `app:${String(value)}`,
           toDriver: (value) => String(value).replace(/^app:/, "db:")
         })

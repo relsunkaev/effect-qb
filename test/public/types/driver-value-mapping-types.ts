@@ -1,3 +1,4 @@
+import * as Std from "effect-qb"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
@@ -38,17 +39,17 @@ const mappedTextRuntime: Pg.Scalar.RuntimeOf<typeof mappedTextCast> = "mapped"
 void mappedTextColumn
 void mappedTextRuntime
 
-const pgEvents = Pg.Table.make("driver_value_mapping_type_events", {
-  id: Pg.Column.text().pipe(
-    Pg.Column.primaryKey,
-    Pg.Column.driverValueMapping(pgMapping)
+const pgEvents = Std.Table.make("driver_value_mapping_type_events", {
+  id: Std.Column.text().pipe(
+    Std.Column.primaryKey,
+    Std.Column.driverValueMapping(pgMapping)
   ),
-  happenedOn: Pg.Column.date().pipe(
-    Pg.Column.schema(Schema.DateFromString),
-    Pg.Column.nullable,
-    Pg.Column.driverValueMapping(pgMapping)
+  happenedOn: Std.Column.date().pipe(
+    Std.Column.schema(Schema.DateFromString),
+    Std.Column.nullable,
+    Std.Column.driverValueMapping(pgMapping)
   ),
-  note: Pg.Column.text().pipe(Pg.Column.driverValueMapping(pgMapping))
+  note: Std.Column.text().pipe(Std.Column.driverValueMapping(pgMapping))
 })
 
 const pgPlan = Pg.Query.select({
@@ -162,15 +163,15 @@ const mysqlMapping: Mysql.Scalar.DriverValueMapping = {
   toDriver: (value) => value
 }
 
-const mysqlEvents = Mysql.Table.make("driver_value_mapping_type_events", {
-  id: Mysql.Column.text().pipe(
-    Mysql.Column.primaryKey,
-    Mysql.Column.driverValueMapping(mysqlMapping)
+const mysqlEvents = Std.Table.make("driver_value_mapping_type_events", {
+  id: Std.Column.text().pipe(
+    Std.Column.primaryKey,
+    Std.Column.driverValueMapping(mysqlMapping)
   ),
-  happenedOn: Mysql.Column.date().pipe(
-    Mysql.Column.schema(Schema.DateFromString),
-    Mysql.Column.nullable,
-    Mysql.Column.driverValueMapping(mysqlMapping)
+  happenedOn: Std.Column.date().pipe(
+    Std.Column.schema(Schema.DateFromString),
+    Std.Column.nullable,
+    Std.Column.driverValueMapping(mysqlMapping)
   )
 })
 

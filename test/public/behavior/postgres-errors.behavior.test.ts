@@ -7,6 +7,7 @@ import * as Stream from "effect/Stream"
 
 import * as Postgres from "#postgres"
 import { unsafeAny } from "../../helpers/unsafe.ts"
+import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
@@ -42,9 +43,9 @@ describe("postgres errors", () => {
   })
 
   test("fromDriver remaps write-required SQLSTATE failures behind query-requirements errors", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Postgres.Query.select({
@@ -79,7 +80,7 @@ describe("postgres errors", () => {
     }
     expect(error.requiredCapabilities).toEqual(["write"])
     expect(error.actualCapabilities).toEqual(["read"])
-    expect(error.query?.sql).toBe('select "users"."id" as "id", "users"."email" as "email" from "public"."users"')
+    expect(error.query?.sql).toBe('select "users"."id" as "id", "users"."email" as "email" from "users"')
     expect(error.cause._tag).toBe("@postgres/integrity-constraint-violation/unique-violation")
     if (!("_tag" in error.cause) || error.cause._tag !== "@postgres/integrity-constraint-violation/unique-violation") {
       throw new Error("Expected wrapped unique violation")
@@ -91,9 +92,9 @@ describe("postgres errors", () => {
   })
 
   test("fromDriver preserves write-required failures for write-bearing cte plans", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const insertedUsers = Postgres.Query.insert(users, {
@@ -142,9 +143,9 @@ describe("postgres errors", () => {
   })
 
   test("fromDriver remaps write-required SQLSTATE failures on the stream path", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Postgres.Query.select({
@@ -185,8 +186,8 @@ describe("postgres errors", () => {
   })
 
   test("fromSqlClient normalizes syntax errors with structured fields", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Postgres.Query.select({
@@ -240,8 +241,8 @@ describe("postgres errors", () => {
   })
 
   test("fromSqlClient normalizes syntax errors on the stream path", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Postgres.Query.select({
@@ -281,8 +282,8 @@ describe("postgres errors", () => {
   })
 
   test("non-Postgres driver failures fall back to the unknown driver namespace", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Postgres.Query.select({
@@ -312,8 +313,8 @@ describe("postgres errors", () => {
   })
 
   test("unknown but well-formed SQLSTATEs fall back to the unknown sqlstate namespace", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Postgres.Query.select({
@@ -345,8 +346,8 @@ describe("postgres errors", () => {
   })
 
   test("unknown SQLSTATEs in write-required classes still map to query-requirements for read plans", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
 
     const plan = Postgres.Query.select({

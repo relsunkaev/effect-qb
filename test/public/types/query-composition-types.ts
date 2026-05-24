@@ -1,6 +1,7 @@
+import * as Std from "effect-qb"
 import type * as Effect from "effect/Effect"
 
-import { Column as C, Executor, Query as Q, Function as F, Renderer, Table } from "effect-qb/postgres"
+import { Executor, Query as Q, Function as F, Renderer } from "effect-qb/postgres"
 import type {
   BrandedErrorOf,
   BrandedHintOf,
@@ -8,23 +9,23 @@ import type {
   BrandedStatementOf
 } from "../../helpers/branded-error.ts"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text()
+const posts = Std.Table.make("posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  userId: Std.Column.uuid(),
+  title: Std.Column.text()
 })
 
-const dottedGroupingTable = Table.make("a.b", {
-  status: C.text()
+const dottedGroupingTable = Std.Table.make("a.b", {
+  status: Std.Column.text()
 })
 
-const splitGroupingTable = Table.make("a", {
-  "b.status": C.text()
+const splitGroupingTable = Std.Table.make("a", {
+  "b.status": Std.Column.text()
 })
 
 const existsSubquery = Q.select({
@@ -268,9 +269,9 @@ const unionPlan = Q.union(activeUsers, archivedUsers)
 const intersectPlan = Q.intersect(activeUsers, archivedUsers)
 const exceptPlan = Q.except(activeUsers, archivedUsers)
 
-const setPosts = Table.make("set_posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  title: C.text().pipe(C.nullable)
+const setPosts = Std.Table.make("set_posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  title: Std.Column.text().pipe(Std.Column.nullable)
 })
 
 const titledSetPosts = Q.select({

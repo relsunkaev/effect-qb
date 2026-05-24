@@ -1,6 +1,7 @@
+import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Json as J, Scalar as E, Table } from "effect-qb/mysql"
+import { Json as J, Scalar as E } from "effect-qb/mysql"
 
 const payloadSchema = Schema.Struct({
   profile: Schema.Struct({
@@ -12,13 +13,13 @@ const payloadSchema = Schema.Struct({
   })
 })
 
-const docs = Table.make("docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(payloadSchema)
+const docs = Std.Table.make("docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(payloadSchema)
 })
-const scalarDocs = Table.make("scalar_docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(Schema.String)
+const scalarDocs = Std.Table.make("scalar_docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(Schema.String)
 })
 
 const suitePath = J.json.path(

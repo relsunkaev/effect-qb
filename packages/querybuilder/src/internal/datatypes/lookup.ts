@@ -31,6 +31,13 @@ type BaseCastTargetsOf<Db extends Expression.DbType.Base<any, any>> =
     ? Target
     : never
 
+type DbTypeCompatibleWithDialect<
+  Db extends Expression.DbType.Any,
+  Dialect extends string
+> = Dialect extends "standard"
+  ? Db extends { readonly dialect: string } ? true : false
+  : Db extends { readonly dialect: Dialect | "standard" } ? true : false
+
 type BaseHasTextualTrait<Db extends Expression.DbType.Base<any, any>> =
   Db extends { readonly traits?: infer Traits }
     ? Traits extends { readonly textual: true }
@@ -103,8 +110,8 @@ export type CanCompareDbTypes<
   Left extends Expression.DbType.Any,
   Right extends Expression.DbType.Any,
   Dialect extends string
-> = Left extends { readonly dialect: Dialect }
-  ? Right extends { readonly dialect: Dialect }
+> = DbTypeCompatibleWithDialect<Left, Dialect> extends true
+  ? DbTypeCompatibleWithDialect<Right, Dialect> extends true
     ? CompareGroupOfDbType<Left> extends never
       ? false
       : CompareGroupOfDbType<Right> extends never
@@ -125,8 +132,8 @@ export type CanContainDbTypes<
   Left extends Expression.DbType.Any,
   Right extends Expression.DbType.Any,
   Dialect extends string
-> = Left extends { readonly dialect: Dialect }
-  ? Right extends { readonly dialect: Dialect }
+> = DbTypeCompatibleWithDialect<Left, Dialect> extends true
+  ? DbTypeCompatibleWithDialect<Right, Dialect> extends true
     ? FamilyOfDbType<Left> extends "array" | "range" | "multirange"
       ? FamilyOfDbType<Right> extends "array" | "range" | "multirange"
         ? [CompareGroupOfDbType<Left>] extends [CompareGroupOfDbType<Right>]
@@ -142,7 +149,7 @@ export type CanContainDbTypes<
 export type CanTextuallyCoerceDbType<
   Db extends Expression.DbType.Any,
   Dialect extends string
-> = Db extends { readonly dialect: Dialect }
+> = DbTypeCompatibleWithDialect<Db, Dialect> extends true
   ? Db extends Expression.DbType.Domain<any, infer Base extends Expression.DbType.Any, any>
     ? CanTextuallyCoerceDbType<Base, Dialect>
     : Db extends Expression.DbType.Enum<any, any> | Expression.DbType.Set<any, any>
@@ -158,8 +165,8 @@ export type CanCastDbType<
   Source extends Expression.DbType.Any,
   Target extends Expression.DbType.Any,
   Dialect extends string
-> = Source extends { readonly dialect: Dialect }
-  ? Target extends { readonly dialect: Dialect }
+> = DbTypeCompatibleWithDialect<Source, Dialect> extends true
+  ? DbTypeCompatibleWithDialect<Target, Dialect> extends true
     ? Source extends Expression.DbType.Domain<any, infer Base extends Expression.DbType.Any, any>
       ? CanCastDbType<Base, Target, Dialect>
       : Target extends Expression.DbType.Domain<any, infer TargetBase extends Expression.DbType.Any, any>

@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema"
 import * as Postgres from "#postgres"
 import * as Sqlite from "#sqlite"
 import { makeSqliteEmployees, makeSqliteSocialGraph } from "../../fixtures/schema.ts"
+import * as StdRoot from "#standard"
 
 const render = (plan: unknown) => Sqlite.Renderer.make().render(plan as any)
 
@@ -53,8 +54,8 @@ describe("sqlite behavior", () => {
 
   test("rejects sqlite-unsupported read constructs before emitting invalid SQL", () => {
     const { users, posts } = makeSqliteSocialGraph()
-    const docs = Sqlite.Table.make("docs", {
-      payload: Sqlite.Column.json(Schema.Struct({
+    const docs = StdRoot.Table.make("docs", {
+      payload: StdRoot.Column.json(Schema.Struct({
         tags: Schema.Array(Schema.String)
       }))
     })
@@ -119,10 +120,10 @@ describe("sqlite behavior", () => {
   })
 
   test("renders sqlite upserts and returning clauses with excluded column references", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text(),
-      visits: Sqlite.Column.int()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      visits: StdRoot.Column.int()
     })
 
     const plan = Sqlite.Query.insert(users, {
@@ -152,10 +153,10 @@ describe("sqlite behavior", () => {
   })
 
   test("renders sqlite conflict target and action predicates", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text(),
-      visits: Sqlite.Column.int()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      visits: StdRoot.Column.int()
     })
 
     const plan = Sqlite.Query.insert(users, {
@@ -183,9 +184,9 @@ describe("sqlite behavior", () => {
   })
 
   test("rejects sqlite conflict action predicates without update assignments", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => render(Sqlite.Query.insert(users, {
@@ -199,9 +200,9 @@ describe("sqlite behavior", () => {
   })
 
   test("rejects sqlite conflict update actions without assignments", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Sqlite.Query.onConflict(["email"] as const, {
@@ -213,9 +214,9 @@ describe("sqlite behavior", () => {
   })
 
   test("rejects sqlite upsert update actions without assignments", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Sqlite.Query.upsert(users, {
@@ -225,9 +226,9 @@ describe("sqlite behavior", () => {
   })
 
   test("rejects sqlite upsert conflict columns with unknown columns at runtime", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Sqlite.Query.upsert(users, {
@@ -239,9 +240,9 @@ describe("sqlite behavior", () => {
   })
 
   test("rejects sqlite conflict targets with unknown columns at runtime", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Sqlite.Query.onConflict(["missing"] as any, {
@@ -256,9 +257,9 @@ describe("sqlite behavior", () => {
 
   test("rejects invalid rendered sqlite conflict discriminants", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const invalidActionPlan = Sqlite.Query.onConflict(["email"] as const, {
@@ -285,9 +286,9 @@ describe("sqlite behavior", () => {
   })
 
   test("renders sqlite string conflict targets", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Sqlite.Query.onConflict("email", {
@@ -305,9 +306,9 @@ describe("sqlite behavior", () => {
   })
 
   test("rejects sqlite empty returning selections before omitting returning", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Sqlite.Query.returning({})(Sqlite.Query.insert(users, {
@@ -317,9 +318,9 @@ describe("sqlite behavior", () => {
   })
 
   test("rejects sqlite named conflict targets at runtime", () => {
-    const users = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() => Sqlite.Query.onConflict({
@@ -335,9 +336,9 @@ describe("sqlite behavior", () => {
   })
 
   test("canonicalizes and validates sqlite unnest insert arrays using target column contracts", () => {
-    const metrics = Sqlite.Table.make("unnest_metrics", {
-      total: Sqlite.Column.number(),
-      happenedOn: Sqlite.Column.date()
+    const metrics = StdRoot.Table.make("unnest_metrics", {
+      total: StdRoot.Column.number(),
+      happenedOn: StdRoot.Column.date()
     })
 
     const rendered = render(Sqlite.Query.insert(metrics).pipe(
@@ -361,9 +362,9 @@ describe("sqlite behavior", () => {
   })
 
   test("renders sqlite JSON helpers through JSON1 functions", () => {
-    const docs = Sqlite.Table.make("docs", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      payload: Sqlite.Column.json(Schema.Unknown)
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      payload: StdRoot.Column.json(Schema.Unknown)
     })
     const tags = Sqlite.Json.json.get(
       docs.payload,
@@ -408,9 +409,9 @@ describe("sqlite behavior", () => {
   })
 
   test("renders nested sqlite JSON value arguments as JSON instead of SQL strings", () => {
-    const docs = Sqlite.Table.make("docs", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      payload: Sqlite.Column.json(Schema.Unknown)
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      payload: StdRoot.Column.json(Schema.Unknown)
     })
 
     const rendered = render(Sqlite.Query.select({
@@ -456,9 +457,9 @@ describe("sqlite behavior", () => {
   })
 
   test("renders sqlite JSON path objects through sqlite-specific path rules for path exists", () => {
-    const docs = Sqlite.Table.make("docs", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      payload: Sqlite.Column.json(Schema.Unknown)
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      payload: StdRoot.Column.json(Schema.Unknown)
     })
 
     const lastTagPath = Sqlite.Json.json.path(
@@ -492,9 +493,9 @@ describe("sqlite behavior", () => {
   })
 
   test("rejects sqlite JSON array inserts that SQLite would silently ignore", () => {
-    const docs = Sqlite.Table.make("docs", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      payload: Sqlite.Column.json(Schema.Unknown)
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      payload: StdRoot.Column.json(Schema.Unknown)
     })
 
     const firstTagPath = Sqlite.Json.json.path(
@@ -511,9 +512,9 @@ describe("sqlite behavior", () => {
   })
 
   test("encodes sqlite JSON string scalar literals as JSON text", () => {
-    const docs = Sqlite.Table.make("json_string_docs", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      payload: Sqlite.Column.json(Schema.String)
+    const docs = StdRoot.Table.make("json_string_docs", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      payload: StdRoot.Column.json(Schema.String)
     })
 
     const rendered = render(Sqlite.Query.insert(docs, {
@@ -529,9 +530,9 @@ describe("sqlite behavior", () => {
 
   test("rejects invalid rendered sqlite insert source kinds", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const docs = Sqlite.Table.make("docs", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      title: Sqlite.Column.text()
+    const docs = StdRoot.Table.make("docs", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      title: StdRoot.Column.text()
     })
     const seed = Sqlite.Query.as(Sqlite.Query.values([
       { id: "doc-1", title: "First" }

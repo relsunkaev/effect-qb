@@ -4,18 +4,19 @@ import { describe, expect, test } from "bun:test"
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import * as Sqlite from "#sqlite"
+import * as StdRoot from "#standard"
 
 describe("cross-cutting statement behavior", () => {
   test("renders postgres truncate, merge, and transaction-control statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text(),
-      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
-    const incomingUsers = Postgres.Table.make("incoming_users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text(),
-      bio: Postgres.Column.text().pipe(Postgres.Column.nullable)
+    const incomingUsers = StdRoot.Table.make("incoming_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const truncatePlan = Postgres.Query.truncate(users, {
@@ -39,10 +40,10 @@ describe("cross-cutting statement behavior", () => {
     })
 
     expect(Postgres.Renderer.make().render(truncatePlan).sql).toBe(
-      'truncate table "public"."users" restart identity cascade'
+      'truncate table "users" restart identity cascade'
     )
     expect(Postgres.Renderer.make().render(mergePlan).sql).toBe(
-      'merge into "public"."users" using "public"."incoming_users" on ("users"."id" = "incoming_users"."id") when matched then update set "email" = "incoming_users"."email", "bio" = "incoming_users"."bio" when not matched then insert ("id", "email", "bio") values ("incoming_users"."id", "incoming_users"."email", "incoming_users"."bio")'
+      'merge into "users" using "incoming_users" on ("users"."id" = "incoming_users"."id") when matched then update set "email" = "incoming_users"."email", "bio" = "incoming_users"."bio" when not matched then insert ("id", "email", "bio") values ("incoming_users"."id", "incoming_users"."email", "incoming_users"."bio")'
     )
     expect(Postgres.Renderer.make().render(Postgres.Query.transaction({
       isolationLevel: "serializable",
@@ -56,15 +57,15 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("renders mysql truncate and transaction-control statements and rejects merge", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
-    const incomingUsers = Mysql.Table.make("incoming_users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text(),
-      bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+    const incomingUsers = StdRoot.Table.make("incoming_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text(),
+      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     })
 
     const truncatePlan = Mysql.Query.truncate(users)
@@ -169,8 +170,8 @@ describe("cross-cutting statement behavior", () => {
   test("rejects mismatched rendered truncate payload kinds", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
 
-    const postgresUsers = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const postgresUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     const postgresPlan = Postgres.Query.truncate(postgresUsers)
     ;(postgresPlan as any)[queryAst].truncate.kind = "dropTable"
@@ -178,8 +179,8 @@ describe("cross-cutting statement behavior", () => {
       Postgres.Renderer.make().render(postgresPlan)
     ).toThrow("Unsupported truncate statement kind")
 
-    const mysqlUsers = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey)
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     const mysqlPlan = Mysql.Query.truncate(mysqlUsers)
     ;(mysqlPlan as any)[queryAst].truncate.kind = "dropTable"
@@ -189,13 +190,13 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects postgres merge statements without actions", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const incomingUsers = Postgres.Table.make("incoming_users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const incomingUsers = StdRoot.Table.make("incoming_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Postgres.Query.merge(
@@ -208,13 +209,13 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects postgres merge updates without assignments", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const incomingUsers = Postgres.Table.make("incoming_users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const incomingUsers = StdRoot.Table.make("incoming_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Postgres.Query.merge(
@@ -232,13 +233,13 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects postgres merge inserts without values", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const incomingUsers = Postgres.Table.make("incoming_users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const incomingUsers = StdRoot.Table.make("incoming_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Postgres.Query.merge(
@@ -256,9 +257,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects postgres merge sources that reuse the target source name", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -276,9 +277,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects structurally incomplete merge sources at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const fakeSource = {
       name: "incoming_users",
@@ -295,14 +296,14 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects non-mysql tuple mutation targets at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const posts = Postgres.Table.make("posts", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      userId: Postgres.Column.uuid(),
-      title: Postgres.Column.text()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid(),
+      title: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -322,9 +323,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects single-element mutation target tuples at runtime", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -353,13 +354,13 @@ describe("cross-cutting statement behavior", () => {
 
   test("rejects invalid rendered postgres merge payload kinds", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const incomingUsers = Postgres.Table.make("incoming_users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const incomingUsers = StdRoot.Table.make("incoming_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const mergePayloadPlan = Postgres.Query.merge(
@@ -416,9 +417,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime filters on statements that cannot be filtered", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const filteredTruncate = Postgres.Query.truncate(users).pipe(
@@ -443,13 +444,13 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime returning projections on merge statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const incomingUsers = Postgres.Table.make("incoming_users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const incomingUsers = StdRoot.Table.make("incoming_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -470,9 +471,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime returning projections on select statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -488,9 +489,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime distinct modifiers on mutation statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const distinctDelete = Postgres.Query.delete(users).pipe(
@@ -503,17 +504,17 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime query clauses on insert statements", () => {
-    const postgresUsers = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const postgresUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const mysqlUsers = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const sqliteUsers = Sqlite.Table.make("users", {
-      id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-      email: Sqlite.Column.text()
+    const sqliteUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
     const dialects = [
       {
@@ -573,9 +574,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime limit modifiers on unsupported mutation statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const limitedUpdate = Postgres.Query.update(users, {
@@ -590,9 +591,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime orderBy modifiers on unsupported mutation statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const orderedUpdate = Postgres.Query.update(users, {
@@ -607,9 +608,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime lock modifiers on unsupported mutation statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const lockedUpdate = Postgres.Query.update(users, {
@@ -632,9 +633,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime row locks that specify both nowait and skipLocked", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const lockedSelect = Postgres.Query.select({
@@ -651,12 +652,12 @@ describe("cross-cutting statement behavior", () => {
 
   test("rejects invalid rendered row lock modes", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const postgresUsers = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey)
+    const postgresUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    const mysqlUsers = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const postgresSelect = Postgres.Query.select({
@@ -697,9 +698,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime returning projections on ddl statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -714,9 +715,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime returning projections on ddl index statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -731,9 +732,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime filters on ddl drop statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const dropTablePlan = Postgres.Query.dropTable(users).pipe(
@@ -746,9 +747,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime filters on ddl index statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const createIndexPlan = Postgres.Query.createIndex(users, ["email"]).pipe(
@@ -761,9 +762,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime sources on transaction statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     expect(() =>
@@ -776,9 +777,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime having predicates on mutation statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const havingUpdate = Postgres.Query.update(users, {
@@ -793,9 +794,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime groupBy clauses on mutation statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const groupedUpdate = Postgres.Query.update(users, {
@@ -810,9 +811,9 @@ describe("cross-cutting statement behavior", () => {
   })
 
   test("rejects runtime joins on transaction statements", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const joinedTransaction = Postgres.Query.transaction().pipe(

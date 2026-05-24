@@ -2,18 +2,19 @@
 import { describe, expect, test } from "bun:test"
 
 import * as Mysql from "#mysql"
+import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-1111-1111-111111111111"
 
 describe("mysql dialect legality", () => {
   test("rejects full outer joins instead of rendering unsupported mysql sql", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const posts = Mysql.Table.make("posts", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      userId: Mysql.Column.uuid()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid()
     })
 
     const plan = Mysql.Query.select({
@@ -30,9 +31,9 @@ describe("mysql dialect legality", () => {
   })
 
   test("rejects mutation returning projections instead of rendering unsupported mysql sql", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.insert(users, {
@@ -50,9 +51,9 @@ describe("mysql dialect legality", () => {
   })
 
   test("rejects data-modifying ctes instead of rendering unsupported mysql sql", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const insertedUsers = Mysql.Query.insert(users, {
@@ -74,9 +75,9 @@ describe("mysql dialect legality", () => {
   })
 
   test("rejects postgres-only truncate options instead of rendering unsupported mysql sql", () => {
-    const users = Mysql.Table.make("users", {
-      id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-      email: Mysql.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Mysql.Query.truncate(users, {

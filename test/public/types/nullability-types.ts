@@ -1,20 +1,21 @@
-import { Column as C, Scalar as E, Query as Q, Function as F, Table } from "effect-qb/postgres"
+import * as Std from "effect-qb"
+import { Scalar as E, Query as Q, Function as F } from "effect-qb/postgres"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable)
+const posts = Std.Table.make("posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  userId: Std.Column.uuid(),
+  title: Std.Column.text().pipe(Std.Column.nullable)
 })
 
-const comments = Table.make("comments", {
-  id: C.uuid().pipe(C.primaryKey),
-  postId: C.uuid(),
-  body: C.text()
+const comments = Std.Table.make("comments", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  postId: Std.Column.uuid(),
+  body: Std.Column.text()
 })
 
 const basePlan = Q.select({

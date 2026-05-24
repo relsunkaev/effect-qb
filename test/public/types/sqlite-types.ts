@@ -1,21 +1,22 @@
+import * as Std from "effect-qb"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Executor, Json, Query as Q, Renderer, Table } from "effect-qb/sqlite"
+import { Executor, Json, Query as Q, Renderer } from "effect-qb/sqlite"
 import { Executor as PostgresExecutor } from "effect-qb/postgres"
 
-const users = Table.make("users", {
-  id: C.text().pipe(C.primaryKey),
-  email: C.text(),
-  visits: C.int(),
-  payload: C.json(Schema.Struct({
+const users = Std.Table.make("users", {
+  id: Std.Column.text().pipe(Std.Column.primaryKey),
+  email: Std.Column.text(),
+  visits: Std.Column.int(),
+  payload: Std.Column.json(Schema.Struct({
     tags: Schema.Array(Schema.String)
   }))
 })
 
-const posts = Table.make("posts", {
-  id: C.text().pipe(C.primaryKey),
-  userId: C.text()
+const posts = Std.Table.make("posts", {
+  id: Std.Column.text().pipe(Std.Column.primaryKey),
+  userId: Std.Column.text()
 })
 
 // @ts-expect-error sqlite select statements require at least one selected expression
@@ -72,17 +73,17 @@ const userInsert = {
   payload: {
     tags: ["sqlite"]
   }
-} satisfies Q.MutationInputOf<Table.InsertOf<typeof users>>
+} satisfies Q.MutationInputOf<Std.Table.InsertOf<typeof users>>
 userInsert
 
-C.text().pipe(C.unique.options({ name: "users_email_key" }))
+Std.Column.text().pipe(Std.Column.unique.options({ name: "users_email_key" }))
 
-C.text().pipe(C.unique.options({
+Std.Column.text().pipe(Std.Column.unique.options({
   // @ts-expect-error sqlite unique constraints do not support PostgreSQL NULLS NOT DISTINCT.
   nullsNotDistinct: true
 }))
 
-C.text().pipe(C.unique.options({
+Std.Column.text().pipe(Std.Column.unique.options({
   // @ts-expect-error sqlite unique constraints do not support deferrable mode.
   deferrable: true
 }))

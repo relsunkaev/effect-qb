@@ -1,25 +1,27 @@
+import * as Std from "effect-qb"
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import * as SqlClient from "@effect/sql/SqlClient"
 import * as SqlError from "@effect/sql/SqlError"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import type { AvailableOfPlan } from "#internal/query.ts"
-import { Cast, Column as C, Executor, Query as Q, Renderer, Table, Type } from "#postgres"
+import { Cast, Executor, Query as Q, Renderer, Type } from "#postgres"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text(),
+  bio: Std.Column.text().pipe(Std.Column.nullable)
 })
-const auditLogs = Table.make("audit_logs", {
-  id: C.uuid().pipe(C.primaryKey, C.default(Q.literal("audit-log-id"))),
-  note: C.text().pipe(C.nullable)
+const auditLogs = Std.Table.make("audit_logs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey, Std.Column.default(Q.literal("audit-log-id"))),
+  note: Std.Column.text().pipe(Std.Column.nullable)
 })
-const mysqlUsers = Mysql.Table.make("users", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-  email: Mysql.Column.text(),
-  bio: Mysql.Column.text().pipe(Mysql.Column.nullable)
+const mysqlUsers = Std.Table.make("users", {
+  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
+  email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text()),
+  bio: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text()).pipe(Std.Column.nullable)
 })
 
 const insertPlan = Q.insert(users, {
@@ -324,26 +326,26 @@ type PostgresMutationRow = Postgres.Query.ResultRow<typeof postgresMutation>
 const postgresMutationRow: PostgresMutationRow = { id: "user-id" }
 void postgresMutationRow
 
-const pgUsers = Postgres.Table.make("users", {
-  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-  email: Postgres.Column.text()
+const pgUsers = Std.Table.make("users", {
+  id: Postgres.Column.custom(Schema.UUID, Postgres.Type.uuid()).pipe(Std.Column.primaryKey),
+  email: Postgres.Column.custom(Schema.String, Postgres.Type.text())
 })
 
-const pgPosts = Postgres.Table.make("posts", {
-  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-  userId: Postgres.Column.uuid(),
-  title: Postgres.Column.text().pipe(Postgres.Column.nullable)
+const pgPosts = Std.Table.make("posts", {
+  id: Postgres.Column.custom(Schema.UUID, Postgres.Type.uuid()).pipe(Std.Column.primaryKey),
+  userId: Postgres.Column.custom(Schema.UUID, Postgres.Type.uuid()),
+  title: Postgres.Column.custom(Schema.String, Postgres.Type.text()).pipe(Std.Column.nullable)
 })
 
-const mysqlMutationUsers = Mysql.Table.make("users", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-  email: Mysql.Column.text()
+const mysqlMutationUsers = Std.Table.make("users", {
+  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
+  email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
 })
 
-const mysqlMutationPosts = Mysql.Table.make("posts", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-  userId: Mysql.Column.uuid(),
-  title: Mysql.Column.text().pipe(Mysql.Column.nullable)
+const mysqlMutationPosts = Std.Table.make("posts", {
+  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
+  userId: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()),
+  title: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text()).pipe(Std.Column.nullable)
 })
 
 const postgresJoinedUpdate = Postgres.Query.innerJoin(pgPosts, Postgres.Query.eq(pgPosts.userId, pgUsers.id))(

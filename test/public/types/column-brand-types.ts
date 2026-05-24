@@ -1,3 +1,4 @@
+import * as Std from "effect-qb"
 import type * as Brand from "effect/Brand";
 import * as Schema from "effect/Schema";
 
@@ -6,36 +7,36 @@ import * as Postgres from "effect-qb/postgres";
 
 type Assert<T extends true> = T;
 
-const postgresAccounts = Postgres.Table.make("accounts", {
-  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-  nickname: Postgres.Column.text().pipe(Postgres.Column.nullable),
-  age: Postgres.Column.int(),
+const postgresAccounts = Std.Table.make("accounts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  nickname: Std.Column.text().pipe(Std.Column.nullable),
+  age: Std.Column.int(),
 });
 
-const inlineBrandedPostgresAccounts = Postgres.Table.make("inline_accounts", {
-  id: Postgres.Column.uuid().pipe(
-    Postgres.Column.primaryKey,
-    Postgres.Column.brand,
+const inlineBrandedPostgresAccounts = Std.Table.make("inline_accounts", {
+  id: Std.Column.uuid().pipe(
+    Std.Column.primaryKey,
+    Std.Column.brand,
   ),
-  nickname: Postgres.Column.text().pipe(
-    Postgres.Column.nullable,
-    Postgres.Column.brand,
+  nickname: Std.Column.text().pipe(
+    Std.Column.nullable,
+    Std.Column.brand,
   ),
-  age: Postgres.Column.int().pipe(Postgres.Column.brand),
+  age: Std.Column.int().pipe(Std.Column.brand),
 });
 
-const brandedPostgresId = postgresAccounts.id.pipe(Postgres.Column.brand);
+const brandedPostgresId = postgresAccounts.id.pipe(Std.Column.brand);
 const brandedPostgresNickname = postgresAccounts.nickname.pipe(
-  Postgres.Column.brand,
+  Std.Column.brand,
 );
-const brandedPostgresAge = postgresAccounts.age.pipe(Postgres.Column.brand);
+const brandedPostgresAge = postgresAccounts.age.pipe(Std.Column.brand);
 
 type PostgresIdRuntime =
   (typeof brandedPostgresId)[Postgres.Scalar.TypeId]["runtime"];
 type PostgresNicknameRuntime =
   (typeof brandedPostgresNickname)[Postgres.Scalar.TypeId]["runtime"];
 type PostgresAgeSchema = Schema.Schema.Type<typeof brandedPostgresAge.schema>;
-type InlineBrandedPostgresSelect = Postgres.Table.SelectOf<typeof inlineBrandedPostgresAccounts>;
+type InlineBrandedPostgresSelect = Std.Table.SelectOf<typeof inlineBrandedPostgresAccounts>;
 
 type _AssertPostgresIdRuntime = Assert<
   PostgresIdRuntime extends string & Brand.Brand<"accounts.id"> ? true : false
@@ -120,11 +121,11 @@ type _AssertInlineBrandedPostgresRowAge = Assert<
     : false
 >;
 
-const aliasedPostgresAccounts = Postgres.Table.alias(postgresAccounts, "u");
+const aliasedPostgresAccounts = Std.Table.alias(postgresAccounts, "u");
 
 const aliasedPostgresPlan = Postgres.Query.select({
-  id: postgresAccounts.id.pipe(Postgres.Column.brand),
-  aliasedId: aliasedPostgresAccounts.id.pipe(Postgres.Column.brand),
+  id: postgresAccounts.id.pipe(Std.Column.brand),
+  aliasedId: aliasedPostgresAccounts.id.pipe(Std.Column.brand),
 }).pipe(
   Postgres.Query.from(postgresAccounts),
   Postgres.Query.innerJoin(
@@ -152,14 +153,14 @@ declare const aliasedPostgresRow: AliasedPostgresRow;
 // @ts-expect-error aliases derive a distinct provenance brand
 loadAccount(aliasedPostgresRow.aliasedId);
 
-const mysqlAccounts = Mysql.Table.make("mysql_accounts", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-  email: Mysql.Column.text(),
-  quota: Mysql.Column.int(),
+const mysqlAccounts = Std.Table.make("mysql_accounts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text(),
+  quota: Std.Column.int(),
 });
 
-const brandedMysqlEmail = mysqlAccounts.email.pipe(Mysql.Column.brand);
-const brandedMysqlQuota = mysqlAccounts.quota.pipe(Mysql.Column.brand);
+const brandedMysqlEmail = mysqlAccounts.email.pipe(Std.Column.brand);
+const brandedMysqlQuota = mysqlAccounts.quota.pipe(Std.Column.brand);
 
 type MysqlEmailRuntime =
   (typeof brandedMysqlEmail)[Mysql.Scalar.TypeId]["runtime"];
@@ -194,14 +195,14 @@ type _AssertMysqlRowQuota = Assert<
     : false
 >;
 
-const brandedReferenceUsers = Postgres.Table.make("branded_reference_users", {
-  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey, Postgres.Column.brand),
-  email: Postgres.Column.text(),
+const brandedReferenceUsers = Std.Table.make("branded_reference_users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey, Std.Column.brand),
+  email: Std.Column.text(),
 });
 
-const brandedReferenceSessions = Postgres.Table.make("branded_reference_sessions", {
-  userId: Postgres.Column.uuid().pipe(
-    Postgres.Column.references(() => brandedReferenceUsers.id),
+const brandedReferenceSessions = Std.Table.make("branded_reference_sessions", {
+  userId: Std.Column.uuid().pipe(
+    Std.Column.references(() => brandedReferenceUsers.id),
   ),
 });
 

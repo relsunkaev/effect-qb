@@ -3,27 +3,28 @@ import { describe, expect, test } from "bun:test"
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import { unsafeAny } from "../../helpers/unsafe.ts"
+import * as StdRoot from "#standard"
 
-const pgUsers = Postgres.Table.make("users", {
-  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-  email: Postgres.Column.text()
+const pgUsers = StdRoot.Table.make("users", {
+  id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+  email: StdRoot.Column.text()
 })
 
-const pgPosts = Postgres.Table.make("posts", {
-  id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-  userId: Postgres.Column.uuid(),
-  title: Postgres.Column.text()
+const pgPosts = StdRoot.Table.make("posts", {
+  id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+  userId: StdRoot.Column.uuid(),
+  title: StdRoot.Column.text()
 })
 
-const mysqlUsers = Mysql.Table.make("users", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-  email: Mysql.Column.text()
+const mysqlUsers = StdRoot.Table.make("users", {
+  id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+  email: StdRoot.Column.text()
 })
 
-const mysqlPosts = Mysql.Table.make("posts", {
-  id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-  userId: Mysql.Column.uuid(),
-  title: Mysql.Column.text()
+const mysqlPosts = StdRoot.Table.make("posts", {
+  id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+  userId: StdRoot.Column.uuid(),
+  title: StdRoot.Column.text()
 })
 
 const renderPostgres = (plan: unknown) => Postgres.Renderer.make().render(unsafeAny(plan))
@@ -31,13 +32,13 @@ const renderMysql = (plan: unknown) => Mysql.Renderer.make().render(unsafeAny(pl
 
 describe("select sources behavior", () => {
   test("renders set-op all variants in postgres", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const archivedUsers = Postgres.Table.make("archived_users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const archivedUsers = StdRoot.Table.make("archived_users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const active = Postgres.Query.select({
@@ -52,24 +53,24 @@ describe("select sources behavior", () => {
     )
 
     expect(renderPostgres(Postgres.Query.unionAll(unsafeAny(active), unsafeAny(archived))).sql).toBe(
-      '(select "users"."email" as "email" from "public"."users") union all (select "archived_users"."email" as "email" from "public"."archived_users")'
+      '(select "users"."email" as "email" from "users") union all (select "archived_users"."email" as "email" from "archived_users")'
     )
     expect(renderPostgres(Postgres.Query.intersectAll(unsafeAny(active), unsafeAny(archived))).sql).toBe(
-      '(select "users"."email" as "email" from "public"."users") intersect all (select "archived_users"."email" as "email" from "public"."archived_users")'
+      '(select "users"."email" as "email" from "users") intersect all (select "archived_users"."email" as "email" from "archived_users")'
     )
     expect(renderPostgres(Postgres.Query.exceptAll(unsafeAny(active), unsafeAny(archived))).sql).toBe(
-      '(select "users"."email" as "email" from "public"."users") except all (select "archived_users"."email" as "email" from "public"."archived_users")'
+      '(select "users"."email" as "email" from "users") except all (select "archived_users"."email" as "email" from "archived_users")'
     )
   })
 
   test("rejects runtime set operators with mismatched result rows", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
-    const posts = Postgres.Table.make("posts", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      userId: Postgres.Column.uuid()
+    const posts = StdRoot.Table.make("posts", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      userId: StdRoot.Column.uuid()
     })
 
     const usersByEmail = Postgres.Query.select({
@@ -85,9 +86,9 @@ describe("select sources behavior", () => {
   })
 
   test("rejects runtime set operators with dotted path collisions", () => {
-    const users = Postgres.Table.make("users", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      email: Postgres.Column.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const nested = Postgres.Query.select({
@@ -414,7 +415,7 @@ describe("select sources behavior", () => {
     )
 
     expect(renderPostgres(scalarPlan).sql).toBe(
-      'select "users"."id" as "userId", (select "posts"."id" as "value" from "public"."posts") as "firstPostId", ("users"."id" in (select "posts"."id" as "value" from "public"."posts")) as "matchesAny", ("users"."id" = any (select "posts"."id" as "value" from "public"."posts")) as "matchesSome", ("users"."id" = all (select "posts"."id" as "value" from "public"."posts")) as "matchesAll" from "public"."users"'
+      'select "users"."id" as "userId", (select "posts"."id" as "value" from "posts") as "firstPostId", ("users"."id" in (select "posts"."id" as "value" from "posts")) as "matchesAny", ("users"."id" = any (select "posts"."id" as "value" from "posts")) as "matchesSome", ("users"."id" = all (select "posts"."id" as "value" from "posts")) as "matchesAll" from "users"'
     )
   })
 
@@ -449,7 +450,7 @@ describe("select sources behavior", () => {
     )
 
     expect(renderPostgres(plan).sql).toBe(
-      'select ("users"."id" in (select "posts"."id" as "value" from "public"."posts")) as "matchesAny", count("users"."id") as "userCount" from "public"."users" group by ("users"."id" in (select "posts"."id" as "value" from "public"."posts"))'
+      'select ("users"."id" in (select "posts"."id" as "value" from "posts")) as "matchesAny", count("users"."id") as "userCount" from "users" group by ("users"."id" in (select "posts"."id" as "value" from "posts"))'
     )
   })
 
@@ -525,7 +526,7 @@ describe("select sources behavior", () => {
     )
 
     expect(renderPostgres(plan).sql).toBe(
-      'with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "public"."posts" where ("posts"."title" is not null)) select "users"."email" as "email", "active_posts"."title" as "title" from "public"."users" inner join "active_posts" on ("users"."id" = "active_posts"."userId")'
+      'with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."email" as "email", "active_posts"."title" as "title" from "users" inner join "active_posts" on ("users"."id" = "active_posts"."userId")'
     )
   })
 
@@ -553,7 +554,7 @@ describe("select sources behavior", () => {
     )
 
     expect(renderPostgres(plan).sql).toBe(
-      'with "post_titles" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "public"."posts"), "active_titles" as (select "post_titles"."userId" as "userId", "post_titles"."title" as "title" from "post_titles" where ("post_titles"."title" is not null)) select "active_titles"."title" as "title" from "active_titles"'
+      'with "post_titles" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts"), "active_titles" as (select "post_titles"."userId" as "userId", "post_titles"."title" as "title" from "post_titles" where ("post_titles"."title" is not null)) select "active_titles"."title" as "title" from "active_titles"'
     )
   })
 
@@ -663,7 +664,7 @@ describe("select sources behavior", () => {
     )
 
     expect(renderPostgres(plan).sql).toBe(
-      'select "users"."email" as "email", "user_posts"."postId" as "postId" from "public"."users" inner join lateral (select "posts"."id" as "postId", "posts"."userId" as "userId" from "public"."posts" where ("posts"."userId" = "users"."id")) as "user_posts" on ("user_posts"."userId" = "users"."id")'
+      'select "users"."email" as "email", "user_posts"."postId" as "postId" from "users" inner join lateral (select "posts"."id" as "postId", "posts"."userId" as "userId" from "posts" where ("posts"."userId" = "users"."id")) as "user_posts" on ("user_posts"."userId" = "users"."id")'
     )
   })
 

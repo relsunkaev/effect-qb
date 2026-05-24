@@ -1,16 +1,11 @@
+import * as Std from "effect-qb"
 import * as Schema from "effect/Schema";
 
-import {
-  Column as C,
-  Function as F,
-  Json as J,
-  Query as Q,
-  Table,
-} from "effect-qb/postgres";
+import { Function as F, Json as J, Query as Q } from "effect-qb/postgres"
 
-const docs = Table.make("docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(
+const docs = Std.Table.make("docs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  payload: Std.Column.json(
     Schema.Struct({
       profile: Schema.Struct({
         address: Schema.Struct({

@@ -1,6 +1,8 @@
+import { Column as PgColumn } from "effect-qb/postgres"
+import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Function as F, Query as Q, Table, Type } from "effect-qb/postgres"
+import { Function as F, Query as Q, Type } from "effect-qb/postgres"
 import type { EmptyFacts, FactsOfFormula, GuaranteedLiteralSetInFacts, GuaranteedNeqLiteralInFacts } from "#internal/predicate/analysis.js"
 import type { TrueFormula } from "#internal/predicate/formula.js"
 import type { PredicateKeyOfExpression } from "#internal/predicate/key.js"
@@ -8,11 +10,11 @@ import type { FormulaOfPredicate } from "#internal/predicate/normalize.js"
 import type { RuntimeOf } from "#internal/scalar.js"
 import type { AssumptionsOfPlan, AvailableOfPlan, ExpressionOutput, FactsOfPlan, OutputOfSelection, SelectionOfPlan } from "#internal/query.js"
 
-const posts = Table.make("predicate_invariant_posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  title: C.text().pipe(C.nullable),
-  status: C.custom(Schema.Literal("draft", "published", "archived"), Type.text()),
-  category: C.custom(Schema.Literal("news", "ops", "meta"), Type.text())
+const posts = Std.Table.make("predicate_invariant_posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  title: Std.Column.text().pipe(Std.Column.nullable),
+  status: PgColumn.custom(Schema.Literal("draft", "published", "archived"), Type.text()),
+  category: PgColumn.custom(Schema.Literal("news", "ops", "meta"), Type.text())
 })
 
 type BaseStatusRuntime = RuntimeOf<typeof posts.status>

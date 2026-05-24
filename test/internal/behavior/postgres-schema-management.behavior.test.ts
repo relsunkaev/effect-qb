@@ -12,15 +12,16 @@ import { planPostgresSchemaDiff } from "../../../packages/database/src/internal/
 import { fromDiscoveredValues, toEnumModel, toTableModel, type SchemaModel } from "effect-qb/postgres/metadata"
 import { discoverSourceSchema } from "../../../packages/database/src/internal/postgres-source-discovery.js"
 import { planPostgresPull } from "../../../packages/database/src/postgres/pull.js"
+import * as StdRoot from "#standard"
 
 const repoRoot = process.cwd()
 
 describe("postgres schema management", () => {
   test("classifies safe and destructive schema changes", () => {
-    const users = Table.make("users", {
-      id: C.uuid(),
-      email: C.text(),
-      nickname: C.text().pipe(C.nullable)
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid(),
+      email: StdRoot.Column.text(),
+      nickname: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
     }).pipe(
       Table.index("email")
     )
@@ -174,7 +175,7 @@ describe("postgres schema management", () => {
 
   test("renders schema enum column types with quoted qualified identifiers", () => {
     const status = Pg.schema("audit\"schema").enum("status\"type", ["active"] as const)
-    const users = Table.make("users", {
+    const users = StdRoot.Table.make("users", {
       status: status.column()
     })
 
@@ -842,11 +843,11 @@ describe("postgres schema management", () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-pull-"))
     try {
       const filePath = join(tempDir, "schema.ts")
-      await Bun.write(filePath, `
-import { Column as C, Table } from "#postgres"
+await Bun.write(filePath, `
+import { Column, Table } from "effect-qb"
 
 const users = Table.make("users", {
-  email: C.text()
+  email: Column.text()
 })
 `)
 
@@ -892,7 +893,7 @@ const users = Table.make("users", {
 
       expect(plan.updates).toHaveLength(1)
       expect(plan.updates[0]?.after).toContain(`import * as Pg from "effect-qb/postgres"`)
-      expect(plan.updates[0]?.after).toContain(`import { Table, Column } from "effect-qb/postgres"`)
+      expect(plan.updates[0]?.after).toContain(`import { Table, Column } from "effect-qb"`)
       expect(plan.updates[0]?.after).toContain(`import * as Schema from "effect/Schema"`)
       expect(plan.updates[0]?.after).toContain(`const users = Table.make("users"`)
       expect(plan.updates[0]?.after).toContain(`id: Column.uuid()`)
@@ -915,9 +916,9 @@ const users = Table.make("users", {
         }
       } as const
 
-      const proposalProducts = Table.make("proposal_products", {
-        stripe: C.jsonb(Schema.Unknown).pipe(C.nullable),
-        quantity: C.int()
+      const proposalProducts = StdRoot.Table.make("proposal_products", {
+        stripe: C.jsonb(Schema.Unknown).pipe(StdRoot.Column.nullable),
+        quantity: StdRoot.Column.int()
       }).pipe(
         Table.check("quantity_matches_stripe", (t) => {
           const stripePipe = (t.stripe as Pg.Scalar.Any).pipe as (
@@ -1024,14 +1025,14 @@ const users = Table.make("users", {
       } as const
 
       const connections = Pg.schema("payment").table("connections", {
-        id: C.uuid()
+        id: StdRoot.Column.uuid()
       }).pipe(
         Table.primaryKey("id")
       )
 
       const accountMappings = Pg.schema("payment").table("account_mappings", {
-        id: C.uuid(),
-        connection_id: C.uuid()
+        id: StdRoot.Column.uuid(),
+        connection_id: StdRoot.Column.uuid()
       }).pipe(
         Table.primaryKey("id"),
         Table.foreignKey({
@@ -1191,7 +1192,7 @@ const users = Table.make("users", {
 
       expect(plan.updates).toHaveLength(1)
       const after = plan.updates[0]?.after ?? ""
-      expect(after).toContain(`statuses: AuditSchema.enum("StatusType", ["active"]).column().pipe(Column.array())`)
+      expect(after).toContain(`statuses: AuditSchema.enum("StatusType", ["active"]).column().pipe(Pg.Column.array())`)
       expect(after).not.toContain("Column.custom(Schema.Unknown")
     } finally {
       await rm(tempDir, { recursive: true, force: true })
@@ -1201,19 +1202,19 @@ const users = Table.make("users", {
   test("rejects duplicate discovered table identities across source files", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-"))
     try {
-      await Bun.write(join(tempDir, "users-a.ts"), `
-import { Column as C, Table } from "#postgres"
+await Bun.write(join(tempDir, "users-a.ts"), `
+import { Column, Table } from "effect-qb"
 
 export const users = Table.make("users", {
-  id: C.uuid()
+  id: Column.uuid()
 })
 `)
 
       await Bun.write(join(tempDir, "users-b.ts"), `
-import { Column as C, Table } from "#postgres"
+import { Column, Table } from "effect-qb"
 
 export const usersDuplicate = Table.make("users", {
-  id: C.uuid()
+  id: Column.uuid()
 })
 `)
 
@@ -1228,17 +1229,17 @@ export const usersDuplicate = Table.make("users", {
   test("discovers aliased, namespace, and class table declarations", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-shapes-"))
     try {
-      await Bun.write(join(tempDir, "a-factory.ts"), `
-import { Column as Col, Table as PgTable } from "#postgres"
+await Bun.write(join(tempDir, "a-factory.ts"), `
+import { Column as Col, Table } from "effect-qb"
 
-export const users = PgTable.make("users", {
+export const users = Table.make("users", {
   id: Col.uuid()
 })
 `)
 
       await Bun.write(join(tempDir, "b-schema.ts"), `
 import * as Pg from "#postgres"
-import { Column as Col, Table as PgTable } from "#postgres"
+import { Column as Col } from "effect-qb"
 
 const admin = Pg.schema("admin")
 
@@ -1247,11 +1248,11 @@ export const audits = admin.table("audits", {
 })
 `)
 
-      await Bun.write(join(tempDir, "c-class.ts"), `
-import * as Pg from "#postgres"
+await Bun.write(join(tempDir, "c-class.ts"), `
+import { Column, Table } from "effect-qb"
 
-export class Sessions extends Pg.Table.Class<Sessions>("sessions")({
-  id: Pg.Column.uuid().pipe(Pg.Column.primaryKey)
+export class Sessions extends Table.Class<Sessions>("sessions")({
+  id: Column.uuid().pipe(Column.primaryKey)
 }) {}
 `)
 
@@ -1277,12 +1278,12 @@ export class Sessions extends Pg.Table.Class<Sessions>("sessions")({
   test("rejects nested schema declarations", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-nested-"))
     try {
-      await Bun.write(join(tempDir, "nested.ts"), `
-import { Column as C, Table } from "#postgres"
+await Bun.write(join(tempDir, "nested.ts"), `
+import { Column, Table } from "effect-qb"
 
 export function loadUsers() {
   const users = Table.make("users", {
-    id: C.uuid()
+    id: Column.uuid()
   })
   return users
 }
@@ -1299,11 +1300,11 @@ export function loadUsers() {
   test("discovers wrapped top-level schema declarations", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-schema-discovery-computed-"))
     try {
-      await Bun.write(join(tempDir, "computed.ts"), `
-import { Column as C, Table } from "#postgres"
+await Bun.write(join(tempDir, "computed.ts"), `
+import { Column, Table } from "effect-qb"
 
 export const users = (() => Table.make("users", {
-  id: C.uuid()
+  id: Column.uuid()
 }))()
 `)
 

@@ -1,24 +1,25 @@
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import * as Sqlite from "#sqlite"
-import { Column as C, Table } from "#postgres"
+import { Column as C, Table } from "#standard"
+import * as StdRoot from "#standard"
 
 export const makeRootSocialGraph = () => {
-  const users = Table.make("users", {
-    id: C.uuid().pipe(C.primaryKey),
-    email: C.text()
+  const users = StdRoot.Table.make("users", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    email: StdRoot.Column.text()
   })
 
-  const posts = Table.make("posts", {
-    id: C.uuid().pipe(C.primaryKey),
-    userId: C.uuid(),
-    title: C.text().pipe(C.nullable)
+  const posts = StdRoot.Table.make("posts", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    userId: StdRoot.Column.uuid(),
+    title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
   })
 
-  const comments = Table.make("comments", {
-    id: C.uuid().pipe(C.primaryKey),
-    postId: C.uuid(),
-    body: C.text()
+  const comments = StdRoot.Table.make("comments", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    postId: StdRoot.Column.uuid(),
+    body: StdRoot.Column.text()
   })
 
   return {
@@ -29,21 +30,21 @@ export const makeRootSocialGraph = () => {
 }
 
 export const makePostgresSocialGraph = () => {
-  const users = Postgres.Table.make("users", {
-    id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-    email: Postgres.Column.text()
+  const users = StdRoot.Table.make("users", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    email: StdRoot.Column.text()
   })
 
-  const posts = Postgres.Table.make("posts", {
-    id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-    userId: Postgres.Column.uuid(),
-    title: Postgres.Column.text().pipe(Postgres.Column.nullable)
+  const posts = StdRoot.Table.make("posts", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    userId: StdRoot.Column.uuid(),
+    title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
   })
 
-  const comments = Postgres.Table.make("comments", {
-    id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-    postId: Postgres.Column.uuid(),
-    body: Postgres.Column.text()
+  const comments = StdRoot.Table.make("comments", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    postId: StdRoot.Column.uuid(),
+    body: StdRoot.Column.text()
   })
 
   return {
@@ -54,21 +55,21 @@ export const makePostgresSocialGraph = () => {
 }
 
 export const makeMysqlSocialGraph = () => {
-  const users = Mysql.Table.make("users", {
-    id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-    email: Mysql.Column.text()
+  const users = StdRoot.Table.make("users", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    email: StdRoot.Column.text()
   })
 
-  const posts = Mysql.Table.make("posts", {
-    id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-    userId: Mysql.Column.uuid(),
-    title: Mysql.Column.text().pipe(Mysql.Column.nullable)
+  const posts = StdRoot.Table.make("posts", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    userId: StdRoot.Column.uuid(),
+    title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
   })
 
-  const comments = Mysql.Table.make("comments", {
-    id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-    postId: Mysql.Column.uuid(),
-    body: Mysql.Column.text()
+  const comments = StdRoot.Table.make("comments", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    postId: StdRoot.Column.uuid(),
+    body: StdRoot.Column.text()
   })
 
   return {
@@ -79,21 +80,21 @@ export const makeMysqlSocialGraph = () => {
 }
 
 export const makeSqliteSocialGraph = () => {
-  const users = Sqlite.Table.make("users", {
-    id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-    email: Sqlite.Column.text()
+  const users = StdRoot.Table.make("users", {
+    id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+    email: StdRoot.Column.text()
   })
 
-  const posts = Sqlite.Table.make("posts", {
-    id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-    userId: Sqlite.Column.text(),
-    title: Sqlite.Column.text().pipe(Sqlite.Column.nullable)
+  const posts = StdRoot.Table.make("posts", {
+    id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+    userId: StdRoot.Column.text(),
+    title: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
   })
 
-  const comments = Sqlite.Table.make("comments", {
-    id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-    postId: Sqlite.Column.text(),
-    body: Sqlite.Column.text()
+  const comments = StdRoot.Table.make("comments", {
+    id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+    postId: StdRoot.Column.text(),
+    body: StdRoot.Column.text()
   })
 
   return {
@@ -104,29 +105,29 @@ export const makeSqliteSocialGraph = () => {
 }
 
 export const makeRootEmployees = () =>
-  Table.make("employees", {
-    id: C.uuid().pipe(C.primaryKey),
-    managerId: C.uuid().pipe(C.nullable),
-    name: C.text()
+  StdRoot.Table.make("employees", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    managerId: StdRoot.Column.uuid().pipe(StdRoot.Column.nullable),
+    name: StdRoot.Column.text()
   })
 
 export const makePostgresEmployees = () =>
-  Postgres.Table.make("employees", {
-    id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-    managerId: Postgres.Column.uuid().pipe(Postgres.Column.nullable),
-    name: Postgres.Column.text()
+  StdRoot.Table.make("employees", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    managerId: StdRoot.Column.uuid().pipe(StdRoot.Column.nullable),
+    name: StdRoot.Column.text()
   })
 
 export const makeMysqlEmployees = () =>
-  Mysql.Table.make("employees", {
-    id: Mysql.Column.uuid().pipe(Mysql.Column.primaryKey),
-    managerId: Mysql.Column.uuid().pipe(Mysql.Column.nullable),
-    name: Mysql.Column.text()
+  StdRoot.Table.make("employees", {
+    id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+    managerId: StdRoot.Column.uuid().pipe(StdRoot.Column.nullable),
+    name: StdRoot.Column.text()
   })
 
 export const makeSqliteEmployees = () =>
-  Sqlite.Table.make("employees", {
-    id: Sqlite.Column.text().pipe(Sqlite.Column.primaryKey),
-    managerId: Sqlite.Column.text().pipe(Sqlite.Column.nullable),
-    name: Sqlite.Column.text()
+  StdRoot.Table.make("employees", {
+    id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+    managerId: StdRoot.Column.text().pipe(StdRoot.Column.nullable),
+    name: StdRoot.Column.text()
   })

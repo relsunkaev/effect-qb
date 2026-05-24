@@ -1,3 +1,4 @@
+import * as Std from "effect-qb"
 import { randomUUID } from "node:crypto"
 import { rm } from "node:fs/promises"
 import { basename, dirname, extname, join, relative, resolve } from "node:path"
@@ -12,11 +13,12 @@ import {
   tableKey,
   type SchemaModel
 } from "effect-qb/postgres/metadata"
-import { Table } from "effect-qb/postgres"
 
 type DiscoveryImportInfo = {
   readonly postgresModules: Set<string>
   readonly postgresNamespaceAliases: Set<string>
+  readonly standardModules: Set<string>
+  readonly standardNamespaceAliases: Set<string>
   readonly tableAliases: Set<string>
   readonly schemaAliases: Set<string>
 }
@@ -90,6 +92,9 @@ const DEFAULT_SOURCE_EXTENSIONS = new Set([
 const isPostgresModule = (value: string): boolean =>
   value === "effect-qb/postgres" || value === "#postgres" || value.endsWith("/postgres")
 
+const isStandardModule = (value: string): boolean =>
+  value === "effect-qb" || value === "#standard"
+
 const isSchemaCall = (
   expression: ts.Expression,
   importInfo: DiscoveryImportInfo
@@ -138,7 +143,7 @@ const isTableMakeRoot = (
   }
   return ts.isPropertyAccessExpression(target.expression)
     && ts.isIdentifier(target.expression.expression)
-    && importInfo.postgresNamespaceAliases.has(target.expression.expression.text)
+    && importInfo.standardNamespaceAliases.has(target.expression.expression.text)
     && target.expression.name.text === "Table"
 }
 
@@ -218,7 +223,7 @@ const isTableClass = (
   }
   return ts.isPropertyAccessExpression(target.expression)
     && ts.isIdentifier(target.expression.expression)
-    && importInfo.postgresNamespaceAliases.has(target.expression.expression.text)
+    && importInfo.standardNamespaceAliases.has(target.expression.expression.text)
     && target.expression.name.text === "Table"
 }
 
@@ -242,7 +247,7 @@ const isTableClassReference = (
   }
   return ts.isPropertyAccessExpression(target.expression)
     && ts.isIdentifier(target.expression.expression)
-    && importInfo.postgresNamespaceAliases.has(target.expression.expression.text)
+    && importInfo.standardNamespaceAliases.has(target.expression.expression.text)
     && target.expression.name.text === "Table"
 }
 
@@ -365,6 +370,8 @@ const validateNestedDiscoveryStatements = (
 const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
   const postgresModules = new Set<string>()
   const postgresNamespaceAliases = new Set<string>()
+  const standardModules = new Set<string>()
+  const standardNamespaceAliases = new Set<string>()
   const tableAliases = new Set<string>()
   const schemaAliases = new Set<string>()
   for (const statement of sourceFile.statements) {
@@ -374,23 +381,32 @@ const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
     const moduleSpecifier = ts.isStringLiteral(statement.moduleSpecifier)
       ? statement.moduleSpecifier.text
       : undefined
-    if (moduleSpecifier === undefined || !isPostgresModule(moduleSpecifier)) {
+    if (moduleSpecifier === undefined || (!isPostgresModule(moduleSpecifier) && !isStandardModule(moduleSpecifier))) {
       continue
     }
-    postgresModules.add(moduleSpecifier)
+    const postgresModule = isPostgresModule(moduleSpecifier)
+    if (postgresModule) {
+      postgresModules.add(moduleSpecifier)
+    } else {
+      standardModules.add(moduleSpecifier)
+    }
     const bindings = statement.importClause.namedBindings
     if (bindings === undefined) {
       continue
     }
     if (ts.isNamespaceImport(bindings)) {
-      postgresNamespaceAliases.add(bindings.name.text)
+      if (postgresModule) {
+        postgresNamespaceAliases.add(bindings.name.text)
+      } else {
+        standardNamespaceAliases.add(bindings.name.text)
+      }
       continue
     }
     for (const element of bindings.elements) {
       const imported = element.propertyName?.text ?? element.name.text
-      if (imported === "Table") {
+      if (!postgresModule && imported === "Table") {
         tableAliases.add(element.name.text)
-      } else if (imported === "schema") {
+      } else if (postgresModule && imported === "schema") {
         schemaAliases.add(element.name.text)
       }
     }
@@ -398,6 +414,8 @@ const collectImportInfo = (sourceFile: ts.SourceFile): DiscoveryImportInfo => {
   return {
     postgresModules,
     postgresNamespaceAliases,
+    standardModules,
+    standardNamespaceAliases,
     tableAliases,
     schemaAliases
   }
@@ -409,7 +427,14 @@ const discoverInFile = (
 ): readonly SourceDeclaration[] => {
   const sourceFile = ts.createSourceFile(filePath, contents, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const importInfo = collectImportInfo(sourceFile)
-  if (importInfo.postgresModules.size === 0 && importInfo.postgresNamespaceAliases.size === 0 && importInfo.tableAliases.size === 0 && importInfo.schemaAliases.size === 0) {
+  if (
+    importInfo.postgresModules.size === 0
+    && importInfo.postgresNamespaceAliases.size === 0
+    && importInfo.standardModules.size === 0
+    && importInfo.standardNamespaceAliases.size === 0
+    && importInfo.tableAliases.size === 0
+    && importInfo.schemaAliases.size === 0
+  ) {
     return []
   }
   const schemaBuilders = new Set<string>()
@@ -596,7 +621,7 @@ export const discoverSourceSchema = async (
       continue
     }
     if (isTableDefinition(value)) {
-      const state = (value as any)[Table.TypeId] as {
+      const state = (value as any)[Std.Table.TypeId] as {
         readonly schemaName?: string
         readonly baseName: string
       }

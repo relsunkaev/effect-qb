@@ -12,6 +12,8 @@ import { parse, type Expr as PgSqlExpr } from "pgsql-ast-parser"
 const TABLE_ALIAS = "Table"
 const COLUMN_ALIAS = "Column"
 const PG_ALIAS = "Pg"
+const POSTGRES_TABLE_ALIAS = `${PG_ALIAS}.Table`
+const POSTGRES_COLUMN_ALIAS = `${PG_ALIAS}.Column`
 const SCHEMA_ALIAS = "Schema"
 const TABLE_COLUMNS_ALIAS = "t"
 
@@ -1461,7 +1463,7 @@ const renderColumnBase = (
   }
   if (baseType === "jsonb" || normalizeType(column.dbTypeKind) === "jsonb") {
     return {
-      code: `${COLUMN_ALIAS}.jsonb(${SCHEMA_ALIAS}.Unknown)`,
+      code: `${POSTGRES_COLUMN_ALIAS}.jsonb(${SCHEMA_ALIAS}.Unknown)`,
       defaultDdlType: "jsonb"
     }
   }
@@ -1493,11 +1495,11 @@ const renderColumnBase = (
         return { code: `${COLUMN_ALIAS}.char(${length})`, defaultDdlType: `char(${length})` }
       }
     case "int2":
-      return { code: `${COLUMN_ALIAS}.int2()`, defaultDdlType: "int2" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.int2()`, defaultDdlType: "int2" }
     case "int4":
       return { code: `${COLUMN_ALIAS}.int()`, defaultDdlType: "int4" }
     case "int8":
-      return { code: `${COLUMN_ALIAS}.int8()`, defaultDdlType: "int8" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.int8()`, defaultDdlType: "int8" }
     case "numeric":
       {
         const config = numericConfig()
@@ -1513,9 +1515,9 @@ const renderColumnBase = (
           }
       }
     case "float4":
-      return { code: `${COLUMN_ALIAS}.float4()`, defaultDdlType: "float4" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.float4()`, defaultDdlType: "float4" }
     case "float8":
-      return { code: `${COLUMN_ALIAS}.float8()`, defaultDdlType: "float8" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.float8()`, defaultDdlType: "float8" }
     case "bool":
       return { code: `${COLUMN_ALIAS}.boolean()`, defaultDdlType: "bool" }
     case "date":
@@ -1523,31 +1525,31 @@ const renderColumnBase = (
     case "time":
       return { code: `${COLUMN_ALIAS}.time()`, defaultDdlType: "time" }
     case "timetz":
-      return { code: `${COLUMN_ALIAS}.timetz()`, defaultDdlType: "timetz" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.timetz()`, defaultDdlType: "timetz" }
     case "timestamp":
       return { code: `${COLUMN_ALIAS}.timestamp()`, defaultDdlType: "timestamp" }
     case "timestamptz":
-      return { code: `${COLUMN_ALIAS}.timestamptz()`, defaultDdlType: "timestamptz" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.timestamptz()`, defaultDdlType: "timestamptz" }
     case "interval":
-      return { code: `${COLUMN_ALIAS}.interval()`, defaultDdlType: "interval" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.interval()`, defaultDdlType: "interval" }
     case "bytea":
-      return { code: `${COLUMN_ALIAS}.bytea()`, defaultDdlType: "bytea" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.bytea()`, defaultDdlType: "bytea" }
     case "json":
       return { code: `${COLUMN_ALIAS}.json(${SCHEMA_ALIAS}.Unknown)`, defaultDdlType: "json" }
     case "name":
-      return { code: `${COLUMN_ALIAS}.name()`, defaultDdlType: "name" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.name()`, defaultDdlType: "name" }
     case "oid":
-      return { code: `${COLUMN_ALIAS}.oid()`, defaultDdlType: "oid" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.oid()`, defaultDdlType: "oid" }
     case "regclass":
-      return { code: `${COLUMN_ALIAS}.regclass()`, defaultDdlType: "regclass" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.regclass()`, defaultDdlType: "regclass" }
     case "bit":
-      return { code: `${COLUMN_ALIAS}.bit()`, defaultDdlType: "bit" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.bit()`, defaultDdlType: "bit" }
     case "varbit":
-      return { code: `${COLUMN_ALIAS}.varbit()`, defaultDdlType: "varbit" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.varbit()`, defaultDdlType: "varbit" }
     case "xml":
-      return { code: `${COLUMN_ALIAS}.xml()`, defaultDdlType: "xml" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.xml()`, defaultDdlType: "xml" }
     case "pg_lsn":
-      return { code: `${COLUMN_ALIAS}.pg_lsn()`, defaultDdlType: "pg_lsn" }
+      return { code: `${POSTGRES_COLUMN_ALIAS}.pg_lsn()`, defaultDdlType: "pg_lsn" }
     default:
       return {
         code: `${COLUMN_ALIAS}.custom(${schemaExpressionForRuntimeTag(runtimeTagOfColumn(column))}, ${renderDbTypeDescriptor(column, context)})`
@@ -1578,9 +1580,9 @@ const renderColumnDefinition = (
   const expressionContext = renderExpressionContext(table, context)
   const pipes: string[] = base.arrayDepth === undefined
     ? []
-    : Array.from({ length: base.arrayDepth }, () => `${COLUMN_ALIAS}.array()`)
+    : Array.from({ length: base.arrayDepth }, () => `${POSTGRES_COLUMN_ALIAS}.array()`)
   if (base.defaultDdlType === undefined || canonicalDdlType(column.ddlType) !== canonicalDdlType(base.defaultDdlType)) {
-    pipes.push(`${COLUMN_ALIAS}.ddlType(${renderStringLiteral(column.ddlType)})`)
+    pipes.push(`${POSTGRES_COLUMN_ALIAS}.ddlType(${renderStringLiteral(column.ddlType)})`)
   }
   if (column.nullable) {
     pipes.push(`${COLUMN_ALIAS}.nullable`)
@@ -1595,8 +1597,8 @@ const renderColumnDefinition = (
   }
   if (column.identity) {
     pipes.push(column.identity.generation === "always"
-      ? `${COLUMN_ALIAS}.identityAlways`
-      : `${COLUMN_ALIAS}.identityByDefault`)
+      ? `${POSTGRES_COLUMN_ALIAS}.identityAlways`
+      : `${POSTGRES_COLUMN_ALIAS}.identityByDefault`)
   } else if (column.generatedSql) {
     pipes.push(`${COLUMN_ALIAS}.generated(${renderDdlExpressionCode(column.generatedSql, expressionContext)})`)
   } else if (column.defaultSql) {
@@ -1652,7 +1654,7 @@ const renderIndexOption = (
   if (option.predicate) {
     parts.push(`predicate: ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)}`)
   }
-  return `${TABLE_ALIAS}.index({ ${parts.join(", ")} })`
+  return `${POSTGRES_TABLE_ALIAS}.index({ ${parts.join(", ")} })`
 }
 
 const renderColumnAccess = (
@@ -1741,7 +1743,7 @@ const renderInlineColumnOption = (
       }
       return parts.length === 0
         ? `${COLUMN_ALIAS}.unique`
-        : `${COLUMN_ALIAS}.unique.options({ ${parts.join(", ")} })`
+        : `${POSTGRES_COLUMN_ALIAS}.unique.options({ ${parts.join(", ")} })`
     }
     case "foreignKey": {
       const inlineColumn = inlineForeignKeyColumn(table, option, context.cyclicTableKeys)
@@ -1764,7 +1766,7 @@ const renderInlineColumnOption = (
         option.deferrable === undefined &&
         option.initiallyDeferred === undefined
       if (simple) {
-        return `${COLUMN_ALIAS}.foreignKey(${targetExpression})`
+        return `${POSTGRES_COLUMN_ALIAS}.foreignKey(${targetExpression})`
       }
       const parts: string[] = [`target: ${targetExpression}`]
       if (option.name !== undefined) {
@@ -1782,7 +1784,7 @@ const renderInlineColumnOption = (
       if (option.initiallyDeferred !== undefined) {
         parts.push(`initiallyDeferred: ${String(option.initiallyDeferred)}`)
       }
-      return `${COLUMN_ALIAS}.foreignKey({ ${parts.join(", ")} })`
+      return `${POSTGRES_COLUMN_ALIAS}.foreignKey({ ${parts.join(", ")} })`
     }
     case "index": {
       if (option.unique === true) {
@@ -1805,7 +1807,7 @@ const renderInlineColumnOption = (
         inlineColumn.operatorClass === undefined &&
         inlineColumn.collation === undefined
       if (simple) {
-        return `${COLUMN_ALIAS}.index`
+        return `${POSTGRES_COLUMN_ALIAS}.index`
       }
       const parts: string[] = []
       if (option.name !== undefined) {
@@ -1829,7 +1831,7 @@ const renderInlineColumnOption = (
       if (inlineColumn.collation !== undefined) {
         parts.push(`collation: ${renderStringLiteral(inlineColumn.collation)}`)
       }
-      return `${COLUMN_ALIAS}.index({ ${parts.join(", ")} })`
+      return `${POSTGRES_COLUMN_ALIAS}.index({ ${parts.join(", ")} })`
     }
     default:
       return undefined
@@ -1876,7 +1878,7 @@ const renderTableOption = (
         option.initiallyDeferred === undefined
       return simple
         ? `${TABLE_ALIAS}.primaryKey(${renderStringTuple(option.columns)})`
-        : `${TABLE_ALIAS}.primaryKey({ columns: ${renderStringTuple(option.columns)}${option.name ? `, name: ${renderStringLiteral(option.name)}` : ""}${option.deferrable !== undefined ? `, deferrable: ${String(option.deferrable)}` : ""}${option.initiallyDeferred !== undefined ? `, initiallyDeferred: ${String(option.initiallyDeferred)}` : ""} })`
+        : `${POSTGRES_TABLE_ALIAS}.primaryKey({ columns: ${renderStringTuple(option.columns)}${option.name ? `, name: ${renderStringLiteral(option.name)}` : ""}${option.deferrable !== undefined ? `, deferrable: ${String(option.deferrable)}` : ""}${option.initiallyDeferred !== undefined ? `, initiallyDeferred: ${String(option.initiallyDeferred)}` : ""} })`
     }
     case "unique": {
       const simple =
@@ -1886,7 +1888,7 @@ const renderTableOption = (
         option.initiallyDeferred === undefined
       return simple
         ? `${TABLE_ALIAS}.unique(${renderStringTuple(option.columns)})`
-        : `${TABLE_ALIAS}.unique({ columns: ${renderStringTuple(option.columns)}${option.name ? `, name: ${renderStringLiteral(option.name)}` : ""}${option.nullsNotDistinct !== undefined ? `, nullsNotDistinct: ${String(option.nullsNotDistinct)}` : ""}${option.deferrable !== undefined ? `, deferrable: ${String(option.deferrable)}` : ""}${option.initiallyDeferred !== undefined ? `, initiallyDeferred: ${String(option.initiallyDeferred)}` : ""} })`
+        : `${POSTGRES_TABLE_ALIAS}.unique({ columns: ${renderStringTuple(option.columns)}${option.name ? `, name: ${renderStringLiteral(option.name)}` : ""}${option.nullsNotDistinct !== undefined ? `, nullsNotDistinct: ${String(option.nullsNotDistinct)}` : ""}${option.deferrable !== undefined ? `, deferrable: ${String(option.deferrable)}` : ""}${option.initiallyDeferred !== undefined ? `, initiallyDeferred: ${String(option.initiallyDeferred)}` : ""} })`
     }
     case "index":
       return renderIndexOption(table, option, context)
@@ -1898,12 +1900,12 @@ const renderTableOption = (
       if (target === undefined || target.kind !== "table") {
         throw new Error(`Cannot render foreign key from ${tableKey(table.schemaName, table.name)} to missing source table '${displayTargetKey}'`)
       }
-      return `${TABLE_ALIAS}.foreignKey({ columns: ${renderStringTuple(option.columns)}, target: () => ${target.declaration.identifier}, referencedColumns: ${renderStringTuple(reference.columns)}${option.name ? `, name: ${renderStringLiteral(option.name)}` : ""}${option.onUpdate ? `, onUpdate: ${renderStringLiteral(option.onUpdate)}` : ""}${option.onDelete ? `, onDelete: ${renderStringLiteral(option.onDelete)}` : ""}${option.deferrable !== undefined ? `, deferrable: ${String(option.deferrable)}` : ""}${option.initiallyDeferred !== undefined ? `, initiallyDeferred: ${String(option.initiallyDeferred)}` : ""} })`
+      return `${POSTGRES_TABLE_ALIAS}.foreignKey({ columns: ${renderStringTuple(option.columns)}, target: () => ${target.declaration.identifier}, referencedColumns: ${renderStringTuple(reference.columns)}${option.name ? `, name: ${renderStringLiteral(option.name)}` : ""}${option.onUpdate ? `, onUpdate: ${renderStringLiteral(option.onUpdate)}` : ""}${option.onDelete ? `, onDelete: ${renderStringLiteral(option.onDelete)}` : ""}${option.deferrable !== undefined ? `, deferrable: ${String(option.deferrable)}` : ""}${option.initiallyDeferred !== undefined ? `, initiallyDeferred: ${String(option.initiallyDeferred)}` : ""} })`
     }
     case "check":
       return option.noInherit
-        ? `${TABLE_ALIAS}.check({ name: ${renderStringLiteral(option.name)}, predicate: ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)}, noInherit: true })`
-        : `${TABLE_ALIAS}.check(${renderStringLiteral(option.name)}, ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)})`
+        ? `${POSTGRES_TABLE_ALIAS}.check({ name: ${renderStringLiteral(option.name)}, predicate: ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)}, noInherit: true })`
+        : `${POSTGRES_TABLE_ALIAS}.check(${renderStringLiteral(option.name)}, ${renderTableScopedDdlExpressionCode(table, renderDdlExpressionSql(option.predicate), context)})`
   }
 }
 
@@ -2099,11 +2101,12 @@ const ensureImports = (contents: string): string => {
   const cleaned = contents
     .replace(/^import \* as [A-Za-z0-9_$]+ from "effect-qb\/postgres"\n?/gm, "")
     .replace(/^import \{[^}]+\} from "effect-qb\/postgres"\n?/gm, "")
+    .replace(/^import \{[^}]+\} from "effect-qb"\n?/gm, "")
     .replace(/^import \* as [A-Za-z0-9_$]+ from "effect\/Schema"\n?/gm, "")
     .trimStart()
   const required = [
     `import * as ${PG_ALIAS} from "effect-qb/postgres"`,
-    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS} } from "effect-qb/postgres"`,
+    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS} } from "effect-qb"`,
     `import * as ${SCHEMA_ALIAS} from "effect/Schema"`
   ]
   const missing = required.filter((line) => !cleaned.includes(line))
@@ -2471,7 +2474,7 @@ const renderCanonicalNewModule = (
 
   const lines: string[] = [
     `import * as ${PG_ALIAS} from "effect-qb/postgres"`,
-    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS} } from "effect-qb/postgres"`,
+    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS} } from "effect-qb"`,
     `import * as ${SCHEMA_ALIAS} from "effect/Schema"`
   ]
   const body: string[] = []

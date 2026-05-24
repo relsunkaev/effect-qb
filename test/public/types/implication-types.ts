@@ -1,33 +1,35 @@
+import { Column as PgColumn } from "effect-qb/postgres"
+import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
-import { Cast, Column as C, Query as Q, Function as F, Table, Type } from "effect-qb/postgres"
+import { Cast, Query as Q, Function as F, Type } from "effect-qb/postgres"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  email: Std.Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  status: C.text(),
-  title: C.text().pipe(C.nullable)
+const posts = Std.Table.make("posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  userId: Std.Column.uuid(),
+  status: Std.Column.text(),
+  title: Std.Column.text().pipe(Std.Column.nullable)
 })
 
-const articles = Table.make("articles", {
-  id: C.uuid().pipe(C.primaryKey),
-  status: C.custom(Schema.Literal("draft", "published", "archived"), Type.text()),
-  previousStatus: C.custom(Schema.Literal("draft", "published", "archived"), Type.text())
+const articles = Std.Table.make("articles", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  status: PgColumn.custom(Schema.Literal("draft", "published", "archived"), Type.text()),
+  previousStatus: PgColumn.custom(Schema.Literal("draft", "published", "archived"), Type.text())
 })
 
 const articleStatusText = Cast.to(articles.status, Type.text())
 
-const dottedPredicateTable = Table.make("a.b", {
-  status: C.custom(Schema.Literal("left", "right"), Type.text())
+const dottedPredicateTable = Std.Table.make("a.b", {
+  status: PgColumn.custom(Schema.Literal("left", "right"), Type.text())
 })
 
-const splitPredicateTable = Table.make("a", {
-  "b.status": C.custom(Schema.Literal("left", "right"), Type.text())
+const splitPredicateTable = Std.Table.make("a", {
+  "b.status": PgColumn.custom(Schema.Literal("left", "right"), Type.text())
 })
 
 const nullFiltered = Q.select({

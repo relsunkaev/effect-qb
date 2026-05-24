@@ -3,9 +3,10 @@ import { describe, expect, test } from "bun:test"
 import * as Mysql from "#mysql"
 import * as Sqlite from "#sqlite"
 import * as Standard from "#standard"
-import { Query as Q, Function as F, Renderer, Table } from "#postgres"
-import { Column as C } from "#postgres"
+import { Column as C, Table } from "#standard"
+import { Query as Q, Function as F, Renderer } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
+import * as StdRoot from "#standard"
 
 describe("rendering behavior", () => {
   test("standard plans render through every built-in SQL renderer", () => {
@@ -144,7 +145,7 @@ describe("rendering behavior", () => {
 
     const rendered = Renderer.make().render(plan)
 
-    expect(rendered.sql).toBe('select (lower("users"."email") || $1) as "label", coalesce("posts"."title", $2) as "fallbackTitle", (not (("users"."email" = $3) or ("posts"."title" is null))) as "ok" from "public"."users" left join "public"."posts" on ("users"."id" = "posts"."userId") where (("users"."email" = $4) and ("posts"."title" is not null)) order by lower("users"."email") desc')
+    expect(rendered.sql).toBe('select (lower("users"."email") || $1) as "label", coalesce("posts"."title", $2) as "fallbackTitle", (not (("users"."email" = $3) or ("posts"."title" is null))) as "ok" from "users" left join "posts" on ("users"."id" = "posts"."userId") where (("users"."email" = $4) and ("posts"."title" is not null)) order by lower("users"."email") desc')
     expect(rendered.params).toEqual(["::", "missing", "a", "alice@example.com"])
     expect(rendered.projections).toEqual([
       { path: ["label"], alias: "label" },
@@ -201,9 +202,9 @@ describe("rendering behavior", () => {
   })
 
   test("rejects incomplete plans that still require sources", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const incomplete = Q.select({
@@ -216,9 +217,9 @@ describe("rendering behavior", () => {
   })
 
   test("keeps projection metadata deterministic across repeated renders", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const plan = Q.select({
@@ -235,7 +236,7 @@ describe("rendering behavior", () => {
     const first = renderer.render(plan)
     const second = renderer.render(plan)
 
-    expect(first.sql).toBe('select "users"."id" as "profile__id", lower("users"."email") as "email_lower", $1 as "kind" from "public"."users"')
+    expect(first.sql).toBe('select "users"."id" as "profile__id", lower("users"."email") as "email_lower", $1 as "kind" from "users"')
     expect(first.projections).toEqual([
       { path: ["profile", "id"], alias: "profile__id" },
       { path: ["profile", "lowerEmail"], alias: "email_lower" },
@@ -247,9 +248,9 @@ describe("rendering behavior", () => {
   })
 
   test("rejects explicit aliases that collide with auto-generated aliases", () => {
-    const users = Table.make("users", {
-      id: C.uuid().pipe(C.primaryKey),
-      email: C.text()
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
     })
 
     const invalid = Q.select({
@@ -266,8 +267,8 @@ describe("rendering behavior", () => {
 
   test("quotes aliased self-joins with logical alias names and physical base tables", () => {
     const employees = makeMysqlEmployees()
-    const manager = Mysql.Table.alias(employees, "manager")
-    const report = Mysql.Table.alias(employees, "report")
+    const manager = StdRoot.Table.alias(employees, "manager")
+    const report = StdRoot.Table.alias(employees, "report")
 
     const plan = Mysql.Query.select({
       managerId: manager.id,

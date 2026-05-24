@@ -1,41 +1,43 @@
+import { Column as PgColumn } from "effect-qb/postgres"
+import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 import type * as SqlClient from "@effect/sql/SqlClient"
 import type * as Effect from "effect/Effect"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
-import { Column as C, Query as Q, Function as F, Table } from "#postgres"
+import { Query as Q, Function as F } from "#postgres"
 import * as Executor from "#internal/executor.ts"
 import * as Expression from "#internal/scalar.ts"
 import * as Plan from "#internal/row-set.ts"
 import * as Renderer from "#internal/renderer.ts"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
-  email: C.text().pipe(C.unique),
-  bio: C.text().pipe(C.nullable),
-  createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
+const users = Std.Table.make("users", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey, Std.Column.generated(Q.literal("generated-user-id"))),
+  email: Std.Column.text().pipe(Std.Column.unique),
+  bio: Std.Column.text().pipe(Std.Column.nullable),
+  createdAt: Std.Column.timestamp().pipe(Std.Column.default(F.localTimestamp()))
 }).pipe(
-  Table.index(["email", "createdAt"])
+  Std.Table.index(["email", "createdAt"])
 )
 
 const analytics = Postgres.schema("analytics")
 const events = analytics.table("events", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid()
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  userId: Std.Column.uuid()
 })
 const badPostgresSchemaMysqlColumn = analytics.table("bad_postgres_schema_mysql_column", {
   // @ts-expect-error postgres schema tables require postgres columns
-  id: Mysql.Column.uuid()
+  id: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
 })
 void badPostgresSchemaMysqlColumn
 
 const schemaTablePrimaryKey = analytics.table("schema_table_primary_key", {
-  id: C.uuid(),
-  slug: C.text(),
-  name: C.text()
-}, Table.primaryKey(["id", "slug"] as const))
-type SchemaTablePrimaryKeyUpdate = Table.UpdateOf<typeof schemaTablePrimaryKey>
+  id: Std.Column.uuid(),
+  slug: Std.Column.text(),
+  name: Std.Column.text()
+}, Std.Table.primaryKey(["id", "slug"] as const))
+type SchemaTablePrimaryKeyUpdate = Std.Table.UpdateOf<typeof schemaTablePrimaryKey>
 const schemaTablePrimaryKeyUpdate: SchemaTablePrimaryKeyUpdate = { name: "updated" }
 // @ts-expect-error schema table primary key options should update the derived update schema
 const badSchemaTablePrimaryKeyUpdate: SchemaTablePrimaryKeyUpdate = { id: "not-allowed" }
@@ -43,36 +45,36 @@ void schemaTablePrimaryKey
 void schemaTablePrimaryKeyUpdate
 void badSchemaTablePrimaryKeyUpdate
 
-const badSchemaTableIndexOption = Table.index("missing")
+const badSchemaTableIndexOption = Std.Table.index("missing")
 // @ts-expect-error schema-scoped table option columns must exist on the declared table
-const badSchemaTableOptionColumn = analytics.table("bad_schema_table_option_column", { id: C.uuid() }, badSchemaTableIndexOption)
+const badSchemaTableOptionColumn = analytics.table("bad_schema_table_option_column", { id: Std.Column.uuid() }, badSchemaTableIndexOption)
 void badSchemaTableOptionColumn
 
-const schemaTableNullablePrimaryKeyOption = Table.primaryKey("slug")
+const schemaTableNullablePrimaryKeyOption = Std.Table.primaryKey("slug")
 // @ts-expect-error schema-scoped table primary key columns cannot be nullable
-const badSchemaTablePrimaryKeyNullable = analytics.table("bad_schema_table_primary_key_nullable", { slug: C.text().pipe(C.nullable) }, schemaTableNullablePrimaryKeyOption)
+const badSchemaTablePrimaryKeyNullable = analytics.table("bad_schema_table_primary_key_nullable", { slug: Std.Column.text().pipe(Std.Column.nullable) }, schemaTableNullablePrimaryKeyOption)
 void badSchemaTablePrimaryKeyNullable
 
-const auditLog = Table.make("audit_log", {
-  createdAt: C.timestamp().pipe(C.default(F.now())),
-  publishedAt: C.timestamptz().pipe(C.default(F.now()))
+const auditLog = Std.Table.make("audit_log", {
+  createdAt: Std.Column.timestamp().pipe(Std.Column.default(Std.Function.localTimestamp())),
+  publishedAt: PgColumn.timestamptz().pipe(Std.Column.default(F.now()))
 })
-const datedEvents = Table.make("dated_events", {
-  happenedOn: C.date().pipe(C.schema(Schema.DateFromString))
+const datedEvents = Std.Table.make("dated_events", {
+  happenedOn: Std.Column.date().pipe(Std.Column.schema(Schema.DateFromString))
 })
 
-type UserInsert = Table.InsertOf<typeof users>
-type UserUpdate = Table.UpdateOf<typeof users>
+type UserInsert = Std.Table.InsertOf<typeof users>
+type UserUpdate = Std.Table.UpdateOf<typeof users>
 type UserExpressionDbType = typeof users.id[typeof Expression.TypeId]["dbType"]
 type UserPlanSelection = typeof users[typeof Plan.TypeId]["selection"]
-type EventsSchemaName = typeof events extends Table.TableDefinition<any, any, any, any, infer SchemaName>
+type EventsSchemaName = typeof events extends Std.Table.TableDefinition<any, any, any, any, infer SchemaName>
   ? SchemaName
   : never
-type UsersSchemaName = typeof users extends Table.TableDefinition<any, any, any, any, infer SchemaName>
+type UsersSchemaName = typeof users extends Std.Table.TableDefinition<any, any, any, any, infer SchemaName>
   ? SchemaName
   : never
-type DatedEventSelect = Table.SelectOf<typeof datedEvents>
-type AuditLogInsert = Table.InsertOf<typeof auditLog>
+type DatedEventSelect = Std.Table.SelectOf<typeof datedEvents>
+type AuditLogInsert = Std.Table.InsertOf<typeof auditLog>
 
 const goodInsert: UserInsert = {
   email: "alice@example.com"
@@ -104,7 +106,7 @@ const badDatedEvent: DatedEventSelect = {
   happenedOn: "2026-03-20"
 }
 // @ts-expect-error schema input must accept the column's canonical runtime value
-C.int().pipe(C.schema(Schema.DateFromString))
+Std.Column.int().pipe(Std.Column.schema(Schema.DateFromString))
 void uuidKind
 void selectedId
 void analyticsSchemaName
@@ -141,20 +143,20 @@ const badUpdateId: UserUpdate = { id: "not-allowed" }
 // @ts-expect-error required insert fields stay required
 const missingEmail: UserInsert = {}
 
-const orgs = Table.make("orgs", {
-  id: C.uuid().pipe(C.primaryKey),
-  name: C.text()
+const orgs = Std.Table.make("orgs", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  name: Std.Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text()
+const posts = Std.Table.make("posts", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  userId: Std.Column.uuid(),
+  title: Std.Column.text()
 })
 
-const members = Table.make("members", {
-  id: C.uuid().pipe(C.primaryKey),
-  orgId: C.uuid().pipe(C.references(() => orgs.id))
+const members = Std.Table.make("members", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  orgId: Std.Column.uuid().pipe(Std.Column.references(() => orgs.id))
 })
 
 void members
@@ -405,33 +407,33 @@ const groupedByBaseButSelectingDerived = Q.select({
 const badBaseGroupingComplete: Q.CompletePlan<typeof groupedByBaseButSelectingDerived> = groupedByBaseButSelectingDerived
 
 // @ts-expect-error nullable columns cannot become primary keys
-const badNullablePrimaryKey = C.text().pipe(C.nullable, C.primaryKey)
+const badNullablePrimaryKey = Std.Column.text().pipe(Std.Column.nullable, Std.Column.primaryKey)
 
 // @ts-expect-error primary keys cannot become nullable
-const badPrimaryKeyNullable = C.text().pipe(C.primaryKey, C.nullable)
+const badPrimaryKeyNullable = Std.Column.text().pipe(Std.Column.primaryKey, Std.Column.nullable)
 
-const badGeneratedDefault = C.text().pipe(
-  C.generated(Q.literal("generated")),
+const badGeneratedDefault = Std.Column.text().pipe(
+  Std.Column.generated(Q.literal("generated")),
   // @ts-expect-error generated and default are mutually exclusive
-  C.default(Q.literal("default"))
+  Std.Column.default(Q.literal("default"))
 )
 
-const badReferenceType = Table.make("bad_reference", {
+const badReferenceType = Std.Table.make("bad_reference", {
   // @ts-expect-error references require compatible base select types
-  userId: C.int().pipe(C.references(() => orgs.id))
+  userId: Std.Column.int().pipe(Std.Column.references(() => orgs.id))
 })
 
 // @ts-expect-error table indexes require at least one column
-const emptyIndex = Table.index([] as const)
+const emptyIndex = Std.Table.index([] as const)
 
 // @ts-expect-error table unique constraints require at least one column
-const emptyUnique = Table.unique([] as const)
+const emptyUnique = Std.Table.unique([] as const)
 
 // @ts-expect-error table primary keys require at least one column
-const emptyTablePrimaryKey = Table.primaryKey([] as const)
+const emptyTablePrimaryKey = Std.Table.primaryKey([] as const)
 
 // @ts-expect-error table foreign keys require at least one local column
-const emptyForeignKey = Table.foreignKey([] as const, () => orgs, ["id"] as const)
+const emptyForeignKey = Std.Table.foreignKey([] as const, () => orgs, ["id"] as const)
 
 void emptyIndex
 void emptyUnique
@@ -439,31 +441,31 @@ void emptyTablePrimaryKey
 void emptyForeignKey
 
 // @ts-expect-error foreign keys must reference the same number of columns
-const badForeignKeyArity = Table.foreignKey(["orgId", "role"] as const, () => orgs, ["id"] as const)(Table.make("bad_fk_arity", {
-  orgId: C.uuid(),
-  role: C.text()
+const badForeignKeyArity = Std.Table.foreignKey(["orgId", "role"] as const, () => orgs, ["id"] as const)(Std.Table.make("bad_fk_arity", {
+  orgId: Std.Column.uuid(),
+  role: Std.Column.text()
 }))
 void badForeignKeyArity
 
 // @ts-expect-error foreign keys must reference columns on the target table
-const badForeignKeyReferencedColumn = Table.foreignKey("orgId", () => orgs, "missing")(Table.make("bad_fk_referenced_column", {
-  orgId: C.uuid()
+const badForeignKeyReferencedColumn = Std.Table.foreignKey("orgId", () => orgs, "missing")(Std.Table.make("bad_fk_referenced_column", {
+  orgId: Std.Column.uuid()
 }))
 void badForeignKeyReferencedColumn
 
-const badRichForeignKeyLocalColumnOption = Table.foreignKey({
+const badRichForeignKeyLocalColumnOption = Postgres.Table.foreignKey({
   columns: ["missing"] as const,
   target: () => orgs,
   referencedColumns: ["id"] as const
 })
 // @ts-expect-error rich foreign key local columns must exist on the source table
-const badRichForeignKeyLocalColumn = badRichForeignKeyLocalColumnOption(Table.make("bad_rich_fk_local_column", {
-  orgId: C.uuid()
+const badRichForeignKeyLocalColumn = badRichForeignKeyLocalColumnOption(Std.Table.make("bad_rich_fk_local_column", {
+  orgId: Std.Column.uuid()
 }))
 void badRichForeignKeyLocalColumn
 
 // @ts-expect-error rich foreign keys must reference columns on the target table
-const badRichForeignKeyReferencedColumnOption = Table.foreignKey({
+const badRichForeignKeyReferencedColumnOption = Postgres.Table.foreignKey({
   columns: ["orgId"] as const,
   target: () => orgs,
   referencedColumns: ["missing"] as const
@@ -471,57 +473,57 @@ const badRichForeignKeyReferencedColumnOption = Table.foreignKey({
 void badRichForeignKeyReferencedColumnOption
 
 // @ts-expect-error rich primary key columns must exist on the target table
-const badRichPrimaryKeyColumn = Table.primaryKey({ columns: ["missing"] as const })(Table.make("bad_rich_primary_key_column", {
-  id: C.uuid()
+const badRichPrimaryKeyColumn = Std.Table.primaryKey({ columns: ["missing"] as const })(Std.Table.make("bad_rich_primary_key_column", {
+  id: Std.Column.uuid()
 }))
 void badRichPrimaryKeyColumn
 
 // @ts-expect-error rich primary key columns cannot be nullable
-const badRichPrimaryKeyNullable = Table.primaryKey({ columns: ["slug"] as const })(Table.make("bad_rich_primary_key_nullable", {
-  slug: C.text().pipe(C.nullable)
+const badRichPrimaryKeyNullable = Std.Table.primaryKey({ columns: ["slug"] as const })(Std.Table.make("bad_rich_primary_key_nullable", {
+  slug: Std.Column.text().pipe(Std.Column.nullable)
 }))
 void badRichPrimaryKeyNullable
 
 // @ts-expect-error rich unique columns must exist on the target table
-const badRichUniqueColumn = Table.unique({ columns: ["missing"] as const })(Table.make("bad_rich_unique_column", {
-  id: C.uuid()
+const badRichUniqueColumn = Std.Table.unique({ columns: ["missing"] as const })(Std.Table.make("bad_rich_unique_column", {
+  id: Std.Column.uuid()
 }))
 void badRichUniqueColumn
 
 // @ts-expect-error rich indexes require at least one column or key
-const badRichIndex = Table.index({ name: "bad_rich_index" })
+const badRichIndex = Postgres.Table.index({ name: "bad_rich_index" })
 void badRichIndex
 
 // @ts-expect-error rich index columns must exist on the target table
-const badRichIndexColumn = Table.index({ columns: ["missing"] as const })(Table.make("bad_rich_index_column", {
-  id: C.uuid()
+const badRichIndexColumn = Postgres.Table.index({ columns: ["missing"] as const })(Std.Table.make("bad_rich_index_column", {
+  id: Std.Column.uuid()
 }))
 void badRichIndexColumn
 
 // @ts-expect-error rich index included columns must exist on the target table
-const badRichIndexInclude = Table.index({ columns: ["id"] as const, include: ["missing"] as const })(Table.make("bad_rich_index_include", {
-  id: C.uuid()
+const badRichIndexInclude = Postgres.Table.index({ columns: ["id"] as const, include: ["missing"] as const })(Std.Table.make("bad_rich_index_include", {
+  id: Std.Column.uuid()
 }))
 void badRichIndexInclude
 
 // @ts-expect-error rich index key columns must exist on the target table
-const badRichIndexKey = Table.index({ keys: [{ column: "missing" }] as const })(Table.make("bad_rich_index_key", {
-  id: C.uuid()
+const badRichIndexKey = Postgres.Table.index({ keys: [{ column: "missing" }] as const })(Std.Table.make("bad_rich_index_key", {
+  id: Std.Column.uuid()
 }))
 void badRichIndexKey
 
 // @ts-expect-error unknown columns are rejected for indexes
-const badIndex = Table.index(["missing"])(Table.make("bad_index", {
-  id: C.uuid()
+const badIndex = Std.Table.index(["missing"])(Std.Table.make("bad_index", {
+  id: Std.Column.uuid()
 }))
 
 // @ts-expect-error table checks require expressions, not raw SQL strings
-const badCheck = Table.check("role_not_empty", "role <> ''")
+const badCheck = Std.Table.check("role_not_empty", "role <> ''")
 
 // @ts-expect-error nullable columns cannot participate in table primary keys
-const badCompositePrimaryKey = Table.primaryKey(["id", "slug"])(Table.make("bad_pk", {
-  id: C.uuid(),
-  slug: C.text().pipe(C.nullable)
+const badCompositePrimaryKey = Std.Table.primaryKey(["id", "slug"])(Std.Table.make("bad_pk", {
+  id: Std.Column.uuid(),
+  slug: Std.Column.text().pipe(Std.Column.nullable)
 }))
 
 // @ts-expect-error where only accepts boolean predicates
@@ -537,36 +539,36 @@ const badDuplicateJoin = Q.select({ userId: users.id }).pipe(
 )
 void badDuplicateJoin
 
-class UsersClass extends Table.Class<UsersClass>("users_class")({
-  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
-  email: C.text()
+class UsersClass extends Std.Table.Class<UsersClass>("users_class")({
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey, Std.Column.generated(Q.literal("generated-user-id"))),
+  email: Std.Column.text()
 }) {
-  static readonly [Table.options] = [Table.index("email")]
+  static readonly [Std.Table.options] = [Std.Table.index("email")]
 }
 
-class BadUsersClass extends Table.Class<BadUsersClass>("bad_users_class")({
-  id: C.uuid(),
-  slug: C.text()
+class BadUsersClass extends Std.Table.Class<BadUsersClass>("bad_users_class")({
+  id: Std.Column.uuid(),
+  slug: Std.Column.text()
 }) {}
 
 // @ts-expect-error class table option columns must exist on the declared table
-const badUsersClassIndexOptions: typeof BadUsersClass[typeof Table.options] = [Table.index("missing")]
+const badUsersClassIndexOptions: typeof BadUsersClass[typeof Std.Table.options] = [Std.Table.index("missing")]
 
 // @ts-expect-error class table unique option columns must exist on the declared table
-const badUsersClassUniqueOptions: typeof BadUsersClass[typeof Table.options] = [Table.unique("missing")]
+const badUsersClassUniqueOptions: typeof BadUsersClass[typeof Std.Table.options] = [Std.Table.unique("missing")]
 
 const classColumn = UsersClass.id
 void classColumn
 
 // @ts-expect-error class table options do not support table-level primary keys
-const badUsersClassOptions: typeof BadUsersClass[typeof Table.options] = [Table.primaryKey(["id", "slug"])]
+const badUsersClassOptions: typeof BadUsersClass[typeof Std.Table.options] = [Std.Table.primaryKey(["id", "slug"])]
 void badUsersClassOptions
 
-const manager = Table.alias(users, "manager")
-const report = Table.alias(users, "report")
+const manager = Std.Table.alias(users, "manager")
+const report = Std.Table.alias(users, "report")
 
 // @ts-expect-error aliased query sources cannot accept schema-level table options
-const badAliasOption = Table.index("email")(manager)
+const badAliasOption = Std.Table.index("email")(manager)
 
 const aliasedPlan = Q.select({
   managerId: manager.id,
@@ -586,21 +588,21 @@ void reportDependencyKey
 void aliasedManagerId
 void aliasedNullReportId
 
-const mysqlUsers = Mysql.Table.make("mysql_users", {
-  id: Mysql.Column.uuid(),
-  email: Mysql.Column.text()
+const mysqlUsers = Std.Table.make("mysql_users", {
+  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()),
+  email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
 })
-const mysqlOrgs = Mysql.Table.make("mysql_orgs", {
-  id: Mysql.Column.uuid(),
-  name: Mysql.Column.text()
+const mysqlOrgs = Std.Table.make("mysql_orgs", {
+  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()),
+  name: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
 })
-const mysqlSchema = Mysql.Table.schema("tenant")
+const mysqlSchema = Std.Table.schema("tenant")
 const mysqlSchemaTablePrimaryKey = mysqlSchema.table("mysql_schema_table_primary_key", {
-  id: Mysql.Column.uuid(),
-  slug: Mysql.Column.text(),
-  name: Mysql.Column.text()
-}, Mysql.Table.primaryKey(["id", "slug"] as const))
-type MysqlSchemaTablePrimaryKeyUpdate = Mysql.Table.UpdateOf<typeof mysqlSchemaTablePrimaryKey>
+  id: Std.Column.uuid(),
+  slug: Std.Column.text(),
+  name: Std.Column.text()
+}, Std.Table.primaryKey(["id", "slug"] as const))
+type MysqlSchemaTablePrimaryKeyUpdate = Std.Table.UpdateOf<typeof mysqlSchemaTablePrimaryKey>
 const mysqlSchemaTablePrimaryKeyUpdate: MysqlSchemaTablePrimaryKeyUpdate = { name: "updated" }
 // @ts-expect-error mysql schema table primary key options should update the derived update schema
 const badMysqlSchemaTablePrimaryKeyUpdate: MysqlSchemaTablePrimaryKeyUpdate = { id: "not-allowed" }
@@ -608,26 +610,26 @@ void mysqlSchemaTablePrimaryKey
 void mysqlSchemaTablePrimaryKeyUpdate
 void badMysqlSchemaTablePrimaryKeyUpdate
 
-const badMysqlSchemaTableIndexOption = Mysql.Table.index("missing")
+const badMysqlSchemaTableIndexOption = Std.Table.index("missing")
 // @ts-expect-error mysql schema-scoped table option columns must exist on the declared table
-const badMysqlSchemaTableOptionColumn = mysqlSchema.table("bad_mysql_schema_table_option_column", { id: Mysql.Column.uuid() }, badMysqlSchemaTableIndexOption)
+const badMysqlSchemaTableOptionColumn = mysqlSchema.table("bad_mysql_schema_table_option_column", { id: Std.Column.uuid() }, badMysqlSchemaTableIndexOption)
 void badMysqlSchemaTableOptionColumn
 
 // @ts-expect-error mysql foreign key local columns must exist on the source table
-const badMysqlForeignKeyLocalColumn = Mysql.Table.foreignKey("missing", () => mysqlOrgs, "id")(Mysql.Table.make("bad_mysql_fk_local_column", {
-  orgId: Mysql.Column.uuid()
+const badMysqlForeignKeyLocalColumn = Std.Table.foreignKey("missing", () => mysqlOrgs, "id")(Std.Table.make("bad_mysql_fk_local_column", {
+  orgId: Std.Column.uuid()
 }))
 void badMysqlForeignKeyLocalColumn
 
 // @ts-expect-error mysql foreign keys must reference columns on the target table
-const badMysqlForeignKeyReferencedColumn = Mysql.Table.foreignKey("orgId", () => mysqlOrgs, "missing")(Mysql.Table.make("bad_mysql_fk_referenced_column", {
-  orgId: Mysql.Column.uuid()
+const badMysqlForeignKeyReferencedColumn = Std.Table.foreignKey("orgId", () => mysqlOrgs, "missing")(Std.Table.make("bad_mysql_fk_referenced_column", {
+  orgId: Std.Column.uuid()
 }))
 void badMysqlForeignKeyReferencedColumn
 
-const postgresUsers = Postgres.Table.make("postgres_users", {
-  id: Postgres.Column.uuid(),
-  email: Postgres.Column.text()
+const postgresUsers = Std.Table.make("postgres_users", {
+  id: Postgres.Column.custom(Schema.UUID, Postgres.Type.uuid()),
+  email: Postgres.Column.custom(Schema.String, Postgres.Type.text())
 })
 
 const badPostgresFromMysql = Postgres.Query.select({
@@ -717,11 +719,11 @@ const badPostgresMutationMysqlExpression = Postgres.Query.insert(postgresUsers, 
 void badPostgresMutationMysqlExpression
 
 // @ts-expect-error widened postgres mutation inputs cannot hide mysql expressions
-const widenedPostgresInsertMysqlEmail: Postgres.Query.MutationInputOf<Postgres.Table.InsertOf<typeof users>>["email"] =
+const widenedPostgresInsertMysqlEmail: Postgres.Query.MutationInputOf<Std.Table.InsertOf<typeof users>>["email"] =
   Mysql.Query.literal("alice@example.com")
 void widenedPostgresInsertMysqlEmail
 
-const widenedPostgresInsertPostgresEmail: Postgres.Query.MutationInputOf<Postgres.Table.InsertOf<typeof users>>["email"] =
+const widenedPostgresInsertPostgresEmail: Postgres.Query.MutationInputOf<Std.Table.InsertOf<typeof users>>["email"] =
   Postgres.Query.literal("alice@example.com")
 void widenedPostgresInsertPostgresEmail
 
