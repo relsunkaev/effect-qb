@@ -179,6 +179,21 @@ Q.truncate(users, {
   cascade: "yes",
 });
 
+// @ts-expect-error savepoint names must be non-empty
+Q.savepoint("");
+
+// @ts-expect-error rollbackTo names must be non-empty
+Q.rollbackTo("");
+
+// @ts-expect-error releaseSavepoint names must be non-empty
+Q.releaseSavepoint("");
+
+// @ts-expect-error createIndex option names must be non-empty
+Q.createIndex(users, "id", { name: "" });
+
+// @ts-expect-error dropIndex option names must be non-empty
+Q.dropIndex(users, "id", { name: "" });
+
 const commitPlan = Q.commit();
 const rollbackPlan = Q.rollback();
 const savepointPlan = Q.savepoint("before_merge");

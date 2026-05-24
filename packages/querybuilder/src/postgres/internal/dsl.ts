@@ -4497,14 +4497,14 @@ type ValidateTargetColumnInput<
   Columns extends DdlColumnInput
 > = ValidateTargetColumns<Target, NormalizeDdlColumns<Columns>> extends never ? never : Columns
 
-type CreateIndexOptions = {
-  readonly name?: string
+type CreateIndexOptions<Name extends string = string> = {
+  readonly name?: NonEmptyStringInput<Name>
   readonly unique?: boolean
   readonly ifNotExists?: boolean
 }
 
-type DropIndexOptions = {
-  readonly name?: string
+type DropIndexOptions<Name extends string = string> = {
+  readonly name?: NonEmptyStringInput<Name>
   readonly ifExists?: boolean
 }
 
@@ -6608,7 +6608,7 @@ type AsCurriedResult<
     "rollback"
   >
 
-  type SavepointApi = <Name extends string>(name: Name) => QueryPlan<
+  type SavepointApi = <Name extends string>(name: NonEmptyStringInput<Name>) => QueryPlan<
     {},
     never,
     {},
@@ -6621,7 +6621,7 @@ type AsCurriedResult<
     "savepoint"
   >
 
-  type RollbackToApi = <Name extends string>(name: Name) => QueryPlan<
+  type RollbackToApi = <Name extends string>(name: NonEmptyStringInput<Name>) => QueryPlan<
     {},
     never,
     {},
@@ -6634,7 +6634,7 @@ type AsCurriedResult<
     "rollbackTo"
   >
 
-  type ReleaseSavepointApi = <Name extends string>(name: Name) => QueryPlan<
+  type ReleaseSavepointApi = <Name extends string>(name: NonEmptyStringInput<Name>) => QueryPlan<
     {},
     never,
     {},
@@ -6679,10 +6679,10 @@ type AsCurriedResult<
     "dropTable"
   >
 
-  type CreateIndexApi = <Target extends SchemaTableLike, const Columns extends DdlColumnInput>(
+  type CreateIndexApi = <Target extends SchemaTableLike, const Columns extends DdlColumnInput, Name extends string = string>(
     target: Target,
     columns: Columns & ValidateDdlColumnInput<Target, Columns>,
-    options?: CreateIndexOptions
+    options?: CreateIndexOptions<Name>
   ) => QueryPlan<
     {},
     never,
@@ -6696,10 +6696,10 @@ type AsCurriedResult<
     "createIndex"
   >
 
-  type DropIndexApi = <Target extends SchemaTableLike, const Columns extends DdlColumnInput>(
+  type DropIndexApi = <Target extends SchemaTableLike, const Columns extends DdlColumnInput, Name extends string = string>(
     target: Target,
     columns: Columns & ValidateDdlColumnInput<Target, Columns>,
-    options?: DropIndexOptions
+    options?: DropIndexOptions<Name>
   ) => QueryPlan<
     {},
     never,
