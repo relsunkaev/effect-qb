@@ -517,7 +517,7 @@ export const validateOptions = <Fields extends TableFieldMap>(
           const keys = option.keys ?? []
           for (const key of keys) {
             if (typeof key !== "object" || key === null || !("kind" in key)) {
-              throw new Error(`Index on table '${tableName}' requires key metadata objects`)
+              continue
             }
             requireOptionalNonEmptyString(
               (key as { readonly operatorClass?: unknown }).operatorClass,
