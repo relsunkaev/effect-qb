@@ -1446,7 +1446,7 @@ export const renderQueryAst = (
       const targetCasingState = stateWithTableCasing(state, targetSource.source)
       const targetFields = (targetSource.source as Table.AnyTable)[Table.TypeId].fields
       const insertSource = expectInsertSourceKind(insertAst.insertSource, targetFields)
-      const conflict = expectConflictClause(insertAst.conflict)
+      const conflict = expectConflictClause(insertAst.conflict, targetFields)
       sql = `insert into ${target}`
       if (insertSource?.kind === "values") {
         const columns = insertSource.columns.map((column) => quoteColumn(column, state, dialect, targetSource.tableName)).join(", ")

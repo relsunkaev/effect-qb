@@ -447,6 +447,38 @@ describe("postgres insert behavior", () => {
     expect(() => render(plan)).toThrow("conflict column targets require a column array")
   })
 
+  test("rejects malformed postgres conflict target columns before rendering SQL", () => {
+    const queryAst = Symbol.for("effect-qb/QueryAst")
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+
+    const emptyColumnsPlan = Postgres.Query.onConflict(["email"] as const, {
+      update: {
+        email: Postgres.Query.excluded(users.email)
+      }
+    })(Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))
+    ;(emptyColumnsPlan as any)[queryAst].conflict.target.columns = []
+
+    expect(() => render(emptyColumnsPlan)).toThrow("conflict column targets require known target columns")
+
+    const unknownColumnPlan = Postgres.Query.onConflict(["email"] as const, {
+      update: {
+        email: Postgres.Query.excluded(users.email)
+      }
+    })(Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))
+    ;(unknownColumnPlan as any)[queryAst].conflict.target.columns = ["missing"]
+
+    expect(() => render(unknownColumnPlan)).toThrow("conflict column targets require known target columns")
+  })
+
   test("renders postgres string conflict targets", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),

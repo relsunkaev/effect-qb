@@ -115,7 +115,8 @@ export const expectConflictClause = <
     readonly target?: { readonly kind: string; readonly columns?: unknown; readonly name?: unknown }
   } | undefined
 >(
-  conflict: Conflict
+  conflict: Conflict,
+  fields?: Record<string, unknown>
 ): Conflict => {
   if (conflict === undefined) {
     return conflict
@@ -135,6 +136,13 @@ export const expectConflictClause = <
   }
   if (conflict.target?.kind === "columns" && !Array.isArray(conflict.target.columns)) {
     throw new Error("conflict column targets require a column array")
+  }
+  if (conflict.target?.kind === "columns") {
+    expectKnownTargetColumns(
+      conflict.target.columns as readonly unknown[],
+      fields,
+      "conflict column targets require known target columns"
+    )
   }
   if (
     conflict.target?.kind === "constraint" &&
