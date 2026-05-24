@@ -23,7 +23,7 @@ export type { Projection } from "../internal/renderer.js"
 
 /** Creates the built-in Postgres renderer. */
 export const make = (options: MakeOptions = {}): Renderer =>
-  CoreRenderer.make("postgres", (plan) => renderPostgresPlan(plan, options))
+  CoreRenderer.makeTrusted("postgres", (plan) => renderPostgresPlan(plan, options))
 
 /** Shared built-in Postgres renderer instance. */
 export const postgres = make()

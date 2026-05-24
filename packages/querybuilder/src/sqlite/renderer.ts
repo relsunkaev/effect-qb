@@ -23,7 +23,7 @@ export type { Projection } from "../internal/renderer.js"
 
 /** Creates the built-in SQLite renderer. */
 export const make = (options: MakeOptions = {}): Renderer =>
-  CoreRenderer.make("sqlite", (plan) => renderSqlitePlan(plan, options))
+  CoreRenderer.makeTrusted("sqlite", (plan) => renderSqlitePlan(plan, options))
 
 /** Shared built-in SQLite renderer instance. */
 export const sqlite = make()

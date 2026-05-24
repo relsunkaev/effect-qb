@@ -199,14 +199,14 @@ export function make<Error = never, Context = never>(
 ): QueryExecutor<any> {
   if (options.driver) {
     return fromDriver(
-      options.renderer ?? CoreRenderer.make("postgres", (plan) => renderPostgresPlan(plan, { valueMappings: options.valueMappings })),
+      options.renderer ?? CoreRenderer.makeTrusted("postgres", (plan) => renderPostgresPlan(plan, { valueMappings: options.valueMappings })),
       options.driver,
       options.driverMode,
       options.valueMappings
     )
   }
   return fromDriver(
-    options.renderer ?? CoreRenderer.make("postgres", (plan) => renderPostgresPlan(plan, { valueMappings: options.valueMappings })),
+    options.renderer ?? CoreRenderer.makeTrusted("postgres", (plan) => renderPostgresPlan(plan, { valueMappings: options.valueMappings })),
     sqlClientDriver(),
     options.driverMode,
     options.valueMappings

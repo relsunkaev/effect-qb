@@ -498,7 +498,7 @@ describe("table definitions", () => {
     ])
   })
 
-  test("renderer rejects duplicate explicit projection aliases", () => {
+  test("built-in renderers trust typed projection aliases", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       email: StdRoot.Column.text()
@@ -511,7 +511,13 @@ describe("table definitions", () => {
       Q.from(users)
     )
 
-    expect(() => Renderer.make("postgres").render(invalid)).toThrow("Duplicate projection alias: duplicate_alias")
+    const rendered = Renderer.make().render(unsafeAny(invalid))
+
+    expect(rendered.sql).toBe('select "users"."id" as "duplicate_alias", "users"."email" as "duplicate_alias" from "users"')
+    expect(rendered.projections).toEqual([
+      { path: ["id"], alias: "duplicate_alias" },
+      { path: ["email"], alias: "duplicate_alias" }
+    ])
   })
 
   test("custom renderers are still validated for duplicate projection aliases", () => {

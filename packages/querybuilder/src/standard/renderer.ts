@@ -18,4 +18,4 @@ export interface MakeOptions {
 }
 
 export const make = (options: MakeOptions = {}): Renderer =>
-  CoreRenderer.make("standard", (plan) => renderStandardPlan(plan, options))
+  CoreRenderer.makeTrusted("standard", (plan) => renderStandardPlan(plan, options))

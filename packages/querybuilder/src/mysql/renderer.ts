@@ -23,7 +23,7 @@ export type { Projection } from "../internal/renderer.js"
 
 /** Creates the built-in MySQL renderer. */
 export const make = (options: MakeOptions = {}): Renderer =>
-  CoreRenderer.make("mysql", (plan) => renderMysqlPlan(plan, options))
+  CoreRenderer.makeTrusted("mysql", (plan) => renderMysqlPlan(plan, options))
 
 /** Shared built-in MySQL renderer instance. */
 export const mysql = make()

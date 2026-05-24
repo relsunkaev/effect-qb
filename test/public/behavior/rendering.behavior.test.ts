@@ -913,7 +913,7 @@ describe("rendering behavior", () => {
     expect(second.projections).toEqual(first.projections)
   })
 
-  test("rejects explicit aliases that collide with auto-generated aliases", () => {
+  test("built-in renderers trust typed aliases when explicit aliases collide with auto-generated aliases", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       email: StdRoot.Column.text()
@@ -928,7 +928,13 @@ describe("rendering behavior", () => {
       Q.from(users)
     )
 
-    expect(() => Renderer.make().render(invalid)).toThrow("Duplicate projection alias: profile__id")
+    const rendered = Renderer.make().render(invalid)
+
+    expect(rendered.sql).toBe('select "users"."id" as "profile__id", "users"."email" as "profile__id" from "users"')
+    expect(rendered.projections).toEqual([
+      { path: ["profile", "id"], alias: "profile__id" },
+      { path: ["email"], alias: "profile__id" }
+    ])
   })
 
   test("quotes aliased self-joins with logical alias names and physical base tables", () => {

@@ -89,6 +89,26 @@ export function make<Dialect extends string>(
   dialect: Dialect,
   render: CustomRender<Dialect>
 ): Renderer<Dialect> {
+  return makeRenderer(dialect, render, true)
+}
+
+/** Internal renderer factory for built-in renderers that derive projections from typed plans. */
+export function makeTrusted<Dialect extends string>(
+  dialect: Dialect,
+  render: CustomRender<Dialect>
+): Renderer<Dialect>
+export function makeTrusted<Dialect extends string>(
+  dialect: Dialect,
+  render: CustomRender<Dialect>
+): Renderer<Dialect> {
+  return makeRenderer(dialect, render, false)
+}
+
+const makeRenderer = <Dialect extends string>(
+  dialect: Dialect,
+  render: CustomRender<Dialect>,
+  validate: boolean
+): Renderer<Dialect> => {
   if (typeof render !== "function") {
     throw new Error(`Renderer.make requires an explicit render implementation for dialect: ${dialect}`)
   }
@@ -97,8 +117,10 @@ export function make<Dialect extends string>(
     render(plan) {
       const rendered = render(plan)
       const projections = rendered.projections ?? []
-      validateProjections(projections)
-      validateProjectionPathsMatchSelection(plan as Query.Plan.Any, projections)
+      if (validate) {
+        validateProjections(projections)
+        validateProjectionPathsMatchSelection(plan as Query.Plan.Any, projections)
+      }
       return {
         sql: rendered.sql,
         params: rendered.params ?? [],
