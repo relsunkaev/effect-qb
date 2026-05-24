@@ -128,6 +128,18 @@ describe("cross-cutting statement behavior", () => {
     expect(Postgres.Renderer.make().render(createIndexPlan).sql).toBe('create index "" on "users" ("id")')
   })
 
+  test("from builders trust typed statement compatibility without runtime validation", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+
+    const commitPlan = Postgres.Query.commit().pipe(
+      Postgres.Query.from(users as any)
+    )
+
+    expect(Postgres.Renderer.make().render(commitPlan).sql).toBe("commit")
+  })
+
   test("rejects invalid rendered transaction kinds", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
 

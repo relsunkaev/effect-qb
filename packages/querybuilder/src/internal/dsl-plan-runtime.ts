@@ -174,7 +174,7 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
         }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
       }
 
-      throw new Error(`from(...) is not supported for ${currentQuery.statement} statements`)
+      return plan
     }
 
   const having = (predicate: any) =>
