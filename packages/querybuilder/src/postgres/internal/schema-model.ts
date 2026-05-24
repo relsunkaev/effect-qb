@@ -155,7 +155,11 @@ const mapOption = (
         ...option,
         columns: option.columns === undefined ? undefined : mapColumnList(option.columns, casing),
         name: option.name === undefined ? undefined : mapOptionName(option.name, casing, "indexes"),
-        include: option.include?.map((column) => mapCasedValue(column, casing, "columns")) as unknown as readonly string[] | undefined,
+        include: option.include === undefined
+          ? undefined
+          : Array.isArray(option.include)
+            ? option.include.map((column) => mapCasedValue(column, casing, "columns")) as unknown as readonly string[]
+            : option.include,
         predicate: option.predicate === undefined ? undefined : mapDdlExpression(option.predicate, expressionState),
         keys: option.keys === undefined
           ? undefined

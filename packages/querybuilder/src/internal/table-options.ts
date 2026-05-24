@@ -449,10 +449,6 @@ export const validateOptions = <Fields extends TableFieldMap>(
           }
         }
         if (option.kind === "index") {
-          const includedColumns = requireOptionalColumnArray(
-            option.include,
-            `Index on table '${tableName}' requires included columns to be an array`
-          )
           const keys = option.keys ?? []
           for (const key of keys) {
             if (typeof key !== "object" || key === null || !("kind" in key)) {
