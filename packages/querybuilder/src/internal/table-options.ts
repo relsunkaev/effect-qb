@@ -477,9 +477,11 @@ export const validateOptions = <Fields extends TableFieldMap>(
         if (columns.length === 0 && option.kind !== "index") {
           throw new Error(`Option '${option.kind}' on table '${tableName}' requires at least one column`)
         }
-        for (const column of columns) {
-          if (!knownColumns.has(column)) {
-            throw new Error(`Unknown column '${column}' on table '${tableName}'`)
+        if (option.kind !== "foreignKey") {
+          for (const column of columns) {
+            if (!knownColumns.has(column)) {
+              throw new Error(`Unknown column '${column}' on table '${tableName}'`)
+            }
           }
         }
         if (option.kind === "foreignKey") {

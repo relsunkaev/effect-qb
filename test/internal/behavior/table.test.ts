@@ -175,6 +175,17 @@ describe("table definitions", () => {
       knownColumns: ["id", "slug"]
     })
 
+    const brokenLocalMemberships = StdRoot.Table.make("broken_local_memberships", {
+      orgId: StdRoot.Column.uuid()
+    }).pipe(
+      unsafeAny(Table.foreignKey("missing", () => orgs, "id"))
+    )
+    const brokenLocalForeignKey = brokenLocalMemberships[StdRoot.Table.OptionsSymbol].find((option: { kind: string }) => option.kind === "foreignKey")
+    if (!brokenLocalForeignKey || brokenLocalForeignKey.kind !== "foreignKey") {
+      throw new Error("expected a foreign key option")
+    }
+    expect(brokenLocalForeignKey.columns).toEqual(["missing"])
+
     expect(() => StdRoot.Table.make("broken_memberships_arity", {
       orgId: StdRoot.Column.uuid(),
       slug: StdRoot.Column.text()
