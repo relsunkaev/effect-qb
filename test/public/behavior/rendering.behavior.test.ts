@@ -129,6 +129,31 @@ describe("rendering behavior", () => {
     expect(Sqlite.Renderer.make().render(delete_).sql).toBe('delete from "users" where ("users"."id" = ?)')
   })
 
+  test("rejects malformed between predicates before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      id: Standard.Column.int()
+    })
+    const between = Standard.Query.between(users.id, 1, 2)
+    ;(between as any)[expressionAst].values = [users.id, Standard.Query.literal(1)]
+    const plan = Standard.Query.select({
+      ok: between
+    }).pipe(Standard.Query.from(users))
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "between(...) requires exactly three operands"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "between(...) requires exactly three operands"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "between(...) requires exactly three operands"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "between(...) requires exactly three operands"
+    )
+  })
+
   test("postgres renders clause combinations with stable parameter ordering", () => {
     const { users, posts } = makeRootSocialGraph()
 

@@ -1975,6 +1975,9 @@ export const renderExpression = (
       }
       return `(${renderExpression(ast.values[0]!, state, dialect)} not in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
     case "between":
+      if (!Array.isArray(ast.values) || ast.values.length !== 3) {
+        throw new Error("between(...) requires exactly three operands")
+      }
       return `(${renderExpression(ast.values[0]!, state, dialect)} between ${renderExpression(ast.values[1]!, state, dialect)} and ${renderExpression(ast.values[2]!, state, dialect)})`
     case "concat":
       return dialect.renderConcat(ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)))
