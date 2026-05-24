@@ -565,6 +565,52 @@ describe("ddl rendering behavior", () => {
     ).toThrow("Unsupported sqlite check constraint options")
   })
 
+  test("rejects deferrable constraints where unsupported by the dialect", () => {
+    const mysqlUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid()
+    }).pipe(
+      Postgres.Table.primaryKey({
+        columns: "id",
+        deferrable: true,
+        initiallyDeferred: true
+      })
+    )
+    const sqliteUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text()
+    }).pipe(
+      Postgres.Table.primaryKey({
+        columns: "id",
+        deferrable: true,
+        initiallyDeferred: true
+      })
+    )
+    const orgs = StdRoot.Table.make("orgs", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+    })
+    const memberships = StdRoot.Table.make("memberships", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      orgId: StdRoot.Column.uuid()
+    }).pipe(
+      Postgres.Table.foreignKey({
+        columns: "orgId",
+        target: () => orgs,
+        referencedColumns: "id",
+        deferrable: true,
+        initiallyDeferred: true
+      })
+    )
+
+    expect(() =>
+      Mysql.Renderer.make().render(Mysql.Query.createTable(mysqlUsers))
+    ).toThrow("Unsupported mysql primary key constraint options")
+    expect(() =>
+      Sqlite.Renderer.make().render(Sqlite.Query.createTable(sqliteUsers))
+    ).toThrow("Unsupported sqlite primary key constraint options")
+    expect(() =>
+      Mysql.Renderer.make().render(Mysql.Query.createTable(memberships))
+    ).toThrow("Unsupported mysql foreign key constraint options")
+  })
+
   test("postgres drop index qualifies indexes for schema-scoped tables", () => {
     const analytics = Postgres.Schema.make("analytics")
     const events = analytics.table("events", {

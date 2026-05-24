@@ -314,6 +314,9 @@ const renderCreateTableSql = (
   for (const option of tableOptions) {
     switch (option.kind) {
       case "primaryKey":
+        if (option.deferrable || option.initiallyDeferred) {
+          throw new Error("Unsupported sqlite primary key constraint options")
+        }
         definitions.push(`${option.name ? `constraint ${dialect.quoteIdentifier(Casing.applyCategory(tableCasing, "constraints", option.name))} ` : ""}primary key (${option.columns.map((column) => quoteColumn(column, state, dialect, targetSource.tableName)).join(", ")})${option.deferrable ? ` deferrable${option.initiallyDeferred ? " initially deferred" : ""}` : ""}`)
         break
       case "unique":
