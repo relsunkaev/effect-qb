@@ -342,6 +342,12 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       const updateWhere = options.where === undefined
         ? undefined
         : ctx.toDialectExpression(options.where)
+      if (updateWhere !== undefined && updateAssignments.length === 0) {
+        throw new Error("effect-qb: conflict action where(...) requires update assignments")
+      }
+      if (ctx.profile.dialect === "mysql" && updateWhere !== undefined) {
+        throw new Error("effect-qb: mysql does not support conflict where(...) predicates")
+      }
       const targetWhere = conflictTarget.kind === "columns" ? conflictTarget.where : undefined
       const required = [
         ...ctx.currentRequiredList(current.required),

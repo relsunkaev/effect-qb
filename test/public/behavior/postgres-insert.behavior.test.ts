@@ -365,6 +365,27 @@ describe("postgres insert behavior", () => {
     }))).toThrow("effect-qb: unknown conflict target column")
   })
 
+  test("rejects postgres conflict action predicates without update assignments", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+
+    const insert = Postgres.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    })
+
+    expect(() => Postgres.Query.onConflict(["email"] as const, {
+      where: Postgres.Query.isNotNull(users.email)
+    } as any)(insert)).toThrow("effect-qb: conflict action where(...) requires update assignments")
+
+    expect(() => Postgres.Query.onConflict(["email"] as const, {
+      update: {},
+      where: Postgres.Query.isNotNull(users.email)
+    } as any)(insert)).toThrow("effect-qb: conflict action where(...) requires update assignments")
+  })
+
   test("rejects empty postgres conflict constraint names before rendering SQL", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
     const users = StdRoot.Table.make("users", {

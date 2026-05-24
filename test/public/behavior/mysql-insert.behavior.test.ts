@@ -241,6 +241,29 @@ describe("mysql insert behavior", () => {
     }))).toThrow("effect-qb: unknown conflict target column")
   })
 
+  test("rejects mysql conflict action predicates", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+
+    const insert = Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    })
+
+    expect(() => Mysql.Query.onConflict(["email"] as const, {
+      where: Mysql.Query.isNotNull(users.email)
+    } as any)(insert)).toThrow("effect-qb: conflict action where(...) requires update assignments")
+
+    expect(() => Mysql.Query.onConflict(["email"] as const, {
+      update: {
+        email: Mysql.Query.excluded(users.email)
+      },
+      where: Mysql.Query.isNotNull(users.email)
+    } as any)(insert)).toThrow("effect-qb: mysql does not support conflict where(...) predicates")
+  })
+
   test("rejects mysql empty returning selections before treating them as no-ops", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
