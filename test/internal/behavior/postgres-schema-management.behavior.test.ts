@@ -190,33 +190,44 @@ describe("postgres schema management", () => {
     )
   })
 
-  test("source table models reject malformed index support identifiers before mapping metadata", () => {
+  test("source table models preserve index support identifiers without runtime validation", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{ kind: "index", columns: ["id"], method: {} }]
+    ;(users as any)[StdRoot.Table.OptionsSymbol] = [
+      { kind: "index", columns: ["id"], method: {} },
+      {
+        kind: "index",
+        keys: [{ kind: "column", column: "id", operatorClass: {} }]
+      },
+      {
+        kind: "index",
+        keys: [{ kind: "column", column: "id", collation: {} }]
+      }
+    ]
 
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Index on table 'users' requires index methods to be non-empty strings"
-    )
+    const model = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
 
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
+    expect(model.options[0]).toMatchObject({
       kind: "index",
-      keys: [{ kind: "column", column: "id", operatorClass: {} }]
-    }]
-
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Index on table 'users' requires key operator classes to be non-empty strings"
-    )
-
-    ;(users as any)[StdRoot.Table.OptionsSymbol] = [{
+      method: {}
+    })
+    expect(model.options[1]).toMatchObject({
       kind: "index",
-      keys: [{ kind: "column", column: "id", collation: {} }]
-    }]
-
-    expect(() => toTableModel(users as unknown as Parameters<typeof toTableModel>[0])).toThrow(
-      "Index on table 'users' requires key collations to be non-empty strings"
-    )
+      keys: [
+        expect.objectContaining({
+          operatorClass: {}
+        })
+      ]
+    })
+    expect(model.options[2]).toMatchObject({
+      kind: "index",
+      keys: [
+        expect.objectContaining({
+          collation: {}
+        })
+      ]
+    })
   })
 
   test("source table models reject malformed foreign key reference identifiers before mapping metadata", () => {
