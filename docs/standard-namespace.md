@@ -1,24 +1,24 @@
 # Standard SQL Namespace
 
-`effect-qb` is the default import path for query plans that should stay portable across the built-in SQL engines. `effect-qb/standard` remains available as an explicit portable subpath.
+The `Sql` namespace from `effect-qb` is the default import path for query plans that should stay portable across the built-in SQL engines. `effect-qb/standard` remains available as an explicit portable subpath.
 
 ```ts
-import * as Std from "effect-qb"
+import { Sql } from "effect-qb"
 
-const users = Std.Table.make("users", {
-  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
-  email: Std.Column.text()
+const users = Sql.Table.make("users", {
+  id: Sql.Column.uuid().pipe(Sql.Column.primaryKey),
+  email: Sql.Column.text()
 })
 
-const userEmails = Std.Query.select({
+const userEmails = Sql.Query.select({
   id: users.id,
-  email: Std.Function.lower(users.email)
+  email: Sql.Function.lower(users.email)
 }).pipe(
-  Std.Query.from(users)
+  Sql.Query.from(users)
 )
 ```
 
-Plans built only from `Std.*` carry the `"standard"` dialect tag. A standard plan can be rendered by `Std.Renderer`, `Postgres.Renderer`, `Mysql.Renderer`, or `Sqlite.Renderer`; each renderer still emits its own quoting, placeholder, and function syntax.
+Plans built only from `Sql.*` carry the `"standard"` dialect tag. A standard plan can be rendered by `Sql.Renderer`, `Postgres.Renderer`, `Mysql.Renderer`, or `Sqlite.Renderer`; each renderer still emits its own quoting, placeholder, and function syntax.
 
 The dialect tag rule is:
 

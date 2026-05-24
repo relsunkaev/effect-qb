@@ -3,18 +3,18 @@
 // Code fences: 145-159
 
 // README.md:145-159
-import * as Std from "effect-qb"
+import { Sql } from "effect-qb"
 
-const users = Std.Table.make("users", {
-  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
-  email: Std.Column.text()
+const users = Sql.Table.make("users", {
+  id: Sql.Column.uuid().pipe(Sql.Column.primaryKey),
+  email: Sql.Column.text()
 })
 
-const userEmails = Std.Query.select({
+const userEmails = Sql.Query.select({
   id: users.id,
-  email: Std.Function.lower(users.email)
+  email: Sql.Function.lower(users.email)
 }).pipe(
-  Std.Query.from(users)
+  Sql.Query.from(users)
 )
 
 export {};

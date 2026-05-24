@@ -1,16 +1,16 @@
 import * as Pg from "effect-qb/postgres"
-import * as Std from "effect-qb/standard"
+import { Sql } from "effect-qb"
 
-const users = Std.Table.make("users", {
-  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
-  email: Std.Column.text()
+const users = Sql.Table.make("users", {
+  id: Sql.Column.uuid().pipe(Sql.Column.primaryKey),
+  email: Sql.Column.text()
 })
 
-export const portableUsers = Std.Query.select({
+export const portableUsers = Sql.Query.select({
   id: users.id,
-  email: Std.Function.lower(users.email)
+  email: Sql.Function.lower(users.email)
 }).pipe(
-  Std.Query.from(users)
+  Sql.Query.from(users)
 )
 
 export const renderedForPostgres = Pg.Renderer.make().render(portableUsers)

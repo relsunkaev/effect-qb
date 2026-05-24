@@ -26,18 +26,18 @@ The end state is:
 The public entrypoint is:
 
 ```ts
-import * as Std from "effect-qb/standard"
+import { Sql } from "effect-qb"
 ```
 
 It exposes:
 
-- `Std.Table` for portable table definitions.
-- `Std.Column` for portable column definitions.
-- `Std.Datatypes` for portable DB type witnesses and coercion families.
-- `Std.Query` for portable query, mutation, transaction, and DDL builders.
-- `Std.Function` for portable scalar, aggregate, string, temporal, and window
+- `Sql.Table` for portable table definitions.
+- `Sql.Column` for portable column definitions.
+- `Sql.Datatypes` for portable DB type witnesses and coercion families.
+- `Sql.Query` for portable query, mutation, transaction, and DDL builders.
+- `Sql.Function` for portable scalar, aggregate, string, temporal, and window
   functions.
-- `Std.Renderer` for reference standard-SQL rendering.
+- `Sql.Renderer` for reference standard-SQL rendering.
 - Shared row, scalar, and executor contracts needed by portable code.
 
 Concrete namespaces keep their current role:
@@ -66,16 +66,16 @@ The dialect lattice is:
 Examples:
 
 ```ts
-const users = Std.Table.make("users", {
-  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
-  email: Std.Column.text()
+const users = Sql.Table.make("users", {
+  id: Sql.Column.uuid().pipe(Sql.Column.primaryKey),
+  email: Sql.Column.text()
 })
 
-const portable = Std.Query.select({
+const portable = Sql.Query.select({
   id: users.id,
-  email: Std.Function.lower(users.email)
+  email: Sql.Function.lower(users.email)
 }).pipe(
-  Std.Query.from(users)
+  Sql.Query.from(users)
 )
 
 Pg.Renderer.make().render(portable)
@@ -87,7 +87,7 @@ A concrete expression narrows the whole plan:
 
 ```ts
 const postgresOnly = portable.pipe(
-  Std.Query.orderBy(Pg.Query.literal(1))
+  Sql.Query.orderBy(Pg.Query.literal(1))
 )
 
 Pg.Renderer.make().render(postgresOnly)
@@ -98,8 +98,8 @@ Mixing different concrete dialects is invalid:
 
 ```ts
 const conflict = portable.pipe(
-  Std.Query.orderBy(Pg.Query.literal(1)),
-  Std.Query.where(My.Query.literal(true))
+  Sql.Query.orderBy(Pg.Query.literal(1)),
+  Sql.Query.where(My.Query.literal(true))
 )
 
 // Any concrete renderer should reject this at type level.
@@ -110,10 +110,10 @@ as defense at public render and execute boundaries.
 
 ## Standard Tables And Columns
 
-`Std.Table.make` defines tables whose columns carry the `standard` dialect tag.
+`Sql.Table.make` defines tables whose columns carry the `standard` dialect tag.
 
 Standard columns should expose only portable options. If an option has no shared
-meaning across the built-in engines, it must not be available in `Std.Column`.
+meaning across the built-in engines, it must not be available in `Sql.Column`.
 Engine-specific column behavior belongs in the concrete namespace.
 
 Required portable column coverage:
@@ -146,7 +146,7 @@ should stay decimal strings when that is the established runtime contract.
 
 ## Standard Query Surface
 
-Anything exported from `Std.Query` that keeps the `standard` dialect tag must be
+Anything exported from `Sql.Query` that keeps the `standard` dialect tag must be
 safe to render for every built-in concrete engine, or it must fail clearly before
 users can execute incorrect SQL.
 
@@ -178,7 +178,7 @@ portability.
 
 ## Function Surface
 
-`Std.Function` should include common scalar and aggregate operations whose
+`Sql.Function` should include common scalar and aggregate operations whose
 meaning can be preserved across engines.
 
 Required standard function coverage:
@@ -212,7 +212,7 @@ Each built-in dialect must define:
 - query AST rendering
 - scalar expression rendering
 
-`Std.Renderer` is a reference renderer for portable SQL. It should use standard
+`Sql.Renderer` is a reference renderer for portable SQL. It should use standard
 identifier quoting and `?` bind placeholders. It is useful for inspection,
 generic drivers, and tests, but concrete engines should normally use their own
 renderer or executor.
@@ -338,7 +338,7 @@ The standard dialect does not promise:
 - identical database semantics for every SQL feature
 - emulation of missing engine features
 - automatic migration between engine-specific SQL dialects
-- support for concrete-only options through `Std.*`
+- support for concrete-only options through `Sql.*`
 - hiding the need to choose a concrete executor at runtime
 
 If a query depends on concrete database behavior, users should use the concrete
