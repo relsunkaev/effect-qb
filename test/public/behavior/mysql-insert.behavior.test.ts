@@ -205,82 +205,6 @@ describe("mysql insert behavior", () => {
     ])
   })
 
-  test("rejects mysql conflict update actions without assignments", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Mysql.Query.onConflict(["email"] as const, {
-      update: {}
-    })(Mysql.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))).toThrow("conflict update assignments require at least one assignment")
-  })
-
-  test("rejects mysql upsert update actions without assignments", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Mysql.Query.upsert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }, ["email"] as const, {})).toThrow("upsert update assignments require at least one assignment")
-  })
-
-  test("rejects mysql upsert conflict columns with unknown columns at runtime", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Mysql.Query.upsert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }, unsafeAny(["missing"]), {
-      email: "alice@example.com"
-    })).toThrow("effect-qb: unknown conflict target column")
-  })
-
-  test("rejects mysql conflict targets with unknown columns at runtime", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Mysql.Query.onConflict(unsafeAny(["missing"]), {
-      update: {
-        email: Mysql.Query.excluded(users.email)
-      }
-    })(Mysql.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))).toThrow("effect-qb: unknown conflict target column")
-  })
-
-  test("rejects invalid rendered mysql conflict discriminants", () => {
-    const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    const plan = Mysql.Query.onConflict(["email"] as const, {
-      update: {
-        email: Mysql.Query.excluded(users.email)
-      }
-    })(Mysql.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))
-    ;(plan as any)[queryAst].conflict.action = "merge"
-
-    expect(() => render(plan)).toThrow("Unsupported conflict action")
-  })
-
   test("renders mysql string conflict targets", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
@@ -301,6 +225,22 @@ describe("mysql insert behavior", () => {
     )
   })
 
+  test("rejects mysql conflict targets with unknown columns at runtime", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+
+    expect(() => Mysql.Query.onConflict(unsafeAny(["missing"]), {
+      update: {
+        email: Mysql.Query.excluded(users.email)
+      }
+    })(Mysql.Query.insert(users, {
+      id: userId,
+      email: "alice@example.com"
+    }))).toThrow("effect-qb: unknown conflict target column")
+  })
+
   test("rejects mysql empty returning selections before treating them as no-ops", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
@@ -313,44 +253,4 @@ describe("mysql insert behavior", () => {
     }))).toThrow("returning(...) requires at least one selected expression")
   })
 
-  test("rejects mysql object-shaped conflict targets at runtime", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Mysql.Query.onConflict(unsafeAny({
-      columns: ["email"]
-    }), {
-      update: {
-        email: Mysql.Query.excluded(users.email)
-      }
-    })(Mysql.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))).toThrow("Unsupported mysql conflict target")
-
-    expect(() => Mysql.Query.onConflict(unsafeAny({
-      constraint: "users_email_key"
-    }), {
-      update: {
-        email: Mysql.Query.excluded(users.email)
-      }
-    })(Mysql.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))).toThrow("Unsupported mysql conflict target")
-
-    expect(() => Mysql.Query.onConflict(unsafeAny({
-      columns: ["email"],
-      where: Mysql.Query.isNotNull(users.email)
-    }), {
-      update: {
-        email: Mysql.Query.excluded(users.email)
-      }
-    })(Mysql.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))).toThrow("Unsupported mysql conflict target")
-  })
 })

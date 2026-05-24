@@ -97,6 +97,15 @@ Q.upsert(users, {
   // @ts-expect-error MySQL upsert update values require at least one assignment.
   {})
 
+Q.upsert(users, {
+  id: "user-id",
+  email: "alice@example.com"
+},
+// @ts-expect-error MySQL upsert conflict columns must exist on the target table.
+["missing"] as const, {
+  email: "alice@example.com"
+})
+
 const stringConflictUpsert = Q.upsert(users, {
   id: "user-id",
   email: "alice@example.com"

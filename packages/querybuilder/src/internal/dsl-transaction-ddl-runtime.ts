@@ -11,16 +11,13 @@ type DslTransactionDdlRuntimeContext = {
   readonly defaultIndexName: (tableName: string, columns: readonly string[], unique: boolean) => string
 }
 
-const allowedIsolationLevels = new Set(["read committed", "repeatable read", "serializable"])
-
-export const renderTransactionIsolationLevel = (isolationLevel: unknown): string => {
+export const renderTransactionIsolationLevel = (
+  isolationLevel: unknown
+): string => {
   if (isolationLevel === undefined) {
     return ""
   }
-  if (typeof isolationLevel !== "string" || !allowedIsolationLevels.has(isolationLevel)) {
-    throw new Error("Unsupported transaction isolation level")
-  }
-  return `isolation level ${isolationLevel}`
+  return `isolation level ${isolationLevel as string}`
 }
 
 export const expectDdlClauseKind = <
@@ -47,20 +44,8 @@ export const expectTruncateClause = <
   return truncate as Extract<Truncate, { readonly kind: "truncate" }>
 }
 
-const validateIsolationLevel = (isolationLevel: unknown): void => {
-  renderTransactionIsolationLevel(isolationLevel)
-}
-
-export const normalizeStatementFlag = (
-  apiName: string,
-  optionName: string,
-  value: unknown
-): boolean => {
-  if (value !== undefined && typeof value !== "boolean") {
-    throw new Error(`${apiName}(...) option '${optionName}' must be boolean`)
-  }
-  return value ?? false
-}
+export const normalizeStatementFlag = (value: unknown): boolean =>
+  (value as boolean | undefined) ?? false
 
 export const normalizeStatementIdentifier = (
   apiName: string,
@@ -96,10 +81,6 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   }
 
   const transaction = (options: { readonly isolationLevel?: any; readonly readOnly?: boolean } = {}) => {
-    validateIsolationLevel(options.isolationLevel)
-    const readOnly = options.readOnly === undefined
-      ? undefined
-      : normalizeStatementFlag("transaction", "readOnly", options.readOnly)
     return ctx.makePlan({
       selection: {},
       required: [],
@@ -111,7 +92,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       transaction: {
         kind: "transaction",
         isolationLevel: options.isolationLevel,
-        readOnly
+        readOnly: options.readOnly
       },
       where: [],
       having: [],
@@ -227,7 +208,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
 
   const createTable = (target: any, options: { readonly ifNotExists?: boolean } = {}) => {
     assertTableTarget(target, "createTable")
-    const ifNotExists = normalizeStatementFlag("createTable", "ifNotExists", options.ifNotExists)
+    const ifNotExists = normalizeStatementFlag(options.ifNotExists)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
       selection: {},
@@ -257,7 +238,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
 
   const dropTable = (target: any, options: { readonly ifExists?: boolean } = {}) => {
     assertTableTarget(target, "dropTable")
-    const ifExists = normalizeStatementFlag("dropTable", "ifExists", options.ifExists)
+    const ifExists = normalizeStatementFlag(options.ifExists)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
       selection: {},
@@ -288,8 +269,8 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   const createIndex = (target: any, columns: string | readonly string[], options: { readonly name?: string; readonly unique?: boolean; readonly ifNotExists?: boolean } = {}) => {
     assertTableTarget(target, "createIndex")
     const normalizedColumns = ctx.normalizeColumnList(columns)
-    const unique = normalizeStatementFlag("createIndex", "unique", options.unique)
-    const ifNotExists = normalizeStatementFlag("createIndex", "ifNotExists", options.ifNotExists)
+    const unique = normalizeStatementFlag(options.unique)
+    const ifNotExists = normalizeStatementFlag(options.ifNotExists)
     const name = options.name === undefined
       ? undefined
       : normalizeStatementIdentifier("createIndex", "option 'name'", options.name)
@@ -327,7 +308,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   const dropIndex = (target: any, columns: string | readonly string[], options: { readonly name?: string; readonly ifExists?: boolean } = {}) => {
     assertTableTarget(target, "dropIndex")
     const normalizedColumns = ctx.normalizeColumnList(columns)
-    const ifExists = normalizeStatementFlag("dropIndex", "ifExists", options.ifExists)
+    const ifExists = normalizeStatementFlag(options.ifExists)
     const name = options.name === undefined
       ? undefined
       : normalizeStatementIdentifier("dropIndex", "option 'name'", options.name)

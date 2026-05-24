@@ -112,42 +112,12 @@ export const expectConflictClause = <
   Conflict extends {
     readonly kind: string
     readonly action: string
-    readonly target?: { readonly kind: string; readonly columns?: unknown; readonly name?: unknown }
+    readonly target?: { readonly kind: string; readonly name?: string }
   } | undefined
 >(
-  conflict: Conflict,
-  fields?: Record<string, unknown>
+  conflict: Conflict
 ): Conflict => {
-  if (conflict === undefined) {
-    return conflict
-  }
-  if (conflict.kind !== "conflict") {
-    throw new Error("Unsupported conflict clause kind")
-  }
-  if (conflict.action !== "doNothing" && conflict.action !== "doUpdate") {
-    throw new Error("Unsupported conflict action")
-  }
-  if (
-    conflict.target !== undefined &&
-    conflict.target.kind !== "columns" &&
-    conflict.target.kind !== "constraint"
-  ) {
-    throw new Error("Unsupported conflict target kind")
-  }
-  if (conflict.target?.kind === "columns" && !Array.isArray(conflict.target.columns)) {
-    throw new Error("conflict column targets require a column array")
-  }
-  if (conflict.target?.kind === "columns") {
-    expectKnownTargetColumns(
-      conflict.target.columns as readonly unknown[],
-      fields,
-      "conflict column targets require known target columns"
-    )
-  }
-  if (
-    conflict.target?.kind === "constraint" &&
-    (typeof conflict.target.name !== "string" || conflict.target.name.length === 0)
-  ) {
+  if (conflict?.target?.kind === "constraint" && conflict.target.name === "") {
     throw new Error("conflict constraint targets require a non-empty string")
   }
   return conflict
@@ -369,9 +339,6 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       const updateAssignments = options.update
         ? ctx.buildMutationAssignments(insertTarget, options.update)
         : []
-      if (options.update !== undefined && updateAssignments.length === 0) {
-        throw new Error("conflict update assignments require at least one assignment")
-      }
       const updateWhere = options.where === undefined
         ? undefined
         : ctx.toDialectExpression(options.where)
@@ -434,9 +401,6 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     const assignments = ctx.buildMutationAssignments(target, values)
     const updateAssignments = updateValues ? ctx.buildMutationAssignments(target, updateValues) : []
-    if (updateValues !== undefined && updateAssignments.length === 0) {
-      throw new Error("upsert update assignments require at least one assignment")
-    }
     const required = [
       ...assignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies)),
       ...updateAssignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies))
@@ -504,8 +468,8 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
 
   const truncate = (target: any, options: { readonly restartIdentity?: boolean; readonly cascade?: boolean } = {}) => {
     assertMutationTargets(target, "truncate")
-    const restartIdentity = normalizeStatementFlag("truncate", "restartIdentity", options.restartIdentity)
-    const cascade = normalizeStatementFlag("truncate", "cascade", options.cascade)
+    const restartIdentity = normalizeStatementFlag(options.restartIdentity)
+    const cascade = normalizeStatementFlag(options.cascade)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
     return ctx.makePlan({
       selection: {},

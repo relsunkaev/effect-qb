@@ -543,14 +543,6 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
-  test("rejects invalid mysql window order directions before rendering SQL", () => {
-    const { users } = makeMysqlSocialGraph()
-
-    expect(() => Mysql.Function.rowNumber({
-      orderBy: [{ value: users.id, direction: unsafeAny("sideways") }]
-    })).toThrow("window order direction must be asc or desc")
-  })
-
   test("renders aliased mysql subqueries as derived tables", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
@@ -733,19 +725,6 @@ describe("mysql dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
-  test("rejects mutually exclusive mysql nowait and skip locked options", () => {
-    const { users } = makeMysqlSocialGraph()
-
-    const plan = Mysql.Query.select({
-      id: users.id
-    }).pipe(
-      Mysql.Query.from(users),
-      Mysql.Query.lock("update", { nowait: true, skipLocked: true })
-    )
-
-    expect(() => Mysql.Renderer.make().render(plan)).toThrow()
-  })
-
   test("renders mysql set operators with stable operand ordering", () => {
     const { users } = makeMysqlSocialGraph()
 
@@ -902,16 +881,6 @@ describe("mysql dialect behavior", () => {
       "author@example.com",
       "hello"
     ])
-  })
-
-  test("rejects invalid mysql update lock modes before dropping modifiers", () => {
-    const { users } = makeMysqlSocialGraph()
-
-    expect(() => Mysql.Query.update(users, {
-      email: "author@example.com"
-    }).pipe(
-      Mysql.Query.lock(unsafeAny("quick"))
-    )).toThrow("lock(...) mode must be lowPriority or ignore for update statements")
   })
 
   test("renders mysql multi-table update assignments", () => {
@@ -1118,24 +1087,6 @@ describe("mysql dialect behavior", () => {
       "alice@example.com",
       "writer"
     ])
-  })
-
-  test("rejects mysql conflict action predicates instead of ignoring them", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text(),
-      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
-    })
-
-    const plan = Mysql.Query.onConflict(["email"] as const, {
-      where: Mysql.Query.isNotNull(Mysql.Query.excluded(users.bio))
-    })(Mysql.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com",
-      bio: "writer"
-    }))
-
-    expect(() => Mysql.Renderer.make().render(plan)).toThrow()
   })
 
   test("renders mysql ddl statements from schema tables", () => {

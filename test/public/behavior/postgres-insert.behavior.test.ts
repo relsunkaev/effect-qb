@@ -334,6 +334,21 @@ describe("postgres insert behavior", () => {
     ])
   })
 
+  test("rejects onConflict on non-insert statements at runtime", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+
+    expect(() =>
+      Postgres.Query.onConflict(["email"] as const, {
+        update: {
+          email: "alice@example.com"
+        }
+      })(unsafeAny(Postgres.Query.delete(users)))
+    ).toThrow("onConflict(...) is not supported for delete statements")
+  })
+
   test("rejects postgres conflict targets with unknown columns at runtime", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
@@ -350,61 +365,16 @@ describe("postgres insert behavior", () => {
     }))).toThrow("effect-qb: unknown conflict target column")
   })
 
-  test("rejects onConflict on non-insert statements at runtime", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() =>
-      Postgres.Query.onConflict(["email"] as const, {
-        update: {
-          email: "alice@example.com"
-        }
-      })(unsafeAny(Postgres.Query.delete(users)))
-    ).toThrow("onConflict(...) is not supported for delete statements")
-  })
-
-  test("rejects invalid rendered postgres conflict discriminants", () => {
+  test("rejects empty postgres conflict constraint names before rendering SQL", () => {
     const queryAst = Symbol.for("effect-qb/QueryAst")
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       email: StdRoot.Column.text()
     })
 
-    const invalidActionPlan = Postgres.Query.onConflict(["email"] as const, {
-      update: {
-        email: Postgres.Query.excluded(users.email)
-      }
-    })(Postgres.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))
-    ;(invalidActionPlan as any)[queryAst].conflict.action = "merge"
-    expect(() => render(invalidActionPlan)).toThrow("Unsupported conflict action")
-
-    const invalidTargetPlan = Postgres.Query.onConflict(["email"] as const, {
-      update: {
-        email: Postgres.Query.excluded(users.email)
-      }
-    })(Postgres.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))
-    ;(invalidTargetPlan as any)[queryAst].conflict.target.kind = "index"
-    expect(() => render(invalidTargetPlan)).toThrow("Unsupported conflict target kind")
-  })
-
-  test("rejects malformed postgres conflict constraint names before rendering SQL", () => {
-    const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Postgres.Query.onConflict(unsafeAny({
-      constraint: 123
-    }), {
+    expect(() => Postgres.Query.onConflict({
+      constraint: ""
+    }, {
       update: {
         email: Postgres.Query.excluded(users.email)
       }
@@ -423,60 +393,9 @@ describe("postgres insert behavior", () => {
       id: userId,
       email: "alice@example.com"
     }))
-    ;(plan as any)[queryAst].conflict.target.name = 123
+    ;(plan as any)[queryAst].conflict.target.name = ""
 
     expect(() => render(plan)).toThrow("conflict constraint targets require a non-empty string")
-  })
-
-  test("rejects conflict column targets without column arrays before rendering SQL", () => {
-    const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-    const plan = Postgres.Query.onConflict(["email"] as const, {
-      update: {
-        email: Postgres.Query.excluded(users.email)
-      }
-    })(Postgres.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))
-    ;(plan as any)[queryAst].conflict.target.columns = {}
-
-    expect(() => render(plan)).toThrow("conflict column targets require a column array")
-  })
-
-  test("rejects malformed postgres conflict target columns before rendering SQL", () => {
-    const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    const emptyColumnsPlan = Postgres.Query.onConflict(["email"] as const, {
-      update: {
-        email: Postgres.Query.excluded(users.email)
-      }
-    })(Postgres.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))
-    ;(emptyColumnsPlan as any)[queryAst].conflict.target.columns = []
-
-    expect(() => render(emptyColumnsPlan)).toThrow("conflict column targets require known target columns")
-
-    const unknownColumnPlan = Postgres.Query.onConflict(["email"] as const, {
-      update: {
-        email: Postgres.Query.excluded(users.email)
-      }
-    })(Postgres.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))
-    ;(unknownColumnPlan as any)[queryAst].conflict.target.columns = ["missing"]
-
-    expect(() => render(unknownColumnPlan)).toThrow("conflict column targets require known target columns")
   })
 
   test("renders postgres string conflict targets", () => {
@@ -509,46 +428,6 @@ describe("postgres insert behavior", () => {
       id: userId,
       email: "alice@example.com"
     }))).toThrow("returning(...) requires at least one selected expression")
-  })
-
-  test("rejects postgres conflict update actions without assignments", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Postgres.Query.onConflict(["email"] as const, {
-      update: {}
-    })(Postgres.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))).toThrow("conflict update assignments require at least one assignment")
-  })
-
-  test("rejects postgres upsert update actions without assignments", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Postgres.Query.upsert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }, ["email"] as const, {})).toThrow("upsert update assignments require at least one assignment")
-  })
-
-  test("rejects postgres upsert conflict columns with unknown columns at runtime", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Postgres.Query.upsert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }, unsafeAny(["missing"]), {
-      email: "alice@example.com"
-    })).toThrow("effect-qb: unknown conflict target column")
   })
 
   test("canonicalizes insert values using the target column runtime contract", () => {

@@ -1764,9 +1764,6 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     const partitionBy = [...(spec?.partitionBy ?? [])] as unknown as PartitionBy
     const orderBy = (spec?.orderBy ?? []).map((term) => {
       const direction = term.direction ?? "asc"
-      if (direction !== "asc" && direction !== "desc") {
-        throw new Error("window order direction must be asc or desc")
-      }
       return {
         value: term.value,
         direction
@@ -4415,7 +4412,10 @@ type BinaryPredicateExpression<
       }
     }
     if (!Array.isArray(input) && "constraint" in input) {
-      throw new Error("Unsupported sqlite named conflict constraint")
+      return {
+        kind: "constraint",
+        name: input.constraint
+      }
     }
     const columnTarget = input as {
       readonly columns: string | readonly string[]

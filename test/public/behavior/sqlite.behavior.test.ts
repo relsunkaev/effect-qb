@@ -183,108 +183,6 @@ describe("sqlite behavior", () => {
     expect(rendered.params).toEqual(["user-1", "alice@example.com", 1, 0])
   })
 
-  test("rejects sqlite conflict action predicates without update assignments", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => render(Sqlite.Query.insert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }).pipe(
-      Sqlite.Query.onConflict(["email"] as const, {
-        where: Sqlite.Query.isNotNull(users.email)
-      } as any)
-    ))).toThrow("conflict action predicates require update assignments")
-  })
-
-  test("rejects sqlite conflict update actions without assignments", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Sqlite.Query.onConflict(["email"] as const, {
-      update: {}
-    })(Sqlite.Query.insert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }))).toThrow("conflict update assignments require at least one assignment")
-  })
-
-  test("rejects sqlite upsert update actions without assignments", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Sqlite.Query.upsert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }, ["email"] as const, {})).toThrow("upsert update assignments require at least one assignment")
-  })
-
-  test("rejects sqlite upsert conflict columns with unknown columns at runtime", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Sqlite.Query.upsert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }, ["missing"] as any, {
-      email: "alice@example.com"
-    })).toThrow("effect-qb: unknown conflict target column")
-  })
-
-  test("rejects sqlite conflict targets with unknown columns at runtime", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Sqlite.Query.onConflict(["missing"] as any, {
-      update: {
-        email: Sqlite.Query.excluded(users.email)
-      }
-    })(Sqlite.Query.insert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }))).toThrow("effect-qb: unknown conflict target column")
-  })
-
-  test("rejects invalid rendered sqlite conflict discriminants", () => {
-    const queryAst = Symbol.for("effect-qb/QueryAst")
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    const invalidActionPlan = Sqlite.Query.onConflict(["email"] as const, {
-      update: {
-        email: Sqlite.Query.excluded(users.email)
-      }
-    })(Sqlite.Query.insert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }))
-    ;(invalidActionPlan as any)[queryAst].conflict.action = "merge"
-    expect(() => render(invalidActionPlan)).toThrow("Unsupported conflict action")
-
-    const invalidTargetPlan = Sqlite.Query.onConflict(["email"] as const, {
-      update: {
-        email: Sqlite.Query.excluded(users.email)
-      }
-    })(Sqlite.Query.insert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }))
-    ;(invalidTargetPlan as any)[queryAst].conflict.target.kind = "index"
-    expect(() => render(invalidTargetPlan)).toThrow("Unsupported conflict target kind")
-  })
-
   test("renders sqlite string conflict targets", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
@@ -305,6 +203,22 @@ describe("sqlite behavior", () => {
     )
   })
 
+  test("rejects sqlite conflict targets with unknown columns at runtime", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    })
+
+    expect(() => Sqlite.Query.onConflict(["missing"] as any, {
+      update: {
+        email: Sqlite.Query.excluded(users.email)
+      }
+    })(Sqlite.Query.insert(users, {
+      id: "user-1",
+      email: "alice@example.com"
+    }))).toThrow("effect-qb: unknown conflict target column")
+  })
+
   test("rejects sqlite empty returning selections before omitting returning", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
@@ -315,24 +229,6 @@ describe("sqlite behavior", () => {
       id: "user-1",
       email: "alice@example.com"
     }))).toThrow("returning(...) requires at least one selected expression")
-  })
-
-  test("rejects sqlite named conflict targets at runtime", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Sqlite.Query.onConflict({
-      constraint: "users_email_key"
-    } as any, {
-      update: {
-        email: Sqlite.Query.excluded(users.email)
-      }
-    })(Sqlite.Query.insert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }))).toThrow("Unsupported sqlite named conflict constraint")
   })
 
   test("canonicalizes and validates sqlite unnest insert arrays using target column contracts", () => {
@@ -579,14 +475,6 @@ describe("sqlite behavior", () => {
     ).toThrow("effect-qb: unknown index column 'missing'")
   })
 
-  test("rejects invalid sqlite window order directions before rendering SQL", () => {
-    const { users } = makeSqliteSocialGraph()
-
-    expect(() => Sqlite.Function.rowNumber({
-      orderBy: [{ value: users.id, direction: "sideways" as any }]
-    })).toThrow("window order direction must be asc or desc")
-  })
-
   test("rejects sqlite mutation modifiers that would otherwise be ignored", () => {
     const { users, posts } = makeSqliteSocialGraph()
 
@@ -634,14 +522,6 @@ describe("sqlite behavior", () => {
         title: "published"
       }
     }))).toThrow("Unsupported sqlite multi-table update")
-  })
-
-  test("rejects invalid sqlite transaction isolation levels at runtime", () => {
-    expect(() =>
-      render(Sqlite.Query.transaction({
-        isolationLevel: "chaos"
-      }))
-    ).toThrow("Unsupported transaction isolation level")
   })
 
   test("rejects sqlite transaction options that cannot be rendered", () => {

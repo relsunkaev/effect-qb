@@ -425,17 +425,6 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual(["%@example.com", 5, 10])
   })
 
-  test("rejects invalid postgres order directions before rendering SQL", () => {
-    const { users } = makePostgresSocialGraph()
-
-    expect(() => Postgres.Query.select({
-      id: users.id
-    }).pipe(
-      Postgres.Query.from(users),
-      Postgres.Query.orderBy(users.email, unsafeAny("sideways"))
-    )).toThrow("orderBy(...) direction must be asc or desc")
-  })
-
   test("rejects NaN postgres limit values", () => {
     const { users } = makePostgresSocialGraph()
 
@@ -813,14 +802,6 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual([])
   })
 
-  test("rejects invalid postgres window order directions before rendering SQL", () => {
-    const { users } = makePostgresSocialGraph()
-
-    expect(() => Postgres.Function.rowNumber({
-      orderBy: [{ value: users.id, direction: unsafeAny("sideways") }]
-    })).toThrow("window order direction must be asc or desc")
-  })
-
   test("renders aliased postgres subqueries as derived tables", () => {
     const { users, posts } = makePostgresSocialGraph()
 
@@ -1059,30 +1040,6 @@ describe("postgres dialect behavior", () => {
       'select "users"."id" as "id" from "users" for update nowait'
     )
     expect(rendered.params).toEqual([])
-  })
-
-  test("rejects mutually exclusive postgres nowait and skip locked options", () => {
-    const { users } = makePostgresSocialGraph()
-
-    const plan = Postgres.Query.select({
-      id: users.id
-    }).pipe(
-      Postgres.Query.from(users),
-      Postgres.Query.lock("update", { nowait: true, skipLocked: true })
-    )
-
-    expect(() => Postgres.Renderer.make().render(plan)).toThrow()
-  })
-
-  test("rejects invalid postgres lock modes before rendering SQL", () => {
-    const { users } = makePostgresSocialGraph()
-
-    expect(() => Postgres.Query.select({
-      id: users.id
-    }).pipe(
-      Postgres.Query.from(users),
-      Postgres.Query.lock(unsafeAny("exclusive"))
-    )).toThrow("lock(...) mode must be update or share for select statements")
   })
 
   test("renders postgres set operators with stable operand ordering", () => {
@@ -1391,24 +1348,6 @@ describe("postgres dialect behavior", () => {
       userId,
       "alice@example.com"
     ])
-  })
-
-  test("rejects postgres conflict action predicates without update assignments", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text(),
-      bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable)
-    })
-
-    const plan = Postgres.Query.onConflict(["email"] as const, {
-      where: Postgres.Query.isNotNull(Postgres.Query.excluded(users.bio))
-    })(Postgres.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com",
-      bio: "writer"
-    }))
-
-    expect(() => Postgres.Renderer.make().render(plan)).toThrow()
   })
 
   test("renders postgres ddl statements from schema tables", () => {

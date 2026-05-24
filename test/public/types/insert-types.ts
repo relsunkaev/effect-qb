@@ -127,6 +127,24 @@ Q.insert(users, {
   })
 )
 
+Q.upsert(users, {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: "writer"
+},
+// @ts-expect-error upsert conflict targets only accept known table columns
+["missing"] as const, {
+  bio: "writer"
+})
+
+Q.upsert(users, {
+  id: "user-id",
+  email: "alice@example.com",
+  bio: "writer"
+}, ["email"] as const,
+  // @ts-expect-error upsert update values require at least one assignment
+  {})
+
 const invalidConflictTargetPredicatePlan = Q.insert(users, {
   id: "user-id",
   email: "alice@example.com",

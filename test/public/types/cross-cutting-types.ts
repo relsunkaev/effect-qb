@@ -164,6 +164,21 @@ const transactionPlan = Q.transaction({
   readOnly: true,
 });
 
+Q.transaction({
+  // @ts-expect-error transaction isolation level must be supported by the dialect
+  isolationLevel: "chaos",
+});
+
+Q.transaction({
+  // @ts-expect-error transaction readOnly must be boolean
+  readOnly: "yes",
+});
+
+Q.truncate(users, {
+  // @ts-expect-error truncate cascade must be boolean
+  cascade: "yes",
+});
+
 const commitPlan = Q.commit();
 const rollbackPlan = Q.rollback();
 const savepointPlan = Q.savepoint("before_merge");

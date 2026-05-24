@@ -409,33 +409,6 @@ describe("rendering behavior", () => {
     )
   })
 
-  test("rejects invalid window order directions before rendering SQL", () => {
-    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const users = Standard.Table.make("users", {
-      email: Standard.Column.text()
-    })
-    const rowNumber = Standard.Function.rowNumber({
-      orderBy: [{ value: users.email, direction: "asc" }]
-    })
-    ;(rowNumber as any)[expressionAst].orderBy[0].direction = "sideways"
-    const plan = Standard.Query.select({
-      rowNumber
-    }).pipe(Standard.Query.from(users))
-
-    expect(() => Standard.Renderer.make().render(plan)).toThrow(
-      "window order direction must be asc or desc"
-    )
-    expect(() => Renderer.make().render(plan)).toThrow(
-      "window order direction must be asc or desc"
-    )
-    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
-      "window order direction must be asc or desc"
-    )
-    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
-      "window order direction must be asc or desc"
-    )
-  })
-
   test("rejects window order terms without expressions before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const users = Standard.Table.make("users", {

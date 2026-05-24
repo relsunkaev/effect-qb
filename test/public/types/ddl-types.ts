@@ -23,10 +23,18 @@ const memberships = Std.Table.make("memberships", {
 const createTablePlan = Q.createTable(memberships, {
   ifNotExists: true
 })
+Q.createTable(memberships, {
+  // @ts-expect-error createTable ifNotExists must be boolean
+  ifNotExists: "yes"
+})
 const dropTablePlan = Q.dropTable(memberships, {
   ifExists: true
 })
 const createIndexPlan = Q.createIndex(memberships, ["role", "orgId"])
+Q.createIndex(memberships, ["role", "orgId"], {
+  // @ts-expect-error createIndex unique must be boolean
+  unique: "yes"
+})
 const dropIndexPlan = Q.dropIndex(memberships, ["role", "orgId"], {
   ifExists: true
 })

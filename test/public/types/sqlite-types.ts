@@ -159,6 +159,12 @@ Q.upsert(users, userInsert, ["id"] as const,
   // @ts-expect-error sqlite upsert update values require at least one assignment
   {})
 
+Q.upsert(users, userInsert,
+  // @ts-expect-error sqlite upsert conflict columns must exist on the target table
+  ["missing"] as const, {
+    email: Q.excluded(users.email)
+  })
+
 Q.upsert(users, userInsert, "id", {
   email: Q.excluded(users.email)
 })

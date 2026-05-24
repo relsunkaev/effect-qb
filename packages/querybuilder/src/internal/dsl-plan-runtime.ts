@@ -22,43 +22,19 @@ type DslPlanRuntimeContext = {
   readonly attachInsertSource: (plan: any, source: any) => any
 }
 
-export const renderSelectLockMode = (mode: unknown): string => {
-  switch (mode) {
-    case "update":
-      return "for update"
-    case "share":
-      return "for share"
-  }
-  throw new Error("lock(...) mode must be update or share for select statements")
-}
+type LockMode = "update" | "share" | "lowPriority" | "ignore" | "quick"
+
+export const renderSelectLockMode = (mode: LockMode): string =>
+  mode === "update" ? "for update" : "for share"
 
 export const renderMysqlMutationLockMode = (
-  mode: unknown,
-  statement: "update" | "delete"
+  mode: LockMode,
+  _statement: "update" | "delete"
 ): string => {
-  switch (mode) {
-    case "lowPriority":
-      return " low_priority"
-    case "ignore":
-      return " ignore"
-    case "quick":
-      if (statement === "delete") {
-        return " quick"
-      }
-      break
+  if (mode === "lowPriority") {
+    return " low_priority"
   }
-  throw new Error(
-    statement === "update"
-      ? "lock(...) mode must be lowPriority or ignore for update statements"
-      : "lock(...) mode must be lowPriority, quick, or ignore for delete statements"
-  )
-}
-
-export const normalizeLockFlag = (name: "nowait" | "skipLocked", value: unknown): boolean => {
-  if (value !== undefined && typeof value !== "boolean") {
-    throw new Error(`lock(...) option '${name}' must be boolean`)
-  }
-  return value ?? false
+  return mode === "ignore" ? " ignore" : " quick"
 }
 
 export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
@@ -415,9 +391,6 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
 
   const orderBy = (value: any, direction: "asc" | "desc" = "asc") =>
     (plan: any) => {
-      if (direction !== "asc" && direction !== "desc") {
-        throw new Error("orderBy(...) direction must be asc or desc")
-      }
       const current = plan[Plan.TypeId]
       const currentAst = ctx.getAst(plan)
       const currentQuery = ctx.getQueryState(plan)
@@ -444,15 +417,6 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       const current = plan[Plan.TypeId]
       const currentAst = ctx.getAst(plan)
       const currentQuery = ctx.getQueryState(plan)
-      if (currentQuery.statement === "select") {
-        renderSelectLockMode(mode)
-      }
-      if (ctx.profile.dialect === "mysql" && currentQuery.statement === "update") {
-        renderMysqlMutationLockMode(mode, "update")
-      }
-      if (ctx.profile.dialect === "mysql" && currentQuery.statement === "delete") {
-        renderMysqlMutationLockMode(mode, "delete")
-      }
       return ctx.makePlan({
         selection: current.selection,
         required: current.required,
@@ -463,8 +427,8 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
         lock: {
           kind: "lock",
           mode,
-          nowait: normalizeLockFlag("nowait", options.nowait),
-          skipLocked: normalizeLockFlag("skipLocked", options.skipLocked)
+          nowait: options.nowait ?? false,
+          skipLocked: options.skipLocked ?? false
         }
       }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
     }

@@ -7,7 +7,7 @@ import * as QueryAst from "../query-ast.js"
 import type { RenderState, RenderValueContext, SqlDialect } from "../dialect.js"
 import * as ExpressionAst from "../expression-ast.js"
 import * as JsonPath from "../json/path.js"
-import { normalizeLockFlag, renderSelectLockMode } from "../dsl-plan-runtime.js"
+import { renderSelectLockMode } from "../dsl-plan-runtime.js"
 import { expectConflictClause, expectInsertSourceKind, expectInsertValues } from "../dsl-mutation-runtime.js"
 import { expectDdlClauseKind, expectTruncateClause, normalizeStatementFlag, normalizeStatementIdentifier, renderTransactionIsolationLevel } from "../dsl-transaction-ddl-runtime.js"
 import {
@@ -299,7 +299,7 @@ const renderCreateTableSql = (
   dialect: SqlDialect,
   ifNotExists: unknown
 ): string => {
-  const normalizedIfNotExists = normalizeStatementFlag("createTable", "ifNotExists", ifNotExists)
+  const normalizedIfNotExists = normalizeStatementFlag(ifNotExists)
   const table = targetSource.source as Table.AnyTable
   const tableCasing = casingForTable(table, state)
   const fields = table[Table.TypeId].fields
@@ -347,8 +347,8 @@ const renderCreateIndexSql = (
   state: RenderState,
   dialect: SqlDialect
 ): string => {
-  const unique = normalizeStatementFlag("createIndex", "unique", ddl.unique)
-  const ifNotExists = normalizeStatementFlag("createIndex", "ifNotExists", ddl.ifNotExists)
+  const unique = normalizeStatementFlag(ddl.unique)
+  const ifNotExists = normalizeStatementFlag(ddl.ifNotExists)
   const name = normalizeStatementIdentifier("createIndex", "option 'name'", ddl.name)
   const maybeIfNotExists = dialect.name === "postgres" && ifNotExists ? " if not exists" : ""
   const table = targetSource.source as Table.AnyTable
@@ -362,7 +362,7 @@ const renderDropIndexSql = (
   state: RenderState,
   dialect: SqlDialect
 ): string => {
-  const ifExists = normalizeStatementFlag("dropIndex", "ifExists", ddl.ifExists)
+  const ifExists = normalizeStatementFlag(ddl.ifExists)
   const name = normalizeStatementIdentifier("dropIndex", "option 'name'", ddl.name)
   if (dialect.name === "postgres") {
     const table = typeof targetSource.source === "object" &&
@@ -1208,7 +1208,7 @@ const renderTransactionClause = (
       if (isolationLevel) {
         modes.push(isolationLevel)
       }
-      if (normalizeStatementFlag("transaction", "readOnly", clause.readOnly)) {
+      if (normalizeStatementFlag(clause.readOnly)) {
         modes.push("read only")
       }
       return modes.length > 0
@@ -1398,13 +1398,8 @@ export const renderQueryAst = (
         clauses.push(`offset ${renderExpression(ast.offset, state, dialect)}`)
       }
       if (ast.lock) {
-        const nowait = normalizeLockFlag("nowait", ast.lock.nowait)
-        const skipLocked = normalizeLockFlag("skipLocked", ast.lock.skipLocked)
-        if (nowait && skipLocked) {
-          throw new Error("lock(...) cannot specify both nowait and skipLocked")
-        }
         clauses.push(
-          `${renderSelectLockMode(ast.lock.mode)}${nowait ? " nowait" : ""}${skipLocked ? " skip locked" : ""}`
+          `${renderSelectLockMode(ast.lock.mode)}${ast.lock.nowait ? " nowait" : ""}${ast.lock.skipLocked ? " skip locked" : ""}`
         )
       }
       sql = clauses.join(" ")
@@ -1454,7 +1449,7 @@ export const renderQueryAst = (
       const targetCasingState = stateWithTableCasing(state, targetSource.source)
       const targetFields = (targetSource.source as Table.AnyTable)[Table.TypeId].fields
       const insertSource = expectInsertSourceKind(insertAst.insertSource, targetFields)
-      const conflict = expectConflictClause(insertAst.conflict, targetFields)
+      const conflict = expectConflictClause(insertAst.conflict)
       sql = `insert into ${target}`
       if (insertSource?.kind === "values") {
         const columns = insertSource.columns.map((column) => quoteColumn(column, state, dialect, targetSource.tableName)).join(", ")
@@ -1507,9 +1502,6 @@ export const renderQueryAst = (
         }
       }
       if (conflict) {
-        if (conflict.action === "doNothing" && conflict.where) {
-          throw new Error("conflict action predicates require update assignments")
-        }
         const updateValues = (conflict.values ?? []).map((entry) =>
           `${quoteColumn(entry.columnName, state, dialect, targetSource.tableName)} = ${renderExpression(entry.value, targetCasingState, dialect)}`
         ).join(", ")
@@ -1675,8 +1667,8 @@ export const renderQueryAst = (
       assertNoStatementQueryClauses(truncateAst, "truncate")
       const truncate = expectTruncateClause(truncateAst.truncate)
       const targetSource = truncateAst.target!
-      const restartIdentity = normalizeStatementFlag("truncate", "restartIdentity", truncate.restartIdentity)
-      const cascade = normalizeStatementFlag("truncate", "cascade", truncate.cascade)
+      const restartIdentity = truncate.restartIdentity
+      const cascade = truncate.cascade
       sql = `truncate table ${renderSourceReference(targetSource.source, targetSource.tableName, targetSource.baseTableName, state, dialect)}`
       if (restartIdentity) {
         sql += " restart identity"
@@ -1755,7 +1747,7 @@ export const renderQueryAst = (
       const dropTableAst = ast as QueryAst.Ast<Record<string, unknown>, any, "dropTable">
       assertNoStatementQueryClauses(dropTableAst, "dropTable")
       const ddl = expectDdlClauseKind(dropTableAst.ddl, "dropTable")
-      const ifExists = normalizeStatementFlag("dropTable", "ifExists", ddl.ifExists)
+      const ifExists = normalizeStatementFlag(ddl.ifExists)
       sql = `drop table${ifExists ? " if exists" : ""} ${renderSourceReference(dropTableAst.target!.source, dropTableAst.target!.tableName, dropTableAst.target!.baseTableName, state, dialect)}`
       break
     }
@@ -2191,10 +2183,9 @@ export const renderExpression = (
       }
       if (ast.orderBy.some((entry) =>
         typeof entry !== "object" ||
-        entry === null ||
-        ((entry as { readonly direction?: unknown }).direction !== "asc" && (entry as { readonly direction?: unknown }).direction !== "desc")
+        entry === null
       )) {
-        throw new Error("window order direction must be asc or desc")
+        throw new Error("window order terms require expression values")
       }
       if (ast.orderBy.some((entry) => !isExpression((entry as { readonly value?: unknown }).value))) {
         throw new Error("window order terms require expression values")

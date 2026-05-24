@@ -1726,9 +1726,6 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     const partitionBy = [...(spec?.partitionBy ?? [])] as unknown as PartitionBy
     const orderBy = (spec?.orderBy ?? []).map((term) => {
       const direction = term.direction ?? "asc"
-      if (direction !== "asc" && direction !== "desc") {
-        throw new Error("window order direction must be asc or desc")
-      }
       return {
         value: term.value,
         direction
