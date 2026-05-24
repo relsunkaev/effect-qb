@@ -402,18 +402,6 @@ describe("postgres insert behavior", () => {
     )
   })
 
-  test("rejects postgres empty returning selections before omitting returning", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Postgres.Query.returning({})(Postgres.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))).toThrow("returning(...) requires at least one selected expression")
-  })
-
   test("canonicalizes insert values using the target column runtime contract", () => {
     const metrics = StdRoot.Table.make("metrics", {
       total: StdRoot.Column.number(),

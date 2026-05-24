@@ -1,6 +1,5 @@
 import * as Expression from "./scalar.js"
 import * as Plan from "./row-set.js"
-import { flattenSelection } from "./projections.js"
 
 type DslQueryRuntimeContext = {
   readonly profile: {
@@ -20,36 +19,6 @@ type DslQueryRuntimeContext = {
 }
 
 export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
-  const assertSelectionObject = (apiName: string, selection: any): void => {
-    if (
-      selection === null ||
-      typeof selection !== "object" ||
-      Array.isArray(selection) ||
-      Expression.TypeId in selection
-    ) {
-      throw new Error(`${apiName}(...) expects a projection object`)
-    }
-  }
-
-  const assertSelectionTree = (apiName: string, selection: any): void => {
-    const visit = (value: any, isRoot: boolean): void => {
-      if (value !== null && typeof value === "object" && Expression.TypeId in value) {
-        return
-      }
-      if (value === null || typeof value !== "object" || Array.isArray(value)) {
-        throw new Error(`${apiName}(...) selection leaves must be expressions`)
-      }
-      const nested = Object.values(value)
-      if (!isRoot && nested.length === 0) {
-        throw new Error(`${apiName}(...) projection objects cannot contain empty nested selections`)
-      }
-      for (const item of nested) {
-        visit(item, false)
-      }
-    }
-    visit(selection, true)
-  }
-
   const values = (rows: readonly [Record<string, any>, ...Record<string, any>[]]) => {
     if (rows.length === 0) {
       throw new Error("values(...) requires at least one row")
@@ -133,8 +102,6 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
   }
 
   const select = (selection: any = {}) => {
-    assertSelectionObject("select", selection)
-    assertSelectionTree("select", selection)
     return ctx.makePlan({
       selection,
       required: ctx.extractRequiredRuntime(selection),
@@ -153,9 +120,6 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
 
   const groupBy = (...values: readonly Expression.Any[]) =>
     (plan: any) => {
-      if (values.length === 0) {
-        throw new Error("groupBy(...) requires at least one expression")
-      }
       const current = plan[Plan.TypeId]
       const currentAst = ctx.getAst(plan)
       const currentQuery = ctx.getQueryState(plan)
@@ -174,22 +138,10 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
     }
 
   const returning = (selection: any) => {
-    assertSelectionObject("returning", selection)
-    assertSelectionTree("returning", selection)
-    if (flattenSelection(selection as Record<string, unknown>).length === 0) {
-      throw new Error("returning(...) requires at least one selected expression")
-    }
     return (plan: any) => {
       const current = plan[Plan.TypeId]
       const currentAst = ctx.getAst(plan)
       const currentQuery = ctx.getQueryState(plan)
-      if (
-        currentQuery.statement !== "insert" &&
-        currentQuery.statement !== "update" &&
-        currentQuery.statement !== "delete"
-      ) {
-        throw new Error(`returning(...) is not supported for ${currentQuery.statement} statements`)
-      }
       return ctx.makePlan({
         selection,
         required: [...ctx.currentRequiredList(current.required), ...ctx.extractRequiredRuntime(selection)].filter((name, index, list) =>

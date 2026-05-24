@@ -65,22 +65,6 @@ describe("postgres dialect behavior", () => {
     expect(rendered.projections).toEqual([])
   })
 
-  test("rejects scalar postgres selections before rendering bare select", () => {
-    expect(() => Postgres.Query.select(unsafeAny(Postgres.Query.literal(1)))).toThrow(
-      "select(...) expects a projection object"
-    )
-  })
-
-  test("rejects invalid postgres selection leaves before rendering bare select", () => {
-    expect(() => Postgres.Query.select(unsafeAny({ nested: {} }))).toThrow(
-      "select(...) projection objects cannot contain empty nested selections"
-    )
-
-    expect(() => Postgres.Query.select(unsafeAny({ value: 1 }))).toThrow(
-      "select(...) selection leaves must be expressions"
-    )
-  })
-
   test("renders omitted postgres selections as zero-column selects", () => {
     const { users } = makePostgresSocialGraph()
 
@@ -138,17 +122,6 @@ describe("postgres dialect behavior", () => {
     expect(() => Postgres.Renderer.make().render(unsafeNever(invalid))).toThrow(
       "Invalid grouped selection: scalar expressions must be covered by groupBy(...) when aggregates are present"
     )
-  })
-
-  test("rejects empty postgres group-by expressions before becoming a no-op", () => {
-    const { users } = makePostgresSocialGraph()
-
-    expect(() => Postgres.Query.select({
-      id: users.id
-    }).pipe(
-      Postgres.Query.from(users),
-      Postgres.Query.groupBy()
-    )).toThrow("groupBy(...) requires at least one expression")
   })
 
   test("groups by regex predicate expressions", () => {

@@ -444,51 +444,6 @@ describe("cross-cutting statement behavior", () => {
     )
   })
 
-  test("rejects runtime returning projections on merge statements", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-    const incomingUsers = StdRoot.Table.make("incoming_users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() =>
-      Postgres.Query.merge(users, incomingUsers, Postgres.Query.eq(users.id, incomingUsers.id), {
-        whenMatched: {
-          update: {
-            email: incomingUsers.email
-          }
-        }
-      }).pipe(
-        Postgres.Query.returning({
-          merged: Postgres.Query.literal(true)
-        })
-      )
-    ).toThrow(
-      "returning(...) is not supported for merge statements"
-    )
-  })
-
-  test("rejects runtime returning projections on select statements", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() =>
-      Postgres.Query.select({
-        id: users.id
-      }).pipe(
-        Postgres.Query.from(users),
-        Postgres.Query.returning({
-          email: users.email
-        })
-      )
-    ).toThrow("returning(...) is not supported for select statements")
-  })
-
   test("rejects runtime distinct modifiers on mutation statements", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
@@ -630,40 +585,6 @@ describe("cross-cutting statement behavior", () => {
 
     expect(() => Postgres.Renderer.make().render(lockedDelete)).toThrow(
       "lock(...) is not supported for delete statements"
-    )
-  })
-
-  test("rejects runtime returning projections on ddl statements", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() =>
-      Postgres.Query.createTable(users).pipe(
-        Postgres.Query.returning({
-          created: Postgres.Query.literal(true)
-        })
-      )
-    ).toThrow(
-      "returning(...) is not supported for createTable statements"
-    )
-  })
-
-  test("rejects runtime returning projections on ddl index statements", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() =>
-      Postgres.Query.createIndex(users, ["email"]).pipe(
-        Postgres.Query.returning({
-          created: Postgres.Query.literal(true)
-        })
-      )
-    ).toThrow(
-      "returning(...) is not supported for createIndex statements"
     )
   })
 

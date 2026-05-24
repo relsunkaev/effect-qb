@@ -225,16 +225,4 @@ describe("mysql insert behavior", () => {
     )
   })
 
-  test("rejects mysql empty returning selections before treating them as no-ops", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => unsafeAny(Mysql.Query.returning)({})(Mysql.Query.insert(users, {
-      id: userId,
-      email: "alice@example.com"
-    }))).toThrow("returning(...) requires at least one selected expression")
-  })
-
 })

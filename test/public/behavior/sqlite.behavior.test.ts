@@ -203,18 +203,6 @@ describe("sqlite behavior", () => {
     )
   })
 
-  test("rejects sqlite empty returning selections before omitting returning", () => {
-    const users = StdRoot.Table.make("users", {
-      id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
-      email: StdRoot.Column.text()
-    })
-
-    expect(() => Sqlite.Query.returning({})(Sqlite.Query.insert(users, {
-      id: "user-1",
-      email: "alice@example.com"
-    }))).toThrow("returning(...) requires at least one selected expression")
-  })
-
   test("canonicalizes and validates sqlite unnest insert arrays using target column contracts", () => {
     const metrics = StdRoot.Table.make("unnest_metrics", {
       total: StdRoot.Column.number(),
