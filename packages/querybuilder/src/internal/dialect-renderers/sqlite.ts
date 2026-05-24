@@ -282,7 +282,9 @@ const renderColumnDefinition = (
   }
   const clauses = [
     quoteColumn(columnName, state, dialect, tableName),
-    column.metadata.ddlType ?? renderDbType(dialect, column.metadata.dbType)
+    column.metadata.ddlType === undefined
+      ? renderDbType(dialect, column.metadata.dbType)
+      : renderDbTypeName(column.metadata.ddlType)
   ]
   if (column.metadata.identity) {
     throw new Error("Unsupported sqlite identity column options")
