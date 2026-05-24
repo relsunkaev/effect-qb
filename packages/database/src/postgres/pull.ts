@@ -176,7 +176,7 @@ const sortTableAdditionsByDependency = (
   for (const addition of additions) {
     const key = keyOf(addition)
     const dependencies = new Set<string>()
-    for (const option of addition.model.options) {
+    for (const option of normalizedTableOptions(addition.model)) {
       if (option.kind !== "foreignKey") {
         continue
       }
@@ -226,7 +226,7 @@ const collectCyclicTableKeys = (
   for (const table of tables) {
     const key = schemaObjectKey(table.schemaName, table.name)
     const dependencies = new Set<string>()
-    for (const option of table.options) {
+    for (const option of normalizedTableOptions(table)) {
       if (option.kind !== "foreignKey" || option.columns.length !== 1) {
         continue
       }
@@ -1634,7 +1634,7 @@ const renderColumnDefinition = (
     pipes.push(`${COLUMN_ALIAS}.nullable`)
   }
   pipes.push(
-    ...table.options
+    ...normalizedTableOptions(table)
       .map((option) => renderInlineColumnOption(table, column.name, option, context))
       .filter((value): value is string => value !== undefined)
   )
@@ -1667,6 +1667,7 @@ const renderIndexOption = (
   option: Extract<TableOptionSpec, { readonly kind: "index" }>,
   context: RenderContext
 ): string => {
+  const normalizedKeys = normalizedIndexKeys(option)
   const simple =
     option.name === undefined &&
     option.unique === undefined &&
@@ -1674,16 +1675,16 @@ const renderIndexOption = (
     option.include === undefined &&
     option.predicate === undefined &&
     option.keys === undefined &&
-    option.columns !== undefined
+    Array.isArray(option.columns)
   if (simple) {
     return `${TABLE_ALIAS}.index(${renderStringTuple(option.columns)})`
   }
   const parts: string[] = []
-  if (option.columns) {
+  if (Array.isArray(option.columns)) {
     parts.push(`columns: ${renderStringTuple(option.columns)}`)
   }
-  if (option.keys) {
-    parts.push(`keys: [${option.keys.map((key) => renderIndexKey(key, table, context)).join(", ")}]`)
+  if (normalizedKeys.length > 0) {
+    parts.push(`keys: [${normalizedKeys.map((key) => renderIndexKey(key, table, context)).join(", ")}]`)
   }
   if (option.name) {
     parts.push(`name: ${renderStringLiteral(option.name)}`)
@@ -1740,14 +1741,7 @@ const inlineIndexColumn = (
   readonly operatorClass?: string
   readonly collation?: string
 } | undefined => {
-  const keys = option.keys ?? (option.columns ?? []).map((column) => ({
-    kind: "column" as const,
-    column,
-    order: undefined as "asc" | "desc" | undefined,
-    nulls: undefined as "first" | "last" | undefined,
-    operatorClass: undefined as string | undefined,
-    collation: undefined as string | undefined
-  }))
+  const keys = normalizedIndexKeys(option)
   if (keys.length !== 1) {
     return undefined
   }
@@ -1962,7 +1956,8 @@ const inlinePrimaryKeyColumn = (
   if (declaration.kind !== "tableClass") {
     return undefined
   }
-  const primaryKeys = table.options.filter((option): option is Extract<TableOptionSpec, { readonly kind: "primaryKey" }> => option.kind === "primaryKey")
+  const primaryKeys = normalizedTableOptions(table)
+    .filter((option): option is Extract<TableOptionSpec, { readonly kind: "primaryKey" }> => option.kind === "primaryKey")
   if (primaryKeys.length === 0) {
     return undefined
   }
@@ -1999,8 +1994,9 @@ const renderTableDeclaration = (
   context: RenderContext
 ): string => {
   const inlinePrimaryKey = inlinePrimaryKeyColumn(declaration, table)
-  const hasForeignKeys = table.options.some((option) => option.kind === "foreignKey" && !isInlineForeignKeyOption(table, option, context.cyclicTableKeys))
-  const tableOptions = table.options.filter((option) =>
+  const normalizedOptions = normalizedTableOptions(table)
+  const hasForeignKeys = normalizedOptions.some((option) => option.kind === "foreignKey" && !isInlineForeignKeyOption(table, option, context.cyclicTableKeys))
+  const tableOptions = normalizedOptions.filter((option) =>
     !(declaration.kind === "tableClass" && option.kind === "primaryKey" && inlinePrimaryKey !== undefined) &&
     option.kind !== "foreignKey" &&
     !(option.kind !== "primaryKey" && isInlineColumnOption(option))
@@ -2053,8 +2049,9 @@ const renderTableAdditionBase = (
   context: RenderContext
 ): string => {
   const inlinePrimaryKey = inlinePrimaryKeyColumn(declaration, table)
-  const hasForeignKeys = table.options.some((option) => option.kind === "foreignKey" && !isInlineForeignKeyOption(table, option, context.cyclicTableKeys))
-  const tableOptions = table.options.filter((option) =>
+  const normalizedOptions = normalizedTableOptions(table)
+  const hasForeignKeys = normalizedOptions.some((option) => option.kind === "foreignKey" && !isInlineForeignKeyOption(table, option, context.cyclicTableKeys))
+  const tableOptions = normalizedOptions.filter((option) =>
     option.kind !== "foreignKey" &&
     !(option.kind !== "primaryKey" && isInlineColumnOption(option)) &&
     !(declaration.kind === "tableClass" && option.kind === "primaryKey" && inlinePrimaryKey !== undefined)
@@ -2091,7 +2088,7 @@ const renderTableForeignKeyUpdate = (
   table: TableModel,
   context: RenderContext
 ): string | undefined => {
-  const foreignKeys = table.options.filter((option): option is Extract<TableOptionSpec, { readonly kind: "foreignKey" }> =>
+  const foreignKeys = normalizedTableOptions(table).filter((option): option is Extract<TableOptionSpec, { readonly kind: "foreignKey" }> =>
     option.kind === "foreignKey" && !isInlineForeignKeyOption(table, option, context.cyclicTableKeys))
   if (foreignKeys.length === 0) {
     return undefined
@@ -2358,7 +2355,7 @@ const countTableReferences = (
       })
     }
   }
-  for (const option of table.options) {
+  for (const option of normalizedTableOptions(table)) {
     if (option.kind === "check") {
       collectExpressionReferences(renderDdlExpressionSql(option.predicate), {
         fallbackSchemaName: table.schemaName,
@@ -2375,7 +2372,7 @@ const countTableReferences = (
           enumKeys
         })
       }
-      for (const key of option.keys ?? []) {
+      for (const key of normalizedIndexKeys(option)) {
         if (key.kind === "expression") {
           collectExpressionReferences(renderDdlExpressionSql(key.expression), {
             fallbackSchemaName: table.schemaName,

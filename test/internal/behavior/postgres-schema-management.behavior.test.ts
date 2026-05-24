@@ -691,6 +691,48 @@ describe("postgres schema management", () => {
     }
   })
 
+  test("pull planning renders database additions when table options include malformed entries", async () => {
+    const tempDir = await mkdtemp(join(process.cwd(), ".tmp-pull-malformed-database-options-"))
+    try {
+      const users = StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
+      })
+      const usersModel = toTableModel(users as unknown as Parameters<typeof toTableModel>[0])
+      ;(usersModel as any).options = [
+        ...(usersModel as any).options,
+        null,
+        {},
+        { kind: "partition", columns: ["id"] },
+        { kind: "index", keys: [null, { kind: "column", column: "id" }] }
+      ]
+
+      const discovered: DiscoveredSourceSchema = {
+        declarations: [],
+        bindings: [],
+        model: {
+          dialect: "postgres",
+          enums: [],
+          tables: []
+        }
+      }
+      const database: SchemaModel = {
+        dialect: "postgres",
+        enums: [],
+        tables: [usersModel]
+      }
+
+      await expect(planPostgresPull(tempDir, { include: ["**/*.ts"] }, discovered, database)).resolves.toMatchObject({
+        updates: [
+          expect.objectContaining({
+            filePath: join(tempDir, "public.schema.ts")
+          })
+        ]
+      })
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("classifies safe and destructive schema changes", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid(),
