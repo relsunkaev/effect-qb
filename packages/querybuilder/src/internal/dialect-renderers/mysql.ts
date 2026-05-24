@@ -1963,6 +1963,9 @@ export const renderExpression = (
       }
       return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" or ")})`
     case "coalesce":
+      if (!Array.isArray(ast.values) || ast.values.length === 0) {
+        throw new Error("coalesce(...) requires at least one value")
+      }
       return `coalesce(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")})`
     case "in":
       if (ast.values.length < 2) {
