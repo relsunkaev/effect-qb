@@ -179,6 +179,31 @@ describe("rendering behavior", () => {
     )
   })
 
+  test("rejects malformed concat expressions before rendering SQL", () => {
+    const expressionAst = Symbol.for("effect-qb/ExpressionAst")
+    const users = Standard.Table.make("users", {
+      email: Standard.Column.text()
+    })
+    const label = Standard.Function.concat(users.email, "-user")
+    ;(label as any)[expressionAst].values = []
+    const plan = Standard.Query.select({
+      label
+    }).pipe(Standard.Query.from(users))
+
+    expect(() => Standard.Renderer.make().render(plan)).toThrow(
+      "concat(...) requires at least two values"
+    )
+    expect(() => Renderer.make().render(plan)).toThrow(
+      "concat(...) requires at least two values"
+    )
+    expect(() => Mysql.Renderer.make().render(plan)).toThrow(
+      "concat(...) requires at least two values"
+    )
+    expect(() => Sqlite.Renderer.make().render(plan)).toThrow(
+      "concat(...) requires at least two values"
+    )
+  })
+
   test("postgres renders clause combinations with stable parameter ordering", () => {
     const { users, posts } = makeRootSocialGraph()
 

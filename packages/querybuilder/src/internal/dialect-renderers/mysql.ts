@@ -1983,6 +1983,9 @@ export const renderExpression = (
       }
       return `(${renderExpression(ast.values[0]!, state, dialect)} between ${renderExpression(ast.values[1]!, state, dialect)} and ${renderExpression(ast.values[2]!, state, dialect)})`
     case "concat":
+      if (!Array.isArray(ast.values) || ast.values.length < 2) {
+        throw new Error("concat(...) requires at least two values")
+      }
       return dialect.renderConcat(ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)))
     case "case":
       return `case ${ast.branches.map((branch) =>
