@@ -1,146 +1,260 @@
 # effect-qb
 
-Type-safe SQL query construction for PostgreSQL, MySQL, and SQLite, with query plans that carry result shapes, nullability, dialect compatibility, and statement constraints in the type system.
+Typed SQL query building for Effect-oriented TypeScript applications.
 
-## Overview
+`effect-qb` lets you define tables once, compose typed query plans, render those
+plans for a concrete SQL dialect, and execute them through Effect SQL clients or a
+custom driver. It is a query builder, not an ORM: table definitions describe SQL
+shape and runtime schemas, while query plans stay explicit and inspectable.
 
-`effect-qb` builds immutable query plans and pushes the interesting parts of SQL into the type system:
+The default import path is portable:
 
-- exact projection shapes
-- implication-aware nullability and joined-source presence/absence
-- predicate-driven narrowing
-- join optionality
-- aggregate and grouping validation
-- dialect compatibility
-- statement and execution result types
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
-The main contract is compile-time. `Query.ResultRow<typeof plan>` is the logical row type after implication analysis, while `Query.RuntimeResultRow<typeof plan>` describes the runtime remap shape. At runtime, the library renders SQL, executes it, normalizes raw driver values, applies schema-backed transforms where they exist, and uses the same proof facts to narrow selected expressions and joined tables.
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text(),
+  active: Column.boolean()
+})
 
-If you're reading this end-to-end, start with `Quick Start`, then `Core Concepts`, then `Query Guide`. Read `Type Safety` for the compile-time rules and `Rendering And Execution` for the runtime path.
+const activeUsers = Query.select({
+  id: users.id,
+  email: Function.lower(users.email)
+}).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, true)),
+  Query.orderBy(users.email)
+)
 
-## Why effect-qb
+type ActiveUser = Query.ResultRow<typeof activeUsers>
 
-Use `effect-qb` when you want SQL plans to carry more than column names:
+const rendered = Pg.Renderer.make().render(activeUsers)
 
-- exact nested projection shapes
-- nullability refinement from predicates
-- join optionality that changes with query structure
-- grouped-query validation before SQL is rendered
-- dialect-locked plans, renderers, and executor error channels
-
-It is a query-construction library, not an ORM. It does not manage model identities or runtime row decoding.
-
-## Installation
-
-If you only want the typed DSL and SQL rendering:
-
-```bash
-bun add effect-qb
+void rendered
+type _ActiveUser = ActiveUser
 ```
 
-If you want to execute plans with the built-in Postgres executor:
+## Contents
 
-```bash
-bun add effect-qb effect @effect/sql @effect/sql-pg
-```
-
-If you want to execute plans with the built-in MySQL executor:
-
-```bash
-bun add effect-qb effect @effect/sql @effect/sql-mysql2
-```
-
-If you want to execute plans with the built-in SQLite executor:
-
-```bash
-bun add effect-qb effect @effect/sql @effect/sql-sqlite-bun
-```
-
-The built-in executors require an ambient `@effect/sql` `SqlClient`. If your app already uses Effect and `@effect/sql`, you likely already have the extra runtime packages installed.
-
-For local development in this repository:
-
-```bash
-bun install
-```
-
-## Table of Contents
-
-- [Choose An Entrypoint](#choose-an-entrypoint)
+- [Install](#install)
 - [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
-  - [Tables And Columns](#tables-and-columns)
-  - [Derived Table Schemas](#derived-table-schemas)
-  - [Table Options](#table-options)
-  - [Effect Schema Integration](#effect-schema-integration)
-  - [Plans, Not Strings](#plans-not-strings)
-  - [ResultRow vs RuntimeResultRow](#resultrow-vs-runtimeresultrow)
-  - [Branded Column Types](#branded-column-types)
-  - [Schema-backed JSON Columns](#schema-backed-json-columns)
-  - [Dialect-specific Entrypoints](#dialect-specific-entrypoints)
-- [Query Guide](#query-guide)
-  - [Selecting Data](#selecting-data)
-  - [Typed SQL Functions](#typed-sql-functions)
-  - [Bringing Sources Into Scope](#bringing-sources-into-scope)
-  - [Filtering Rows](#filtering-rows)
-  - [Shaping Results](#shaping-results)
-  - [Aggregating](#aggregating)
-  - [Combining Queries](#combining-queries)
-  - [Controlling Result Sets](#controlling-result-sets)
-- [Mutations](#mutations)
-  - [Insert](#insert)
-  - [Update](#update)
-  - [Delete](#delete)
-  - [Conflicts And Upserts](#conflicts-and-upserts)
-  - [Returning](#returning)
-  - [Data-modifying CTEs](#data-modifying-ctes)
-- [Rendering And Execution](#rendering-and-execution)
-  - [Execution Model](#execution-model)
-  - [Renderer](#renderer)
-  - [Executor](#executor)
-  - [Streaming](#streaming)
-  - [Query-sensitive Error Channels](#query-sensitive-error-channels)
-  - [Transaction Helpers](#transaction-helpers)
-- [Error Handling](#error-handling)
-  - [Catalogs And Normalization](#catalogs-and-normalization)
-  - [Query-capability Narrowing](#query-capability-narrowing)
-  - [Matching Errors In Application Code](#matching-errors-in-application-code)
+- [Mental Model](#mental-model)
+- [Defining Tables](#defining-tables)
+- [Writing Queries](#writing-queries)
+- [Rendering SQL](#rendering-sql)
+- [Executing Queries](#executing-queries)
+- [Casing and Naming](#casing-and-naming)
+- [Dialect Modules](#dialect-modules)
+- [Postgres](#postgres)
+- [MySQL](#mysql)
+- [SQLite](#sqlite)
+- [Advanced Types](#advanced-types)
+- [Recipes](#recipes)
 - [Type Safety](#type-safety)
-  - [Complete-plan Enforcement](#complete-plan-enforcement)
-  - [Predicate-driven Narrowing](#predicate-driven-narrowing)
-  - [Implication Cheatsheet](#implication-cheatsheet)
-  - [Join Optionality](#join-optionality)
-  - [Grouped Query Validation](#grouped-query-validation)
-  - [Dialect Compatibility](#dialect-compatibility)
-  - [JSON Schema Compatibility In Mutations](#json-schema-compatibility-in-mutations)
-  - [Readable Branded Type Errors](#readable-branded-type-errors)
-- [Dialect Support](#dialect-support)
-  - [PostgreSQL](#postgresql)
-  - [MySQL](#mysql)
-  - [SQLite](#sqlite)
 - [Limitations](#limitations)
-- [Contributing](#contributing)
+- [API Map](#api-map)
+- [Development](#development)
+- [Companion Package: effect-db](#companion-package-effect-db)
 
-## Choose An Entrypoint
+## Install
 
-Available entrypoints:
+```sh
+bun add effect-qb effect @effect/sql @effect/experimental
+```
 
-- `effect-qb`
-- `effect-qb/postgres`
-- `effect-qb/mysql`
-- `effect-qb/sqlite`
+Runtime requirements:
 
-Use `effect-qb/postgres` when you want explicit Postgres branding throughout the plan, renderer, executor, datatypes, and errors.
+- Node.js `>=22`
+- Bun `>=1.3.5` for this repository's development scripts
 
-That entrypoint also exposes `Postgres.Function` for typed SQL functions and JSON helpers.
+Public query-builder import paths:
 
-Use the root modules from `effect-qb` when a query should remain portable across the built-in engines. Plans built entirely from root modules carry the `"standard"` dialect tag and can be rendered by the standard, Postgres, MySQL, or SQLite renderers. `effect-qb/standard` remains available as an explicit portable subpath.
+- `effect-qb` - portable table, column, query, function, renderer, and casing modules
+- `effect-qb/standard` - explicit portable subpath
+- `effect-qb/postgres` - Postgres extensions, renderer, executor, schema helpers
+- `effect-qb/mysql` - MySQL extensions, renderer, executor
+- `effect-qb/sqlite` - SQLite extensions, renderer, executor
 
-Use `effect-qb/mysql` when you want the MySQL-specific DSL, renderer, executor, datatypes, and errors. It also exposes `Mysql.Function` for typed SQL functions and JSON helpers.
+## Quick Start
 
-Use `effect-qb/sqlite` when you want the SQLite-specific DSL, renderer, executor, datatypes, and errors. It exposes SQLite-compatible function and JSON helpers while rejecting unsupported SQL features with branded type errors.
+Define a table, build a query, render it for a dialect, and derive the result
+row type from the plan.
 
-## Writing Portable Queries
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text(),
+  displayName: Column.text(),
+  bio: Column.text().pipe(Column.nullable)
+})
+
+const userDirectory = Query.select({
+  id: users.id,
+  email: Function.lower(users.email),
+  displayName: users.displayName
+}).pipe(
+  Query.from(users),
+  Query.where(Query.isNotNull(users.bio)),
+  Query.orderBy(users.email)
+)
+
+type UserDirectoryRow = Query.ResultRow<typeof userDirectory>
+
+const postgresSql = Pg.Renderer.make().render(userDirectory)
+
+void postgresSql
+type _UserDirectoryRow = UserDirectoryRow
+```
+
+The query plan above is portable because it only uses root modules. It can be
+rendered by any built-in renderer.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+import * as My from "effect-qb/mysql"
+import * as Pg from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
+
+const accounts = Table.make("accounts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const readAccounts = Query.select({
+  id: accounts.id,
+  email: accounts.email
+}).pipe(Query.from(accounts))
+
+Pg.Renderer.make().render(readAccounts)
+My.Renderer.make().render(readAccounts)
+Sq.Renderer.make().render(readAccounts)
+```
+
+## Mental Model
+
+`effect-qb` is built around a small pipeline:
+
+```text
+Table + Column definitions
+  -> typed Query plan
+  -> dialect Renderer
+  -> SQL + params + projection metadata
+  -> dialect Executor
+  -> decoded typed rows
+```
+
+- `Column` carries SQL type metadata, runtime schema information, nullability,
+  defaults, generated metadata, and driver value mapping hints.
+- `Table` carries table identity, fields, primary key metadata, schema metadata,
+  constraints, indexes, and derived select/insert/update schemas.
+- `Query` creates typed plans. Plans track source requirements, result rows,
+  capabilities, and dialect compatibility.
+- `Renderer` turns a compatible complete plan into `sql`, `params`,
+  `dialect`, `projections`, and optional `valueMappings`.
+- `Executor` runs rendered plans and uses projection metadata plus runtime
+  schemas to normalize and decode rows.
+
+The root namespace is the standard portable authoring layer. Dialect-specific
+helpers narrow a plan to that concrete dialect. Mixing two different concrete
+dialects is rejected at type level.
+
+<details>
+<summary>Standard versus concrete dialects</summary>
+
+A plan that only uses `effect-qb` root modules has the standard dialect tag.
+Standard plans can render through Postgres, MySQL, and SQLite renderers.
+
+If a plan uses `Pg.Column.jsonb(...)`, `Pg.Json.jsonb.*`, `Pg.Table.index(...)`,
+or another Postgres-specific helper, it becomes a Postgres plan. Render and
+execute that plan with the Postgres renderer or executor.
+
+MySQL and SQLite follow the same rule: use root modules for portable SQL, and
+concrete modules only when the query depends on concrete SQL.
+
+</details>
+
+## Defining Tables
+
+`Table.make` is the primary table factory.
+
+```ts
+import { Column, Table } from "effect-qb"
+
+const organizations = Table.make("organizations", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  name: Column.text(),
+  archivedAt: Column.datetime().pipe(Column.nullable)
+})
+
+const memberships = Table.make("memberships", {
+  orgId: Column.uuid(),
+  userId: Column.uuid(),
+  role: Column.text()
+}).pipe(
+  Table.primaryKey(["orgId", "userId"] as const),
+  Table.index("userId")
+)
+
+type Organization = Table.SelectOf<typeof organizations>
+type NewOrganization = Table.InsertOf<typeof organizations>
+type OrganizationPatch = Table.UpdateOf<typeof organizations>
+
+void memberships
+type _Organization = Organization
+type _NewOrganization = NewOrganization
+type _OrganizationPatch = OrganizationPatch
+```
+
+Root table helpers cover portable constraints and metadata:
+
+- `Table.primaryKey(...)`
+- `Table.unique(...)`
+- `Table.index(...)`
+- `Table.foreignKey(...)`
+- `Table.check(...)`
+- `Table.alias(...)`
+- `Table.selectSchema(...)`, `Table.insertSchema(...)`, `Table.updateSchema(...)`
+
+<details>
+<summary>Schema-scoped tables</summary>
+
+Portable schema-scoped tables can be created with `Table.schema(name)`.
+
+```ts
+import { Column, Table } from "effect-qb"
+
+const publicSchema = Table.schema("public")
+
+const users = publicSchema.table("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+void users
+```
+
+Postgres also has `Pg.Schema.make(...)`, which adds Postgres enums, sequences,
+and schema application helpers. See [Postgres](#postgres).
+
+</details>
+
+<details>
+<summary>Class-style tables</summary>
+
+`Table.Class` exists for class-style declarations and advanced schema-centric
+workflows. Prefer `Table.make` unless your codebase already uses class-style
+table definitions.
+
+</details>
+
+## Writing Queries
+
+Queries are ordinary values. Compose them with `.pipe(...)`.
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
@@ -150,679 +264,535 @@ const users = Table.make("users", {
   email: Column.text()
 })
 
-const userEmails = Query.select({
-  id: users.id,
-  email: Function.lower(users.email)
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid(),
+  title: Column.text(),
+  publishedAt: Column.datetime().pipe(Column.nullable)
+})
+
+const postsByUser = Query.select({
+  userId: users.id,
+  email: users.email,
+  postCount: Function.count(posts.id)
 }).pipe(
-  Query.from(users)
-)
-```
-
-`userEmails` can be passed to any built-in renderer. If a later step uses a concrete dialect helper, the plan should be rendered by that concrete dialect.
-
-## Quick Start
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J, Renderer } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const userSummary = Q.select({
-  id: users.id,
-  email: F.lower(users.email)
-}).pipe(
-  Q.from(users)
+  Query.from(users),
+  Query.innerJoin(posts, Query.eq(users.id, posts.userId)),
+  Query.where(Query.isNotNull(posts.publishedAt)),
+  Query.groupBy(users.id, users.email),
+  Query.orderBy(users.email)
 )
 
-type UserSummaryRow = Q.ResultRow<typeof userSummary>
-// {
-//   id: string
-//   email: string
-// }
+type PostsByUserRow = Query.ResultRow<typeof postsByUser>
 
-const rendered = Renderer.make().render(userSummary)
-rendered.sql
-rendered.params
+type _PostsByUserRow = PostsByUserRow
 ```
 
-This is the core model: define typed tables, build a plan, let the plan define the row type, then render or execute it.
+Core query surfaces include:
 
-## Core Concepts
+- `select`, `from`, joins, aliases, derived sources, and CTEs
+- predicates such as `eq`, `and`, `or`, `isNull`, `isNotNull`, `exists`
+- grouping, ordering, distinct, limit, and offset
+- inserts, updates, deletes, merge, upsert, and returning where supported
+- set operators
+- transaction helpers such as savepoints
 
-### Tables And Columns
-
-Tables are typed sources, not loose name strings. Columns carry DB types, nullability, defaults, keys, and schema-backed JSON information.
+<details>
+<summary>Mutation example</summary>
 
 ```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-import * as Schema from "effect/Schema"
-import * as Pg from "effect-qb/postgres"
+import { Column, Query, Table } from "effect-qb"
 
 const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  profile: C.json(Schema.Struct({
-    displayName: Schema.String,
-    bio: Schema.NullOr(Schema.String)
-  }))
-})
-```
-
-Schema-qualified tables are also typed:
-
-```ts
-const analytics = Pg.Schema.make("analytics")
-
-const events = analytics.table("events", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid()
-})
-```
-
-### Derived Table Schemas
-
-Every table exposes derived Effect Schemas:
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import * as Schema from "effect/Schema"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
-  email: C.text().pipe(C.unique),
-  bio: C.text().pipe(C.nullable),
-  createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text(),
+  visits: Column.int()
 })
 
-Schema.isSchema(Table.selectSchema(users))
-Schema.isSchema(Table.insertSchema(users))
-Schema.isSchema(Table.updateSchema(users))
-```
-
-Those schemas are derived from column metadata, not maintained separately.
-
-- `select` includes every column, with nullable columns wrapped in `Schema.NullOr(...)`
-- `insert` omits generated columns and makes nullable/defaulted columns optional
-- `update` omits generated columns and primary-key columns and makes the remaining columns optional
-
-This is the main runtime bridge between the SQL DSL and Effect Schema. You can validate table payloads with the derived schemas without duplicating the model elsewhere.
-
-### Table Options
-
-Table-level options live on the table definition itself. They are pipeable and render into DDL:
-
-- `Table.primaryKey(...)` for table-level composite keys
-- `Table.unique(...)` for table-level unique constraints
-- `Table.index(...)` for table-level indexes
-- `Table.foreignKey(...)` for table-level foreign keys
-- `Table.check(...)` for expression-only check constraints
-
-```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const orgs = Table.make("orgs", {
-  id: C.uuid().pipe(C.primaryKey),
-  slug: C.text().pipe(C.unique)
-})
-
-const membershipsBase = Table.make("memberships", {
-  id: C.uuid().pipe(C.primaryKey),
-  orgId: C.uuid(),
-  role: C.text(),
-  note: C.text().pipe(C.nullable)
-})
-
-const membershipsWithKeys = membershipsBase.pipe(
-  Table.foreignKey("orgId", () => orgs, "id"),
-  Table.unique(["orgId", "role"]),
-  Table.index(["role", "orgId"])
-)
-
-const memberships = membershipsWithKeys.pipe(
-  Table.check("role_not_empty", Q.neq(membershipsBase.role, ""))
-)
-```
-
-The `check` helper must receive an expression. Raw SQL strings are not accepted.
-
-### Effect Schema Integration
-
-`effect-qb` uses `effect/Schema` as the runtime contract for columns and tables.
-
-That integration shows up in three places:
-
-- column definitions carry runtime schemas
-- tables derive `select`, `insert`, and `update` schemas from those columns
-- built-in executors apply schema-backed transforms when selected projections carry a runtime schema
-
-The schema-aware column APIs are:
-
-- built-in columns like `C.uuid()`, `C.text()`, `C.number()`, `C.date()`, and `C.timestamp()`
-- `C.schema(schema)` to replace a column's runtime schema without changing its SQL type or key/default metadata
-- `C.custom(schema, dbType)` for arbitrary non-JSON columns
-- `C.json(schema)` for JSON columns
-
-#### Defaults And Generated Columns
-
-`C.default(expr)` and `C.generated(expr)` only affect write-shape:
-
-- `C.default(expr)` keeps a column selectable and updatable, but optional on insert because the database may fill it
-- `C.generated(expr)` omits a column from insert and update because the database owns the value
-- both helpers keep the expression around for DDL rendering
-
-The important rule for `C.schema(...)` is that the schema must accept the column's current runtime output, not the raw driver value.
-
-- `C.date()` produces a canonical `LocalDateString`, so `C.date().pipe(C.schema(Schema.DateFromString))` is valid
-- `C.int().pipe(C.schema(Schema.DateFromString))` is rejected because the column runtime type is `number`, not `string`
-
-Example:
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import * as Schema from "effect/Schema"
-import { Executor, Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey, C.generated(Q.literal("generated-user-id"))),
-  happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
-  profile: C.json(Schema.Struct({
-    visits: Schema.NumberFromString
-  })),
-  createdAt: C.timestamp().pipe(C.default(F.localTimestamp()))
-})
-
-type UserSelect = Table.SelectOf<typeof users>
-type UserInsert = Table.InsertOf<typeof users>
-type UserUpdate = Table.UpdateOf<typeof users>
-
-const decoded = Schema.decodeUnknownSync(Table.selectSchema(users))({
+const insertUser = Query.insert(users, {
   id: "11111111-1111-1111-1111-111111111111",
-  happenedOn: "2026-03-20",
-  profile: {
-    visits: "42"
-  },
-  createdAt: "2026-03-20T10:00:00"
+  email: "alice@example.com",
+  visits: 1
 })
 
-decoded.happenedOn
-// Date
-
-decoded.profile.visits
-// number
-
-const plan = Q.select({
-  happenedOn: users.happenedOn,
-  profile: users.profile
+const incrementVisits = Query.update(users, {
+  visits: 2
 }).pipe(
-  Q.from(users)
+  Query.where(Query.eq(users.email, "alice@example.com"))
 )
 
-const rowsEffect = Executor.make().execute(plan)
+void insertUser
+void incrementVisits
 ```
 
-From that one definition you get:
+</details>
 
-- bound SQL columns like `users.profile`
-- derived table schemas: `Table.selectSchema(users)`, `Table.insertSchema(users)`, `Table.updateSchema(users)`
-- static helper types that line up with those schemas
-- executor-side transforms for schema-backed projections
+## Rendering SQL
 
-That last point matters. Built-in executors do not just remap aliases. They first normalize raw driver values into canonical `effect-qb` runtime values, then apply propagated schemas where they exist. So a selected `users.happenedOn` can become a `Date`, and a selected `users.profile` can decode `"42"` into `42` via `Schema.NumberFromString`.
-
-The boundary is still important:
-
-- table schemas are full `effect/Schema` values for table-shaped data
-- schema-backed columns and preserved projections can enforce runtime transforms on reads
-- arbitrary query plans do not automatically become one big derived query schema
-
-### Plans, Not Strings
-
-`effect-qb` does not build rows from ad hoc string fragments. It builds typed plans. Partial plans are allowed while assembling a query, but rendering and execution require a complete plan.
-
-That distinction is important:
-
-- you can reference sources before they are in scope while composing
-- the type system tracks what is still missing
-- `render(...)`, `execute(...)`, and `Q.CompletePlan<typeof plan>` are the enforcement boundary
-
-### ResultRow vs RuntimeResultRow
-
-`Q.ResultRow<typeof plan>` is the logical result type after static implication analysis. It includes facts proven by:
-
-- `where(...)` and `having(...)`
-- join predicates
-- `case()` branch pruning
-- operators such as `eq(...)`, `gte(...)`, `in(...)`, `notIn(...)`, `isNull(...)`, and `isNotNull(...)`
-
-`Q.RuntimeResultRow<typeof plan>` is the runtime remap shape. It is separate from the logical row type, but runtime execution still uses the same implication facts to validate impossible rows and collapse always-null projections where the proof is strong enough.
+Each built-in renderer exposes `make(options?)` and `render(plan)`.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const draftOrPublishedPosts = Q.select({
-  title: posts.title,
-  upperTitle: F.upper(posts.title)
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.in(posts.title, "draft", "published"))
-)
-
-type LogicalRow = Q.ResultRow<typeof draftOrPublishedPosts>
-// {
-//   title: string
-//   upperTitle: string
-// }
-
-type RuntimeRow = Q.RuntimeResultRow<typeof draftOrPublishedPosts>
-// {
-//   title: string | null
-//   upperTitle: string | null
-// }
-```
-
-### Branded Column Types
-
-Branding makes structurally identical values nominally distinct. Two columns can both decode to `string`, but the compiler can still treat them as different things if they come from different sources.
-
-This is useful when:
-
-- ids from different tables should not be interchangeable
-- foreign keys should not be passed where primary keys are expected
-- helper functions should accept only one provenance
-- query results should preserve where a value came from, even after joins or aliases
-
-```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
+import { Column, Query, Table } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
-import type * as Brand from "effect/Brand"
 
 const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey, C.brand),
-  email: C.text()
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  authorId: C.uuid(),
-  title: C.text()
-})
-
-const userPlan = Q.select({
+const readUsers = Query.select({
   id: users.id,
   email: users.email
-}).pipe(
-  Q.from(users)
-)
+}).pipe(Query.from(users))
 
-const postPlan = Q.select({
-  authorId: posts.authorId.pipe(C.brand),
-  title: posts.title
-}).pipe(
-  Q.from(posts)
-)
+const rendered = Pg.Renderer.make({
+  casing: {
+    tables: "snake_case",
+    columns: "snake_case"
+  }
+}).render(readUsers)
 
-type UserRow = Q.ResultRow<typeof userPlan>
-// UserRow:
-// {
-//   id: string & Brand.Brand<"users.id">
-//   email: string
-// }
+const sql: string = rendered.sql
+const params: readonly unknown[] = rendered.params
 
-type PostRow = Q.ResultRow<typeof postPlan>
-// PostRow:
-// {
-//   authorId: string & Brand.Brand<"posts.authorId">
-//   title: string
-// }
-
-const loadUser = (id: UserRow["id"]) => id
-
-declare const userRow: UserRow
-declare const postRow: PostRow
-
-loadUser(userRow.id)
-// @ts-expect-error different provenance, even though both values are strings
-loadUser(postRow.authorId)
+void sql
+void params
 ```
 
-Because the brand is derived from table provenance, aliases get distinct brands too. `users.id` and `u.id` stay separate even though both are still plain strings at runtime.
+Renderer options:
 
-### Schema-backed JSON Columns
+- `casing?` - renderer-level physical identifier casing
+- `valueMappings?` - typed driver-boundary mappings by known datatype or datatype family
 
-JSON columns can carry a schema. That schema feeds:
-
-- JSON path typing
-- JSON manipulation result typing
-- insert/update compatibility checks
+`valueMappings` is keyed by the renderer's known type surface. Unknown keys are
+type errors.
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const mapping: Pg.Scalar.DriverValueMapping = {
+  fromDriver: (value) => value,
+  toDriver: (value) => value,
+  selectSql: (sql) => sql,
+  jsonSelectSql: (sql) => sql
+}
+
+const renderer = Pg.Renderer.make({
+  valueMappings: {
+    text: mapping,
+    jsonb: mapping,
+    string: mapping
+  }
+})
+
+void renderer
+```
+
+<details>
+<summary>Rendered output shape</summary>
+
+A rendered query contains:
+
+- `sql`
+- `params`
+- `dialect`
+- `projections`
+- optional `valueMappings`
+
+Executors use the projection metadata to decode flat driver rows back into the
+nested result shape described by the query plan.
+
+</details>
+
+## Executing Queries
+
+Use concrete executors for execution. By default, a concrete executor uses the
+built-in renderer and the ambient `@effect/sql` `SqlClient` service.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const readUsers = Query.select({
+  id: users.id,
+  email: users.email
+}).pipe(Query.from(users))
+
+const rowsEffect = Pg.Executor.make().execute(readUsers)
+const rowStream = Pg.Executor.make().stream(readUsers)
+
+void rowsEffect
+void rowStream
+```
+
+Executors also accept custom renderers, custom drivers, driver modes, and value
+mappings.
+
+<details>
+<summary>Custom driver shape</summary>
+
+```ts
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import * as Pg from "effect-qb/postgres"
+
+const driver = Pg.Executor.driver({
+  execute: () => Effect.succeed([]),
+  stream: () => Stream.empty
+})
+
+const executor = Pg.Executor.make({ driver })
+
+void executor
+```
+
+</details>
+
+## Casing and Naming
+
+Use `Casing` when model identifiers and physical database identifiers do not
+use the same naming convention.
+
+Casing can be configured at the renderer level, as shown above, or attached to
+tables and schema factories.
+
+```ts
 import * as Schema from "effect/Schema"
-import { Json as J } from "effect-qb/postgres"
+import { Casing, Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const Snake = Casing.casing({
+  tables: "snake_case",
+  columns: "snake_case"
+})
+
+const users = Snake.table("Users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  createdAt: Column.datetime()
+})
+
+const Analytics = Pg.Schema.make("analytics").pipe(
+  Casing.withCasing({
+    tables: "snake_case",
+    columns: "snake_case",
+    types: "snake_case",
+    sequences: "snake_case"
+  })
+)
+
+const events = Table.make("Events", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  createdAt: Column.datetime(),
+  meta: Pg.Column.jsonb(Schema.Struct({
+    kind: Schema.String
+  }))
+}).pipe(
+  Casing.withCasing({ columns: "snake_case" }),
+  Analytics.withSchema
+)
+
+const readEvents = Query.select({
+  id: events.id,
+  kind: Pg.Json.jsonb.text(events.meta, Pg.Json.jsonb.key("kind"))
+}).pipe(Query.from(events))
+
+Pg.Renderer.make().render(readEvents)
+
+void users
+```
+
+Casing categories:
+
+- `tables`
+- `columns`
+- `schemas`
+- `indexes`
+- `constraints`
+- `types`
+- `sequences`
+
+Built-in casing styles:
+
+- `"preserve"`
+- `"snake_case"`
+- `"camelCase"`
+- `"PascalCase"`
+- `"kebab-case"`
+- `"SCREAMING_SNAKE_CASE"`
+- `(name: string) => string`
+
+## Dialect Modules
+
+Portable APIs are exported from `effect-qb`. Dialect modules add only concrete
+behavior.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+import * as My from "effect-qb/mysql"
+import * as Pg from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const plan = Query.select({
+  id: users.id,
+  email: users.email
+}).pipe(Query.from(users))
+
+Pg.Renderer.make().render(plan)
+My.Renderer.make().render(plan)
+Sq.Renderer.make().render(plan)
+```
+
+Dialect modules expose:
+
+| Module | Adds |
+| --- | --- |
+| `effect-qb/postgres` | Postgres column/table extensions, JSON/jsonb helpers, casts, types, schemas, enums, sequences, renderer, executor |
+| `effect-qb/mysql` | MySQL column extensions, JSON helpers, functions, renderer, executor |
+| `effect-qb/sqlite` | SQLite column extensions, JSON helpers, functions, renderer, executor |
+
+Portable columns and tables are created from `effect-qb`, not from dialect
+modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.
+
+## Postgres
+
+Postgres adds `jsonb`, arrays, identity columns, richer index metadata, casts,
+custom types, schemas, enums, and sequences.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const payloadSchema = Schema.Union(
+  Schema.Struct({
+    kind: Schema.Literal("created"),
+    actorId: Schema.String
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("deleted"),
+    reason: Schema.String
+  })
+)
+
+const events = Table.make("events", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  payload: Pg.Column.jsonb(payloadSchema),
+  createdAt: Column.datetime()
+}).pipe(
+  Pg.Table.index({
+    name: "events_created_at_idx",
+    columns: "createdAt",
+    method: "btree"
+  })
+)
+
+const eventKinds = Query.select({
+  id: events.id,
+  kind: Pg.Json.jsonb.text(events.payload, Pg.Json.jsonb.key("kind"))
+}).pipe(Query.from(events))
+
+Pg.Renderer.make().render(eventKinds)
+```
+
+<details>
+<summary>Postgres schemas, enums, and sequences</summary>
+
+```ts
+import { Casing, Column } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const Analytics = Pg.Schema.make("analytics").pipe(
+  Casing.withCasing({
+    tables: "snake_case",
+    columns: "snake_case",
+    types: "snake_case",
+    sequences: "snake_case"
+  })
+)
+
+const status = Analytics.enum("EventStatus", ["pending", "processed"] as const)
+const sequence = Analytics.sequence("EventIdSeq")
+
+const metrics = Analytics.table("Metrics", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  status: status.column(),
+  sequenceValue: Pg.Column.int8().pipe(
+    Column.default(Pg.Function.nextVal(sequence))
+  )
+})
+
+void metrics
+```
+
+</details>
+
+## MySQL
+
+MySQL plans use the root APIs for portable tables and columns, plus MySQL
+helpers when the query depends on MySQL-specific SQL.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Query, Table } from "effect-qb"
+import * as My from "effect-qb/mysql"
 
 const docs = Table.make("docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(Schema.Struct({
+  id: Column.uuid().pipe(Column.primaryKey),
+  payload: Column.json(Schema.Struct({
+    title: Schema.String
+  }))
+})
+
+const readDocs = Query.select({
+  id: docs.id,
+  title: My.Json.json.text(docs.payload, My.Json.json.key("title"))
+}).pipe(Query.from(docs))
+
+My.Renderer.make().render(readDocs)
+```
+
+MySQL renderer differences include backtick quoting, question-mark placeholders,
+MySQL casts/functions where needed, and MySQL legality checks. MySQL does not
+support every feature available in Postgres. For example, full joins and
+`returning` projections on some mutations are rejected.
+
+## SQLite
+
+SQLite plans also use the root APIs for portable tables and columns, plus SQLite
+helpers for SQLite-specific SQL such as JSON1 functions.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Query, Table } from "effect-qb"
+import * as Sq from "effect-qb/sqlite"
+
+const docs = Table.make("docs", {
+  id: Column.text().pipe(Column.primaryKey),
+  payload: Column.json(Schema.Struct({
     profile: Schema.Struct({
-      address: Schema.Struct({
-        city: Schema.String,
-        postcode: Schema.NullOr(Schema.String)
-      })
+      city: Schema.String
     })
   }))
 })
 
-const cityPath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("address"),
-  J.json.key("city")
-)
+const readDocs = Query.select({
+  id: docs.id,
+  city: Sq.Json.json.text(
+    docs.payload,
+    Sq.Json.json.path(Sq.Json.json.key("profile"), Sq.Json.json.key("city"))
+  )
+}).pipe(Query.from(docs))
 
-const city = J.json.get(docs.payload, cityPath)
-
-type City = Q.ExpressionOutput<typeof city, {
-  readonly docs: {
-    readonly name: "docs"
-    readonly mode: "required"
-  }
-}>
-// string
+Sq.Renderer.make().render(readDocs)
 ```
 
-Schema-backed `jsonb` columns can also model discriminated unions. Predicates over JSON path expressions feed back into the selected payload type:
+SQLite support includes DDL, mutations, reads, streams, transactions/savepoints,
+and JSON1 helpers. Some SQL features remain intentionally unsupported where
+SQLite has no equivalent.
+
+## Advanced Types
+
+The portable column surface includes:
+
+- `uuid`
+- `text`, `varchar`, `char`
+- `int`, `bigint`, `number`, `decimal`, `real`
+- `boolean`
+- `date`, `time`, `datetime`, `timestamp`
+- `blob`
+- `json`
+
+Columns can refine their select/insert/update schemas.
 
 ```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
 import * as Schema from "effect/Schema"
-import { Json as J } from "effect-qb/postgres"
+import { Column, Table } from "effect-qb"
 
 const events = Table.make("events", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: Pg.Column.jsonb(Schema.Union(
-    Schema.Struct({
-      kind: Schema.Literal("signup"),
-      email: Schema.String
-    }),
-    Schema.Struct({
-      kind: Schema.Literal("purchase"),
-      amount: Schema.Number
-    })
-  ))
+  id: Column.uuid().pipe(Column.primaryKey),
+  happenedOn: Column.date().pipe(Column.schema(Schema.DateFromString)),
+  payload: Column.json(Schema.Struct({
+    visits: Schema.Number
+  }))
 })
 
-const payloadKind = J.jsonb.text(events.payload, J.jsonb.key("kind"))
+type EventRow = Table.SelectOf<typeof events>
+type EventInsert = Table.InsertOf<typeof events>
 
-const purchaseEvents = Q.select({
-  payload: events.payload
-}).pipe(
-  Q.from(events),
-  Q.where(Q.eq(payloadKind, "purchase"))
-)
-
-type PurchaseEventRow = Q.ResultRow<typeof purchaseEvents>
-// {
-//   payload: {
-//     kind: "purchase"
-//     amount: number
-//   }
-// }
-
-declare const purchaseEvent: PurchaseEventRow
-const purchaseKind: "purchase" = purchaseEvent.payload.kind
-const purchaseAmount: number = purchaseEvent.payload.amount
+type _EventRow = EventRow
+type _EventInsert = EventInsert
 ```
 
-### Dialect-specific Entrypoints
+Postgres adds concrete types such as `jsonb`, `bytea`, arrays, identity
+columns, timestamp variants, and custom typed casts/references.
 
-Dialect entrypoints expose dialect-specific builders:
+## Recipes
 
-```ts
-import { Query as PostgresQuery, Query as MysqlQuery, Query as SqliteQuery } from "effect-qb"
-
-```
-
-This matters for:
-
-- dialect-locked tables and columns
-- dialect-only features like Postgres `distinctOn(...)`
-- dialect-specific renderers and executors
-- dialect-specific error unions
-
-## Query Guide
-
-### Selecting Data
-
-Selections define the result type directly. Nested objects stay nested in the row type.
+<details open>
+<summary>Portable read query</summary>
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
+import { Column, Function, Query, Table } from "effect-qb"
 
 const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
 })
 
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const comments = Table.make("comments", {
-  id: C.uuid().pipe(C.primaryKey),
-  postId: C.uuid(),
-  body: C.text()
-})
-
-const listUsers = Q.select({
+const plan = Query.select({
   id: users.id,
-  profile: {
-    email: users.email
-  },
-  hasPosts: Q.literal(true)
-}).pipe(
-  Q.from(users)
-)
+  email: Function.lower(users.email)
+}).pipe(Query.from(users))
 
-type ListUsersRow = Q.ResultRow<typeof listUsers>
-// {
-//   id: string
-//   profile: {
-//     email: string
-//   }
-//   hasPosts: boolean
-// }
+type Row = Query.ResultRow<typeof plan>
+
+type _Row = Row
 ```
 
-Projection typing is local. You usually do not need to define row interfaces yourself.
+</details>
 
-### Typed SQL Functions
-
-`effect-qb/postgres` exposes `Postgres.Function` for typed SQL expressions. The helpers are expressions, so they compose like other query values and keep their result types.
+<details>
+<summary>CamelCase models against snake_case database names</summary>
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
+import { Casing, Column, Table } from "effect-qb"
 
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const userSummary = Q.select({
-  email: F.lower(users.email),
-  bio: F.coalesce(users.bio, "anonymous"),
-  seenAt: F.currentTimestamp()
+const users = Table.make("Users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  createdAt: Column.datetime()
 }).pipe(
-  Q.from(users)
+  Casing.withCasing({
+    tables: "snake_case",
+    columns: "snake_case"
+  })
 )
+
+void users
 ```
 
-`Postgres.Function` currently covers:
+</details>
 
-- scalar helpers like `coalesce`, `lower`, `upper`, and `concat`
-- aggregate helpers like `count`, `max`, and `min`
-- window helpers like `over`, `rowNumber`, `rank`, and `denseRank`
-- temporal helpers like `now`, `currentDate`, `currentTime`, `currentTimestamp`, `localTime`, and `localTimestamp`
-- JSON helpers via `Json.json`
-
-### Bringing Sources Into Scope
-
-`from(...)` and joins make referenced sources available to the plan. Derived tables, CTEs, and correlated sources stay typed.
+<details>
+<summary>Postgres jsonb path read</summary>
 
 ```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const activePostsSubquery = Q.select({
-  userId: posts.userId,
-  title: posts.title
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.isNotNull(posts.title))
-)
-
-const activePosts = Q.as(activePostsSubquery, "active_posts")
-
-const usersWithPosts = Q.select({
-  userId: users.id,
-  title: activePosts.title
-}).pipe(
-  Q.from(users),
-  Q.innerJoin(activePosts, Q.eq(users.id, activePosts.userId))
-)
-
-type UsersWithPostsRow = Q.ResultRow<typeof usersWithPosts>
-// {
-//   userId: string
-//   title: string
-// }
-```
-
-The same source story applies to:
-
-- `subquery.pipe(Q.with("alias"))`
-- `subquery.pipe(Q.withRecursive("alias"))`
-- `subquery.pipe(Q.lateral("alias"))`
-- `Q.values(...)`
-- `Q.unnest(...)`
-
-### Filtering Rows
-
-Predicates do more than render SQL. They can narrow result types and joined tables.
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const titledPosts = Q.select({
-  title: posts.title,
-  upperTitle: F.upper(posts.title)
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.eq(posts.title, "hello"))
-)
-
-type TitledPostsRow = Q.ResultRow<typeof titledPosts>
-// {
-//   title: string
-//   upperTitle: string
-// }
-```
-
-The same nullability proof also comes from operators like `eq(...)`, `gt(...)`, `gte(...)`, `lt(...)`, `lte(...)`, `in(...)`, and `notIn(...)` when they exclude `null`.
-
-That same narrowing feeds:
-
-- `coalesce(...)`
-- `case()`
-- `match(...)`
-- joined-source promotion
-
-### Shaping Results
-
-The expression surface is large, but the important point is that result-shaping expressions stay typed.
-
-#### CASE And Casts
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-import { Json as J } from "effect-qb/postgres"
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const shapedPosts = Q.select({
-  titleLabel: Q.case()
-    .when(Q.isNull(posts.title), "missing")
-    .else(F.upper(posts.title)),
-  titleAsText: Pg.Cast.to(posts.title, Pg.Type.text())
-}).pipe(
-  Q.from(posts)
-)
-```
-
-`Q.case()` follows the same implication facts as filters, and `Pg.Cast.to(...)` is the explicit escape hatch when you want a conversion to be obvious in the plan.
-
-#### JSON Path Typing
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
 import * as Schema from "effect/Schema"
-import { Json as J } from "effect-qb/postgres"
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const docs = Table.make("docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(Schema.Struct({
+  id: Column.uuid().pipe(Column.primaryKey),
+  payload: Pg.Column.jsonb(Schema.Struct({
     profile: Schema.Struct({
       address: Schema.Struct({
         city: Schema.String
@@ -831,1082 +801,108 @@ const docs = Table.make("docs", {
   }))
 })
 
-const cityPath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("address"),
-  J.json.key("city")
-)
-
-const docCity = Q.select({
-  city: J.json.text(docs.payload, cityPath)
-}).pipe(
-  Q.from(docs)
-)
-```
-
-The same JSON path object can be reused across:
-
-- `Json.json.get(...)`
-- `Json.json.text(...)`
-- `Json.json.set(...)`
-- `Json.json.insert(...)`
-- `Json.json.delete(...)`
-- `Json.json.pathExists(...)`
-
-Comparison and cast safety are dialect-aware. Incompatible operands are rejected unless you make the conversion explicit with `Pg.Cast.to(...)`.
-
-### Aggregating
-
-Grouped queries are checked structurally, not just by source provenance.
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const invalidPostsPerUser = Q.select({
-  userId: users.id,
-  title: posts.title,
-  postCount: F.count(posts.id)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id)
-)
-
-type InvalidPostsPerUser = Q.CompletePlan<typeof invalidPostsPerUser>
-// {
-//   __effect_qb_error__: "effect-qb: invalid grouped selection"
-//   __effect_qb_hint__:
-//     "Scalar selections must be covered by groupBy(...) when aggregates are present"
-// }
-
-const postsPerUser = Q.select({
-  userId: users.id,
-  postCount: F.count(posts.id)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id)
-)
-
-type PostsPerUserRow = Q.ResultRow<typeof postsPerUser>
-// {
-//   userId: string
-//   postCount: number
-// }
-```
-
-This catches invalid grouped queries before rendering, then the fixed plan keeps only grouped or aggregate selections.
-
-### Combining Queries
-
-Subqueries and set operators stay part of the same typed plan model.
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const postsByUser = Q.select({
-  id: posts.id
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.eq(posts.userId, users.id))
-)
-
-const usersWithPosts = Q.select({
-  userId: users.id,
-  hasPosts: Q.exists(postsByUser)
-}).pipe(
-  Q.from(users)
-)
-
-type UsersWithPostsRow = Q.ResultRow<typeof usersWithPosts>
-// {
-//   userId: string
-//   hasPosts: boolean
-// }
-```
-
-Set operators require compatible row shapes:
-
-- `Q.union(...)`
-- `Q.unionAll(...)`
-- `Q.intersect(...)`
-- `Q.intersectAll(...)`
-- `Q.except(...)`
-- `Q.exceptAll(...)`
-
-### Controlling Result Sets
-
-Ordering and result-set controls are regular plan transforms:
-
-```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const recentUsers = Q.select({
-  id: users.id,
-  email: users.email
-}).pipe(
-  Q.from(users),
-  Q.distinct(),
-  Q.orderBy(users.email),
-  Q.limit(10),
-  Q.offset(20)
-)
-```
-
-Postgres-only `distinct on` is available from the Postgres entrypoint:
-
-```ts
-import { Column as C, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const recentEmails = Pg.Query.select({
-  id: users.id,
-  email: users.email
-}).pipe(
-  Pg.Query.from(users),
-  Pg.Query.distinctOn(users.email),
-  Pg.Query.orderBy(users.email)
-)
-```
-
-## Mutations
-
-### Insert
-
-Single-row inserts are direct:
-
-```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: C.text().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const posts = Table.make("posts", {
-  id: C.text().pipe(C.primaryKey),
-  userId: C.text(),
-  title: C.text()
-})
-
-const insertUser = Q.insert(users, {
-  id: "user-1",
-  email: "alice@example.com"
-})
-```
-
-If every writable column is optional because of `C.default(...)`, `C.generated(...)`, or nullability, `Q.insert(table)` is the default-only form.
-
-Composable sources are available when the input rows come from elsewhere:
-
-```ts
-const pendingUsers = Q.values([
-  { id: "user-1", email: "alice@example.com" },
-  { id: "user-2", email: "bob@example.com" }
-] as const).pipe(
-  Q.as("pending_users")
-)
-
-void pendingUsers
-```
-
-`from(...)` also accepts `select(...)`, `unnest(...)`, and other compatible sources.
-
-### Update
-
-Updates stay expression-aware and can use `from(...)` sources where the dialect supports it.
-
-```ts
-const updateUsers = Q.update(users, {
-  email: "author@example.com"
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.and(
-    Q.eq(posts.userId, users.id),
-    Q.eq(posts.title, "hello")
-  ))
-)
-```
-
-The assigned values still have to be type-compatible with the target columns.
-
-### Delete
-
-Deletes keep their own statement kind and can also participate in typed conditions and `returning(...)`.
-
-```ts
-const deleteUser = Q.delete(users).pipe(
-  Q.where(Q.eq(users.id, "user-1"))
-)
-```
-
-### Conflicts And Upserts
-
-Conflict handling is modeled as a composable modifier instead of a string escape hatch.
-
-```ts
-const insertOrIgnore = Q.insert(users, {
-  id: "user-1",
-  email: "alice@example.com"
-}).pipe(
-  Q.onConflict(["id"])
-)
-
-const upsertUser = Q.insert(users, {
-  id: "user-1",
-  email: "alice@example.com"
-}).pipe(
-  Q.onConflict(["id"], {
-    update: {
-      email: Q.excluded(users.email)
-    }
-  })
-)
-```
-
-Conflict targets are checked against the target table.
-
-### Returning
-
-Mutation plans can project typed rows with `returning(...)`.
-
-```ts
-const insertedUser = Q.insert(users, {
-  id: "user-1",
-  email: "alice@example.com"
-}).pipe(
-  Q.returning({
-    id: users.id,
-    email: users.email
-  })
-)
-
-type InsertedUserRow = Q.ResultRow<typeof insertedUser>
-// {
-//   id: string
-//   email: string
-// }
-```
-
-### Data-modifying CTEs
-
-Write plans can feed later reads in the same statement:
-
-```ts
-const insertedUsers = Q.insert(users, {
-  id: "user-1",
-  email: "alice@example.com"
-}).pipe(
-  Q.returning({
-    id: users.id,
-    email: users.email
-  }),
-  Q.with("inserted_users")
-)
-
-const insertedUsersPlan = Q.select({
-  id: insertedUsers.id,
-  email: insertedUsers.email
-}).pipe(
-  Q.from(insertedUsers)
-)
-```
-
-This is one of the places where the capability model matters: write-bearing nested plans keep write-required dialect errors in the executor error channel.
-
-## Rendering And Execution
-
-### Execution Model
-
-The runtime model is intentionally small:
-
-1. build a typed plan
-2. render SQL plus bind params
-3. execute rows as an `Effect` or `Stream`
-4. normalize raw driver values into canonical `effect-qb` runtime values
-5. apply schema-backed transforms where they exist
-6. remap flat aliases into nested objects
-
-Schema-backed columns and preserved projections can enforce runtime transforms during execution. Arbitrary query plans still do not become one big derived query schema automatically.
-
-### Renderer
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J, Renderer as PostgresRenderer } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable)
-})
-
-const postsPerUser = Q.select({
-  userId: users.id,
-  email: users.email,
-  postCount: F.count(posts.id)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id, users.email),
-  Q.orderBy(users.email)
-)
-
-const rendered = PostgresRenderer.make().render(postsPerUser)
-
-rendered.sql
-rendered.params
-rendered.projections
-```
-
-Rendered queries carry:
-
-- SQL text
-- ordered bind params
-- projection metadata
-- the row type as a phantom type
-
-They do not carry a query-result schema.
-
-### Executor
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J, Executor as PostgresExecutor } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable)
-})
-
-const postsPerUser = Q.select({
-  userId: users.id,
-  email: users.email,
-  postCount: F.count(posts.id)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id, users.email),
-  Q.orderBy(users.email)
-)
-
-const executor = PostgresExecutor.make()
-const rowsEffect = executor.execute(postsPerUser)
-const rowsStream = executor.stream(postsPerUser)
-
-type Rows = Q.ResultRows<typeof postsPerUser>
-type Row = Q.ResultRow<typeof postsPerUser>
-type Error = PostgresExecutor.PostgresQueryError<typeof postsPerUser>
-```
-
-Pass `{ renderer }`, `{ driver }`, or both when you need to customize execution.
-
-`execute(...)` and `stream(...)` share the same runtime pipeline:
-
-1. render the plan
-2. normalize raw driver values into canonical runtime values
-3. apply schema-backed transforms where they exist
-4. remap flat aliases into nested objects
-
-There is no automatically derived whole-query schema.
-
-### Streaming
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import * as Stream from "effect/Stream"
-import { Json as J, Executor as PostgresExecutor } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable)
-})
-
-const postsPerUser = Q.select({
-  userId: users.id,
-  email: users.email,
-  postCount: F.count(posts.id)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id, users.email),
-  Q.orderBy(users.email)
-)
-
-const executor = PostgresExecutor.make()
-const rowStream = executor.stream(postsPerUser)
-const collected = Stream.runCollect(rowStream)
-```
-
-Streaming is available for read plans. It uses the same row normalization, schema-backed transforms, and nested remapping as `execute(...)`, but keeps database resources open until the stream is consumed or interrupted.
-
-### Query-sensitive Error Channels
-
-Dialect executors expose query-sensitive error unions:
-
-- `Postgres.Executor.PostgresQueryError<typeof plan>`
-- `Mysql.Executor.MysqlQueryError<typeof plan>`
-- `Sqlite.Executor.SqliteQueryError<typeof plan>`
-
-Those types are narrower than the raw dialect error catalogs. For example, known write-only failures are removed from read-query error channels, while write-bearing plans retain them.
-
-### Transaction Helpers
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import * as Stream from "effect/Stream"
-import { Json as J, Executor as PostgresExecutor } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable)
-})
-
-const postsPerUser = Q.select({
-  userId: users.id,
-  email: users.email,
-  postCount: F.count(posts.id)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id, users.email),
-  Q.orderBy(users.email)
-)
-
-const executor = PostgresExecutor.make()
-const rowsEffect = executor.execute(postsPerUser)
-const rowsStream = Stream.runCollect(executor.stream(postsPerUser))
-
-const transactional = PostgresExecutor.withTransaction(rowsEffect)
-const transactionalStream = PostgresExecutor.withTransaction(rowsStream)
-const savepoint = PostgresExecutor.withSavepoint(rowsEffect)
-```
-
-These preserve the original effect type parameters and add the ambient SQL transaction boundary. For streams, wrap stream consumption in the transaction helper rather than trying to transact the stream value itself.
-
-## Error Handling
-
-The built-in executors return tagged errors for both read and write plans. Which tags are available depends on the plan's capabilities.
-
-### Catch Read-Plan Errors
-
-Read-only plans can still surface tagged database errors that make sense for reads. For example, invalid input to a typed filter can raise `invalid-text-representation`:
-
-```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-import * as Effect from "effect/Effect"
-import * as Pg from "effect-qb/postgres"
-import { Executor } from "effect-qb/postgres"
-
-class InvalidUserId extends Error {
-  constructor(readonly details: {
-    readonly value: string
-  }) {
-    super("Invalid user id")
-  }
-}
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const badUserId = Pg.Cast.to("not-a-uuid", Pg.Type.uuid())
-
-const plan = Q.select({
-  id: users.id,
-  email: users.email
-}).pipe(
-  Q.from(users),
-  Q.where(Q.eq(users.id, badUserId))
-)
-
-const executor = Executor.make()
-
-const rows = executor.execute(plan).pipe(
-  Effect.catchTag("@postgres/data-exception/invalid-text-representation", () =>
-    Effect.fail(new InvalidUserId({ value: "not-a-uuid" }))
+const city = Pg.Json.jsonb.text(
+  docs.payload,
+  Pg.Json.jsonb.path(
+    Pg.Json.jsonb.key("profile"),
+    Pg.Json.jsonb.key("address"),
+    Pg.Json.jsonb.key("city")
   )
 )
 
-executor.execute(plan).pipe(
-  // @ts-expect-error read plans do not expose write-only errors
-  Effect.catchTag("@postgres/integrity-constraint-violation/unique-violation", (error) =>
-    Effect.fail(error)
-  )
-)
+const plan = Query.select({ city }).pipe(Query.from(docs))
+
+void plan
 ```
 
-### Catch Direct Database Errors On Write Plans
-
-For write-bearing plans, you can match semantic database errors with `catchTag(...)`:
-
-```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-import * as Effect from "effect/Effect"
-import { Executor } from "effect-qb/postgres"
-
-class EmailAlreadyTaken extends Error {
-  constructor(readonly details: {
-    readonly constraint?: string
-    readonly table?: string
-  }) {
-    super("Email already taken")
-  }
-}
-
-const users = Table.make("users", {
-  id: C.text().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const plan = Q.insert(users, {
-  id: "user-1",
-  email: "alice@example.com"
-}).pipe(
-  Q.returning({
-    id: users.id,
-    email: users.email
-  })
-)
-
-const executor = Executor.make()
-
-const rows = executor.execute(plan).pipe(
-  Effect.catchTag("@postgres/integrity-constraint-violation/unique-violation", (error) =>
-    Effect.fail(new EmailAlreadyTaken({
-      constraint: error.constraintName,
-      table: error.tableName
-    }))
-  )
-)
-```
-
-### Inspect Errors Without Recovering
-
-Use `tapErrorTag(...)` when you want query context or raw driver data without changing the failure:
-
-```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-import * as Effect from "effect/Effect"
-import { Executor } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.text().pipe(C.primaryKey),
-  email: C.text()
-})
-
-const plan = Q.insert(users, {
-  id: "user-1",
-  email: "alice@example.com"
-}).pipe(
-  Q.returning({
-    id: users.id,
-    email: users.email
-  })
-)
-
-const executor = Executor.make()
-
-const logged = executor.execute(plan).pipe(
-  Effect.tapErrorTag(
-    "@postgres/integrity-constraint-violation/unique-violation",
-    (error) =>
-      Effect.logError("query failed", {
-        tag: error._tag,
-        sql: error.query?.sql,
-        params: error.query?.params,
-        constraint: error.constraintName,
-        raw: error.raw
-      })
-  )
-)
-```
-
-### Helper Utilities Are Available Too
-
-The dialect modules also expose helper predicates and descriptors:
-
-```ts
-import { Errors as PostgresErrors } from "effect-qb/postgres"
-
-const error = PostgresErrors.normalizePostgresDriverError({
-  code: "23505",
-  message: "duplicate key value violates unique constraint",
-  constraint: "users_email_key"
-})
-
-if (PostgresErrors.hasSqlState(error, "23505")) {
-  error.constraintName
-}
-```
+</details>
 
 ## Type Safety
 
-This is the main reason to use `effect-qb`.
-
-### Complete-plan Enforcement
-
-Partial plans are allowed while composing, but incomplete plans fail at the enforcement boundary.
-
-```ts
-import { Column as C, Query as Q, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const missingFrom = Q.select({
-  userId: users.id
-})
-
-type MissingFrom = Q.CompletePlan<typeof missingFrom>
-// {
-//   __effect_qb_error__:
-//     "effect-qb: query references sources that are not yet in scope"
-//   __effect_qb_missing_sources__: "users"
-//   __effect_qb_hint__:
-//     "Add from(...) or a join for each referenced source before render or execute"
-// }
-```
-
-The same branded error shape applies when `where(...)`, joins, or projections reference sources that never enter scope.
-
-### Predicate-driven Narrowing
-
-Predicates refine result types, not just SQL.
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const helloPosts = Q.select({
-  title: posts.title,
-  upperTitle: F.upper(posts.title)
-}).pipe(
-  Q.from(posts),
-  Q.where(Q.eq(posts.title, "hello"))
-)
-
-type HelloPostsRow = Q.ResultRow<typeof helloPosts>
-// {
-//   title: string
-//   upperTitle: string
-// }
-```
-
-Equality against a non-null literal narrows too. You do not need `isNotNull(...)` to get non-null output, and the same applies to range and set operators that prove the value is present.
-
-When the predicate references a joined source, that proof can promote the whole source, not just the filtered column.
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const promotedJoinedPosts = Q.select({
-  userId: users.id,
-  postId: posts.id,
-  postTitle: posts.title,
-  upperTitle: F.upper(posts.title)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.where(Q.eq(posts.title, "hello"))
-)
-
-type PromotedJoinedPostsRow = Q.ResultRow<typeof promotedJoinedPosts>
-// {
-//   userId: string
-//   postId: string
-//   postTitle: string
-//   upperTitle: string
-// }
-```
-
-### Implication Cheatsheet
-
-Comparison and set predicates can narrow both selected expressions and optional joined sources.
-
-| Predicate | What it proves | Effect on joined sources |
-| --- | --- | --- |
-| `eq(...)` against a non-null value | the compared expression is non-null | can promote the source that owns the expression |
-| `gt(...)`, `gte(...)`, `lt(...)`, `lte(...)` against a non-null value | the compared expression is non-null | can promote the source that owns the expression |
-| `in(...)` / `notIn(...)` | the tested expression is present | can promote the source that owns the expression |
-| `isNotNull(...)` | the expression is non-null | can promote the source that owns the expression |
-| `isNull(...)` | the expression is null | can collapse an optional source to `null` and take dependent joins with it |
-
-### Join Optionality
-
-Left joins start conservative. Predicates can promote them, and `isNull(...)` can prove the opposite.
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const maybePosts = Q.select({
-  userId: users.id,
-  postId: posts.id
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
-)
-
-type MaybePostsRow = Q.ResultRow<typeof maybePosts>
-// {
-//   userId: string
-//   postId: string | null
-// }
-```
-
-Any non-null proof on the joined table can promote the whole joined source, not just the join key.
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const comments = Table.make("comments", {
-  id: C.uuid().pipe(C.primaryKey),
-  postId: C.uuid(),
-  body: C.text()
-})
-
-const absentAcrossDependentLeftJoins = Q.select({
-  userId: users.id,
-  postId: posts.id,
-  commentId: comments.id,
-  commentBody: comments.body
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.leftJoin(comments, Q.eq(posts.id, comments.postId)),
-  Q.where(Q.isNull(posts.id))
-)
-
-type AbsentAcrossDependentLeftJoinsRow = Q.ResultRow<typeof absentAcrossDependentLeftJoins>
-// {
-//   userId: string
-//   postId: null
-//   commentId: null
-//   commentBody: null
-// }
-```
-
-`isNull(...)` on an optional source does not just make one column nullable. It can collapse the source itself to `null`, and dependent joins that hang off it collapse with it.
-
-### Grouped Query Validation
-
-Grouped queries are checked structurally:
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import { Json as J } from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: C.uuid().pipe(C.primaryKey),
-  email: C.text(),
-  bio: C.text().pipe(C.nullable)
-})
-
-const posts = Table.make("posts", {
-  id: C.uuid().pipe(C.primaryKey),
-  userId: C.uuid(),
-  title: C.text().pipe(C.nullable),
-  status: C.text()
-})
-
-const invalidGroupedPlan = Q.select({
-  userId: users.id,
-  title: posts.title,
-  postCount: F.count(posts.id)
-}).pipe(
-  Q.from(users),
-  Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(users.id)
-)
-
-type InvalidGroupedPlan = Q.CompletePlan<typeof invalidGroupedPlan>
-// {
-//   __effect_qb_error__: "effect-qb: invalid grouped selection"
-//   __effect_qb_hint__:
-//     "Scalar selections must be covered by groupBy(...) when aggregates are present"
-// }
-```
-
-This catches invalid grouped queries before rendering.
-
-### Dialect Compatibility
-
-Plans, tables, renderers, and executors are dialect-branded.
-
-```ts
-import * as Mysql from "effect-qb/mysql"
-import { Executor as PostgresExecutor } from "effect-qb/postgres"
-
-const mysqlPlan = Mysql.Query.select({
-  id: Mysql.Query.literal("user-id")
-})
-
-const postgresExecutor = PostgresExecutor.make()
-
-// @ts-expect-error mysql plans are not dialect-compatible with the postgres executor
-postgresExecutor.execute(mysqlPlan)
-// effect-qb: plan dialect is not compatible with the target renderer or executor
-```
-
-### JSON Schema Compatibility In Mutations
-
-Schema-backed JSON columns are checked on insert and update.
-
-```ts
-import { Column as C, Function as F, Query as Q, Table } from "effect-qb"
-import * as Schema from "effect/Schema"
-import { Json as J } from "effect-qb/postgres"
-
-const docs = Table.make("docs", {
-  id: C.uuid().pipe(C.primaryKey),
-  payload: C.json(Schema.Struct({
-    profile: Schema.Struct({
-      address: Schema.Struct({
-        city: Schema.String,
-        postcode: Schema.NullOr(Schema.String)
-      }),
-      tags: Schema.Array(Schema.String)
-    }),
-    note: Schema.NullOr(Schema.String)
-  }))
-})
-
-const cityPath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("address"),
-  J.json.key("city")
-)
-
-const compatibleObject = J.json.buildObject({
-  profile: {
-    address: {
-      city: "Macon",
-      postcode: "1000"
-    },
-    tags: ["travel"]
-  },
-  note: null
-})
-
-const deletedRequiredField = J.json.delete(compatibleObject, cityPath)
-
-Q.insert(docs, {
-  id: "doc-1",
-  // @ts-expect-error nested json output must still satisfy the column schema
-  payload: deletedRequiredField
-})
-```
-
-For updates, column-derived JSON expressions are checked too:
-
-```ts
-const invalidUpdate = {
-  payload: deletedRequiredField
-}
-
-// @ts-expect-error deleting a required field makes the json output incompatible
-Q.update(docs, invalidUpdate)
-```
-
-The same compatibility checks apply anywhere a mutation assigns to a schema-backed JSON column.
-
-### Readable Branded Type Errors
-
-The library favors branded type errors over silent `never` collapse. Typical diagnostics include:
-
-- `__effect_qb_error__`
-- `__effect_qb_hint__`
-- `__effect_qb_missing_sources__`
-- `__effect_qb_plan_dialect__`
-- `__effect_qb_target_dialect__`
-
-That makes invalid plans easier to inspect in editor tooltips and type aliases.
-
-## Dialect Support
-
-### PostgreSQL
-
-- `effect-qb/postgres`
-- `distinctOn(...)`
-- wider JSON operator surface, including `json.pathMatch(...)`
-- schema-qualified tables default to `public`
-- `Postgres.Executor.PostgresQueryError<typeof plan>`
-
-### MySQL
-
-- dialect-specific table and query entrypoint via `effect-qb/mysql`
-- `distinctOn(...)` is rejected with a branded type error
-- JSON support is broad but not identical to Postgres
-- schema names map to database-qualified table references
-- `Mysql.Executor.MysqlQueryError<typeof plan>`
-
-### SQLite
-
-- dialect-specific table and query entrypoint via `effect-qb/sqlite`
-- built-in renderer and executor support for SQLite-compatible plans
-- `returning(...)` is available where SQLite supports it
-- unsupported features such as lateral sources, row locks, truncate, regex predicates, and container operators are rejected with branded type errors
-- JSON helpers target SQLite's JSON function surface and intentionally differ from Postgres `jsonb`
-- `Sqlite.Executor.SqliteQueryError<typeof plan>`
-
-Meaningful differences should be expected around:
-
-- JSON operator support
-- mutation syntax
-- error normalization
-- schema defaults
+`effect-qb` pushes validation into the type system wherever the public API can
+know the answer statically:
+
+- table names, schema names, column names, and aliases are literal-aware
+- empty table names, empty field maps, and empty alias strings are rejected
+- selected result rows are inferred from the query plan
+- insert/update inputs are inferred from table metadata
+- concrete dialect conflicts are rejected
+- renderer and executor `valueMappings` accept only known keys
+- many table option conflicts are rejected before runtime
+
+Runtime checks remain at the boundaries where real data enters or leaves the
+typed plan: rendering, driver execution, and row decoding.
 
 ## Limitations
 
-This README is curated. It documents the main workflows and type-safety contract, not every API detail.
+- Standard plans are portable only while they stay on the root API surface.
+- Dialect-specific helpers narrow plans to that dialect.
+- MySQL and SQLite do not have Postgres-style schema namespaces, enums, or
+  sequences.
+- MySQL does not support every mutation `returning` shape.
+- SQLite has type-affinity and SQL feature limits that differ from server
+  databases.
+- `effect-qb` is not a migration CLI. See `effect-db` for that companion
+  workflow.
 
-Current practical limits:
+## API Map
 
-- some features are dialect-specific by design
-- JSON support is not identical across Postgres, MySQL, and SQLite
-- admin and DDL workflows are not the focus of this README
-- runtime schema enforcement follows propagated column and projection schemas, not full query-derived schemas
+Root modules:
 
-## Contributing
+| Module | Purpose |
+| --- | --- |
+| `Column` | portable column definitions and modifiers |
+| `Table` | portable table definitions, aliases, constraints, derived schemas |
+| `Query` | portable query construction DSL |
+| `Function` | portable SQL function expressions |
+| `Renderer` | standard renderer |
+| `Datatypes` | portable datatype witnesses |
+| `Casing` | composable physical identifier casing |
 
-Useful commands:
+Concrete modules:
 
-```bash
+| Module | Purpose |
+| --- | --- |
+| `effect-qb/postgres` | Postgres-specific columns, table options, query helpers, JSON/jsonb, schemas, renderer, executor |
+| `effect-qb/mysql` | MySQL-specific helpers, renderer, executor |
+| `effect-qb/sqlite` | SQLite-specific helpers, renderer, executor |
+| `effect-qb/postgres/metadata` | Postgres metadata normalization helpers |
+
+## Development
+
+```sh
+bun install
+bun run build
 bun test
 bun run test:types
 bun run test:integration
-bun run release
+bun run test:pack
 ```
 
-Useful places to start:
+This repository uses Bun and `tsgo`. Do not add `tsc`-based scripts or docs
+unless there is a specific reason.
 
-- [packages/querybuilder/src/postgres.ts](./packages/querybuilder/src/postgres.ts)
-- [packages/querybuilder/src/internal/query-factory.ts](./packages/querybuilder/src/internal/query-factory.ts)
-- [packages/querybuilder/src/postgres/private/query.ts](./packages/querybuilder/src/postgres/private/query.ts)
-- [test/public/behavior/query.behavior.test.ts](./test/public/behavior/query.behavior.test.ts)
-- [test/public/types/query-composition-types.ts](./test/public/types/query-composition-types.ts)
+The main test areas are:
 
-The codebase is organized around typed plans, dialect-specialized entrypoints, and behavior-first tests.
+- `test/public/behavior`
+- `test/internal/behavior`
+- `test/public/types`
+- `test/internal/types`
+- public integration tests for concrete executors
+
+For README edits that add TypeScript snippets, run:
+
+```sh
+bun run generate:readme-types
+bunx tsgo -p tsconfig.type-tests.json
+```
+
+## Companion Package: effect-db
+
+`effect-db` lives in this workspace but is a separate package. It handles the
+schema-management workflow around database pull, push, and migrations. Keep the
+mental model separate:
+
+- `effect-qb` defines tables and query plans.
+- `effect-qb` renders and executes typed SQL.
+- `effect-db` is the companion package for schema-management CLI workflows.
