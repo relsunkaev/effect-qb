@@ -71,10 +71,10 @@ const mapColumnList = (
     ? columns
     : columns.length === 0
       ? columns
-    : [
-        mapCasedValue(columns[0], casing, "columns"),
-        ...columns.slice(1).map((column) => mapCasedValue(column, casing, "columns"))
-      ] as unknown as ColumnList
+      : [
+          mapCasedValue(columns[0], casing, "columns"),
+          ...columns.slice(1).map((column) => mapCasedValue(column, casing, "columns"))
+        ] as ColumnList
 
 const expressionStateForTable = (
   state: Table.AnyTable[typeof Table.TypeId],
@@ -96,34 +96,66 @@ const mapDdlExpression = (
 ): SchemaExpression.SchemaExpression =>
   SchemaExpression.fromSql(normalizeDdlExpressionSql(expression, state))
 
-const mapOptionName = (
+function mapOptionName(
+  name: string,
+  casing: Casing.Options | undefined,
+  category: "indexes" | "constraints"
+): string
+function mapOptionName(
   name: unknown,
   casing: Casing.Options | undefined,
   category: "indexes" | "constraints"
-): unknown =>
-  typeof name === "string"
+): unknown
+function mapOptionName(
+  name: unknown,
+  casing: Casing.Options | undefined,
+  category: "indexes" | "constraints"
+): unknown {
+  return typeof name === "string"
     ? applyCasing(casing, category, name)
     : name
+}
 
-const mapCasedValue = (
+function mapCasedValue(
+  value: string,
+  casing: Casing.Options | undefined,
+  category: Casing.Category
+): string
+function mapCasedValue(
   value: unknown,
   casing: Casing.Options | undefined,
   category: Casing.Category
-): unknown =>
-  typeof value === "string"
+): unknown
+function mapCasedValue(
+  value: unknown,
+  casing: Casing.Options | undefined,
+  category: Casing.Category
+): unknown {
+  return typeof value === "string"
     ? applyCasing(casing, category, value)
     : value
+}
 
 const isDdlExpressionLike = (value: unknown): value is DdlExpressionLike =>
   typeof value === "object" &&
   value !== null &&
   (Expression.TypeId in value || SchemaExpression.TypeId in value)
 
-const mapIndexKey = (
+function mapIndexKey(
+  key: IndexKeySpec,
+  casing: Casing.Options | undefined,
+  expressionState: Partial<RenderState>
+): IndexKeySpec
+function mapIndexKey(
   key: unknown,
   casing: Casing.Options | undefined,
   expressionState: Partial<RenderState>
-): unknown => {
+): unknown
+function mapIndexKey(
+  key: unknown,
+  casing: Casing.Options | undefined,
+  expressionState: Partial<RenderState>
+): unknown {
   if (typeof key !== "object" || key === null || !("kind" in key)) {
     return key
   }
