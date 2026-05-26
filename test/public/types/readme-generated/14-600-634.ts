@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 571-605
+// Code fences: 600-634
 
-// README.md:571-605
+// README.md:600-634
 import * as Schema from "effect/Schema"
 import { Column, Query, Table } from "effect-qb"
 import * as Pg from "effect-qb/postgres"

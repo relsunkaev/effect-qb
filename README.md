@@ -38,27 +38,35 @@ type _ActiveUser = ActiveUser
 
 ## Contents
 
-- [Install](#install)
-- [Quick Start](#quick-start)
-- [Mental Model](#mental-model)
-- [Defining Tables](#defining-tables)
-- [Writing Queries](#writing-queries)
-- [Rendering SQL](#rendering-sql)
-- [Executing Queries](#executing-queries)
-- [Casing and Naming](#casing-and-naming)
-- [Dialect Modules](#dialect-modules)
-- [Postgres](#postgres)
-- [MySQL](#mysql)
-- [SQLite](#sqlite)
-- [Advanced Types](#advanced-types)
+- [Getting Started](#getting-started)
+  - [Install](#install)
+  - [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+  - [How effect-qb Works](#how-effect-qb-works)
+  - [Defining Tables](#defining-tables)
+  - [Column Types and Runtime Schemas](#column-types-and-runtime-schemas)
+  - [Casing and Naming](#casing-and-naming)
+- [Query Lifecycle](#query-lifecycle)
+  - [Writing Queries](#writing-queries)
+  - [Rendering SQL](#rendering-sql)
+  - [Executing Queries](#executing-queries)
+- [Dialects](#dialects)
+  - [Portable Standard Surface](#portable-standard-surface)
+  - [Postgres](#postgres)
+  - [MySQL](#mysql)
+  - [SQLite](#sqlite)
 - [Recipes](#recipes)
-- [Type Safety](#type-safety)
-- [Limitations](#limitations)
-- [API Map](#api-map)
-- [Development](#development)
-- [Companion Package: effect-db](#companion-package-effect-db)
+- [Guarantees and Boundaries](#guarantees-and-boundaries)
+  - [Type Safety](#type-safety)
+  - [Limitations](#limitations)
+  - [Companion Package: effect-db](#companion-package-effect-db)
+- [Reference](#reference)
+  - [API Map](#api-map)
+  - [Development](#development)
 
-## Install
+## Getting Started
+
+### Install
 
 ```sh
 bun add effect-qb effect @effect/sql @effect/experimental
@@ -77,7 +85,7 @@ Public query-builder import paths:
 - `effect-qb/mysql` - MySQL extensions, renderer, executor
 - `effect-qb/sqlite` - SQLite extensions, renderer, executor
 
-## Quick Start
+### Quick Start
 
 Define a table, build a query, render it for a dialect, and derive the result
 row type from the plan.
@@ -135,7 +143,9 @@ My.Renderer.make().render(readAccounts)
 Sq.Renderer.make().render(readAccounts)
 ```
 
-## Mental Model
+## Core Concepts
+
+### How effect-qb Works
 
 `effect-qb` is built around a small pipeline:
 
@@ -178,7 +188,7 @@ concrete modules only when the query depends on concrete SQL.
 
 </details>
 
-## Defining Tables
+### Defining Tables
 
 `Table.make` is the primary table factory.
 
@@ -221,29 +231,6 @@ Root table helpers cover portable constraints and metadata:
 - `Table.selectSchema(...)`, `Table.insertSchema(...)`, `Table.updateSchema(...)`
 
 <details>
-<summary>Schema-scoped tables</summary>
-
-Portable schema-scoped tables can be created with `Table.schema(name)`.
-
-```ts
-import { Column, Table } from "effect-qb"
-
-const publicSchema = Table.schema("public")
-
-const users = publicSchema.table("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-void users
-```
-
-Postgres also has `Pg.Schema.make(...)`, which adds Postgres enums, sequences,
-and schema application helpers. See [Postgres](#postgres).
-
-</details>
-
-<details>
 <summary>Class-style tables</summary>
 
 `Table.Class` exists for class-style declarations and advanced schema-centric
@@ -252,7 +239,118 @@ table definitions.
 
 </details>
 
-## Writing Queries
+### Column Types and Runtime Schemas
+
+The portable column surface includes:
+
+- `uuid`
+- `text`, `varchar`, `char`
+- `int`, `bigint`, `number`, `decimal`, `real`
+- `boolean`
+- `date`, `time`, `datetime`, `timestamp`
+- `blob`
+- `json`
+
+Columns can refine their select/insert/update schemas.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Table } from "effect-qb"
+
+const events = Table.make("events", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  happenedOn: Column.date().pipe(Column.schema(Schema.DateFromString)),
+  payload: Column.json(Schema.Struct({
+    visits: Schema.Number
+  }))
+})
+
+type EventRow = Table.SelectOf<typeof events>
+type EventInsert = Table.InsertOf<typeof events>
+
+type _EventRow = EventRow
+type _EventInsert = EventInsert
+```
+
+Postgres adds concrete types such as `jsonb`, `bytea`, arrays, identity
+columns, timestamp variants, and custom typed casts/references.
+
+### Casing and Naming
+
+Use `Casing` when model identifiers and physical database identifiers do not
+use the same naming convention.
+
+Casing can be configured at the renderer level, or attached to tables and
+Postgres schema factories.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Casing, Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const Snake = Casing.casing({
+  tables: "snake_case",
+  columns: "snake_case"
+})
+
+const users = Snake.table("Users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  createdAt: Column.datetime()
+})
+
+const Analytics = Pg.Schema.make("analytics").pipe(
+  Casing.withCasing({
+    tables: "snake_case",
+    columns: "snake_case",
+    types: "snake_case",
+    sequences: "snake_case"
+  })
+)
+
+const events = Table.make("Events", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  createdAt: Column.datetime(),
+  meta: Pg.Column.jsonb(Schema.Struct({
+    kind: Schema.String
+  }))
+}).pipe(
+  Casing.withCasing({ columns: "snake_case" }),
+  Analytics.withSchema
+)
+
+const readEvents = Query.select({
+  id: events.id,
+  kind: Pg.Json.jsonb.text(events.meta, Pg.Json.jsonb.key("kind"))
+}).pipe(Query.from(events))
+
+Pg.Renderer.make().render(readEvents)
+
+void users
+```
+
+Casing categories:
+
+- `tables`
+- `columns`
+- `schemas`
+- `indexes`
+- `constraints`
+- `types`
+- `sequences`
+
+Built-in casing styles:
+
+- `"preserve"`
+- `"snake_case"`
+- `"camelCase"`
+- `"PascalCase"`
+- `"kebab-case"`
+- `"SCREAMING_SNAKE_CASE"`
+- `(name: string) => string`
+
+## Query Lifecycle
+
+### Writing Queries
 
 Queries are ordinary values. Compose them with `.pipe(...)`.
 
@@ -327,7 +425,7 @@ void incrementVisits
 
 </details>
 
-## Rendering SQL
+### Rendering SQL
 
 Each built-in renderer exposes `make(options?)` and `render(plan)`.
 
@@ -404,7 +502,7 @@ nested result shape described by the query plan.
 
 </details>
 
-## Executing Queries
+### Executing Queries
 
 Use concrete executors for execution. By default, a concrete executor uses the
 built-in renderer and the ambient `@effect/sql` `SqlClient` service.
@@ -453,80 +551,9 @@ void executor
 
 </details>
 
-## Casing and Naming
+## Dialects
 
-Use `Casing` when model identifiers and physical database identifiers do not
-use the same naming convention.
-
-Casing can be configured at the renderer level, as shown above, or attached to
-tables and schema factories.
-
-```ts
-import * as Schema from "effect/Schema"
-import { Casing, Column, Query, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const Snake = Casing.casing({
-  tables: "snake_case",
-  columns: "snake_case"
-})
-
-const users = Snake.table("Users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  createdAt: Column.datetime()
-})
-
-const Analytics = Pg.Schema.make("analytics").pipe(
-  Casing.withCasing({
-    tables: "snake_case",
-    columns: "snake_case",
-    types: "snake_case",
-    sequences: "snake_case"
-  })
-)
-
-const events = Table.make("Events", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  createdAt: Column.datetime(),
-  meta: Pg.Column.jsonb(Schema.Struct({
-    kind: Schema.String
-  }))
-}).pipe(
-  Casing.withCasing({ columns: "snake_case" }),
-  Analytics.withSchema
-)
-
-const readEvents = Query.select({
-  id: events.id,
-  kind: Pg.Json.jsonb.text(events.meta, Pg.Json.jsonb.key("kind"))
-}).pipe(Query.from(events))
-
-Pg.Renderer.make().render(readEvents)
-
-void users
-```
-
-Casing categories:
-
-- `tables`
-- `columns`
-- `schemas`
-- `indexes`
-- `constraints`
-- `types`
-- `sequences`
-
-Built-in casing styles:
-
-- `"preserve"`
-- `"snake_case"`
-- `"camelCase"`
-- `"PascalCase"`
-- `"kebab-case"`
-- `"SCREAMING_SNAKE_CASE"`
-- `(name: string) => string`
-
-## Dialect Modules
+### Portable Standard Surface
 
 Portable APIs are exported from `effect-qb`. Dialect modules add only concrete
 behavior.
@@ -563,10 +590,12 @@ Dialect modules expose:
 Portable columns and tables are created from `effect-qb`, not from dialect
 modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.
 
-## Postgres
+### Postgres
 
 Postgres adds `jsonb`, arrays, identity columns, richer index metadata, casts,
 custom types, schemas, enums, and sequences.
+
+#### jsonb and Table Extensions
 
 ```ts
 import * as Schema from "effect/Schema"
@@ -604,8 +633,10 @@ const eventKinds = Query.select({
 Pg.Renderer.make().render(eventKinds)
 ```
 
+#### Schemas, Enums, and Sequences
+
 <details>
-<summary>Postgres schemas, enums, and sequences</summary>
+<summary>Example</summary>
 
 ```ts
 import { Casing, Column } from "effect-qb"
@@ -636,7 +667,7 @@ void metrics
 
 </details>
 
-## MySQL
+### MySQL
 
 MySQL plans use the root APIs for portable tables and columns, plus MySQL
 helpers when the query depends on MySQL-specific SQL.
@@ -666,7 +697,7 @@ MySQL casts/functions where needed, and MySQL legality checks. MySQL does not
 support every feature available in Postgres. For example, full joins and
 `returning` projections on some mutations are rejected.
 
-## SQLite
+### SQLite
 
 SQLite plans also use the root APIs for portable tables and columns, plus SQLite
 helpers for SQLite-specific SQL such as JSON1 functions.
@@ -699,42 +730,6 @@ Sq.Renderer.make().render(readDocs)
 SQLite support includes DDL, mutations, reads, streams, transactions/savepoints,
 and JSON1 helpers. Some SQL features remain intentionally unsupported where
 SQLite has no equivalent.
-
-## Advanced Types
-
-The portable column surface includes:
-
-- `uuid`
-- `text`, `varchar`, `char`
-- `int`, `bigint`, `number`, `decimal`, `real`
-- `boolean`
-- `date`, `time`, `datetime`, `timestamp`
-- `blob`
-- `json`
-
-Columns can refine their select/insert/update schemas.
-
-```ts
-import * as Schema from "effect/Schema"
-import { Column, Table } from "effect-qb"
-
-const events = Table.make("events", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  happenedOn: Column.date().pipe(Column.schema(Schema.DateFromString)),
-  payload: Column.json(Schema.Struct({
-    visits: Schema.Number
-  }))
-})
-
-type EventRow = Table.SelectOf<typeof events>
-type EventInsert = Table.InsertOf<typeof events>
-
-type _EventRow = EventRow
-type _EventInsert = EventInsert
-```
-
-Postgres adds concrete types such as `jsonb`, `bytea`, arrays, identity
-columns, timestamp variants, and custom typed casts/references.
 
 ## Recipes
 
@@ -817,7 +812,9 @@ void plan
 
 </details>
 
-## Type Safety
+## Guarantees and Boundaries
+
+### Type Safety
 
 `effect-qb` pushes validation into the type system wherever the public API can
 know the answer statically:
@@ -833,7 +830,7 @@ know the answer statically:
 Runtime checks remain at the boundaries where real data enters or leaves the
 typed plan: rendering, driver execution, and row decoding.
 
-## Limitations
+### Limitations
 
 - Standard plans are portable only while they stay on the root API surface.
 - Dialect-specific helpers narrow plans to that dialect.
@@ -845,7 +842,19 @@ typed plan: rendering, driver execution, and row decoding.
 - `effect-qb` is not a migration CLI. See `effect-db` for that companion
   workflow.
 
-## API Map
+### Companion Package: effect-db
+
+`effect-db` lives in this workspace but is a separate package. It handles the
+schema-management workflow around database pull, push, and migrations. Keep the
+mental model separate:
+
+- `effect-qb` defines tables and query plans.
+- `effect-qb` renders and executes typed SQL.
+- `effect-db` is the companion package for schema-management CLI workflows.
+
+## Reference
+
+### API Map
 
 Root modules:
 
@@ -868,7 +877,7 @@ Concrete modules:
 | `effect-qb/sqlite` | SQLite-specific helpers, renderer, executor |
 | `effect-qb/postgres/metadata` | Postgres metadata normalization helpers |
 
-## Development
+### Development
 
 ```sh
 bun install
@@ -896,13 +905,3 @@ For README edits that add TypeScript snippets, run:
 bun run generate:readme-types
 bunx tsgo -p tsconfig.type-tests.json
 ```
-
-## Companion Package: effect-db
-
-`effect-db` lives in this workspace but is a separate package. It handles the
-schema-management workflow around database pull, push, and migrations. Keep the
-mental model separate:
-
-- `effect-qb` defines tables and query plans.
-- `effect-qb` renders and executes typed SQL.
-- `effect-db` is the companion package for schema-management CLI workflows.

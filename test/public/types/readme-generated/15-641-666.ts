@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 610-635
+// Code fences: 641-666
 
-// README.md:610-635
+// README.md:641-666
 import { Casing, Column } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
 

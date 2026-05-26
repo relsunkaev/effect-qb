@@ -1,25 +1,25 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 117-136
+// Code fences: 561-580
 
-// README.md:117-136
+// README.md:561-580
 import { Column, Query, Table } from "effect-qb"
 import * as My from "effect-qb/mysql"
 import * as Pg from "effect-qb/postgres"
 import * as Sq from "effect-qb/sqlite"
 
-const accounts = Table.make("accounts", {
+const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
   email: Column.text()
 })
 
-const readAccounts = Query.select({
-  id: accounts.id,
-  email: accounts.email
-}).pipe(Query.from(accounts))
+const plan = Query.select({
+  id: users.id,
+  email: users.email
+}).pipe(Query.from(users))
 
-Pg.Renderer.make().render(readAccounts)
-My.Renderer.make().render(readAccounts)
-Sq.Renderer.make().render(readAccounts)
+Pg.Renderer.make().render(plan)
+My.Renderer.make().render(plan)
+Sq.Renderer.make().render(plan)
 
 export {};

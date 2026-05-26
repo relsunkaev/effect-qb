@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 370-389
+// Code fences: 468-487
 
-// README.md:370-389
+// README.md:468-487
 import * as Pg from "effect-qb/postgres"
 
 const mapping: Pg.Scalar.DriverValueMapping = {
