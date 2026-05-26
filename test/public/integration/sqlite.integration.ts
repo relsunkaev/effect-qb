@@ -110,13 +110,13 @@ test("sqlite executor supports returning upserts, JSON1 queries, and savepoint r
     const inserted = yield* executor.execute(upsert)
     const updated = yield* executor.execute(upsert)
 
-    const tags = J.json.get(docs.payload, J.json.path(J.json.key("profile"), J.json.key("tags")))
+    const tags = J.get(docs.payload, J.path(J.key("profile"), J.key("tags")))
     const jsonRead = Q.select({
-      city: J.json.text(
+      city: J.text(
         docs.payload,
-        J.json.path(J.json.key("profile"), J.json.key("address"), J.json.key("city"))
+        J.path(J.key("profile"), J.key("address"), J.key("city"))
       ),
-      tags: J.json.length(tags)
+      tags: J.length(tags)
     }).pipe(Q.from(docs))
 
     const jsonRows = yield* executor.execute(jsonRead)
@@ -778,9 +778,9 @@ test("sqlite JSON1 mutation and construction helpers execute against stored JSON
 
   const result = await runSqlite(Effect.gen(function*() {
     const executor = Executor.make()
-    const cityPath = J.json.path(J.json.key("profile"), J.json.key("address"), J.json.key("city"))
-    const postcodePath = J.json.path(J.json.key("profile"), J.json.key("address"), J.json.key("postcode"))
-    const metadataPath = J.json.path(J.json.key("metadata"))
+    const cityPath = J.path(J.key("profile"), J.key("address"), J.key("city"))
+    const postcodePath = J.path(J.key("profile"), J.key("address"), J.key("postcode"))
+    const metadataPath = J.path(J.key("metadata"))
 
     yield* executor.execute(Q.createTable(docs))
     yield* executor.execute(Q.insert(docs, {
@@ -797,22 +797,22 @@ test("sqlite JSON1 mutation and construction helpers execute against stored JSON
     }))
 
     return yield* executor.execute(Q.select({
-      builtObject: J.json.buildObject({
+      builtObject: J.buildObject({
         source: "sqlite",
         ok: true
       }),
-      builtArray: J.json.buildArray("sqlite", 1, true),
-      typeName: J.json.typeOf(docs.payload),
-      keys: J.json.keys(docs.payload),
-      hasProfile: J.json.hasKey(docs.payload, "profile"),
-      hasAll: J.json.hasAllKeys(docs.payload, "profile", "note"),
-      pathExists: J.json.pathExists(docs.payload, cityPath),
-      city: J.json.text(docs.payload, cityPath),
-      setPostcode: J.json.set(docs.payload, postcodePath, "1000"),
-      insertMetadata: J.json.insert(docs.payload, metadataPath, { imported: true }),
-      deleteNote: J.json.delete(docs.payload, J.json.key("note")),
-      removeNote: J.json.remove(docs.payload, J.json.key("note")),
-      merged: J.json.merge(docs.payload, {
+      builtArray: J.buildArray("sqlite", 1, true),
+      typeName: J.typeOf(docs.payload),
+      keys: J.keys(docs.payload),
+      hasProfile: J.hasKey(docs.payload, "profile"),
+      hasAll: J.hasAllKeys(docs.payload, "profile", "note"),
+      pathExists: J.pathExists(docs.payload, cityPath),
+      city: J.text(docs.payload, cityPath),
+      setPostcode: J.set(docs.payload, postcodePath, "1000"),
+      insertMetadata: J.insert(docs.payload, metadataPath, { imported: true }),
+      deleteNote: J.delete(docs.payload, J.key("note")),
+      removeNote: J.remove(docs.payload, J.key("note")),
+      merged: J.merge(docs.payload, {
         profile: {
           active: true
         }

@@ -222,28 +222,28 @@ describe("sqlite behavior", () => {
       id: StdRoot.Column.text().pipe(StdRoot.Column.primaryKey),
       payload: StdRoot.Column.json(Schema.Unknown)
     })
-    const tags = Sqlite.Json.json.get(
+    const tags = Sqlite.Json.get(
       docs.payload,
-      Sqlite.Json.json.path(
-        Sqlite.Json.json.key("profile"),
-        Sqlite.Json.json.key("tags")
+      Sqlite.Json.path(
+        Sqlite.Json.key("profile"),
+        Sqlite.Json.key("tags")
       )
     )
 
     const plan = Sqlite.Query.select({
-      city: Sqlite.Json.json.text(
+      city: Sqlite.Json.text(
         docs.payload,
-        Sqlite.Json.json.path(
-          Sqlite.Json.json.key("profile"),
-          Sqlite.Json.json.key("address"),
-          Sqlite.Json.json.key("city")
+        Sqlite.Json.path(
+          Sqlite.Json.key("profile"),
+          Sqlite.Json.key("address"),
+          Sqlite.Json.key("city")
         )
       ),
-      built: Sqlite.Json.json.buildObject({
+      built: Sqlite.Json.buildObject({
         source: "sqlite",
         ok: true
       }),
-      tags: Sqlite.Json.json.length(tags)
+      tags: Sqlite.Json.length(tags)
     }).pipe(Sqlite.Query.from(docs))
 
     const rendered = render(plan)
@@ -271,13 +271,13 @@ describe("sqlite behavior", () => {
     })
 
     const rendered = render(Sqlite.Query.select({
-      built: Sqlite.Json.json.buildObject({
+      built: Sqlite.Json.buildObject({
         nested: { ok: true },
         tags: ["sqlite"]
       }),
-      patched: Sqlite.Json.json.set(
+      patched: Sqlite.Json.set(
         docs.payload,
-        Sqlite.Json.json.path(Sqlite.Json.json.key("nested")),
+        Sqlite.Json.path(Sqlite.Json.key("nested")),
         { ok: true }
       )
     }).pipe(Sqlite.Query.from(docs)))
@@ -297,7 +297,7 @@ describe("sqlite behavior", () => {
 
   test("renders sqlite JSON merge operands as JSON instead of raw driver objects", () => {
     const rendered = render(Sqlite.Query.select({
-      merged: Sqlite.Json.json.merge(
+      merged: Sqlite.Json.merge(
         { nested: { left: true } },
         { tags: ["sqlite"] }
       )
@@ -318,22 +318,22 @@ describe("sqlite behavior", () => {
       payload: StdRoot.Column.json(Schema.Unknown)
     })
 
-    const lastTagPath = Sqlite.Json.json.path(
-      Sqlite.Json.json.key("profile"),
-      Sqlite.Json.json.key("tags"),
-      Sqlite.Json.json.index(-1)
+    const lastTagPath = Sqlite.Json.path(
+      Sqlite.Json.key("profile"),
+      Sqlite.Json.key("tags"),
+      Sqlite.Json.index(-1)
     )
-    const descendPath = Sqlite.Json.json.path(
-      Sqlite.Json.json.descend(),
-      Sqlite.Json.json.key("city")
+    const descendPath = Sqlite.Json.path(
+      Sqlite.Json.descend(),
+      Sqlite.Json.key("city")
     )
-    const wildcardPath = Sqlite.Json.json.path(
-      Sqlite.Json.json.key("profile"),
-      Sqlite.Json.json.wildcard()
+    const wildcardPath = Sqlite.Json.path(
+      Sqlite.Json.key("profile"),
+      Sqlite.Json.wildcard()
     )
 
     const rendered = render(Sqlite.Query.select({
-      hasLastTag: Sqlite.Json.json.pathExists(docs.payload, lastTagPath)
+      hasLastTag: Sqlite.Json.pathExists(docs.payload, lastTagPath)
     }).pipe(Sqlite.Query.from(docs)))
 
     expect(rendered.sql).toBe(
@@ -341,10 +341,10 @@ describe("sqlite behavior", () => {
     )
     expect(rendered.params).toEqual(["$.profile.tags[#-1]"])
     expect(() => render(Sqlite.Query.select({
-      unsupported: Sqlite.Json.json.pathExists(docs.payload, descendPath)
+      unsupported: Sqlite.Json.pathExists(docs.payload, descendPath)
     }).pipe(Sqlite.Query.from(docs)))).toThrow("SQLite JSON paths do not support recursive descent segments")
     expect(() => render(Sqlite.Query.select({
-      unsupported: Sqlite.Json.json.get(docs.payload, wildcardPath)
+      unsupported: Sqlite.Json.get(docs.payload, wildcardPath)
     }).pipe(Sqlite.Query.from(docs)))).toThrow("SQLite JSON paths do not support wildcard segments")
   })
 
@@ -354,14 +354,14 @@ describe("sqlite behavior", () => {
       payload: StdRoot.Column.json(Schema.Unknown)
     })
 
-    const firstTagPath = Sqlite.Json.json.path(
-      Sqlite.Json.json.key("profile"),
-      Sqlite.Json.json.key("tags"),
-      Sqlite.Json.json.index(1)
+    const firstTagPath = Sqlite.Json.path(
+      Sqlite.Json.key("profile"),
+      Sqlite.Json.key("tags"),
+      Sqlite.Json.index(1)
     )
 
     expect(() => render(Sqlite.Query.select({
-      inserted: Sqlite.Json.json.insert(docs.payload, firstTagPath, "city")
+      inserted: Sqlite.Json.insert(docs.payload, firstTagPath, "city")
     }).pipe(Sqlite.Query.from(docs)))).toThrow(
       "Unsupported JSON feature for sqlite: jsonInsertArrayIndex"
     )

@@ -2,7 +2,7 @@ import { Column as PgColumn } from "effect-qb/postgres"
 import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
-import { Scalar as E, Function as F, Json as J, Query as Q } from "effect-qb/postgres"
+import { Scalar as E, Function as F, Json as J, Jsonb as Jb, Query as Q } from "effect-qb/postgres"
 import type { BrandedErrorOf } from "../../helpers/branded-error.ts"
 
 type IsAny<Value> = 0 extends (1 & Value) ? true : false
@@ -114,97 +114,97 @@ const jsonPathCollisionDocs = Std.Table.make("json_path_collision_docs", {
   payload: PgColumn.jsonb(collisionPayloadSchema)
 })
 
-const cityPath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("address"),
-  J.json.key("city")
+const cityPath = J.path(
+  J.key("profile"),
+  J.key("address"),
+  J.key("city")
 )
-const postcodePath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("address"),
-  J.json.key("postcode")
+const postcodePath = J.path(
+  J.key("profile"),
+  J.key("address"),
+  J.key("postcode")
 )
-const suitePath = J.jsonb.path(
-  J.jsonb.key("profile"),
-  J.jsonb.key("address"),
-  J.jsonb.key("suite")
+const suitePath = Jb.path(
+  Jb.key("profile"),
+  Jb.key("address"),
+  Jb.key("suite")
 )
-const wildcardPath = J.jsonb.path(
-  J.jsonb.key("profile"),
-  J.jsonb.key("tags"),
-  J.jsonb.wildcard()
+const wildcardPath = Jb.path(
+  Jb.key("profile"),
+  Jb.key("tags"),
+  Jb.wildcard()
 )
 
-const cityExpr = J.json.get(docs.payload, cityPath)
-const cityTextExpr = J.json.text(docs.payload, cityPath)
-const metricCountTextExpr = J.json.text(metricDocs.payload, J.json.key("count"))
-const metricActiveTextExpr = J.json.text(metricDocs.payload, J.json.key("active"))
-const curriedCityExpr = docs.payload.pipe(J.json.get(cityPath))
-const curriedMetricCountTextExpr = metricDocs.payload.pipe(J.json.text(J.json.key("count")))
-const typeNameExpr = J.json.typeOf(docs.payload)
-const lengthExpr = J.json.length(docs.payload)
-const keysExpr = J.json.keys(docs.payload)
-const strippedExpr = J.json.stripNulls(docs.payload)
-const nullableObjectTypeNameExpr = J.json.typeOf(nullableObjectDocs.payload)
-const nullableObjectLengthExpr = J.json.length(nullableObjectDocs.payload)
-const nullableObjectKeysExpr = J.json.keys(nullableObjectDocs.payload)
-const tagsExpr = J.json.get(
+const cityExpr = J.get(docs.payload, cityPath)
+const cityTextExpr = J.text(docs.payload, cityPath)
+const metricCountTextExpr = J.text(metricDocs.payload, J.key("count"))
+const metricActiveTextExpr = J.text(metricDocs.payload, J.key("active"))
+const curriedCityExpr = docs.payload.pipe(J.get(cityPath))
+const curriedMetricCountTextExpr = metricDocs.payload.pipe(J.text(J.key("count")))
+const typeNameExpr = J.typeOf(docs.payload)
+const lengthExpr = J.length(docs.payload)
+const keysExpr = J.keys(docs.payload)
+const strippedExpr = J.stripNulls(docs.payload)
+const nullableObjectTypeNameExpr = J.typeOf(nullableObjectDocs.payload)
+const nullableObjectLengthExpr = J.length(nullableObjectDocs.payload)
+const nullableObjectKeysExpr = J.keys(nullableObjectDocs.payload)
+const tagsExpr = J.get(
   docs.payload,
-  J.json.path(J.json.key("profile"), J.json.key("tags"))
+  J.path(J.key("profile"), J.key("tags"))
 )
-const tagsKeysExpr = J.json.keys(tagsExpr)
+const tagsKeysExpr = J.keys(tagsExpr)
 
-const sharedJsonbProfileExpr = J.json.get(docs.payloadJsonb, J.json.key("profile"))
-const sharedJsonbCityExpr = J.json.get(docs.payloadJsonb, cityPath)
-const sharedJsonbTypeNameExpr = J.json.typeOf(docs.payloadJsonb)
-const sharedJsonbStrippedExpr = J.json.stripNulls(docs.payloadJsonb)
+const sharedJsonbProfileExpr = J.get(docs.payloadJsonb, J.key("profile"))
+const sharedJsonbCityExpr = J.get(docs.payloadJsonb, cityPath)
+const sharedJsonbTypeNameExpr = J.typeOf(docs.payloadJsonb)
+const sharedJsonbStrippedExpr = J.stripNulls(docs.payloadJsonb)
 
-const jsonbHasAddressExpr = J.jsonb.hasKey(sharedJsonbProfileExpr, "address")
-const jsonbHasProfileExpr = J.jsonb.hasKey(docs.payloadJsonb, "profile")
-const jsonbHasAnyExpr = J.jsonb.hasAnyKeys(docs.payloadJsonb, "profile", "note")
-const jsonbHasAllExpr = J.jsonb.hasAllKeys(docs.payloadJsonb, "profile", "note")
-const jsonbSetExpr = J.jsonb.set(docs.payloadJsonb, postcodePath, "1000")
-const jsonbInsertExpr = J.jsonb.insert(docs.payloadJsonb, suitePath, "12A")
-const jsonbSetWithoutCreateExpr = J.jsonb.set(docs.payloadJsonb, suitePath, "12A", {
+const jsonbHasAddressExpr = Jb.hasKey(sharedJsonbProfileExpr, "address")
+const jsonbHasProfileExpr = Jb.hasKey(docs.payloadJsonb, "profile")
+const jsonbHasAnyExpr = Jb.hasAnyKeys(docs.payloadJsonb, "profile", "note")
+const jsonbHasAllExpr = Jb.hasAllKeys(docs.payloadJsonb, "profile", "note")
+const jsonbSetExpr = Jb.set(docs.payloadJsonb, postcodePath, "1000")
+const jsonbInsertExpr = Jb.insert(docs.payloadJsonb, suitePath, "12A")
+const jsonbSetWithoutCreateExpr = Jb.set(docs.payloadJsonb, suitePath, "12A", {
   createMissing: false
 })
-const jsonbDeleteExpr = J.jsonb.delete(docs.payloadJsonb, J.jsonb.key("note"))
-const jsonbFirstTagExpr = J.jsonb.get(docs.payloadJsonb, wildcardPath)
-const jsonbConcatExpr = J.jsonb.concat({ a: 1 }, { b: "x" })
-const jsonbMergeExpr = J.jsonb.merge({ a: 1 }, { b: "x" })
-const builtObjectExpr = J.json.buildObject({ a: 1, b: "x" })
-const builtArrayExpr = J.json.buildArray(1, "x", true)
-const builtJsonbObjectExpr = J.jsonb.buildObject({ a: 1, b: "x" })
-const builtJsonbArrayExpr = J.jsonb.buildArray(1, "x", true)
-const toJsonExpr = J.json.toJson(1)
-const toJsonbExpr = J.jsonb.toJsonb("x")
-const jsonbTypeNameExpr = J.jsonb.typeOf(docs.payloadJsonb)
-const jsonbLengthExpr = J.jsonb.length(docs.payloadJsonb)
-const jsonbKeysExpr = J.jsonb.keys(docs.payloadJsonb)
-const jsonbPathExistsExpr = J.jsonb.pathExists(docs.payloadJsonb, wildcardPath)
-const jsonbPathMatchExpr = J.jsonb.pathMatch(docs.payloadJsonb, '$.profile.tags[*] ? (@ == "x")')
+const jsonbDeleteExpr = Jb.delete(docs.payloadJsonb, Jb.key("note"))
+const jsonbFirstTagExpr = Jb.get(docs.payloadJsonb, wildcardPath)
+const jsonbConcatExpr = Jb.concat({ a: 1 }, { b: "x" })
+const jsonbMergeExpr = Jb.merge({ a: 1 }, { b: "x" })
+const builtObjectExpr = J.buildObject({ a: 1, b: "x" })
+const builtArrayExpr = J.buildArray(1, "x", true)
+const builtJsonbObjectExpr = Jb.buildObject({ a: 1, b: "x" })
+const builtJsonbArrayExpr = Jb.buildArray(1, "x", true)
+const toJsonExpr = J.toJson(1)
+const toJsonbExpr = Jb.toJsonb("x")
+const jsonbTypeNameExpr = Jb.typeOf(docs.payloadJsonb)
+const jsonbLengthExpr = Jb.length(docs.payloadJsonb)
+const jsonbKeysExpr = Jb.keys(docs.payloadJsonb)
+const jsonbPathExistsExpr = Jb.pathExists(docs.payloadJsonb, wildcardPath)
+const jsonbPathMatchExpr = Jb.pathMatch(docs.payloadJsonb, '$.profile.tags[*] ? (@ == "x")')
 // @ts-expect-error SQL/JSON path predicates require non-empty string paths
-J.jsonb.pathExists(docs.payloadJsonb, "")
+Jb.pathExists(docs.payloadJsonb, "")
 // @ts-expect-error SQL/JSON path predicates require non-empty string paths
-J.jsonb.pathMatch(docs.payloadJsonb, "")
-const jsonbStrippedExpr = J.jsonb.stripNulls(docs.payloadJsonb)
-const jsonbStrippedSetExpr = J.jsonb.set(sharedJsonbStrippedExpr, postcodePath, "1000")
-const variantKindExpr = J.jsonb.text(variantDocs.payload, J.jsonb.key("kind"))
-const nestedVariantKindExpr = J.jsonb.text(
+Jb.pathMatch(docs.payloadJsonb, "")
+const jsonbStrippedExpr = Jb.stripNulls(docs.payloadJsonb)
+const jsonbStrippedSetExpr = Jb.set(sharedJsonbStrippedExpr, postcodePath, "1000")
+const variantKindExpr = Jb.text(variantDocs.payload, Jb.key("kind"))
+const nestedVariantKindExpr = Jb.text(
   nestedVariantDocs.payload,
-  J.jsonb.path(J.jsonb.key("details"), J.jsonb.key("kind"))
+  Jb.path(Jb.key("details"), Jb.key("kind"))
 )
-const dottedFlatKindExpr = J.jsonb.text(
+const dottedFlatKindExpr = Jb.text(
   dottedPathDocs.payload,
-  J.jsonb.path(J.jsonb.key("a.b"), J.jsonb.key("kind"))
+  Jb.path(Jb.key("a.b"), Jb.key("kind"))
 )
-const flatSegmentCollisionExpr = J.jsonb.text(
+const flatSegmentCollisionExpr = Jb.text(
   jsonPathCollisionDocs.payload,
-  J.jsonb.path(J.jsonb.key("a,key:b"))
+  Jb.path(Jb.key("a,key:b"))
 )
-const nestedSegmentCollisionExpr = J.jsonb.text(
+const nestedSegmentCollisionExpr = Jb.text(
   jsonPathCollisionDocs.payload,
-  J.jsonb.path(J.jsonb.key("a"), J.jsonb.key("b"))
+  Jb.path(Jb.key("a"), Jb.key("b"))
 )
 
 const option3Payload = Q.select({
@@ -513,22 +513,22 @@ void (undefined as unknown as NullableObjectLengthIsExact)
 void (undefined as unknown as NullableObjectKeysIsExact)
 
 // @ts-expect-error wildcard paths require the jsonb helper surface
-J.json.path(J.json.key("profile"), J.jsonb.wildcard())
+J.path(J.key("profile"), Jb.wildcard())
 
 // @ts-expect-error shared json helpers only accept exact key/index paths
-J.json.get(docs.payloadJsonb, wildcardPath)
+J.get(docs.payloadJsonb, wildcardPath)
 
 // @ts-expect-error jsonb mutation helpers only accept exact key/index paths
-J.jsonb.set(docs.payloadJsonb, wildcardPath, "featured")
+Jb.set(docs.payloadJsonb, wildcardPath, "featured")
 
 // @ts-expect-error jsonb mutation helpers only accept exact key/index paths
-J.jsonb.insert(docs.payloadJsonb, wildcardPath, "featured")
+Jb.insert(docs.payloadJsonb, wildcardPath, "featured")
 
 // @ts-expect-error jsonb mutation helpers only accept exact key/index paths
-J.jsonb.delete(docs.payloadJsonb, wildcardPath)
+Jb.delete(docs.payloadJsonb, wildcardPath)
 
 // @ts-expect-error jsonb helpers require a jsonb expression
-J.jsonb.set(docs.payload, postcodePath, "1000")
+Jb.set(docs.payload, postcodePath, "1000")
 
 // @ts-expect-error shared json helpers preserve plain json and should not become jsonb-compatible
-J.jsonb.set(strippedExpr, postcodePath, "1000")
+Jb.set(strippedExpr, postcodePath, "1000")

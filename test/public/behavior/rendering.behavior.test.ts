@@ -4,7 +4,7 @@ import * as Mysql from "#mysql"
 import * as Sqlite from "#sqlite"
 import * as Standard from "#standard"
 import { Column as C, Table } from "#standard"
-import { Cast as PgCast, Query as Q, Function as F, Json as PgJson, Renderer, Type as PgType } from "#postgres"
+import { Cast as PgCast, Query as Q, Function as F, Jsonb as PgJsonb, Renderer, Type as PgType } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
 import * as StdRoot from "#standard"
 import { unsafeAny } from "../../helpers/unsafe.ts"
@@ -469,8 +469,8 @@ describe("rendering behavior", () => {
   test("groupBy builders trust typed json key predicates without grouping-key runtime validation", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const hasKey = PgJson.jsonb.hasKey(
-      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+    const hasKey = PgJsonb.hasKey(
+      PgJsonb.buildObject({ email: "alice@example.com" }),
       "email"
     )
     ;(hasKey as any)[expressionAst].keys = [0]
@@ -487,9 +487,9 @@ describe("rendering behavior", () => {
   test("groupBy builders trust typed json path predicates without grouping-key runtime validation", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
     const queryAst = Symbol.for("effect-qb/QueryAst")
-    const value = PgJson.jsonb.get(
-      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
-      PgJson.jsonb.key("email")
+    const value = PgJsonb.get(
+      PgJsonb.buildObject({ email: "alice@example.com" }),
+      PgJsonb.key("email")
     )
     ;(value as any)[expressionAst].segments = {}
 
@@ -582,16 +582,16 @@ describe("rendering behavior", () => {
 
   test("rejects json key predicates without string keys before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const pgHasKey = PgJson.jsonb.hasKey(
-      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+    const pgHasKey = PgJsonb.hasKey(
+      PgJsonb.buildObject({ email: "alice@example.com" }),
       "email"
     )
-    const mysqlHasKey = Mysql.Json.json.hasKey(
-      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
+    const mysqlHasKey = Mysql.Json.hasKey(
+      Mysql.Json.buildObject({ email: "alice@example.com" }),
       "email"
     )
-    const sqliteHasKey = Sqlite.Json.json.hasKey(
-      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
+    const sqliteHasKey = Sqlite.Json.hasKey(
+      Sqlite.Json.buildObject({ email: "alice@example.com" }),
       "email"
     )
     ;(pgHasKey as any)[expressionAst].keys = [0]
@@ -611,16 +611,16 @@ describe("rendering behavior", () => {
 
   test("rejects grouped json key predicates without string keys before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const pgHasKey = PgJson.jsonb.hasKey(
-      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+    const pgHasKey = PgJsonb.hasKey(
+      PgJsonb.buildObject({ email: "alice@example.com" }),
       "email"
     )
-    const mysqlHasKey = Mysql.Json.json.hasKey(
-      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
+    const mysqlHasKey = Mysql.Json.hasKey(
+      Mysql.Json.buildObject({ email: "alice@example.com" }),
       "email"
     )
-    const sqliteHasKey = Sqlite.Json.json.hasKey(
-      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
+    const sqliteHasKey = Sqlite.Json.hasKey(
+      Sqlite.Json.buildObject({ email: "alice@example.com" }),
       "email"
     )
     const pgPlan = Q.select({
@@ -652,17 +652,17 @@ describe("rendering behavior", () => {
 
   test("rejects json path expressions with invalid path segments before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const pgValue = PgJson.jsonb.get(
-      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
-      PgJson.jsonb.key("email")
+    const pgValue = PgJsonb.get(
+      PgJsonb.buildObject({ email: "alice@example.com" }),
+      PgJsonb.key("email")
     )
-    const mysqlValue = Mysql.Json.json.get(
-      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
-      Mysql.Json.json.key("email")
+    const mysqlValue = Mysql.Json.get(
+      Mysql.Json.buildObject({ email: "alice@example.com" }),
+      Mysql.Json.key("email")
     )
-    const sqliteValue = Sqlite.Json.json.get(
-      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
-      Sqlite.Json.json.key("email")
+    const sqliteValue = Sqlite.Json.get(
+      Sqlite.Json.buildObject({ email: "alice@example.com" }),
+      Sqlite.Json.key("email")
     )
     ;(pgValue as any)[expressionAst].segments = [null]
     ;(mysqlValue as any)[expressionAst].segments = [null]
@@ -681,17 +681,17 @@ describe("rendering behavior", () => {
 
   test("rejects grouped json path expressions without a segment array before rendering SQL", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const pgValue = PgJson.jsonb.get(
-      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
-      PgJson.jsonb.key("email")
+    const pgValue = PgJsonb.get(
+      PgJsonb.buildObject({ email: "alice@example.com" }),
+      PgJsonb.key("email")
     )
-    const mysqlValue = Mysql.Json.json.get(
-      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
-      Mysql.Json.json.key("email")
+    const mysqlValue = Mysql.Json.get(
+      Mysql.Json.buildObject({ email: "alice@example.com" }),
+      Mysql.Json.key("email")
     )
-    const sqliteValue = Sqlite.Json.json.get(
-      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
-      Sqlite.Json.json.key("email")
+    const sqliteValue = Sqlite.Json.get(
+      Sqlite.Json.buildObject({ email: "alice@example.com" }),
+      Sqlite.Json.key("email")
     )
     const pgPlan = Q.select({
       value: pgValue,
@@ -721,16 +721,16 @@ describe("rendering behavior", () => {
   })
 
   test("rejects empty SQL JSON path predicates before rendering SQL", () => {
-    const pgPathExists = PgJson.jsonb.pathExists(
-      PgJson.jsonb.buildObject({ email: "alice@example.com" }),
+    const pgPathExists = PgJsonb.pathExists(
+      PgJsonb.buildObject({ email: "alice@example.com" }),
       ""
     )
-    const mysqlPathExists = Mysql.Json.json.pathExists(
-      Mysql.Json.json.buildObject({ email: "alice@example.com" }),
+    const mysqlPathExists = Mysql.Json.pathExists(
+      Mysql.Json.buildObject({ email: "alice@example.com" }),
       ""
     )
-    const sqlitePathExists = Sqlite.Json.json.pathExists(
-      Sqlite.Json.json.buildObject({ email: "alice@example.com" }),
+    const sqlitePathExists = Sqlite.Json.pathExists(
+      Sqlite.Json.buildObject({ email: "alice@example.com" }),
       ""
     )
 

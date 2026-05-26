@@ -12,6 +12,8 @@ export { cast as Cast } from "./postgres/cast.js"
 export * as Function from "./postgres/function/index.js"
 /** Postgres-specialized JSON expression helpers. */
 export * as Json from "./postgres/json.js"
+/** Postgres jsonb-only expression helpers. */
+export * as Jsonb from "./postgres/jsonb.js"
 /** Postgres-specialized typed query execution contracts. */
 export * as Executor from "./postgres/executor.js"
 /** Shared logical row-set interfaces. */

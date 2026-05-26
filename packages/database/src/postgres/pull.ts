@@ -581,11 +581,11 @@ const renderPipeRender = (
         : expression.operand
       const member = expression.member as string | number
       const path = typeof member === "number"
-        ? `${PG_ALIAS}.Json.json.index(${member})`
-        : `${PG_ALIAS}.Json.json.key(${renderStringLiteral(member)})`
+        ? `${PG_ALIAS}.Json.index(${member})`
+        : `${PG_ALIAS}.Json.key(${renderStringLiteral(member)})`
       const operation = expression.op === "->>"
-        ? `${PG_ALIAS}.Json.json.text(${path})`
-        : `${PG_ALIAS}.Json.json.get(${path})`
+        ? `${PG_ALIAS}.Json.text(${path})`
+        : `${PG_ALIAS}.Json.get(${path})`
       const inner = renderPipeRender(operand, context)
       return inner === undefined
         ? {
@@ -723,11 +723,11 @@ const renderSqlExpressionCode = (
         : renderSqlExpressionCode(expression.operand, context, false)
       const member = expression.member as string | number
       const path = typeof member === "number"
-        ? `${PG_ALIAS}.Json.json.index(${member})`
-        : `${PG_ALIAS}.Json.json.key(${renderStringLiteral(member)})`
+        ? `${PG_ALIAS}.Json.index(${member})`
+        : `${PG_ALIAS}.Json.key(${renderStringLiteral(member)})`
       return expression.op === "->>"
-        ? `${PG_ALIAS}.Json.json.text(${base}, ${path})`
-        : `${PG_ALIAS}.Json.json.get(${base}, ${path})`
+        ? `${PG_ALIAS}.Json.text(${base}, ${path})`
+        : `${PG_ALIAS}.Json.get(${base}, ${path})`
     }
     case "call": {
       const name = ((expression.function as { readonly name?: string }).name ?? "").toLowerCase()
@@ -779,18 +779,18 @@ const renderSqlExpressionCode = (
             }
             entries.push(`${renderStringLiteral(key.value)}: ${renderSqlExpressionCode(value, context)}`)
           }
-          return `${PG_ALIAS}.Json.jsonb.buildObject({ ${entries.join(", ")} })`
+          return `${PG_ALIAS}.Jsonb.buildObject({ ${entries.join(", ")} })`
         }
         case "jsonb_build_array":
-          return `${PG_ALIAS}.Json.jsonb.buildArray(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${PG_ALIAS}.Jsonb.buildArray(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "to_json":
-          return `${PG_ALIAS}.Json.json.toJson(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${PG_ALIAS}.Json.toJson(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "to_jsonb":
-          return `${PG_ALIAS}.Json.jsonb.toJsonb(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${PG_ALIAS}.Jsonb.toJsonb(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "jsonb_strip_nulls":
-          return `${PG_ALIAS}.Json.jsonb.stripNulls(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${PG_ALIAS}.Jsonb.stripNulls(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "jsonb_typeof":
-          return `${PG_ALIAS}.Json.jsonb.typeOf(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${PG_ALIAS}.Jsonb.typeOf(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
       }
       return `${PG_ALIAS}.Function.call(${renderStringLiteral(name)}${args.length === 0 ? "" : `, ${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")}`})`
     }
@@ -844,26 +844,26 @@ const renderSqlExpressionCode = (
           if (key === undefined) {
             throw new Error("Unsupported PostgreSQL expression: jsonb key predicate requires a literal string key")
           }
-          return `${PG_ALIAS}.Json.jsonb.hasKey(${left}, ${renderStringLiteral(key)})`
+          return `${PG_ALIAS}.Jsonb.hasKey(${left}, ${renderStringLiteral(key)})`
         }
         case "?|": {
           const keys = extractStringArrayLiterals(expression.right)
           if (keys === undefined || keys.length === 0) {
             throw new Error("Unsupported PostgreSQL expression: jsonb any-key predicate requires a literal text array")
           }
-          return `${PG_ALIAS}.Json.jsonb.hasAnyKeys(${left}, ${keys.map((key) => renderStringLiteral(key)).join(", ")})`
+          return `${PG_ALIAS}.Jsonb.hasAnyKeys(${left}, ${keys.map((key) => renderStringLiteral(key)).join(", ")})`
         }
         case "?&": {
           const keys = extractStringArrayLiterals(expression.right)
           if (keys === undefined || keys.length === 0) {
             throw new Error("Unsupported PostgreSQL expression: jsonb all-keys predicate requires a literal text array")
           }
-          return `${PG_ALIAS}.Json.jsonb.hasAllKeys(${left}, ${keys.map((key) => renderStringLiteral(key)).join(", ")})`
+          return `${PG_ALIAS}.Jsonb.hasAllKeys(${left}, ${keys.map((key) => renderStringLiteral(key)).join(", ")})`
         }
         case "@?":
-          return `${PG_ALIAS}.Json.jsonb.pathExists(${left}, ${right})`
+          return `${PG_ALIAS}.Jsonb.pathExists(${left}, ${right})`
         case "@@":
-          return `${PG_ALIAS}.Json.jsonb.pathMatch(${left}, ${right})`
+          return `${PG_ALIAS}.Jsonb.pathMatch(${left}, ${right})`
         case "IS DISTINCT FROM":
           return `${PG_ALIAS}.Query.isDistinctFrom(${left}, ${right})`
         case "IS NOT DISTINCT FROM":

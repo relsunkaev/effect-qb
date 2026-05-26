@@ -2,7 +2,7 @@ import { Column as PgColumn } from "effect-qb/postgres"
 import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
-import { Function as F, Json as J, Query as Q } from "effect-qb/postgres"
+import { Function as F, Json as J, Jsonb as Jb, Query as Q } from "effect-qb/postgres"
 
 const payloadSchema = Schema.Struct({
   profile: Schema.Struct({
@@ -25,13 +25,13 @@ const docsJsonb = Std.Table.make("docs_jsonb", {
   payload: PgColumn.jsonb(payloadSchema)
 })
 
-const cityPath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("address"),
-  J.json.key("city")
+const cityPath = J.path(
+  J.key("profile"),
+  J.key("address"),
+  J.key("city")
 )
 
-const compatibleJsonObject = J.json.buildObject({
+const compatibleJsonObject = J.buildObject({
   profile: {
     address: {
       city: "Paris",
@@ -42,9 +42,9 @@ const compatibleJsonObject = J.json.buildObject({
   note: null
 })
 
-const compatibleJsonbMerged = J.jsonb.merge(
+const compatibleJsonbMerged = Jb.merge(
   docsJsonb.payload,
-  J.jsonb.buildObject({
+  Jb.buildObject({
     profile: {
       address: {
         city: "Paris",
@@ -54,7 +54,7 @@ const compatibleJsonbMerged = J.jsonb.merge(
     }
   })
 )
-const compatibleJsonbObject = J.jsonb.buildObject({
+const compatibleJsonbObject = Jb.buildObject({
   profile: {
     address: {
       city: "Paris",
@@ -79,7 +79,7 @@ void insertPlan
 void insertJsonbPlan
 void compatibleJsonbMerged
 
-const incompatibleNestedObject = J.json.buildObject({
+const incompatibleNestedObject = J.buildObject({
   profile: {
     address: {
       city: 123,
@@ -111,8 +111,8 @@ const tupleDocs = Std.Table.make("tuple_docs", {
   }))
 })
 
-const invalidTuplePayload = J.json.buildObject({
-  pair: J.json.buildArray("north", 1)
+const invalidTuplePayload = J.buildObject({
+  pair: J.buildArray("north", 1)
 })
 
 type InvalidTupleInsertValues = Parameters<typeof Q.insert<typeof tupleDocs, {
@@ -135,7 +135,7 @@ const rootTupleDocs = Std.Table.make("root_tuple_docs", {
   payload: Std.Column.json(Schema.Tuple(Schema.Number, Schema.String))
 })
 
-const invalidRootTuplePayload = J.json.buildArray("north", 1)
+const invalidRootTuplePayload = J.buildArray("north", 1)
 
 type InvalidRootTupleInsertValues = Parameters<typeof Q.insert<typeof rootTupleDocs, {
   readonly id: "root-doc-1"

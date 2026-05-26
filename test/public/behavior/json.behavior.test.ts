@@ -42,24 +42,24 @@ describe("json behavior", () => {
   test("postgres renders the shared json surface for json columns", () => {
     const docs = makeJsonTable(Postgres)
 
-    const exactPath = Postgres.Json.json.path(
-      Postgres.Json.json.key("profile"),
-      Postgres.Json.json.key("address"),
-      Postgres.Json.json.key("city")
+    const exactPath = Postgres.Json.path(
+      Postgres.Json.key("profile"),
+      Postgres.Json.key("address"),
+      Postgres.Json.key("city")
     )
 
     const plan = Postgres.Query.select({
-      profileJson: Postgres.Json.json.get(docs.payload, Postgres.Json.json.key("profile")),
-      profileText: Postgres.Json.json.text(docs.payload, Postgres.Json.json.key("profile")),
-      cityJson: Postgres.Json.json.get(docs.payload, exactPath),
-      cityText: Postgres.Json.json.text(docs.payload, exactPath),
-      builtObject: Postgres.Json.json.buildObject({ a: 1, b: "x" }),
-      builtArray: Postgres.Json.json.buildArray(1, "x", true),
-      toJson: Postgres.Json.json.toJson(Postgres.Query.literal(1)),
-      typeName: Postgres.Json.json.typeOf(docs.payload),
-      length: Postgres.Json.json.length(docs.payload),
-      keys: Postgres.Json.json.keys(docs.payload),
-      stripNulls: Postgres.Json.json.stripNulls(docs.payload)
+      profileJson: Postgres.Json.get(docs.payload, Postgres.Json.key("profile")),
+      profileText: Postgres.Json.text(docs.payload, Postgres.Json.key("profile")),
+      cityJson: Postgres.Json.get(docs.payload, exactPath),
+      cityText: Postgres.Json.text(docs.payload, exactPath),
+      builtObject: Postgres.Json.buildObject({ a: 1, b: "x" }),
+      builtArray: Postgres.Json.buildArray(1, "x", true),
+      toJson: Postgres.Json.toJson(Postgres.Query.literal(1)),
+      typeName: Postgres.Json.typeOf(docs.payload),
+      length: Postgres.Json.length(docs.payload),
+      keys: Postgres.Json.keys(docs.payload),
+      stripNulls: Postgres.Json.stripNulls(docs.payload)
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -89,17 +89,17 @@ describe("json behavior", () => {
   test("postgres shared json helpers still accept jsonb columns for exact paths", () => {
     const docs = makeJsonbTable(Postgres)
 
-    const cityPath = Postgres.Json.json.path(
-      Postgres.Json.json.key("profile"),
-      Postgres.Json.json.key("address"),
-      Postgres.Json.json.key("city")
+    const cityPath = Postgres.Json.path(
+      Postgres.Json.key("profile"),
+      Postgres.Json.key("address"),
+      Postgres.Json.key("city")
     )
 
     const plan = Postgres.Query.select({
-      cityJson: Postgres.Json.json.get(docs.payload, cityPath),
-      cityText: Postgres.Json.json.text(docs.payload, cityPath),
-      typeName: Postgres.Json.json.typeOf(docs.payload),
-      stripNulls: Postgres.Json.json.stripNulls(docs.payload)
+      cityJson: Postgres.Json.get(docs.payload, cityPath),
+      cityText: Postgres.Json.text(docs.payload, cityPath),
+      typeName: Postgres.Json.typeOf(docs.payload),
+      stripNulls: Postgres.Json.stripNulls(docs.payload)
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -131,11 +131,11 @@ describe("json behavior", () => {
         })
       }))
     })
-    const flatKind = Postgres.Json.jsonb.text(
+    const flatKind = Postgres.Jsonb.text(
       docs.payload,
-      Postgres.Json.jsonb.path(
-        Postgres.Json.jsonb.key("a.b"),
-        Postgres.Json.jsonb.key("kind")
+      Postgres.Jsonb.path(
+        Postgres.Jsonb.key("a.b"),
+        Postgres.Jsonb.key("kind")
       )
     )
 
@@ -181,12 +181,12 @@ describe("json behavior", () => {
 
   test("postgres groups by jsonb text expressions", () => {
     const docs = makeJsonbTable(Postgres)
-    const cityPath = Postgres.Json.jsonb.path(
-      Postgres.Json.jsonb.key("profile"),
-      Postgres.Json.jsonb.key("address"),
-      Postgres.Json.jsonb.key("city")
+    const cityPath = Postgres.Jsonb.path(
+      Postgres.Jsonb.key("profile"),
+      Postgres.Jsonb.key("address"),
+      Postgres.Jsonb.key("city")
     )
-    const city = Postgres.Json.jsonb.text(docs.payload, cityPath)
+    const city = Postgres.Jsonb.text(docs.payload, cityPath)
 
     const plan = Postgres.Query.select({
       city,
@@ -218,9 +218,9 @@ describe("json behavior", () => {
     })
 
     const plan = Postgres.Query.select({
-      firstJson: Postgres.Json.jsonb.get(docs.payload, Postgres.Json.jsonb.index(0)),
-      secondText: Postgres.Json.jsonb.text(docs.payload, Postgres.Json.jsonb.index(1)),
-      withoutFirst: Postgres.Json.jsonb.delete(docs.payload, Postgres.Json.jsonb.index(0))
+      firstJson: Postgres.Jsonb.get(docs.payload, Postgres.Jsonb.index(0)),
+      secondText: Postgres.Jsonb.text(docs.payload, Postgres.Jsonb.index(1)),
+      withoutFirst: Postgres.Jsonb.delete(docs.payload, Postgres.Jsonb.index(0))
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -239,7 +239,7 @@ describe("json behavior", () => {
     const docs = makeJsonTable(Postgres)
 
     const plan = Postgres.Query.select({
-      keys: Postgres.Json.json.keys(docs.payload)
+      keys: Postgres.Json.keys(docs.payload)
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -253,63 +253,63 @@ describe("json behavior", () => {
   test("postgres renders the jsonb-only expression surface", () => {
     const docs = makeJsonbTable(Postgres)
 
-    const exactPath = Postgres.Json.jsonb.path(
-      Postgres.Json.jsonb.key("profile"),
-      Postgres.Json.jsonb.key("address"),
-      Postgres.Json.jsonb.key("city")
+    const exactPath = Postgres.Jsonb.path(
+      Postgres.Jsonb.key("profile"),
+      Postgres.Jsonb.key("address"),
+      Postgres.Jsonb.key("city")
     )
-    const wildcardPath = Postgres.Json.jsonb.path(
-      Postgres.Json.jsonb.key("profile"),
-      Postgres.Json.jsonb.key("tags"),
-      Postgres.Json.jsonb.wildcard()
+    const wildcardPath = Postgres.Jsonb.path(
+      Postgres.Jsonb.key("profile"),
+      Postgres.Jsonb.key("tags"),
+      Postgres.Jsonb.wildcard()
     )
 
     const plan = Postgres.Query.select({
-      profileJson: Postgres.Json.jsonb.get(docs.payload, Postgres.Json.jsonb.key("profile")),
-      profileText: Postgres.Json.jsonb.text(docs.payload, Postgres.Json.jsonb.key("profile")),
-      cityJson: Postgres.Json.jsonb.get(docs.payload, exactPath),
-      cityText: Postgres.Json.jsonb.text(docs.payload, exactPath),
-      wildcardJson: Postgres.Json.jsonb.get(docs.payload, wildcardPath),
-      hasProfile: Postgres.Json.jsonb.hasKey(docs.payload, "profile"),
-      hasAny: Postgres.Json.jsonb.hasAnyKeys(docs.payload, "profile", "note"),
-      hasAll: Postgres.Json.jsonb.hasAllKeys(docs.payload, "profile", "note"),
-      contains: Postgres.Json.jsonb.contains(docs.payload, {
+      profileJson: Postgres.Jsonb.get(docs.payload, Postgres.Jsonb.key("profile")),
+      profileText: Postgres.Jsonb.text(docs.payload, Postgres.Jsonb.key("profile")),
+      cityJson: Postgres.Jsonb.get(docs.payload, exactPath),
+      cityText: Postgres.Jsonb.text(docs.payload, exactPath),
+      wildcardJson: Postgres.Jsonb.get(docs.payload, wildcardPath),
+      hasProfile: Postgres.Jsonb.hasKey(docs.payload, "profile"),
+      hasAny: Postgres.Jsonb.hasAnyKeys(docs.payload, "profile", "note"),
+      hasAll: Postgres.Jsonb.hasAllKeys(docs.payload, "profile", "note"),
+      contains: Postgres.Jsonb.contains(docs.payload, {
         profile: {
           address: {
             city: "Paris"
           }
         }
       }),
-      containedBy: Postgres.Json.jsonb.containedBy(docs.payload, {
+      containedBy: Postgres.Jsonb.containedBy(docs.payload, {
         profile: {
           address: {
             city: "Paris"
           }
         }
       }),
-      deleteNote: Postgres.Json.jsonb.delete(docs.payload, Postgres.Json.jsonb.key("note")),
-      removeNote: Postgres.Json.jsonb.remove(docs.payload, Postgres.Json.jsonb.key("note")),
-      setPostcode: Postgres.Json.jsonb.set(
+      deleteNote: Postgres.Jsonb.delete(docs.payload, Postgres.Jsonb.key("note")),
+      removeNote: Postgres.Jsonb.remove(docs.payload, Postgres.Jsonb.key("note")),
+      setPostcode: Postgres.Jsonb.set(
         docs.payload,
-        Postgres.Json.jsonb.path(Postgres.Json.jsonb.key("profile"), Postgres.Json.jsonb.key("address"), Postgres.Json.jsonb.key("postcode")),
+        Postgres.Jsonb.path(Postgres.Jsonb.key("profile"), Postgres.Jsonb.key("address"), Postgres.Jsonb.key("postcode")),
         "1000"
       ),
-      insertSuite: Postgres.Json.jsonb.insert(
+      insertSuite: Postgres.Jsonb.insert(
         docs.payload,
-        Postgres.Json.jsonb.path(Postgres.Json.jsonb.key("profile"), Postgres.Json.jsonb.key("address"), Postgres.Json.jsonb.key("suite")),
+        Postgres.Jsonb.path(Postgres.Jsonb.key("profile"), Postgres.Jsonb.key("address"), Postgres.Jsonb.key("suite")),
         "12A"
       ),
-      concatValue: Postgres.Json.jsonb.concat({ a: 1 }, { b: 2 }),
-      mergeValue: Postgres.Json.jsonb.merge({ a: 1 }, { b: 2 }),
-      builtObject: Postgres.Json.jsonb.buildObject({ a: 1, b: "x" }),
-      builtArray: Postgres.Json.jsonb.buildArray(1, "x", true),
-      toJsonb: Postgres.Json.jsonb.toJsonb(Postgres.Query.literal(1)),
-      typeName: Postgres.Json.jsonb.typeOf(docs.payload),
-      length: Postgres.Json.jsonb.length(docs.payload),
-      keys: Postgres.Json.jsonb.keys(docs.payload),
-      pathExists: Postgres.Json.jsonb.pathExists(docs.payload, wildcardPath),
-      pathMatch: Postgres.Json.jsonb.pathMatch(docs.payload, '$.profile.address[*] ? (@.city == "Paris")'),
-      stripNulls: Postgres.Json.jsonb.stripNulls(docs.payload)
+      concatValue: Postgres.Jsonb.concat({ a: 1 }, { b: 2 }),
+      mergeValue: Postgres.Jsonb.merge({ a: 1 }, { b: 2 }),
+      builtObject: Postgres.Jsonb.buildObject({ a: 1, b: "x" }),
+      builtArray: Postgres.Jsonb.buildArray(1, "x", true),
+      toJsonb: Postgres.Jsonb.toJsonb(Postgres.Query.literal(1)),
+      typeName: Postgres.Jsonb.typeOf(docs.payload),
+      length: Postgres.Jsonb.length(docs.payload),
+      keys: Postgres.Jsonb.keys(docs.payload),
+      pathExists: Postgres.Jsonb.pathExists(docs.payload, wildcardPath),
+      pathMatch: Postgres.Jsonb.pathMatch(docs.payload, '$.profile.address[*] ? (@.city == "Paris")'),
+      stripNulls: Postgres.Jsonb.stripNulls(docs.payload)
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -383,17 +383,17 @@ describe("json behavior", () => {
   test("postgres reuses the same jsonb path object across read and write operators", () => {
     const docs = makeJsonbTable(Postgres)
 
-    const cityPath = Postgres.Json.jsonb.path(
-      Postgres.Json.jsonb.key("profile"),
-      Postgres.Json.jsonb.key("address"),
-      Postgres.Json.jsonb.key("city")
+    const cityPath = Postgres.Jsonb.path(
+      Postgres.Jsonb.key("profile"),
+      Postgres.Jsonb.key("address"),
+      Postgres.Jsonb.key("city")
     )
 
     const plan = Postgres.Query.select({
-      cityJson: Postgres.Json.jsonb.get(docs.payload, cityPath),
-      cityText: Postgres.Json.jsonb.text(docs.payload, cityPath),
-      setCity: Postgres.Json.jsonb.set(docs.payload, cityPath, "Paris"),
-      deleteCity: Postgres.Json.jsonb.delete(docs.payload, cityPath)
+      cityJson: Postgres.Jsonb.get(docs.payload, cityPath),
+      cityText: Postgres.Jsonb.text(docs.payload, cityPath),
+      setCity: Postgres.Jsonb.set(docs.payload, cityPath, "Paris"),
+      deleteCity: Postgres.Jsonb.delete(docs.payload, cityPath)
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -420,13 +420,13 @@ describe("json behavior", () => {
 
   test("postgres escapes control characters in rendered json path keys", () => {
     const docs = makeJsonbTable(Postgres)
-    const controlPath = Postgres.Json.jsonb.path(
-      Postgres.Json.jsonb.key("line\nbreak"),
-      Postgres.Json.jsonb.key("tab\tkey")
+    const controlPath = Postgres.Jsonb.path(
+      Postgres.Jsonb.key("line\nbreak"),
+      Postgres.Jsonb.key("tab\tkey")
     )
 
     const plan = Postgres.Query.select({
-      exists: Postgres.Json.jsonb.pathExists(docs.payload, controlPath)
+      exists: Postgres.Jsonb.pathExists(docs.payload, controlPath)
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -442,14 +442,14 @@ describe("json behavior", () => {
   test("postgres renders jsonb set without creating missing keys", () => {
     const docs = makeJsonbTable(Postgres)
 
-    const suitePath = Postgres.Json.jsonb.path(
-      Postgres.Json.jsonb.key("profile"),
-      Postgres.Json.jsonb.key("address"),
-      Postgres.Json.jsonb.key("suite")
+    const suitePath = Postgres.Jsonb.path(
+      Postgres.Jsonb.key("profile"),
+      Postgres.Jsonb.key("address"),
+      Postgres.Jsonb.key("suite")
     )
 
     const plan = Postgres.Query.select({
-      setSuite: Postgres.Json.jsonb.set(docs.payload, suitePath, "12A", {
+      setSuite: Postgres.Jsonb.set(docs.payload, suitePath, "12A", {
         createMissing: false
       })
     }).pipe(Postgres.Query.from(docs))
@@ -469,15 +469,15 @@ describe("json behavior", () => {
 
   test("postgres preserves jsonb helper string scalars that look like JSON", () => {
     const docs = makeJsonbTable(Postgres)
-    const suitePath = Postgres.Json.jsonb.path(
-      Postgres.Json.jsonb.key("profile"),
-      Postgres.Json.jsonb.key("address"),
-      Postgres.Json.jsonb.key("suite")
+    const suitePath = Postgres.Jsonb.path(
+      Postgres.Jsonb.key("profile"),
+      Postgres.Jsonb.key("address"),
+      Postgres.Jsonb.key("suite")
     )
 
     const plan = Postgres.Query.select({
-      setSuite: Postgres.Json.jsonb.set(docs.payload, suitePath, "42"),
-      builtObject: Postgres.Json.jsonb.buildObject({ code: "42" })
+      setSuite: Postgres.Jsonb.set(docs.payload, suitePath, "42"),
+      builtObject: Postgres.Jsonb.buildObject({ code: "42" })
     }).pipe(Postgres.Query.from(docs))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -496,7 +496,7 @@ describe("json behavior", () => {
     const docs = makeJsonTable(Mysql)
 
     const plan = Mysql.Query.select({
-      pathMatch: Mysql.Json.json.pathMatch(docs.payload, '$.profile.address[*] ? (@.city == "Paris")')
+      pathMatch: Mysql.Json.pathMatch(docs.payload, '$.profile.address[*] ? (@.city == "Paris")')
     }).pipe(Mysql.Query.from(docs))
 
     expect(() => Mysql.Renderer.make().render(plan)).toThrow(
@@ -507,62 +507,62 @@ describe("json behavior", () => {
   test("mysql renders the JSON expression surface it supports", () => {
     const docs = makeJsonTable(Mysql)
 
-    const exactPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("address"),
-      Mysql.Json.json.key("city")
+    const exactPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("address"),
+      Mysql.Json.key("city")
     )
-    const wildcardPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("tags"),
-      Mysql.Json.json.wildcard()
+    const wildcardPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("tags"),
+      Mysql.Json.wildcard()
     )
 
     const plan = Mysql.Query.select({
-      profileJson: Mysql.Json.json.get(docs.payload, Mysql.Json.json.key("profile")),
-      profileText: Mysql.Json.json.text(docs.payload, Mysql.Json.json.key("profile")),
-      cityJson: Mysql.Json.json.get(docs.payload, exactPath),
-      cityText: Mysql.Json.json.text(docs.payload, exactPath),
-      wildcardJson: Mysql.Json.json.get(docs.payload, wildcardPath),
-      hasProfile: Mysql.Json.json.hasKey(docs.payload, "profile"),
-      hasAny: Mysql.Json.json.hasAnyKeys(docs.payload, "profile", "note"),
-      hasAll: Mysql.Json.json.hasAllKeys(docs.payload, "profile", "note"),
-      contains: Mysql.Json.json.contains(docs.payload, {
+      profileJson: Mysql.Json.get(docs.payload, Mysql.Json.key("profile")),
+      profileText: Mysql.Json.text(docs.payload, Mysql.Json.key("profile")),
+      cityJson: Mysql.Json.get(docs.payload, exactPath),
+      cityText: Mysql.Json.text(docs.payload, exactPath),
+      wildcardJson: Mysql.Json.get(docs.payload, wildcardPath),
+      hasProfile: Mysql.Json.hasKey(docs.payload, "profile"),
+      hasAny: Mysql.Json.hasAnyKeys(docs.payload, "profile", "note"),
+      hasAll: Mysql.Json.hasAllKeys(docs.payload, "profile", "note"),
+      contains: Mysql.Json.contains(docs.payload, {
         profile: {
           address: {
             city: "Paris"
           }
         }
       }),
-      containedBy: Mysql.Json.json.containedBy(docs.payload, {
+      containedBy: Mysql.Json.containedBy(docs.payload, {
         profile: {
           address: {
             city: "Paris"
           }
         }
       }),
-      deleteNote: Mysql.Json.json.delete(docs.payload, Mysql.Json.json.key("note")),
-      removeNote: Mysql.Json.json.remove(docs.payload, Mysql.Json.json.key("note")),
-      setPostcode: Mysql.Json.json.set(
+      deleteNote: Mysql.Json.delete(docs.payload, Mysql.Json.key("note")),
+      removeNote: Mysql.Json.remove(docs.payload, Mysql.Json.key("note")),
+      setPostcode: Mysql.Json.set(
         docs.payload,
-        Mysql.Json.json.path(Mysql.Json.json.key("profile"), Mysql.Json.json.key("address"), Mysql.Json.json.key("postcode")),
+        Mysql.Json.path(Mysql.Json.key("profile"), Mysql.Json.key("address"), Mysql.Json.key("postcode")),
         "1000"
       ),
-      insertSuite: Mysql.Json.json.insert(
+      insertSuite: Mysql.Json.insert(
         docs.payload,
-        Mysql.Json.json.path(Mysql.Json.json.key("profile"), Mysql.Json.json.key("address"), Mysql.Json.json.key("suite")),
+        Mysql.Json.path(Mysql.Json.key("profile"), Mysql.Json.key("address"), Mysql.Json.key("suite")),
         "12A"
       ),
-      concatValue: Mysql.Json.json.concat({ a: 1 }, { b: 2 }),
-      mergeValue: Mysql.Json.json.merge({ a: 1 }, { b: 2 }),
-      builtObject: Mysql.Json.json.buildObject({ a: 1, b: "x" }),
-      builtArray: Mysql.Json.json.buildArray(1, "x", true),
-      toJson: Mysql.Json.json.toJson(Mysql.Query.literal(1)),
-      toJsonb: Mysql.Json.json.toJsonb(Mysql.Query.literal(1)),
-      typeName: Mysql.Json.json.typeOf(docs.payload),
-      length: Mysql.Json.json.length(docs.payload),
-      keys: Mysql.Json.json.keys(docs.payload),
-      pathExists: Mysql.Json.json.pathExists(docs.payload, wildcardPath)
+      concatValue: Mysql.Json.concat({ a: 1 }, { b: 2 }),
+      mergeValue: Mysql.Json.merge({ a: 1 }, { b: 2 }),
+      builtObject: Mysql.Json.buildObject({ a: 1, b: "x" }),
+      builtArray: Mysql.Json.buildArray(1, "x", true),
+      toJson: Mysql.Json.toJson(Mysql.Query.literal(1)),
+      toJsonb: Mysql.Json.toJsonb(Mysql.Query.literal(1)),
+      typeName: Mysql.Json.typeOf(docs.payload),
+      length: Mysql.Json.length(docs.payload),
+      keys: Mysql.Json.keys(docs.payload),
+      pathExists: Mysql.Json.pathExists(docs.payload, wildcardPath)
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -612,17 +612,17 @@ describe("json behavior", () => {
   test("mysql reuses the same JSON path object across read and write operators", () => {
     const docs = makeJsonTable(Mysql)
 
-    const cityPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("address"),
-      Mysql.Json.json.key("city")
+    const cityPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("address"),
+      Mysql.Json.key("city")
     )
 
     const plan = Mysql.Query.select({
-      cityJson: Mysql.Json.json.get(docs.payload, cityPath),
-      cityText: Mysql.Json.json.text(docs.payload, cityPath),
-      setCity: Mysql.Json.json.set(docs.payload, cityPath, "Paris"),
-      deleteCity: Mysql.Json.json.delete(docs.payload, cityPath)
+      cityJson: Mysql.Json.get(docs.payload, cityPath),
+      cityText: Mysql.Json.text(docs.payload, cityPath),
+      setCity: Mysql.Json.set(docs.payload, cityPath, "Paris"),
+      deleteCity: Mysql.Json.delete(docs.payload, cityPath)
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -643,13 +643,13 @@ describe("json behavior", () => {
     const docs = makeJsonTable(Mysql)
 
     const rendered = Mysql.Renderer.make().render(Mysql.Query.select({
-      built: Mysql.Json.json.buildObject({
+      built: Mysql.Json.buildObject({
         nested: { ok: true },
         tags: ["mysql"]
       }),
-      patched: Mysql.Json.json.set(
+      patched: Mysql.Json.set(
         docs.payload,
-        Mysql.Json.json.path(Mysql.Json.json.key("nested")),
+        Mysql.Json.path(Mysql.Json.key("nested")),
         { ok: true }
       )
     }).pipe(Mysql.Query.from(docs)))
@@ -669,13 +669,13 @@ describe("json behavior", () => {
 
   test("mysql escapes control characters in rendered json path keys", () => {
     const docs = makeJsonTable(Mysql)
-    const controlPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("line\nbreak"),
-      Mysql.Json.json.key("tab\tkey")
+    const controlPath = Mysql.Json.path(
+      Mysql.Json.key("line\nbreak"),
+      Mysql.Json.key("tab\tkey")
     )
 
     const plan = Mysql.Query.select({
-      value: Mysql.Json.json.get(docs.payload, controlPath)
+      value: Mysql.Json.get(docs.payload, controlPath)
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -691,14 +691,14 @@ describe("json behavior", () => {
   test("mysql renders json set without creating missing keys", () => {
     const docs = makeJsonTable(Mysql)
 
-    const suitePath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("address"),
-      Mysql.Json.json.key("suite")
+    const suitePath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("address"),
+      Mysql.Json.key("suite")
     )
 
     const plan = Mysql.Query.select({
-      setSuite: Mysql.Json.json.set(docs.payload, suitePath, "12A", {
+      setSuite: Mysql.Json.set(docs.payload, suitePath, "12A", {
         createMissing: false
       })
     }).pipe(Mysql.Query.from(docs))
@@ -717,15 +717,15 @@ describe("json behavior", () => {
   test("mysql preserves json helper string scalars that look like JSON", () => {
     const docs = makeJsonTable(Mysql)
 
-    const suitePath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("address"),
-      Mysql.Json.json.key("suite")
+    const suitePath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("address"),
+      Mysql.Json.key("suite")
     )
 
     const plan = Mysql.Query.select({
-      setSuite: Mysql.Json.json.set(docs.payload, suitePath, "42"),
-      builtObject: Mysql.Json.json.buildObject({ code: "42" })
+      setSuite: Mysql.Json.set(docs.payload, suitePath, "42"),
+      builtObject: Mysql.Json.buildObject({ code: "42" })
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -741,15 +741,15 @@ describe("json behavior", () => {
   test("mysql renders array json insert paths with the array insert operator", () => {
     const docs = makeJsonTable(Mysql)
 
-    const firstTagPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("tags"),
-      Mysql.Json.json.index(1)
+    const firstTagPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("tags"),
+      Mysql.Json.index(1)
     )
 
     const plan = Mysql.Query.select({
-      insertTag: Mysql.Json.json.insert(docs.payload, firstTagPath, "city"),
-      insertTagAfter: Mysql.Json.json.insert(docs.payload, firstTagPath, "country", {
+      insertTag: Mysql.Json.insert(docs.payload, firstTagPath, "city"),
+      insertTagAfter: Mysql.Json.insert(docs.payload, firstTagPath, "country", {
         insertAfter: true
       })
     }).pipe(Mysql.Query.from(docs))
@@ -770,20 +770,20 @@ describe("json behavior", () => {
   test("mysql renders negative json array indexes with last-relative syntax", () => {
     const docs = makeJsonTable(Mysql)
 
-    const lastTagPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("tags"),
-      Mysql.Json.json.index(-1)
+    const lastTagPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("tags"),
+      Mysql.Json.index(-1)
     )
-    const penultimateTagPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("tags"),
-      Mysql.Json.json.index(-2)
+    const penultimateTagPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("tags"),
+      Mysql.Json.index(-2)
     )
 
     const plan = Mysql.Query.select({
-      lastTag: Mysql.Json.json.get(docs.payload, lastTagPath),
-      penultimateTag: Mysql.Json.json.get(docs.payload, penultimateTagPath)
+      lastTag: Mysql.Json.get(docs.payload, lastTagPath),
+      penultimateTag: Mysql.Json.get(docs.payload, penultimateTagPath)
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -800,14 +800,14 @@ describe("json behavior", () => {
   test("mysql renders negative json array slices with last-relative syntax", () => {
     const docs = makeJsonTable(Mysql)
 
-    const recentTagsPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("tags"),
-      Mysql.Json.json.slice(-3, -1)
+    const recentTagsPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("tags"),
+      Mysql.Json.slice(-3, -1)
     )
 
     const plan = Mysql.Query.select({
-      recentTags: Mysql.Json.json.get(docs.payload, recentTagsPath)
+      recentTags: Mysql.Json.get(docs.payload, recentTagsPath)
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -823,13 +823,13 @@ describe("json behavior", () => {
   test("mysql renders recursive json path descent without a leading dot", () => {
     const docs = makeJsonTable(Mysql)
 
-    const cityDescendPath = Mysql.Json.json.path(
-      Mysql.Json.json.descend(),
-      Mysql.Json.json.key("city")
+    const cityDescendPath = Mysql.Json.path(
+      Mysql.Json.descend(),
+      Mysql.Json.key("city")
     )
 
     const plan = Mysql.Query.select({
-      cityValues: Mysql.Json.json.get(docs.payload, cityDescendPath)
+      cityValues: Mysql.Json.get(docs.payload, cityDescendPath)
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -844,14 +844,14 @@ describe("json behavior", () => {
 
   test("mysql preserves nested json delete paths as one path argument", () => {
     const docs = makeJsonTable(Mysql)
-    const cityPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("address"),
-      Mysql.Json.json.key("city")
+    const cityPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("address"),
+      Mysql.Json.key("city")
     )
 
     const plan = Mysql.Query.select({
-      deleteCity: Mysql.Json.json.delete(docs.payload, cityPath)
+      deleteCity: Mysql.Json.delete(docs.payload, cityPath)
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -866,15 +866,15 @@ describe("json behavior", () => {
 
   test("mysql rejects non-exact json mutation paths before rendering SQL", () => {
     const docs = makeJsonTable(Mysql)
-    const wildcardPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("tags"),
-      Mysql.Json.json.wildcard()
+    const wildcardPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("tags"),
+      Mysql.Json.wildcard()
     )
 
-    const deleteWildcard = Mysql.Json.json.delete(docs.payload as any, wildcardPath as any)
-    const setWildcard = Mysql.Json.json.set(docs.payload as any, wildcardPath as any, "featured" as any)
-    const insertWildcard = Mysql.Json.json.insert(docs.payload as any, wildcardPath as any, "featured" as any)
+    const deleteWildcard = Mysql.Json.delete(docs.payload as any, wildcardPath as any)
+    const setWildcard = Mysql.Json.set(docs.payload as any, wildcardPath as any, "featured" as any)
+    const insertWildcard = Mysql.Json.insert(docs.payload as any, wildcardPath as any, "featured" as any)
 
     expect(() =>
       Mysql.Renderer.make().render(Mysql.Query.select({ deleteWildcard }).pipe(Mysql.Query.from(docs)))
@@ -891,9 +891,9 @@ describe("json behavior", () => {
     const docs = makeJsonTable(Mysql)
 
     const plan = Mysql.Query.select({
-      hasProfile: Mysql.Json.json.hasKey(docs.payload, "profile"),
-      hasAny: Mysql.Json.json.hasAnyKeys(docs.payload, "profile", "note"),
-      hasAll: Mysql.Json.json.hasAllKeys(docs.payload, "profile", "note")
+      hasProfile: Mysql.Json.hasKey(docs.payload, "profile"),
+      hasAny: Mysql.Json.hasAnyKeys(docs.payload, "profile", "note"),
+      hasAll: Mysql.Json.hasAllKeys(docs.payload, "profile", "note")
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -916,19 +916,19 @@ describe("json behavior", () => {
   test("mysql renders dialect-specific json path objects for path exists", () => {
     const docs = makeJsonTable(Mysql)
 
-    const lastTagPath = Mysql.Json.json.path(
-      Mysql.Json.json.key("profile"),
-      Mysql.Json.json.key("tags"),
-      Mysql.Json.json.index(-1)
+    const lastTagPath = Mysql.Json.path(
+      Mysql.Json.key("profile"),
+      Mysql.Json.key("tags"),
+      Mysql.Json.index(-1)
     )
-    const cityDescendPath = Mysql.Json.json.path(
-      Mysql.Json.json.descend(),
-      Mysql.Json.json.key("city")
+    const cityDescendPath = Mysql.Json.path(
+      Mysql.Json.descend(),
+      Mysql.Json.key("city")
     )
 
     const plan = Mysql.Query.select({
-      hasLastTag: Mysql.Json.json.pathExists(docs.payload, lastTagPath),
-      hasAnyCity: Mysql.Json.json.pathExists(docs.payload, cityDescendPath)
+      hasLastTag: Mysql.Json.pathExists(docs.payload, lastTagPath),
+      hasAnyCity: Mysql.Json.pathExists(docs.payload, cityDescendPath)
     }).pipe(Mysql.Query.from(docs))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -956,7 +956,7 @@ describe("json behavior", () => {
 
     const insertPlan = Postgres.Query.insert(docsJson, {
       id: jsonDocId,
-      payload: Postgres.Json.json.buildObject({
+      payload: Postgres.Json.buildObject({
         profile: {
           city: "Paris"
         }
@@ -964,9 +964,9 @@ describe("json behavior", () => {
     })
 
     const updatePlan = Postgres.Query.update(docsJsonb, {
-      payload: Postgres.Json.jsonb.merge(
+      payload: Postgres.Jsonb.merge(
         docsJsonb.payload,
-        Postgres.Json.jsonb.buildObject({
+        Postgres.Jsonb.buildObject({
           profile: {
             city: "Paris"
           }
@@ -1006,7 +1006,7 @@ describe("json behavior", () => {
 
     const insertPlan = Mysql.Query.insert(docs, {
       id: jsonDocId,
-      payload: Mysql.Json.json.buildObject({
+      payload: Mysql.Json.buildObject({
         profile: {
           city: "Paris"
         }
@@ -1014,9 +1014,9 @@ describe("json behavior", () => {
     })
 
     const updatePlan = Mysql.Query.update(docs, {
-      payload: Mysql.Json.json.merge(
+      payload: Mysql.Json.merge(
         docs.payload,
-        Mysql.Json.json.buildObject({
+        Mysql.Json.buildObject({
           profile: {
             city: "Paris"
           }

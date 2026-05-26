@@ -49,7 +49,7 @@ type JsonPathPredicateQueryInput<Query extends JsonPathPredicateQuery> =
 type ExactJsonPathUsageError<Target> = {
   readonly __effect_qb_error__: "effect-qb: postgres json helpers only accept exact key/index paths"
   readonly __effect_qb_json_path__: Target
-  readonly __effect_qb_hint__: "Use Postgres.Json.jsonb.path(...) when you need wildcard(), slice(), or descend() segments"
+  readonly __effect_qb_hint__: "Use Postgres.Jsonb.path(...) when you need wildcard(), slice(), or descend() segments"
 }
 
 type ExactJsonPathGuard<Target> = Target extends JsonPath.Path<any>
@@ -156,7 +156,7 @@ type JsonbOnlyUsageError<
   readonly __effect_qb_error__: "effect-qb: postgres jsonb helpers require a jsonb expression"
   readonly __effect_qb_json_operation__: Operation
   readonly __effect_qb_received_kind__: Expression.DbTypeOf<Value>["kind"]
-  readonly __effect_qb_hint__: "Use Column.jsonb(...), Cast.to(..., Type.jsonb()), or Postgres.Json.jsonb.toJsonb(...)"
+  readonly __effect_qb_hint__: "Use Column.jsonb(...), Cast.to(..., Type.jsonb()), or Postgres.Jsonb.toJsonb(...)"
 }
 
 type JsonbBaseGuard<
@@ -546,5 +546,24 @@ const jsonb = {
 
 /** Postgres shared JSON helpers for exact paths and functions that work on both json and jsonb. */
 export { json }
+export const key = json.key
+export const index = json.index
+export const path = json.path
+export const get = json.get
+export const access = json.access
+export const traverse = json.traverse
+export const text = json.text
+export const accessText = json.accessText
+export const traverseText = json.traverseText
+export const buildObject = json.buildObject
+export const buildArray = json.buildArray
+export const toJson = json.toJson
+export const typeOf = json.typeOf
+export const length = json.length
+export const keys = json.keys
+export const stripNulls = json.stripNulls
+export const delete_ = json.delete
+export { delete_ as delete }
+export const remove = json.remove
 /** Postgres jsonb-only helpers for containment, mutation, wildcard paths, and SQL/JSON path predicates. */
 export { jsonb }

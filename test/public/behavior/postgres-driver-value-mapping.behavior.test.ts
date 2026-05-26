@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
-import { Column as C, Executor, Json as J, Query as Q, Renderer, Table, Type } from "#postgres"
+import { Column as C, Executor, Jsonb as Jb, Query as Q, Renderer, Table, Type } from "#postgres"
 import * as StdRoot from "#standard"
 
 describe("postgres driver value mappings", () => {
@@ -81,7 +81,7 @@ describe("postgres driver value mappings", () => {
 
   test("casts precision-sensitive values before postgres JSON construction", () => {
     const rendered = Renderer.make().render(Q.select({
-      payload: J.jsonb.buildObject({
+      payload: Jb.buildObject({
         amount: events.amount,
         happenedOn: events.happenedOn
       })

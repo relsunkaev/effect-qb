@@ -19,13 +19,13 @@ const docs = Std.Table.make("docs", {
   ),
 });
 
-const cityPath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("address"),
-  J.json.key("city"),
+const cityPath = J.path(
+  J.key("profile"),
+  J.key("address"),
+  J.key("city"),
 );
 
-const compatibleObject = J.json.buildObject({
+const compatibleObject = J.buildObject({
   profile: {
     address: {
       city: "Macon",
@@ -36,7 +36,7 @@ const compatibleObject = J.json.buildObject({
   note: null,
 });
 
-const incompatibleObject = J.json.delete(compatibleObject, cityPath);
+const incompatibleObject = J.delete(compatibleObject, cityPath);
 
 Q.insert(docs, {
   id: "doc-1",

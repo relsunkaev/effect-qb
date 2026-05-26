@@ -198,26 +198,26 @@ const ids = Q.select({
 Q.like(users.email, "%@example.com")
 Q.ilike(users.email, "%@example.com")
 Q.inSubquery(users.id, ids)
-Json.json.get(users.payload, Json.json.key("tags"))
-Json.json.path(Json.json.key("tags"), Json.json.index(-1))
-Json.json.pathExists(users.payload, Json.json.path(Json.json.key("tags"), Json.json.index(0)))
+Json.get(users.payload, Json.key("tags"))
+Json.path(Json.key("tags"), Json.index(-1))
+Json.pathExists(users.payload, Json.path(Json.key("tags"), Json.index(0)))
 // @ts-expect-error sqlite SQL/JSON path predicates require non-empty string paths
-Json.json.pathExists(users.payload, "")
-Json.json.insert(users.payload, Json.json.key("source"), "imported")
+Json.pathExists(users.payload, "")
+Json.insert(users.payload, Json.key("source"), "imported")
 
-const tagsIndexPath = Json.json.path(Json.json.key("tags"), Json.json.index(0))
+const tagsIndexPath = Json.path(Json.key("tags"), Json.index(0))
 
 // @ts-expect-error sqlite json.insert does not support array index paths
-Json.json.insert(users.payload, tagsIndexPath, "city")
+Json.insert(users.payload, tagsIndexPath, "city")
 
 // @ts-expect-error sqlite JSON paths do not support wildcard segments
-Json.json.wildcard()
+Json.wildcard()
 
 // @ts-expect-error sqlite JSON paths do not support slice segments
-Json.json.slice(0, 2)
+Json.slice(0, 2)
 
 // @ts-expect-error sqlite JSON paths do not support recursive descent segments
-Json.json.descend()
+Json.descend()
 
 // @ts-expect-error sqlite does not support regular-expression predicates
 Q.regexMatch(users.email, ".*@example.com")

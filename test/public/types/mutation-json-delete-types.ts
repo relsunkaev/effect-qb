@@ -2,7 +2,7 @@ import { Column as PgColumn } from "effect-qb/postgres"
 import * as Std from "effect-qb"
 import * as Schema from "effect/Schema";
 
-import { Function as F, Json as J, Query as Q } from "effect-qb/postgres"
+import { Function as F, Json as J, Jsonb as Jb, Query as Q } from "effect-qb/postgres"
 
 const docs = Std.Table.make("docs", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
@@ -41,9 +41,9 @@ const result = Q.select({ id: docs.id, note: notes.text, author: authors.name })
 
 type Test = Q.ResultRow<typeof result>;
 
-const cityPath = J.json.path(J.json.key("profile"), J.json.key("address"), J.json.key("city"));
+const cityPath = J.path(J.key("profile"), J.key("address"), J.key("city"));
 
-const compatibleObject = J.jsonb.buildObject({
+const compatibleObject = Jb.buildObject({
   profile: {
     address: {
       city: "Paris",
@@ -54,7 +54,7 @@ const compatibleObject = J.jsonb.buildObject({
   note: null,
 });
 
-const incompatibleObject = J.jsonb.delete(compatibleObject, cityPath);
+const incompatibleObject = Jb.delete(compatibleObject, cityPath);
 
 Q.insert(docs, {
   id: "doc-1",

@@ -2054,8 +2054,8 @@ const users = Table.make("users", {
       expect(plan.updates).toHaveLength(1)
       const after = plan.updates[0]?.after ?? ""
       expect(after).toContain(`stripe.pipe(`)
-      expect(after).toContain(`Pg.Json.json.get(Pg.Json.json.key("line_item"))`)
-      expect(after).toContain(`Pg.Json.json.text(Pg.Json.json.key("quantity"))`)
+      expect(after).toContain(`Pg.Json.get(Pg.Json.key("line_item"))`)
+      expect(after).toContain(`Pg.Json.text(Pg.Json.key("quantity"))`)
       expect(after).toContain(`Pg.Cast.to(Pg.Type.text())`)
       expect(after).toContain(`Pg.Cast.to(Pg.Type.int4())`)
     } finally {

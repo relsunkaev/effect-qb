@@ -22,53 +22,53 @@ const scalarDocs = Std.Table.make("scalar_docs", {
   payload: Std.Column.json(Schema.String)
 })
 
-const suitePath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("address"),
-  J.json.key("suite")
+const suitePath = J.path(
+  J.key("profile"),
+  J.key("address"),
+  J.key("suite")
 )
-const tagWildcardPath = J.json.path(
-  J.json.key("profile"),
-  J.json.key("tags"),
-  J.json.wildcard()
+const tagWildcardPath = J.path(
+  J.key("profile"),
+  J.key("tags"),
+  J.wildcard()
 )
-const tagWildcardExistsExpr = J.json.pathExists(docs.payload, tagWildcardPath)
+const tagWildcardExistsExpr = J.pathExists(docs.payload, tagWildcardPath)
 // @ts-expect-error MySQL SQL/JSON path predicates require non-empty string paths
-J.json.pathExists(docs.payload, "")
+J.pathExists(docs.payload, "")
 
-const setWithoutCreateExpr = J.json.set(docs.payload, suitePath, "12A", {
+const setWithoutCreateExpr = J.set(docs.payload, suitePath, "12A", {
   createMissing: false
 })
-const tagsExpr = J.json.get(docs.payload, J.json.path(J.json.key("profile"), J.json.key("tags")))
-const tagsKeysExpr = J.json.keys(tagsExpr)
-const lastPairValueExpr = J.json.get(
+const tagsExpr = J.get(docs.payload, J.path(J.key("profile"), J.key("tags")))
+const tagsKeysExpr = J.keys(tagsExpr)
+const lastPairValueExpr = J.get(
   docs.payload,
-  J.json.path(J.json.key("profile"), J.json.key("pair"), J.json.index(-1))
+  J.path(J.key("profile"), J.key("pair"), J.index(-1))
 )
-const setLastPairValueExpr = J.json.set(
+const setLastPairValueExpr = J.set(
   docs.payload,
-  J.json.path(J.json.key("profile"), J.json.key("pair"), J.json.index(-1)),
+  J.path(J.key("profile"), J.key("pair"), J.index(-1)),
   true
 )
-const deleteLastPairValueExpr = J.json.delete(
+const deleteLastPairValueExpr = J.delete(
   docs.payload,
-  J.json.path(J.json.key("profile"), J.json.key("pair"), J.json.index(-1))
+  J.path(J.key("profile"), J.key("pair"), J.index(-1))
 )
-const insertBeforeLastPairValueExpr = J.json.insert(
+const insertBeforeLastPairValueExpr = J.insert(
   docs.payload,
-  J.json.path(J.json.key("profile"), J.json.key("pair"), J.json.index(-1)),
+  J.path(J.key("profile"), J.key("pair"), J.index(-1)),
   true
 )
-const insertAfterLastPairValueExpr = J.json.insert(
+const insertAfterLastPairValueExpr = J.insert(
   docs.payload,
-  J.json.path(J.json.key("profile"), J.json.key("pair"), J.json.index(-1)),
+  J.path(J.key("profile"), J.key("pair"), J.index(-1)),
   true,
   { insertAfter: true }
 )
-const scalarLengthExpr = J.json.length(scalarDocs.payload)
-const objectTypeExpr = J.json.typeOf(docs.payload)
-const scalarTypeExpr = J.json.typeOf(scalarDocs.payload)
-const wildcardPath = J.json.path(J.json.key("profile"), J.json.key("tags"), J.json.wildcard())
+const scalarLengthExpr = J.length(scalarDocs.payload)
+const objectTypeExpr = J.typeOf(docs.payload)
+const scalarTypeExpr = J.typeOf(scalarDocs.payload)
+const wildcardPath = J.path(J.key("profile"), J.key("tags"), J.wildcard())
 
 type SetWithoutCreate = E.RuntimeOf<typeof setWithoutCreateExpr>
 type TagsKeys = E.RuntimeOf<typeof tagsKeysExpr>
@@ -109,19 +109,19 @@ void scalarType
 setWithoutCreate.profile.address.suite
 
 // @ts-expect-error json mutation helpers only accept exact key/index paths
-J.json.set(docs.payload, tagWildcardPath, "featured")
+J.set(docs.payload, tagWildcardPath, "featured")
 
 // @ts-expect-error json mutation helpers only accept exact key/index paths
-J.json.insert(docs.payload, tagWildcardPath, "featured")
+J.insert(docs.payload, tagWildcardPath, "featured")
 
 // @ts-expect-error json mutation helpers only accept exact key/index paths
-J.json.delete(docs.payload, tagWildcardPath)
+J.delete(docs.payload, tagWildcardPath)
 
 // @ts-expect-error MySQL does not support json path match predicates.
-J.json.pathMatch(docs.payload, wildcardPath)
+J.pathMatch(docs.payload, wildcardPath)
 
 // @ts-expect-error MySQL does not support json_strip_nulls-style helpers.
-J.json.stripNulls(docs.payload)
+J.stripNulls(docs.payload)
 
 void setWithoutCreateExpr
 void tagsKeysExpr
