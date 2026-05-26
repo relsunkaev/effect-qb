@@ -873,19 +873,281 @@ void plan
 
 ### Type Safety
 
-`effect-qb` pushes validation into the type system wherever the public API can
-know the answer statically:
+`effect-qb` pushes checks into TypeScript when the public API has enough
+information to know the answer before SQL is rendered. The main idea is that
+tables, columns, predicates, source availability, and dialects all carry type
+metadata through the plan.
 
-- table names, schema names, column names, and aliases are literal-aware
-- empty table names, empty field maps, and empty alias strings are rejected
-- selected result rows are inferred from the query plan
-- insert/update inputs are inferred from table metadata
-- concrete dialect conflicts are rejected
-- renderer and executor `valueMappings` accept only known keys
-- many table option conflicts are rejected before runtime
+#### Table Shape and Payloads
 
-Runtime checks remain at the boundaries where real data enters or leaves the
-typed plan: rendering, driver execution, and row decoding.
+Table definitions derive select, insert, and update payloads from column
+metadata. Generated columns are omitted from inserts, nullable/default columns
+become optional for inserts, and primary keys are omitted from updates.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(
+    Column.primaryKey,
+    Column.generated(Pg.Query.literal("generated-user-id"))
+  ),
+  email: Column.text(),
+  displayName: Column.text().pipe(Column.nullable)
+})
+
+type UserInsert = Table.InsertOf<typeof users>
+type UserUpdate = Table.UpdateOf<typeof users>
+
+const insertUser: UserInsert = {
+  email: "ada@example.com"
+}
+
+const updateUser: UserUpdate = {
+  displayName: null
+}
+
+// @ts-expect-error generated primary keys are not insert payload fields
+const insertWithId: UserInsert = {
+  id: "550e8400-e29b-41d4-a716-446655440000",
+  email: "ada@example.com"
+}
+
+// @ts-expect-error primary keys are not update payload fields
+const updateWithId: UserUpdate = {
+  id: "550e8400-e29b-41d4-a716-446655440000"
+}
+
+const insertSchema = Table.insertSchema(users)
+type UserInsertFromSchema = Schema.Schema.Type<typeof insertSchema>
+
+type _UserInsertFromSchema = UserInsertFromSchema
+void insertUser
+void updateUser
+void insertWithId
+void updateWithId
+```
+
+The same metadata powers `table.schemas.select`, `table.schemas.insert`, and
+`table.schemas.update`, so Effect Schema validation and TypeScript payload
+types stay aligned.
+
+#### Result Rows and Predicate Facts
+
+`Query.ResultRow<typeof plan>` is the canonical row type for a plan. It is not
+only the projection shape: it also includes facts introduced by joins and
+predicates. Left-joined sources become nullable until a predicate proves the
+source is present, and predicates such as `isNotNull`, `eq`, `in`, and
+`notIn` narrow selected values.
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid(),
+  title: Column.text().pipe(Column.nullable),
+  status: Column.text()
+})
+
+const visiblePosts = Query.select({
+  userId: users.id,
+  postId: posts.id,
+  title: posts.title,
+  upperTitle: Function.upper(posts.title)
+}).pipe(
+  Query.from(users),
+  Query.leftJoin(posts, Query.eq(users.id, posts.userId)),
+  Query.where(Query.isNotNull(posts.title))
+)
+
+type VisiblePostRow = Query.ResultRow<typeof visiblePosts>
+
+declare const row: VisiblePostRow
+
+const title: string = row.title
+const upperTitle: string = row.upperTitle
+const postId: string = row.postId
+
+// @ts-expect-error isNotNull(posts.title) proves selected title is not null
+const missingTitle: null = row.title
+
+// @ts-expect-error proving the joined post exists also promotes posts.id
+const missingPostId: null = row.postId
+
+void title
+void upperTitle
+void postId
+void missingTitle
+void missingPostId
+```
+
+Literal predicates can narrow finite unions too. This applies to ordinary
+columns and to selected expressions that retain enough path metadata.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const payloadSchema = Schema.Union(
+  Schema.Struct({
+    kind: Schema.Literal("created"),
+    actorId: Schema.String
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("deleted"),
+    reason: Schema.String
+  })
+)
+
+const events = Table.make("events", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  payload: Pg.Column.jsonb(payloadSchema)
+})
+
+const kind = Pg.Json.jsonb.text(events.payload, Pg.Json.jsonb.key("kind"))
+
+const createdEvents = Query.select({
+  payload: events.payload,
+  kind
+}).pipe(
+  Query.from(events),
+  Query.where(Query.eq(kind, "created"))
+)
+
+type CreatedEventRow = Query.ResultRow<typeof createdEvents>
+
+declare const created: CreatedEventRow
+
+const createdKind: "created" = created.kind
+const actorId: string = created.payload.actorId
+
+// @ts-expect-error discriminator equality removes the deleted payload branch
+created.payload.reason
+
+void createdKind
+void actorId
+```
+
+These refinements are implemented by the predicate implication layer. It tracks
+which column and JSON-path facts are guaranteed, which optional sources have
+been promoted, and which row shapes are impossible under the current
+assumptions.
+
+#### Source Completeness and Aliases
+
+Plans know which sources they reference. Incomplete plans are still composable,
+but rendering, execution, CTEs, and derived sources require complete plans. SQL
+aliases also have to be literal, non-empty strings so result paths and source
+identity stay stable.
+
+```ts
+import { Column, Query, Renderer, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const incomplete = Query.select({
+  email: users.email
+})
+
+// @ts-expect-error renderable plans must include every referenced source
+Renderer.make().render(incomplete)
+
+const complete = incomplete.pipe(Query.from(users))
+const rendered = Renderer.make().render(complete)
+
+type RenderedRow = Renderer.RowOf<typeof rendered>
+
+const validRow: RenderedRow = {
+  email: "ada@example.com"
+}
+
+declare const dynamicAlias: string
+
+// @ts-expect-error derived source aliases must be literal strings
+Query.as(complete, dynamicAlias)
+
+// @ts-expect-error derived source aliases must be non-empty
+Query.as(complete, "")
+
+void rendered
+void validRow
+```
+
+#### Dialect Compatibility
+
+Root `effect-qb` queries start on the portable standard surface. Dialect
+helpers narrow a plan to a concrete dialect, and renderers/executors only accept
+plans compatible with their dialect.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Query, Table } from "effect-qb"
+import * as My from "effect-qb/mysql"
+import * as Pg from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const portable = Query.select({
+  id: users.id,
+  email: users.email
+}).pipe(Query.from(users))
+
+Pg.Renderer.make().render(portable)
+My.Renderer.make().render(portable)
+Sq.Renderer.make().render(portable)
+
+const docs = Table.make("docs", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  payload: Pg.Column.jsonb(Schema.Struct({
+    kind: Schema.String
+  }))
+})
+
+const postgresOnly = Query.select({
+  kind: Pg.Json.jsonb.text(docs.payload, Pg.Json.jsonb.key("kind"))
+}).pipe(Query.from(docs))
+
+Pg.Renderer.make().render(postgresOnly)
+
+// @ts-expect-error Postgres jsonb plans are not MySQL-compatible
+My.Renderer.make().render(postgresOnly)
+```
+
+The same compatibility checks apply to set operators, subqueries, mutation
+filters, mutation values, executors, and renderer/executor `valueMappings`.
+Mapping keys are checked against known type names, type families, and runtime
+keys for the selected dialect.
+
+#### Runtime Boundaries
+
+TypeScript can reject structurally impossible plans, but it cannot prove that a
+live database matches your table definitions. Runtime validation still matters
+at these boundaries:
+
+- renderer construction and dialect-specific SQL serialization
+- driver execution and driver value mappings
+- row decoding through each projection schema
+- custom SQL fragments, casts, and declared database metadata
+- database constraints and migrations outside this package
+
+If a driver returns a value that does not satisfy the projection schema,
+`Executor` fails during decode instead of pretending the row is typed.
 
 ### Limitations
 
