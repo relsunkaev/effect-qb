@@ -4,6 +4,311 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.18.0 - 2026-05-26
+
+### Breaking Changes
+
+- feat(querybuilder)!: remove table schema factories
+
+### Features
+
+- feat: derive table schemas lazily
+- feat(querybuilder): introduce standard dialect entrypoint
+- feat(querybuilder): extract standard query DSL
+- feat(querybuilder): add portable standard column types
+- feat(querybuilder): expose standard dialect from package root
+- feat(querybuilder): add composable identifier casing
+- feat(querybuilder): add postgres schema composition
+- feat(querybuilder): make dialect surfaces extension-only
+
+### Fixes
+
+- fix(querybuilder): reject mixed concrete standard plans
+- fix(querybuilder): guard untyped mixed dialect plans
+- fix(querybuilder): guard untyped mixed dialect executors
+- fix(querybuilder): rename root standard namespace to sql
+- fix(querybuilder): type renderer value mapping keys
+- fix(querybuilder): remove root sql namespace
+- fix(database): discover schema make factories
+- fix(querybuilder): render cased foreign key targets
+- fix(querybuilder): apply casing in mysql and sqlite renderers
+- fix(querybuilder): apply casing in mysql and sqlite ddl
+- fix(querybuilder): apply table casing to postgres ddl names
+- fix(postgres): model cased schema identifiers
+- fix(querybuilder): apply casing to mutation columns
+- fix(querybuilder): apply casing to generated ddl expressions
+- fix(mysql): apply casing to delete target lists
+- fix(querybuilder): apply casing to update assignments
+- fix(querybuilder): preserve query-local source casing
+- fix(querybuilder): preserve casing in nested renderers
+- fix(querybuilder): reject malformed between predicates
+- fix(querybuilder): reject malformed coalesce expressions
+- fix(querybuilder): reject malformed concat expressions
+- fix(querybuilder): reject malformed boolean combinators
+- fix(querybuilder): reject malformed membership predicates
+- fix(querybuilder): reject malformed case expressions
+- fix(querybuilder): reject case expressions without fallback
+- fix(querybuilder): reject incomplete case branches
+- fix(querybuilder): reject window over without aggregate
+- fix(querybuilder): reject invalid window order directions
+- fix(querybuilder): reject window order terms without values
+- fix(querybuilder): reject window partition terms without values
+- fix(querybuilder): reject invalid quantified operators
+- fix(querybuilder): reject malformed collations
+- fix(querybuilder): reject current date arguments
+- fix(querybuilder): reject malformed extract calls
+- fix(querybuilder): reject empty function names
+- fix(querybuilder): reject malformed function arguments
+- fix(querybuilder): reject malformed case branches
+- fix(querybuilder): reject malformed window clauses
+- fix(querybuilder): reject malformed cast targets
+- fix(querybuilder): reject malformed variadic values
+- fix(querybuilder): reject malformed json builders
+- fix(querybuilder): reject malformed json builder entries
+- fix(querybuilder): reject malformed json key predicates
+- fix(querybuilder): reject empty sql json paths
+- fix(querybuilder): reject mysql json wildcard mutations
+- fix(mysql): use standard tables in integration coverage
+- fix(integration): use standard tables in dialect suites
+- fix(querybuilder): reject malformed unary expressions
+- fix(querybuilder): reject malformed binary expressions
+- fix(querybuilder): reject malformed grouped casts
+- fix(querybuilder): reject malformed cast operands
+- fix(querybuilder): reject malformed collate operands
+- fix(querybuilder): reject malformed function arguments
+- fix(querybuilder): reject malformed function names
+- fix(querybuilder): reject malformed grouped variadics
+- fix(querybuilder): reject malformed grouped case expressions
+- fix(querybuilder): reject malformed subquery operands
+- fix(querybuilder): reject malformed grouped json expressions
+- fix(querybuilder): reject malformed json path segments
+- fix(querybuilder): reject grouped invalid date literals
+- fix(querybuilder): reject invalid date predicates
+- fix(querybuilder): reject invalid date normalization
+- fix(querybuilder): reject invalid date ddl defaults
+- fix(querybuilder): reject malformed plan clauses
+- fix(querybuilder): reject malformed optional plan arrays
+- fix(querybuilder): reject malformed mutation column arrays
+- fix(querybuilder): reject malformed unnest insert metadata
+- fix(querybuilder): reject malformed insert target metadata
+- fix(querybuilder): reject malformed ddl table options
+- fix(querybuilder): reject malformed ddl option entries
+- fix(querybuilder): reject malformed ddl check constraints
+- fix(querybuilder): validate schema model table options
+- fix(querybuilder): reject unknown schema table options
+- fix(querybuilder): validate schema index key metadata
+- fix(querybuilder): reject non-array table options
+- fix(querybuilder): validate foreign key reference identifiers
+- fix(querybuilder): validate table option names
+- fix(querybuilder): validate index support identifiers
+- fix(querybuilder): validate table option boolean flags
+- fix(querybuilder): validate row lock flags
+- fix(querybuilder): validate statement option flags
+- fix(querybuilder): validate statement identifiers
+- fix(querybuilder): validate conflict constraint names
+- fix(querybuilder): validate conflict target columns
+- fix(postgres): apply schema casing to enum and sequence namespaces
+- fix(ddl): reject postgres-only check options outside postgres
+- fix(ddl): reject unsupported deferrable constraints
+- fix(standard): reject non-portable constraint options
+- fix(ddl): reject unsupported identity columns
+- fix(standard): reject identity column metadata
+- fix(ddl): reject unsupported array columns
+- fix(mutation): reject invalid conflict predicates
+- fix(mutation): reject unsupported conflict targets
+- fix(query): reject conflicting lock wait modes
+- fix(query): reject ungrouped having predicates
+- fix(query): reject ungrouped order terms
+- fix(postgres): reject invalid distinct on ordering
+- fix(standard): reject unsupported index existence modifiers
+- fix(standard): reject unsupported table existence modifiers
+- fix(standard): reject regex predicates
+- fix(standard): reject mutation returning
+- fix(standard): reject insert conflict clauses
+- fix(renderer): reject excluded outside conflicts
+- fix(standard): reject joined mutations
+- fix(standard): reject row locking
+- fix(standard): reject truncate statements
+- fix(standard): reject full joins
+- fix(standard): reject lateral sources
+- fix(standard): reject quantified comparisons
+- fix(standard): reject non-union set all variants
+- fix(querybuilder): validate rendered function identifiers
+- fix(querybuilder): validate table function identifiers
+- fix(querybuilder): reject empty SQL identifiers
+- fix(querybuilder): reject empty db type names
+- fix(querybuilder): validate DDL type overrides
+- fix(querybuilder): reject empty table names in types
+- fix(querybuilder): reject empty identifier factories in types
+- fix(querybuilder): reject empty table field names in types
+- fix(querybuilder): type casing pipe targets
+- fix(querybuilder): reject empty class table names in types
+- fix(querybuilder): reject empty direct table schema names in types
+- fix(querybuilder): reject empty table option names in types
+- fix(querybuilder): reject empty postgres index metadata in types
+- fix(querybuilder): reject empty inline column metadata in types
+- fix(querybuilder): require literal aliases in types
+- fix(querybuilder): trust typed projections in built-in renderers
+- fix(querybuilder): reject empty json path strings in types
+- fix(querybuilder): reject empty db type names in types
+- fix(querybuilder): reject empty conflict constraint names in types
+- fix(querybuilder): reject unsafe function identifiers in types
+- fix(querybuilder): reject malformed function calls in types
+- fix(querybuilder): reject empty statement and index names in types
+- fix(querybuilder): support direct foreign-key reference payloads in renderers
+- fix(querybuilder): support direct foreign-key reference payloads in schema models
+- fix(querybuilder): handle empty index key arrays in schema mapping
+- fix(querybuilder): handle empty option columns under casing in schema mapping
+- fix(querybuilder): tolerate non-string option names under casing
+- fix(querybuilder): tolerate non-string foreign-key identifiers under casing
+- fix(querybuilder): allow non-object foreign-key reference targets
+- fix(querybuilder): tolerate malformed index predicates in schema mapping
+- fix(querybuilder): preserve malformed foreign-key reference columns
+- fix(querybuilder): trust foreign-key local column metadata
+- fix(querybuilder): trust malformed non-index option columns
+- fix(querybuilder): trust malformed index option columns
+- fix(querybuilder): preserve unknown table option kinds
+- fix(querybuilder): trust malformed table option entries
+- fix(querybuilder): normalize non-array table option metadata
+- fix(querybuilder): avoid malformed primary key option crashes
+- fix(querybuilder): trust conflicting primary key metadata
+- fix(querybuilder): handle malformed index key metadata
+- fix(querybuilder): ignore malformed option entries during ddl rendering
+- fix(querybuilder): normalize non-array table options in ddl renderers
+- fix(database): ignore malformed table options in postgres schema diff
+- fix(database): ignore malformed options in postgres create-table sql
+- fix(querybuilder): preserve malformed index keys in source table models
+- fix(database): skip malformed index keys in postgres schema planning
+- fix(database): normalize malformed index keys in postgres pull planning
+- fix(database): harden postgres pull option traversal
+- fix(database): guard malformed constraint columns in postgres pull
+- fix(database): validate constraint shapes in postgres schema planning
+- fix(database): tolerate malformed index include metadata
+- fix(database): normalize index include metadata in postgres pull
+- fix(database): ignore malformed index predicates in schema planning
+- fix(database): skip malformed check predicates in schema planning
+- fix(database): validate check predicates in postgres pull planning
+- fix(database): tolerate malformed index predicates in postgres pull planning
+- fix(database): tolerate malformed postgres index expression metadata
+- fix(postgres): type cased schema metadata mappings
+
+### Refactors
+
+- refactor(querybuilder): delegate rendering through sql dialect
+- refactor(querybuilder): use postgres schema namespace consistently
+- refactor(querybuilder): tighten unnecessary unknown annotations
+- refactor(querybuilder): remove unnecessary unknown bridges
+
+### Docs
+
+- docs(readme): document sqlite and jsonb narrowing
+- docs(querybuilder): specify standard dialect end state
+- docs(readme): add chapter planning notes
+- docs(readme): rewrite guide from chapter notes
+- docs(readme): organize guide hierarchy
+- docs(readme): expand type safety guide
+- docs(readme): promote type safety guide
+- docs(readme): remove chapter planning notes
+
+### Tests
+
+- test: cover table schema helper surface
+- test(querybuilder): cover standard concrete narrowing
+- test(querybuilder): cover standard portable query rendering
+- test(querybuilder): cover standard mutation rendering
+- test(querybuilder): cover postgres schema namespace surface
+- test(querybuilder): cover value mapping key surfaces
+- test(pack): smoke root table and column imports
+
+### Chores
+
+- chore(repo): map stale release bot identity
+- chore(repo): map bare release email
+- chore(deps): make effect packages peer dependencies
+- chore(beads): record standard dialect follow-up status
+- chore(beads): close standard api cleanup task
+- chore(beads): record querybuilder audit progress
+- chore(beads): record continued querybuilder audit
+- chore(beads): record update assignment audit
+- chore(beads): record source casing audit
+- chore(beads): record nested renderer audit
+- chore(beads): close runtime validation issue
+- chore(beads): record having audit slice
+- chore(beads): record grouped order audit slice
+- chore(beads): record distinct on audit slice
+- chore(beads): record standard index audit slice
+- chore(beads): record standard table audit slice
+- chore(beads): record standard regex audit slice
+- chore(beads): record standard returning audit slice
+- chore(beads): record standard conflict audit slice
+- chore(beads): record excluded scope audit slice
+- chore(beads): record joined mutation audit slice
+- chore(beads): record row locking audit slice
+- chore(beads): record truncate audit slice
+- chore(beads): record full join audit slice
+- chore(beads): record lateral audit slice
+- chore(beads): record quantified comparison audit slice
+- chore(beads): record set all audit slice
+- chore(beads): preserve audit notes
+
+### Performance
+
+- perf(querybuilder): remove type-covered runtime validation
+- perf(runtime): remove redundant conflict and lock guards
+- perf(runtime): remove redundant ddl target guards
+- perf(runtime): remove redundant conflict column checks
+- perf(runtime): remove redundant query shape guards
+- perf(runtime): remove redundant plan composition guards
+- perf(runtime): remove redundant mutation guards
+- perf(runtime): remove redundant generated dsl checks
+- perf(runtime): remove redundant distinctOn arity guard
+- perf(querybuilder): remove type-covered runtime validation
+- perf(querybuilder): remove type-covered renderer validation
+- perf(querybuilder): remove type-covered alias validation
+- perf(querybuilder): remove type-covered casing validation
+- perf(querybuilder): defer statement identifier validation to renderer
+- perf(querybuilder): remove type-covered conflict constraint guard
+- perf(querybuilder): remove type-covered statement identifier guard
+- perf(querybuilder): trust typed db type names in renderers
+- perf(querybuilder): remove type-covered cast target validation
+- perf(querybuilder): remove type-covered from statement guard
+- perf(querybuilder): remove type-covered ddl clause guards
+- perf(querybuilder): remove type-covered transaction kind guard
+- perf(querybuilder): remove type-covered query statement guard
+- perf(querybuilder): remove type-covered merge action guards
+- perf(querybuilder): remove mixed variadic pipe runtime guard
+- perf(querybuilder): remove cast grouping-key runtime guard
+- perf(querybuilder): remove aliased table option runtime guard
+- perf(querybuilder): remove class option primary-key runtime guard
+- perf(querybuilder): remove json key grouping runtime guard
+- perf(querybuilder): remove json path grouping runtime guards
+- perf(querybuilder): remove grouping fallback runtime guard
+- perf(querybuilder): defer grouped invalid-date validation to render boundaries
+- perf(querybuilder): normalize grouping collation keys
+- perf(querybuilder): remove foreign-key reference-column runtime guard
+- perf(querybuilder): remove foreign-key local-column runtime guard
+- perf(querybuilder): remove empty index option runtime guard
+- perf(querybuilder): remove foreign-key known-columns runtime guard
+- perf(querybuilder): remove foreign-key arity runtime guard
+- perf(querybuilder): remove foreign-key resolver runtime guard
+- perf(querybuilder): defer foreign-key action validation to renderers
+- perf(querybuilder): remove index key-array runtime guard
+- perf(querybuilder): skip malformed index key metadata entries
+- perf(querybuilder): remove table option-name runtime guard
+- perf(querybuilder): remove table option boolean-flag guards
+- perf(querybuilder): remove index identifier runtime guards
+- perf(querybuilder): remove foreign-key identifier runtime guards
+- perf(querybuilder): remove nullable-primary-key runtime guard
+- perf(querybuilder): remove non-index column-count runtime guard
+- perf(querybuilder): remove unknown-column runtime guards
+- perf(querybuilder): remove index key runtime validation guards
+- perf(querybuilder): remove check option runtime validation guards
+- perf(querybuilder): remove index include runtime array guard
+
+### Other
+
+- bd init: initialize beads issue tracking
+
 ## 0.17.0 - 2026-05-12
 
 ### Features
