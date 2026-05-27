@@ -4,6 +4,40 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.19.0 - 2026-05-27
+
+### Breaking Changes
+
+- feat(querybuilder)!: remove portable helpers from dialect namespaces
+
+### Features
+
+- feat(querybuilder): expose flat json helper modules
+- feat(querybuilder): add casing shorthand and dialect query extensions
+
+### Docs
+
+- docs(readme): show json schema safety examples
+- docs(readme): simplify type safety examples
+
+### Tests
+
+- test(dialects): cover standard helper import boundary
+
+### CI
+
+- ci(publish): publish querybuilder with npm
+- ci(release): configure release git author
+
+### Chores
+
+- chore(beads): track npm publish blocker
+- chore(beads): narrow npm publish blocker
+- chore(release): allow workspace publish
+- chore(beads): track dialect namespace cleanup
+- chore(beads): close dialect namespace cleanup
+- chore(beads): track v0.19.0 release
+
 ## 0.18.0 - 2026-05-26
 
 ### Breaking Changes
