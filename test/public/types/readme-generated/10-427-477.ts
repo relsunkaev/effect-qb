@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 414-463
+// Code fences: 427-477
 
-// README.md:414-463
+// README.md:427-477
 import * as Schema from "effect/Schema"
 import { Column, Query, Table } from "effect-qb"
 
@@ -16,15 +16,16 @@ const users = Table.make("users", {
 })
 
 type UserInsert = Table.InsertOf<typeof users>
+// {
+//   readonly email: string
+//   readonly displayName?: string | null
+// }
+
 type UserUpdate = Table.UpdateOf<typeof users>
-
-const insertUser: UserInsert = {
-  email: "ada@example.com"
-}
-
-const updateUser: UserUpdate = {
-  displayName: null
-}
+// {
+//   readonly email?: string
+//   readonly displayName?: string | null
+// }
 
 const insertWithId: UserInsert = {
   // @ts-expect-error generated primary keys are not insert payload fields

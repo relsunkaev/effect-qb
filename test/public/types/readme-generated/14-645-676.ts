@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 619-651
+// Code fences: 645-676
 
-// README.md:619-651
+// README.md:645-676
 import { Column, Query, Renderer, Table } from "effect-qb"
 
 const users = Table.make("users", {
@@ -21,10 +21,9 @@ const complete = incomplete.pipe(Query.from(users))
 const rendered = Renderer.make().render(complete)
 
 type RenderedRow = Renderer.RowOf<typeof rendered>
-
-const validRow: RenderedRow = {
-  email: "ada@example.com"
-}
+// {
+//   readonly email: string
+// }
 
 declare const dynamicAlias: string
 

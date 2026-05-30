@@ -114,8 +114,15 @@ const userDirectory = Query.select({
 )
 
 type UserDirectoryRow = Query.ResultRow<typeof userDirectory>
+// {
+//   readonly id: string
+//   readonly email: string
+//   readonly displayName: string
+// }
 
-const postgresSql = Pg.Renderer.make().render(userDirectory)
+const rendered = Pg.Renderer.make().render(userDirectory)
+// rendered.sql:
+// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."bio" is not null) order by "users"."email" asc
 
 ```
 
@@ -123,7 +130,7 @@ The query plan above is portable because it only uses root modules. It can be
 rendered by any built-in renderer.
 
 ```ts
-import { Column, Json, Query, Table } from "effect-qb"
+import { Column, Query, Table } from "effect-qb"
 import * as My from "effect-qb/mysql"
 import * as Pg from "effect-qb/postgres"
 import * as Sq from "effect-qb/sqlite"
@@ -138,9 +145,17 @@ const readAccounts = Query.select({
   email: accounts.email
 }).pipe(Query.from(accounts))
 
-Pg.Renderer.make().render(readAccounts)
-My.Renderer.make().render(readAccounts)
-Sq.Renderer.make().render(readAccounts)
+const postgres = Pg.Renderer.make().render(readAccounts)
+// postgres.sql:
+// select "accounts"."id" as "id", "accounts"."email" as "email" from "accounts"
+
+const mysql = My.Renderer.make().render(readAccounts)
+// mysql.sql:
+// select `accounts`.`id` as `id`, `accounts`.`email` as `email` from `accounts`
+
+const sqlite = Sq.Renderer.make().render(readAccounts)
+// sqlite.sql:
+// select "accounts"."id" as "id", "accounts"."email" as "email" from "accounts"
 ```
 
 ## Core Concepts
@@ -202,19 +217,17 @@ const organizations = Table.make("organizations", {
   archivedAt: Column.datetime().pipe(Column.nullable)
 })
 
-const membershipsBase = Table.make("memberships", {
+const memberships = Table.make("memberships", {
   orgId: Column.uuid(),
   userId: Column.uuid(),
   role: Column.text()
-})
-
-const memberships = membershipsBase.pipe(
+}).pipe(
   ForeignKey.make("orgId", () => organizations, "id"),
   PrimaryKey.make(["orgId", "userId"] as const),
   Unique.make(["orgId", "role"] as const),
   Check.make(
     "memberships_role_check",
-    Query.neq(membershipsBase.role, "")
+    (table) => Query.neq(table.role, "")
   ),
   Index.make("userId")
 )
@@ -425,15 +438,16 @@ const users = Table.make("users", {
 })
 
 type UserInsert = Table.InsertOf<typeof users>
+// {
+//   readonly email: string
+//   readonly displayName?: string | null
+// }
+
 type UserUpdate = Table.UpdateOf<typeof users>
-
-const insertUser: UserInsert = {
-  email: "ada@example.com"
-}
-
-const updateUser: UserUpdate = {
-  displayName: null
-}
+// {
+//   readonly email?: string
+//   readonly displayName?: string | null
+// }
 
 const insertWithId: UserInsert = {
   // @ts-expect-error generated primary keys are not insert payload fields
@@ -501,18 +515,13 @@ const visiblePosts = Query.select({
 )
 
 type VisiblePostRow = Query.ResultRow<typeof visiblePosts>
-
-declare const row: VisiblePostRow
-
-const title: string = row.title
-const upperTitle: string = row.upperTitle
-const postId: string = row.postId
-
-// @ts-expect-error isNotNull(posts.title) proves selected title is not null
-const missingTitle: null = row.title
-
-// @ts-expect-error proving the joined post exists also promotes posts.id
-const missingPostId: null = row.postId
+// {
+//   readonly userId: string
+//   readonly postId: string
+//   readonly title: string      // isNotNull(posts.title) proves this is not null
+//   readonly upperTitle: string
+// }
+// The title predicate also proves the left-joined posts row exists, so postId is string.
 
 ```
 
@@ -552,14 +561,14 @@ const createdEvents = Query.select({
 )
 
 type CreatedEventRow = Query.ResultRow<typeof createdEvents>
-
-declare const created: CreatedEventRow
-
-const createdKind: "created" = created.kind
-const actorId: string = created.payload.actorId
-
-// @ts-expect-error discriminator equality removes the deleted payload branch
-created.payload.reason
+// {
+//   readonly payload: {
+//     readonly kind: "created"
+//     readonly actorId: string
+//   }
+//   readonly kind: "created"
+// }
+// The discriminator equality removes the deleted payload branch.
 
 ```
 
@@ -609,6 +618,23 @@ Query.update(docs, {
 })
 ```
 
+Deleting multiple paths is a sequence of terminal deletes. After each delete,
+start the next path from the updated JSON value.
+
+```ts
+const withoutLegacyFields = docs.payload.pipe(
+  Jsonb.key("profile"),
+  Jsonb.key("legacyName"),
+  Jsonb.delete,
+  Jsonb.key("profile"),
+  Jsonb.key("legacySlug"),
+  Jsonb.delete
+)
+```
+
+Use the same shape with root `Json.key(...)` and `Json.delete` for portable
+`Column.json(...)` values.
+
 ### Source Completeness and Aliases
 
 Plans know which sources they reference. Incomplete plans are still composable,
@@ -635,10 +661,9 @@ const complete = incomplete.pipe(Query.from(users))
 const rendered = Renderer.make().render(complete)
 
 type RenderedRow = Renderer.RowOf<typeof rendered>
-
-const validRow: RenderedRow = {
-  email: "ada@example.com"
-}
+// {
+//   readonly email: string
+// }
 
 declare const dynamicAlias: string
 
@@ -749,6 +774,11 @@ const postsByUser = Query.select({
 )
 
 type PostsByUserRow = Query.ResultRow<typeof postsByUser>
+// {
+//   readonly userId: string
+//   readonly email: string
+//   readonly postCount: number
+// }
 
 ```
 
@@ -809,8 +839,10 @@ const readUsers = Query.select({
 
 const rendered = Pg.Renderer.make().render(readUsers)
 
-const sql: string = rendered.sql
-const params: readonly unknown[] = rendered.params
+// rendered.sql:
+// select "users"."id" as "id", "users"."email" as "email" from "users"
+// rendered.params:
+// []
 
 ```
 
@@ -1107,6 +1139,10 @@ const plan = Query.select({
 }).pipe(Query.from(users))
 
 type Row = Query.ResultRow<typeof plan>
+// {
+//   readonly id: string
+//   readonly email: string
+// }
 
 ```
 

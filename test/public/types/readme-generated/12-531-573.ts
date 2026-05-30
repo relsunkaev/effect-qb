@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 522-564
+// Code fences: 531-573
 
-// README.md:522-564
+// README.md:531-573
 import * as Schema from "effect/Schema"
 import { Column, Query, Table } from "effect-qb"
 import { Jsonb } from "effect-qb/postgres"
@@ -35,14 +35,14 @@ const createdEvents = Query.select({
 )
 
 type CreatedEventRow = Query.ResultRow<typeof createdEvents>
-
-declare const created: CreatedEventRow
-
-const createdKind: "created" = created.kind
-const actorId: string = created.payload.actorId
-
-// @ts-expect-error discriminator equality removes the deleted payload branch
-created.payload.reason
+// {
+//   readonly payload: {
+//     readonly kind: "created"
+//     readonly actorId: string
+//   }
+//   readonly kind: "created"
+// }
+// The discriminator equality removes the deleted payload branch.
 
 
 export {};

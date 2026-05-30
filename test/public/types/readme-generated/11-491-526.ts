@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 477-517
+// Code fences: 491-526
 
-// README.md:477-517
+// README.md:491-526
 import { Column, Function, Query, Table } from "effect-qb"
 
 const users = Table.make("users", {
@@ -29,18 +29,13 @@ const visiblePosts = Query.select({
 )
 
 type VisiblePostRow = Query.ResultRow<typeof visiblePosts>
-
-declare const row: VisiblePostRow
-
-const title: string = row.title
-const upperTitle: string = row.upperTitle
-const postId: string = row.postId
-
-// @ts-expect-error isNotNull(posts.title) proves selected title is not null
-const missingTitle: null = row.title
-
-// @ts-expect-error proving the joined post exists also promotes posts.id
-const missingPostId: null = row.postId
+// {
+//   readonly userId: string
+//   readonly postId: string
+//   readonly title: string      // isNotNull(posts.title) proves this is not null
+//   readonly upperTitle: string
+// }
+// The title predicate also proves the left-joined posts row exists, so postId is string.
 
 
 export {};

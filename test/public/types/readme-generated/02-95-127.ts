@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 95-120
+// Code fences: 95-127
 
-// README.md:95-120
+// README.md:95-127
 import { Column, Function, Query, Table } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
 
@@ -24,8 +24,15 @@ const userDirectory = Query.select({
 )
 
 type UserDirectoryRow = Query.ResultRow<typeof userDirectory>
+// {
+//   readonly id: string
+//   readonly email: string
+//   readonly displayName: string
+// }
 
-const postgresSql = Pg.Renderer.make().render(userDirectory)
+const rendered = Pg.Renderer.make().render(userDirectory)
+// rendered.sql:
+// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."bio" is not null) order by "users"."email" asc
 
 
 export {};

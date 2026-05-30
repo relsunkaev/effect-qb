@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 577-610
+// Code fences: 586-619, 624-633
 
-// README.md:577-610
+// README.md:586-619
 import * as Schema from "effect/Schema"
 import { Column, Query, Table } from "effect-qb"
 import { Jsonb } from "effect-qb/postgres"
@@ -35,5 +35,17 @@ Query.update(docs, {
   // @ts-expect-error payload no longer satisfies payloadSchema
   payload: missingRequiredCity
 })
+
+{
+  // README.md:624-633
+  const withoutLegacyFields = docs.payload.pipe(
+    Jsonb.key("profile"),
+    Jsonb.key("legacyName"),
+    Jsonb.delete,
+    Jsonb.key("profile"),
+    Jsonb.key("legacySlug"),
+    Jsonb.delete
+  )
+}
 
 export {};

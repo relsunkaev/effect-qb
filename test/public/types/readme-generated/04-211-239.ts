@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 196-226
+// Code fences: 211-239
 
-// README.md:196-226
+// README.md:211-239
 import { Check, Column, ForeignKey, Index, PrimaryKey, Query, Table, Unique } from "effect-qb"
 
 const organizations = Table.make("organizations", {
@@ -11,19 +11,17 @@ const organizations = Table.make("organizations", {
   archivedAt: Column.datetime().pipe(Column.nullable)
 })
 
-const membershipsBase = Table.make("memberships", {
+const memberships = Table.make("memberships", {
   orgId: Column.uuid(),
   userId: Column.uuid(),
   role: Column.text()
-})
-
-const memberships = membershipsBase.pipe(
+}).pipe(
   ForeignKey.make("orgId", () => organizations, "id"),
   PrimaryKey.make(["orgId", "userId"] as const),
   Unique.make(["orgId", "role"] as const),
   Check.make(
     "memberships_role_check",
-    Query.neq(membershipsBase.role, "")
+    (table) => Query.neq(table.role, "")
   ),
   Index.make("userId")
 )
