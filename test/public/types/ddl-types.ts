@@ -44,6 +44,12 @@ const dropIndexPlan = Q.dropIndex(memberships, ["role", "orgId"], {
 const createSingleColumnIndexPlan = Q.createIndex(memberships, "role")
 const dropSingleColumnIndexPlan = Q.dropIndex(memberships, "role")
 const richColumnsOnlyIndexTable = memberships.pipe(Index.make("role"))
+const tableCallbackCheck = Std.Table.make("table_callback_memberships", {
+  id: Std.Column.uuid().pipe(Std.Column.primaryKey),
+  role: Std.Column.text()
+}).pipe(
+  Check.make("role_not_empty", (table) => Q.neq(table.role, ""))
+)
 ForeignKey.make("orgId", () => orgs, "id").pipe(ForeignKey.onUpdate("cascade"))
 
 // @ts-expect-error check constraint names must be non-empty
@@ -125,6 +131,7 @@ void dropIndexCapability
 void createSingleColumnIndexPlan
 void dropSingleColumnIndexPlan
 void richColumnsOnlyIndexTable
+void tableCallbackCheck
 
 // @ts-expect-error ddl plans cannot be filtered
 Q.where(Q.eq(memberships.id, "membership-id"))(createTablePlan)

@@ -45,12 +45,11 @@ describe("ddl rendering behavior", () => {
   })
 
   test("postgres check constraints render row-local column references", () => {
-    const usersBase = StdRoot.Table.make("users", {
+    const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       email: StdRoot.Column.text()
-    })
-    const users = usersBase.pipe(
-      StdRoot.Check.make("email_not_empty", StdRoot.Query.neq(usersBase.email, ""))
+    }).pipe(
+      StdRoot.Check.make("email_not_empty", (table) => StdRoot.Query.neq(table.email, ""))
     )
 
     const rendered = Postgres.Renderer.make().render(StdRoot.Query.createTable(users))
@@ -62,12 +61,11 @@ describe("ddl rendering behavior", () => {
   })
 
   test("mysql check constraints render row-local column references", () => {
-    const usersBase = StdRoot.Table.make("users", {
+    const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       email: StdRoot.Column.text()
-    })
-    const users = usersBase.pipe(
-      StdRoot.Check.make("email_not_empty", StdRoot.Query.neq(usersBase.email, ""))
+    }).pipe(
+      StdRoot.Check.make("email_not_empty", (table) => StdRoot.Query.neq(table.email, ""))
     )
 
     const rendered = Mysql.Renderer.make().render(StdRoot.Query.createTable(users))
@@ -76,6 +74,22 @@ describe("ddl rendering behavior", () => {
       "create table `users` (`id` char(36) not null, `email` text not null, primary key (`id`), constraint `email_not_empty` check ((`email` <> '')))"
     )
     expect(rendered.params).toEqual([])
+  })
+
+  test("check constraint modifiers preserve row-local callback resolution", () => {
+    const users = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      email: StdRoot.Column.text()
+    }).pipe(
+      StdRoot.Check.make("email_not_empty", (table) => StdRoot.Query.neq(table.email, "")).pipe(
+        StdRoot.Check.named("email_present"),
+        Postgres.Check.noInherit
+      )
+    )
+
+    expect(Postgres.Renderer.make().render(StdRoot.Query.createTable(users)).sql).toContain(
+      'constraint "email_present" check (("email" <> \'\')) no inherit'
+    )
   })
 
   test("DDL uses table-level casing for constraints and index names", () => {

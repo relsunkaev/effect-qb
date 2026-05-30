@@ -47,6 +47,7 @@ export const options: unique symbol = Symbol.for("effect-qb/Table/declaredOption
 const CacheSymbol: unique symbol = Symbol.for("effect-qb/Table/cache")
 const SchemaCacheSymbol: unique symbol = Symbol.for("effect-qb/Table/schemaCache")
 const DeclaredOptionsSymbol: unique symbol = Symbol.for("effect-qb/Table/factoryDeclaredOptions")
+const ResolveOptionSymbol: unique symbol = Symbol.for("effect-qb/Table/resolveOption")
 
 type InlinePrimaryKeyKeys<Fields extends TableFieldMap> = Extract<{
   [K in keyof Fields]: Fields[K]["metadata"]["primaryKey"] extends true ? K : never
@@ -305,6 +306,8 @@ export type AnyTable<Dialect extends string = string> = {
 type FieldsOfAnyTable<Table extends AnyTable> = Table[typeof TypeId]["fields"]
 
 type ColumnNamesOfAnyTable<Table extends AnyTable> = Extract<keyof FieldsOfAnyTable<Table>, string>
+type CheckPredicateTable = any
+type CheckPredicate = (table: CheckPredicateTable) => DdlExpressionLike
 
 /** Public table-option builder type used by `Table.index`, `Table.primaryKey`, and friends. */
 export type TableOption<
@@ -312,6 +315,7 @@ export type TableOption<
 > = Pipeable & {
   readonly pipe: Pipeable["pipe"]
   readonly option: Spec
+  readonly [ResolveOptionSymbol]?: (table: TableDefinition<any, any, any, "schema", any>) => Spec
 } & (Spec extends { readonly kind: "primaryKey" }
   ? {
   <Table extends TableDefinition<any, any, any, "schema", any>>(
@@ -698,7 +702,10 @@ const makeResolvedOption = <Spec extends TableOptionSpec>(
         table,
         resolve(table)
       ) as unknown as ApplyTableOption<Table, Spec>,
-    { option }
+    {
+      option,
+      [ResolveOptionSymbol]: resolve
+    }
   )) as TableOption<Spec>
 }
 
@@ -710,6 +717,22 @@ export const optionFromTable = <Spec extends TableOptionSpec>(
   resolve: (table: TableDefinition<any, any, any, "schema", any>) => Spec
 ): TableOption<Spec> =>
   makeResolvedOption(spec, resolve)
+
+export const mapOption = <
+  Spec extends TableOptionSpec,
+  Next extends TableOptionSpec
+>(
+  option: TableOption<Spec>,
+  map: (spec: Spec) => Next
+): TableOption<Next> => {
+  const resolve = option[ResolveOptionSymbol]
+  return resolve === undefined
+    ? makeOption(map(option.option))
+    : makeResolvedOption(
+        map(option.option),
+        (table) => map(resolve(table))
+      )
+}
 
 /** Creates a table definition from a name and field map. */
 export function make<
@@ -1032,18 +1055,42 @@ export const foreignKey = <
 })
 
 /** Declares a check constraint expression. */
-export const check = <const Name extends string>(
+export function check<const Name extends string>(
   name: NonEmptyStringInput<Name>,
   predicate: DdlExpressionLike
 ): TableOption<{
   readonly kind: "check"
   readonly name: Name
   readonly predicate: DdlExpressionLike
-}> => makeOption({
-  kind: "check",
-  name,
-  predicate
-})
+}>
+export function check<const Name extends string>(
+  name: NonEmptyStringInput<Name>,
+  predicate: CheckPredicate
+): TableOption<{
+  readonly kind: "check"
+  readonly name: Name
+  readonly predicate: DdlExpressionLike
+}>
+export function check(
+  name: string,
+  predicate: DdlExpressionLike | CheckPredicate
+): TableOption<{
+  readonly kind: "check"
+  readonly name: string
+  readonly predicate: DdlExpressionLike
+}> {
+  const spec = {
+    kind: "check",
+    name,
+    predicate: predicate as DdlExpressionLike
+  } as const
+  return typeof predicate === "function"
+    ? makeResolvedOption(spec, (table) => ({
+        ...spec,
+        predicate: predicate(table as CheckPredicateTable)
+      }))
+    : makeOption(spec)
+}
 
 /** Extracts the row type produced by `selectSchema(table)`. */
 export type SelectOf<Table extends AnyTable> = Table[typeof TypeId] extends {

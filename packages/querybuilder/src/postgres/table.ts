@@ -230,7 +230,7 @@ export const onUpdate = (action: BaseTable.ReferentialAction) =>
 export const noInherit = <Spec extends CheckSpec>(
   option: BaseTable.TableOption<Spec>
 ): BaseTable.TableOption<Spec & { readonly noInherit: true }> =>
-  mapOption({
-    ...option.option,
+  BaseTable.mapOption(option, (spec) => ({
+    ...spec,
     noInherit: true
-  } as Spec & { readonly noInherit: true })
+  } as Spec & { readonly noInherit: true }))

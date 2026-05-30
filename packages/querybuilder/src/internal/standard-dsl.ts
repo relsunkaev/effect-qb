@@ -300,17 +300,21 @@ type ComparableInput<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any,
   Operator extends string
-> = CanCompareDbTypes<
-  DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-  DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-  Dialect
-> extends true ? Right : OperandCompatibilityError<
-    Operator,
-    DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    Dialect,
-    "the same db type family"
-  >
+> = 0 extends (1 & Left)
+  ? Right
+  : 0 extends (1 & Right)
+    ? Right
+    : CanCompareDbTypes<
+      DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Dialect
+    > extends true ? Right : OperandCompatibilityError<
+      Operator,
+      DialectDbTypeOfInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      DialectDbTypeOfInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Dialect,
+      "the same db type family"
+    >
 
 type TextInput<
   Value extends ExpressionInput,
