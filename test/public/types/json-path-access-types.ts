@@ -39,8 +39,12 @@ const city = docs.payloadJsonb.profile.address.city
 const cityText = docs.payloadJsonb.profile.address.city.pipe(Jsonb.text)
 const countText = docs.payloadJsonb.profile.metrics.count.pipe(Jsonb.text)
 const count = Cast.to(countText, Type.float8())
-// @ts-expect-error jsonb path values must be extracted as text before numeric casts
-Cast.to(docs.payloadJsonb.profile.metrics.count, Type.float8())
+const countFromJsonb = Cast.to(docs.payloadJsonb.profile.metrics.count, Type.float8())
+const activeFromJsonb = Cast.to(docs.payloadJsonb.profile.metrics.active, Type.bool())
+// @ts-expect-error jsonb object paths cannot be cast to numeric types
+Cast.to(docs.payloadJsonb.profile.metrics, Type.float8())
+// @ts-expect-error jsonb string paths cannot be cast to numeric types
+Cast.to(docs.payloadJsonb.profile.address.city, Type.float8())
 const firstTag = docs.payloadJsonb.profile.tags[0]!
 const pairHead = docs.payloadJsonb.profile.pair[0]!
 const pairTail = docs.payloadJsonb.profile.pair[1]!
@@ -52,6 +56,8 @@ type CityRuntime = Scalar.RuntimeOf<typeof city>
 type CityTextRuntime = Scalar.RuntimeOf<typeof cityText>
 type CountTextRuntime = Scalar.RuntimeOf<typeof countText>
 type CountRuntime = Scalar.RuntimeOf<typeof count>
+type CountFromJsonbRuntime = Scalar.RuntimeOf<typeof countFromJsonb>
+type ActiveFromJsonbRuntime = Scalar.RuntimeOf<typeof activeFromJsonb>
 type FirstTagRuntime = Scalar.RuntimeOf<typeof firstTag>
 type PairHeadRuntime = Scalar.RuntimeOf<typeof pairHead>
 type PairTailRuntime = Scalar.RuntimeOf<typeof pairTail>
@@ -76,6 +82,8 @@ type _CityRuntime = Expect<IsExact<CityRuntime, string>>
 type _CityTextRuntime = Expect<IsExact<CityTextRuntime, string>>
 type _CountTextRuntime = Expect<IsExact<CountTextRuntime, string>>
 type _CountRuntime = Expect<IsExact<CountRuntime, number>>
+type _CountFromJsonbRuntime = Expect<IsExact<CountFromJsonbRuntime, number>>
+type _ActiveFromJsonbRuntime = Expect<IsExact<ActiveFromJsonbRuntime, boolean>>
 type _FirstTagRuntime = Expect<IsExact<FirstTagRuntime, string | null>>
 type _PairHeadRuntime = Expect<IsExact<PairHeadRuntime, string>>
 type _PairTailRuntime = Expect<IsExact<PairTailRuntime, number>>

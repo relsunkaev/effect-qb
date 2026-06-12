@@ -2,6 +2,7 @@ import type * as ExpressionAst from "../internal/expression-ast.js"
 import type { CastTargetError } from "../internal/coercion/errors.js"
 import type { RuntimeOfDbType } from "../internal/coercion/analysis.js"
 import type { CanCastDbType } from "../internal/coercion/rules.js"
+import type { FamilyOfDbType } from "../internal/datatypes/lookup.js"
 import type { ExpressionInput } from "../internal/query.js"
 import type * as Expression from "../internal/scalar.js"
 import { cast as standardCast } from "../internal/standard-dsl.js"
@@ -46,6 +47,24 @@ type CastDependencies<Value extends CastInput> = Value extends Expression.Any
   ? Expression.DependenciesOf<Value>
   : never
 
+type JsonbScalarCastTarget<Value extends CastInput, Target extends CastTarget> =
+  Value extends Expression.Any
+    ? Expression.DbTypeOf<Value> extends Expression.DbType.Json<"postgres", "jsonb">
+      ? [Expression.RuntimeOf<Value>] extends [number]
+        ? FamilyOfDbType<Target> extends "numeric" ? Target : never
+        : [Expression.RuntimeOf<Value>] extends [boolean]
+          ? FamilyOfDbType<Target> extends "boolean" ? Target : never
+          : never
+      : never
+    : never
+
+type CanCastJsonbScalar<Value extends CastInput, Target extends CastTarget> =
+  [JsonbScalarCastTarget<Value, Target>] extends [never]
+    ? false
+    : JsonbScalarCastTarget<Value, Target> extends Target
+      ? true
+      : false
+
 type CastTargetInput<Value extends CastInput, Target extends CastTarget> =
   IsAny<Value> extends true
     ? Target
@@ -53,6 +72,8 @@ type CastTargetInput<Value extends CastInput, Target extends CastTarget> =
       ? Target
       : CanCastDbType<CastSourceDbType<Value>, Target, CastDialect<Value, Target>> extends true
         ? Target
+        : CanCastJsonbScalar<Value, Target> extends true
+          ? Target
         : CastTargetError<CastSourceDbType<Value>, Target, CastDialect<Value, Target>>
 
 type CastValueInput<Value extends CastInput, Target extends CastTarget> =
