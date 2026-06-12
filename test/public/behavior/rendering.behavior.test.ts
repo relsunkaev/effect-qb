@@ -5,7 +5,7 @@ import * as Sqlite from "#sqlite"
 import * as Standard from "#standard"
 import { Column as C, Table } from "#standard"
 import { Query as Q, Function as F } from "#standard"
-import { Cast as PgCast, Jsonb as PgJsonb, Renderer, Type as PgType } from "#postgres"
+import { Jsonb as PgJsonb, Renderer, Type as PgType } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
 import * as StdRoot from "#standard"
 import { unsafeAny } from "../../helpers/unsafe.ts"
@@ -413,7 +413,7 @@ describe("rendering behavior", () => {
       value: Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.custom("") as any)
     })
     const postgresPlan = Q.select({
-      value: PgCast.to(Q.literal(1), PgType.custom("") as any)
+      value: StdRoot.Cast.to(Q.literal(1), PgType.custom("") as any)
     })
     const mysqlPlan = StdRoot.Query.select({
       value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Query.type.custom("") as any)

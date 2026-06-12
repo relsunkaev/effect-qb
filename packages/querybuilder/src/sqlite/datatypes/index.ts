@@ -15,6 +15,7 @@ const withMetadata = <Kind extends keyof typeof sqliteDatatypeKinds & string>(
     runtime: kindSpec.runtime,
     compareGroup: familySpec?.compareGroup,
     castTargets: familySpec?.castTargets,
+    implicitTargets: (familySpec as { readonly implicitTargets?: readonly string[] }).implicitTargets,
     traits: familySpec?.traits
   }
 }

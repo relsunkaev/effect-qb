@@ -199,7 +199,7 @@ describe("postgres dialect behavior", () => {
     const { users } = makePostgresSocialGraph()
 
     const plan = StdRoot.Query.select({
-      idAsText: Postgres.Cast.to(users.id, Postgres.Type.text())
+      idAsText: StdRoot.Cast.to(users.id, Postgres.Type.text())
     }).pipe(StdRoot.Query.from(users))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -210,7 +210,7 @@ describe("postgres dialect behavior", () => {
 
   test("renders parameterized custom datatypes through explicit casts", () => {
     const plan = StdRoot.Query.select({
-      sizedText: Postgres.Cast.to(
+      sizedText: StdRoot.Cast.to(
         StdRoot.Query.literal("alice@example.com"),
         Postgres.Type.custom("varchar(255)")
       )
@@ -224,7 +224,7 @@ describe("postgres dialect behavior", () => {
 
   test("renders array-style custom datatypes through explicit casts", () => {
     const plan = StdRoot.Query.select({
-      textArray: Postgres.Cast.to(
+      textArray: StdRoot.Cast.to(
         StdRoot.Query.literal(null),
         Postgres.Type.custom("text[]")
       )
@@ -238,26 +238,26 @@ describe("postgres dialect behavior", () => {
 
   test("renders structured datatype casts with postgres syntax", () => {
     const plan = StdRoot.Query.select({
-      arrayValue: Postgres.Cast.to(
+      arrayValue: StdRoot.Cast.to(
         StdRoot.Query.literal("{}"),
         Postgres.Type.array(Postgres.Type.text())
       ),
-      rangeValue: Postgres.Cast.to(
+      rangeValue: StdRoot.Cast.to(
         StdRoot.Query.literal("int4range(1,10)"),
         Postgres.Type.range("int4range", Postgres.Type.int4())
       ),
-      recordValue: Postgres.Cast.to(
+      recordValue: StdRoot.Cast.to(
         StdRoot.Query.literal("{}"),
         Postgres.Type.record("user_profile", {
           displayName: Postgres.Type.text(),
           age: Postgres.Type.int4()
         })
       ),
-      domainValue: Postgres.Cast.to(
+      domainValue: StdRoot.Cast.to(
         StdRoot.Query.literal("alice@example.com"),
         Postgres.Type.domain("email_domain", Postgres.Type.text())
       ),
-      enumValue: Postgres.Cast.to(
+      enumValue: StdRoot.Cast.to(
         StdRoot.Query.literal("status_enum"),
         Postgres.Type.enum("status_enum")
       )
@@ -274,16 +274,16 @@ describe("postgres dialect behavior", () => {
   test("renders array and range container operators with postgres syntax", () => {
     const plan = StdRoot.Query.select({
       arrayContains: StdRoot.Query.contains(
-        Postgres.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text())),
-        Postgres.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text()))
+        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text())),
+        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text()))
       ),
       arrayContainedBy: StdRoot.Query.containedBy(
-        Postgres.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text())),
-        Postgres.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text()))
+        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text())),
+        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(Postgres.Type.text()))
       ),
       rangeOverlap: StdRoot.Query.overlaps(
-        Postgres.Cast.to(StdRoot.Query.literal("int4range(1,10)"), Postgres.Type.range("int4range", Postgres.Type.int4())),
-        Postgres.Cast.to(StdRoot.Query.literal("int4range(5,15)"), Postgres.Type.range("int4range", Postgres.Type.int4()))
+        StdRoot.Cast.to(StdRoot.Query.literal("int4range(1,10)"), Postgres.Type.range("int4range", Postgres.Type.int4())),
+        StdRoot.Cast.to(StdRoot.Query.literal("int4range(5,15)"), Postgres.Type.range("int4range", Postgres.Type.int4()))
       )
     })
 
@@ -298,12 +298,12 @@ describe("postgres dialect behavior", () => {
   test("rejects incompatible built-in postgres range and multirange operands", () => {
     const plan = StdRoot.Query.select({
       badOverlap: StdRoot.Query.overlaps(
-        Postgres.Cast.to(StdRoot.Query.literal("int4range(1,10)"), Postgres.Type.int4range()),
-        Postgres.Cast.to(StdRoot.Query.literal("[2026-01-01,2026-01-02)"), Postgres.Type.tstzrange())
+        StdRoot.Cast.to(StdRoot.Query.literal("int4range(1,10)"), Postgres.Type.int4range()),
+        StdRoot.Cast.to(StdRoot.Query.literal("[2026-01-01,2026-01-02)"), Postgres.Type.tstzrange())
       ),
       badMultiOverlap: StdRoot.Query.overlaps(
-        Postgres.Cast.to(StdRoot.Query.literal("{[1,10)}"), Postgres.Type.int4multirange()),
-        Postgres.Cast.to(StdRoot.Query.literal("{[2026-01-01,2026-01-02)}"), Postgres.Type.tstzmultirange())
+        StdRoot.Cast.to(StdRoot.Query.literal("{[1,10)}"), Postgres.Type.int4multirange()),
+        StdRoot.Cast.to(StdRoot.Query.literal("{[2026-01-01,2026-01-02)}"), Postgres.Type.tstzmultirange())
       )
     })
 

@@ -2,6 +2,10 @@ import type * as Expression from "../scalar.js"
 import type { NonEmptyStringInput } from "../table-options.js"
 import type { DatatypeFamilySpec, DatatypeKindSpec } from "./shape.js"
 
+type ImplicitTargetsOf<Family> = Family extends { readonly implicitTargets: infer Targets extends readonly string[] }
+  ? Targets
+  : readonly []
+
 type DatatypeWitness<
   Dialect extends string,
   Kinds extends Record<string, DatatypeKindSpec>,
@@ -12,6 +16,7 @@ type DatatypeWitness<
   readonly runtime: Kinds[Kind]["runtime"]
   readonly compareGroup: Families[Kinds[Kind]["family"]]["compareGroup"]
   readonly castTargets: Families[Kinds[Kind]["family"]]["castTargets"]
+  readonly implicitTargets: ImplicitTargetsOf<Families[Kinds[Kind]["family"]]>
   readonly traits: Families[Kinds[Kind]["family"]]["traits"]
 }
 

@@ -3,7 +3,29 @@ import type { DatatypeFamilySpec, DatatypeKindSpec } from "../../internal/dataty
 export const standardDatatypeFamilies = {
   text: {
     compareGroup: "text",
-    castTargets: ["text", "numeric", "integer", "real", "boolean", "date", "time", "datetime", "json", "blob", "null"],
+    castTargets: [
+      "text",
+      "numeric",
+      "integer",
+      "real",
+      "boolean",
+      "date",
+      "time",
+      "datetime",
+      "interval",
+      "uuid",
+      "json",
+      "blob",
+      "binary",
+      "array",
+      "range",
+      "multirange",
+      "record",
+      "enum",
+      "set",
+      "money",
+      "null"
+    ],
     traits: {
       textual: true,
       ordered: true

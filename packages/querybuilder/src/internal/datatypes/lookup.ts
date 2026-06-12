@@ -27,9 +27,23 @@ type BaseCompareGroupOf<Db extends Expression.DbType.Base<any, any>> =
     : BaseFamilyOf<Db>
 
 type BaseCastTargetsOf<Db extends Expression.DbType.Base<any, any>> =
-  Db extends { readonly castTargets?: readonly (infer Target extends string)[] }
-    ? Target
+  Db extends { readonly castTargets: infer Targets extends readonly string[] }
+    ? Targets[number]
     : never
+
+type BaseImplicitTargetsOf<Db extends Expression.DbType.Base<any, any>> =
+  Db extends { readonly implicitTargets: infer Targets extends readonly string[] }
+    ? Targets[number]
+    : never
+
+type IsCustomBaseDbType<Db extends Expression.DbType.Any> =
+  Db extends Expression.DbType.Json<any, any>
+    ? false
+    : Db extends Expression.DbType.Base<any, any>
+      ? Db extends { readonly family: string }
+        ? false
+        : true
+      : false
 
 type DbTypeCompatibleWithDialect<
   Db extends Expression.DbType.Any,
@@ -106,25 +120,56 @@ export type RuntimeOfDbType<Db extends Expression.DbType.Any> =
                   : unknown
                 : unknown
 
+type HaveSameComparableGroup<
+  Left extends Expression.DbType.Any,
+  Right extends Expression.DbType.Any
+> = CompareGroupOfDbType<Left> extends never
+  ? false
+  : CompareGroupOfDbType<Right> extends never
+    ? false
+    : CompareGroupOfDbType<Left> extends "null"
+      ? false
+      : CompareGroupOfDbType<Right> extends "null"
+        ? false
+        : [CompareGroupOfDbType<Left>] extends [CompareGroupOfDbType<Right>]
+          ? [CompareGroupOfDbType<Right>] extends [CompareGroupOfDbType<Left>]
+            ? true
+            : false
+          : false
+
+export type CanImplicitlyConvertDbType<
+  Source extends Expression.DbType.Any,
+  Target extends Expression.DbType.Any,
+  Dialect extends string
+> = DbTypeCompatibleWithDialect<Source, Dialect> extends true
+  ? DbTypeCompatibleWithDialect<Target, Dialect> extends true
+    ? Source extends Expression.DbType.Domain<any, infer Base extends Expression.DbType.Any, any>
+      ? CanImplicitlyConvertDbType<Base, Target, Dialect>
+      : Target extends Expression.DbType.Domain<any, infer TargetBase extends Expression.DbType.Any, any>
+        ? CanImplicitlyConvertDbType<Source, TargetBase, Dialect>
+        : HaveSameComparableGroup<Source, Target> extends true
+          ? true
+          : Source extends Expression.DbType.Base<any, any>
+            ? FamilyOfDbType<Target> extends BaseImplicitTargetsOf<Source>
+              ? true
+              : false
+            : false
+    : false
+  : false
+
 export type CanCompareDbTypes<
   Left extends Expression.DbType.Any,
   Right extends Expression.DbType.Any,
   Dialect extends string
 > = DbTypeCompatibleWithDialect<Left, Dialect> extends true
   ? DbTypeCompatibleWithDialect<Right, Dialect> extends true
-    ? CompareGroupOfDbType<Left> extends never
-      ? false
-      : CompareGroupOfDbType<Right> extends never
-        ? false
-        : CompareGroupOfDbType<Left> extends "null"
-          ? false
-          : CompareGroupOfDbType<Right> extends "null"
-            ? false
-            : [CompareGroupOfDbType<Left>] extends [CompareGroupOfDbType<Right>]
-              ? [CompareGroupOfDbType<Right>] extends [CompareGroupOfDbType<Left>]
-                ? true
-                : false
-              : false
+    ? HaveSameComparableGroup<Left, Right> extends true
+      ? true
+      : CanImplicitlyConvertDbType<Left, Right, Dialect> extends true
+        ? true
+        : CanImplicitlyConvertDbType<Right, Left, Dialect> extends true
+          ? true
+          : false
     : false
   : false
 
@@ -171,7 +216,11 @@ export type CanCastDbType<
       ? CanCastDbType<Base, Target, Dialect>
       : Target extends Expression.DbType.Domain<any, infer TargetBase extends Expression.DbType.Any, any>
         ? CanCastDbType<Source, TargetBase, Dialect>
-        : [CompareGroupOfDbType<Source>] extends [CompareGroupOfDbType<Target>]
+        : IsCustomBaseDbType<Source> extends true
+          ? true
+          : IsCustomBaseDbType<Target> extends true
+            ? true
+            : [CompareGroupOfDbType<Source>] extends [CompareGroupOfDbType<Target>]
           ? [CompareGroupOfDbType<Target>] extends [CompareGroupOfDbType<Source>]
             ? true
             : false
@@ -185,9 +234,9 @@ export type CanCastDbType<
             ? true
             : Source extends Expression.DbType.Base<any, any>
               ? Target extends Expression.DbType.Base<any, any>
-                ? BaseFamilyOf<Target> extends ExactKindFamily
+                ? FamilyOfDbType<Target> extends ExactKindFamily
                   ? false
-                  : BaseFamilyOf<Target> extends BaseCastTargetsOf<Source>
+                  : FamilyOfDbType<Target> extends BaseCastTargetsOf<Source>
                     ? true
                     : false
                 : false

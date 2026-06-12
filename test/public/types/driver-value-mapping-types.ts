@@ -34,7 +34,7 @@ type _AssertMappedTextKind = Assert<IsEqual<typeof mappedTextType.kind, "text">>
 type _AssertMappedTextDialect = Assert<IsEqual<typeof mappedTextType.dialect, "postgres">>
 
 const mappedTextColumn = Pg.Column.custom(Schema.String, mappedTextType)
-const mappedTextCast = Pg.Cast.to("mapped", mappedTextType)
+const mappedTextCast = StdRoot.Cast.to("mapped", mappedTextType)
 const mappedTextRuntime: StdRoot.Scalar.RuntimeOf<typeof mappedTextCast> = "mapped"
 
 void mappedTextColumn

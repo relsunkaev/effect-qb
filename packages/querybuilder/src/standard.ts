@@ -1,5 +1,7 @@
 /** Standard SQL column-definition DSL. */
 export * as Column from "./standard/column.js"
+/** Standard SQL cast helpers. */
+export * as Cast from "./standard/cast.js"
 /** Standard SQL datatype witnesses and coercion families. */
 export * as Datatypes from "./standard/datatypes/index.js"
 /** Shared scalar SQL interfaces and DB-type descriptors. */

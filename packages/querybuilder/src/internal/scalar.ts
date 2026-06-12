@@ -50,6 +50,7 @@ export declare namespace DbType {
     readonly runtime?: RuntimeTag
     readonly compareGroup?: string
     readonly castTargets?: readonly string[]
+    readonly implicitTargets?: readonly string[]
     readonly traits?: DatatypeTraits
     readonly driverValueMapping?: DriverValueMapping
   }

@@ -4,8 +4,6 @@ export * as Column from "./postgres/column-extension.js"
 export * as Datatypes from "./postgres/datatypes/index.js"
 /** Postgres SQLSTATE catalog and error normalization helpers. */
 export * as Errors from "./postgres/errors/index.js"
-/** Postgres cast helpers. */
-export { cast as Cast } from "./postgres/cast.js"
 /** Postgres-specific SQL function expressions. Portable functions are exported from the root package. */
 export * as Function from "./postgres/function/index.js"
 /** Postgres-specific JSON expression helpers. Portable JSON helpers are exported from the root package. */

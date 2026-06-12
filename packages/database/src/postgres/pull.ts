@@ -11,6 +11,7 @@ import { parse, type Expr as PgSqlExpr } from "pgsql-ast-parser"
 
 const TABLE_ALIAS = "Table"
 const COLUMN_ALIAS = "Column"
+const CAST_ALIAS = "Cast"
 const JSON_ALIAS = "Json"
 const PG_ALIAS = "Pg"
 const PRIMARY_KEY_ALIAS = "PrimaryKey"
@@ -601,7 +602,7 @@ const renderPipeRender = (
   switch (expression.type) {
     case "cast": {
       const inner = renderPipeRender(expression.operand, context)
-      const operation = `${PG_ALIAS}.Cast.to(${renderCastTarget(expression.to, context)})`
+      const operation = `${CAST_ALIAS}.to(${renderCastTarget(expression.to, context)})`
       return inner === undefined
         ? {
             baseExpression: expression.operand,
@@ -779,7 +780,7 @@ const renderSqlExpressionCode = (
       return `${PG_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
     }
     case "cast":
-      return `${PG_ALIAS}.Cast.to(${renderSqlExpressionCode(expression.operand, context, false)}, ${renderCastTarget(expression.to, context)})`
+      return `${CAST_ALIAS}.to(${renderSqlExpressionCode(expression.operand, context, false)}, ${renderCastTarget(expression.to, context)})`
     case "member": {
       const base = expression.operand.type === "cast" && isTextCastTarget(expression.operand.to)
         ? renderSqlExpressionCode(expression.operand.operand, context, false)
@@ -2357,7 +2358,7 @@ const ensureImports = (contents: string): string => {
     .trimStart()
   const required = [
     `import * as ${PG_ALIAS} from "effect-qb/postgres"`,
-    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS}, ${JSON_ALIAS}, ${PRIMARY_KEY_ALIAS}, ${UNIQUE_ALIAS}, ${INDEX_ALIAS}, ${FOREIGN_KEY_ALIAS}, ${CHECK_ALIAS} } from "effect-qb"`,
+    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS}, ${CAST_ALIAS}, ${JSON_ALIAS}, ${PRIMARY_KEY_ALIAS}, ${UNIQUE_ALIAS}, ${INDEX_ALIAS}, ${FOREIGN_KEY_ALIAS}, ${CHECK_ALIAS} } from "effect-qb"`,
     `import * as ${SCHEMA_ALIAS} from "effect/Schema"`
   ]
   const missing = required.filter((line) => !cleaned.includes(line))
@@ -2730,7 +2731,7 @@ const renderCanonicalNewModule = (
 
   const lines: string[] = [
     `import * as ${PG_ALIAS} from "effect-qb/postgres"`,
-    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS}, ${JSON_ALIAS}, ${PRIMARY_KEY_ALIAS}, ${UNIQUE_ALIAS}, ${INDEX_ALIAS}, ${FOREIGN_KEY_ALIAS}, ${CHECK_ALIAS} } from "effect-qb"`,
+    `import { ${TABLE_ALIAS}, ${COLUMN_ALIAS}, ${CAST_ALIAS}, ${JSON_ALIAS}, ${PRIMARY_KEY_ALIAS}, ${UNIQUE_ALIAS}, ${INDEX_ALIAS}, ${FOREIGN_KEY_ALIAS}, ${CHECK_ALIAS} } from "effect-qb"`,
     `import * as ${SCHEMA_ALIAS} from "effect/Schema"`
   ]
   const body: string[] = []

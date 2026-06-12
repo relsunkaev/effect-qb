@@ -1,5 +1,5 @@
-import { Column, Json, Query as Q, Scalar, Table } from "effect-qb"
-import { Cast, Column as PgColumn, Jsonb, Type } from "effect-qb/postgres"
+import { Cast, Column, Json, Query as Q, Scalar, Table } from "effect-qb"
+import { Column as PgColumn, Jsonb, Type } from "effect-qb/postgres"
 import * as Pg from "effect-qb/postgres"
 import * as Schema from "effect/Schema"
 
@@ -39,6 +39,8 @@ const city = docs.payloadJsonb.profile.address.city
 const cityText = docs.payloadJsonb.profile.address.city.pipe(Jsonb.text)
 const countText = docs.payloadJsonb.profile.metrics.count.pipe(Jsonb.text)
 const count = Cast.to(countText, Type.float8())
+// @ts-expect-error jsonb path values must be extracted as text before numeric casts
+Cast.to(docs.payloadJsonb.profile.metrics.count, Type.float8())
 const firstTag = docs.payloadJsonb.profile.tags[0]!
 const pairHead = docs.payloadJsonb.profile.pair[0]!
 const pairTail = docs.payloadJsonb.profile.pair[1]!

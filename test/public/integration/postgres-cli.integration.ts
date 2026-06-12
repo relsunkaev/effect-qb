@@ -383,7 +383,7 @@ test("postgres cli blocks destructive push changes unless explicitly allowed", a
 test("postgres cli safe mode applies additive changes and skips destructive drift", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "effect-qb/postgres"
-import { Check, Function as F, Index, PrimaryKey, Query as Q, Table, Unique } from "effect-qb"
+import { Cast, Check, Function as F, Index, PrimaryKey, Query as Q, Table, Unique } from "effect-qb"
 import { Column as C } from "effect-qb/postgres"
 
 const db = Pg.Schema.make("__SCHEMA__")
@@ -392,7 +392,7 @@ export const users = db.table("users", {
   id: C.int().pipe(C.identityByDefault),
   email: C.text(),
   nickname: C.text().pipe(C.nullable),
-  displayName: C.text().pipe(C.default(Pg.Cast.to(Q.literal("guest"), Pg.Type.text()))),
+  displayName: C.text().pipe(C.default(Cast.to(Q.literal("guest"), Pg.Type.text()))),
   emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Pg.Type.text()))))
 }).pipe(
   PrimaryKey.make((table) => table.id).pipe(PrimaryKey.named("users_pkey")),
@@ -411,7 +411,7 @@ export const users = db.table("users", {
 
     await writeFile(schemaFile(workspace), `
 import * as Pg from "effect-qb/postgres"
-import { Function as F, PrimaryKey, Query as Q, Table } from "effect-qb"
+import { Cast, Function as F, PrimaryKey, Query as Q, Table } from "effect-qb"
 import { Column as C } from "effect-qb/postgres"
 
 const db = Pg.Schema.make(${JSON.stringify(schemaName)})
@@ -420,7 +420,7 @@ export const users = db.table("users", {
   id: C.int().pipe(C.identityByDefault),
   email: C.text().pipe(C.ddlType("character varying(255)")),
   nickname: C.text(),
-  displayName: C.text().pipe(C.default(Pg.Cast.to(Q.literal("member"), Pg.Type.text()))),
+  displayName: C.text().pipe(C.default(Cast.to(Q.literal("member"), Pg.Type.text()))),
   emailLower: C.text().pipe(C.generated(F.upper(Q.column("email", Pg.Type.text())))),
   notes: C.text().pipe(C.nullable)
 }).pipe(
@@ -1117,7 +1117,7 @@ test("postgres cli round-trips enum, foreign-key, generated, identity, and rich 
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Schema from "effect/Schema"
 import * as Pg from "effect-qb/postgres"
-import { ForeignKey, Function as F, Index, PrimaryKey, Query as Q, Table, Unique } from "effect-qb"
+import { Cast, ForeignKey, Function as F, Index, PrimaryKey, Query as Q, Table, Unique } from "effect-qb"
 import { Column as C } from "effect-qb/postgres"
 
 const tables = Pg.Schema.make("__SCHEMA__")
@@ -1139,7 +1139,7 @@ const users = tables.table("users", {
   status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
   email: C.text(),
   alias: C.text().pipe(C.nullable),
-  displayName: C.text().pipe(C.default(Pg.Cast.to(Q.literal("guest"), Pg.Type.text()))),
+  displayName: C.text().pipe(C.default(Cast.to(Q.literal("guest"), Pg.Type.text()))),
   emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Pg.Type.text())))),
   note: C.text().pipe(C.nullable)
 }).pipe(
@@ -1317,7 +1317,7 @@ test("postgres cli canonicalizes pulled enums, schemas, and sequences in new fil
     expect(pulled).toContain(`const ${schemaName} = Pg.Schema.make("${schemaName}")`)
     expect(pulled).toContain(`const status = ${schemaName}.enum("status", ["pending", "active"])`)
     expect(pulled).toContain(`status: status.column().pipe(`)
-    expect(pulled).toContain(`Column.default(StdRoot.Query.literal("active").pipe(Pg.Cast.to(status.type())))`)
+    expect(pulled).toContain(`Column.default(StdRoot.Query.literal("active").pipe(Cast.to(status.type())))`)
     expect(pulled).toContain(`Column.default(Pg.Function.nextVal(${schemaName}.sequence("users_id_seq")))`)
     expect(pulled).not.toContain(`Column.ddlType("${schemaName}.status")`)
   } finally {
@@ -1639,7 +1639,7 @@ test("postgres cli pull renders collated check constraint expressions with the q
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`users_email_c_check`)
-    expect(pulledSchema).toContain(`StdRoot.Query.neq(StdRoot.Query.collate(t.email, "C"), StdRoot.Query.literal("").pipe(Pg.Cast.to(Pg.Type.text())))`)
+    expect(pulledSchema).toContain(`StdRoot.Query.neq(StdRoot.Query.collate(t.email, "C"), StdRoot.Query.literal("").pipe(Cast.to(Pg.Type.text())))`)
 
     await assertIdempotentPullPush(config)
   } finally {
@@ -1668,7 +1668,7 @@ test("postgres cli pull renders collated default expressions with the query DSL"
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`nickname: Column.text().pipe(`)
-    expect(pulledSchema).toContain(`Column.default(StdRoot.Query.collate(StdRoot.Query.literal("foo").pipe(Pg.Cast.to(Pg.Type.text())), "C"))`)
+    expect(pulledSchema).toContain(`Column.default(StdRoot.Query.collate(StdRoot.Query.literal("foo").pipe(Cast.to(Pg.Type.text())), "C"))`)
 
     await assertIdempotentPullPush(config)
   } finally {

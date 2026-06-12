@@ -8,8 +8,8 @@ import * as SqlError from "@effect/sql/SqlError"
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import type { AvailableOfPlan } from "#internal/query.ts"
-import { Query as Q } from "#standard"
-import { Cast, Executor, Renderer, Type } from "#postgres"
+import { Cast, Query as Q } from "#standard"
+import { Executor, Renderer, Type } from "#postgres"
 
 const users = Std.Table.make("users", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),

@@ -2034,8 +2034,8 @@ const users = Table.make("users", {
         StdRoot.Json.key("line_item") as (value: StdRoot.Scalar.Any) => StdRoot.Scalar.Any,
         StdRoot.Json.key("quantity") as (value: StdRoot.Scalar.Any) => StdRoot.Scalar.Any,
         StdRoot.Json.text as (value: StdRoot.Scalar.Any) => StdRoot.Scalar.Any,
-        Pg.Cast.to(Pg.Type.text()) as (value: StdRoot.Scalar.Any) => StdRoot.Scalar.Any,
-        Pg.Cast.to(Pg.Type.int4()) as (value: StdRoot.Scalar.Any) => StdRoot.Scalar.Any
+        StdRoot.Cast.to(Pg.Type.text()) as (value: StdRoot.Scalar.Any) => StdRoot.Scalar.Any,
+        StdRoot.Cast.to(Pg.Type.int4()) as (value: StdRoot.Scalar.Any) => StdRoot.Scalar.Any
       )
       const proposalProducts = proposalProductsBase.pipe(
         Check.make("quantity_matches_stripe", StdRoot.Query.or(
@@ -2056,8 +2056,8 @@ const users = Table.make("users", {
       expect(after).toContain(`Json.key("line_item")`)
       expect(after).toContain(`Json.key("quantity")`)
       expect(after).toContain(`Json.text`)
-      expect(after).toContain(`Pg.Cast.to(Pg.Type.text())`)
-      expect(after).toContain(`Pg.Cast.to(Pg.Type.int4())`)
+      expect(after).toContain(`StdRoot.Cast.to(Pg.Type.text())`)
+      expect(after).toContain(`StdRoot.Cast.to(Pg.Type.int4())`)
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }

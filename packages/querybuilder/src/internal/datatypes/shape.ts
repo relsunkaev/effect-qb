@@ -56,10 +56,12 @@ export interface DatatypeTraits {
 export interface DatatypeFamilySpec<
   CompareGroup extends string = string,
   CastTargets extends readonly string[] = readonly string[],
+  ImplicitTargets extends readonly string[] = readonly string[],
   Traits extends DatatypeTraits = DatatypeTraits
 > {
   readonly compareGroup: CompareGroup
   readonly castTargets: CastTargets
+  readonly implicitTargets?: ImplicitTargets
   readonly traits: Traits
 }
 

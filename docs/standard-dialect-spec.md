@@ -27,7 +27,7 @@ The end state is:
 The public entrypoint is:
 
 ```ts
-import { Column, Function, Query, Renderer, Table } from "effect-qb"
+import { Cast, Column, Function, Query, Renderer, Table } from "effect-qb"
 ```
 
 It exposes:
@@ -93,7 +93,7 @@ A concrete expression narrows the whole plan:
 
 ```ts
 const postgresOnly = portable.pipe(
-  Query.orderBy(Query.literal(1).pipe(Pg.Cast.to(Pg.Type.int4())))
+  Query.orderBy(Query.literal(1).pipe(Cast.to(Pg.Type.int4())))
 )
 
 Pg.Renderer.make().render(postgresOnly)
@@ -104,7 +104,7 @@ Mixing different concrete dialects is invalid:
 
 ```ts
 const conflict = portable.pipe(
-  Query.orderBy(Query.literal(1).pipe(Pg.Cast.to(Pg.Type.int4()))),
+  Query.orderBy(Query.literal(1).pipe(Cast.to(Pg.Type.int4()))),
   Query.where(My.Json.pathExists(users.profile, My.Json.key("active")))
 )
 

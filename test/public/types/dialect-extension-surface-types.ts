@@ -43,6 +43,9 @@ Pg.Query.select({ id: events.id })
 
 Query.select({ id: events.id })
 
+// @ts-expect-error casts are exported from effect-qb
+Pg.Cast.to(events.id, Pg.Type.text())
+
 // @ts-expect-error MySQL query helpers are exported from effect-qb
 My.Query.select({ id: events.id })
 

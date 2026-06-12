@@ -308,7 +308,8 @@ type EventInsert = Table.InsertOf<typeof events>
 ```
 
 Postgres adds concrete types such as `jsonb`, `bytea`, arrays, identity
-columns, timestamp variants, and custom typed casts/references.
+columns, timestamp variants, and custom typed references or `Cast.to(...)`
+targets.
 
 ### Casing and Naming
 
@@ -978,7 +979,7 @@ Dialect modules expose:
 
 | Module | Adds |
 | --- | --- |
-| `effect-qb/postgres` | Postgres column extensions, option modifiers, Postgres-only JSON/jsonb helpers, casts, types, schemas, enums, sequences, renderer, executor |
+| `effect-qb/postgres` | Postgres column extensions, option modifiers, Postgres-only JSON/jsonb helpers, type witnesses for casts/references, schemas, enums, sequences, renderer, executor |
 | `effect-qb/mysql` | MySQL column extensions, MySQL-only JSON helpers, renderer, executor |
 | `effect-qb/sqlite` | SQLite column extensions, SQLite-only JSON helpers, renderer, executor |
 
@@ -987,8 +988,8 @@ modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.
 
 ### Postgres
 
-Postgres adds `jsonb`, arrays, identity columns, richer index metadata, casts,
-custom types, schemas, enums, and sequences.
+Postgres adds `jsonb`, arrays, identity columns, richer index metadata, custom
+type witnesses, schemas, enums, and sequences.
 
 #### jsonb and Table Extensions
 
