@@ -1274,7 +1274,7 @@ describe("executor behavior", () => {
   test("fromDriver enforces structured record cast fields", () => {
     const plan = Q.select({
       profile: Cast.to("{}", Type.record("user_profile", {
-        displayName: Type.text(),
+        displayName: StdRoot.Query.type.text(),
         age: Type.int4()
       }))
     })

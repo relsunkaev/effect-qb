@@ -95,7 +95,7 @@ describe("postgres driver value mappings", () => {
   })
 
   test("allows db type driver value mapping overrides", () => {
-    const mappedText = Type.driverValueMapping(Type.text(), {
+    const mappedText = Type.driverValueMapping(StdRoot.Query.type.text(), {
       toDriver: (value) => `db:${String(value)}`
     })
     const mapped = StdRoot.Table.make("driver_value_type_mapped", {

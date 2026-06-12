@@ -5,6 +5,7 @@ import * as Expression from "../scalar.js"
 import * as Table from "../table.js"
 import * as QueryAst from "../query-ast.js"
 import { renderDbTypeName, type RenderState, type RenderValueContext, type SqlDialect } from "../dialect.js"
+import { renderPortableDatatypeCastType, renderPortableDatatypeDdlType } from "../datatypes/matrix.js"
 import * as ExpressionAst from "../expression-ast.js"
 import * as JsonPath from "../json/path.js"
 import { renderSelectLockMode } from "../dsl-plan-runtime.js"
@@ -26,10 +27,7 @@ const renderDbType = (
   dialect: SqlDialect,
   dbType: Expression.DbType.Any
 ): string => {
-  if (dialect.name === "postgres" && dbType.kind === "blob") {
-    return "bytea"
-  }
-  return renderDbTypeName(dbType.kind)
+  return renderDbTypeName(renderPortableDatatypeDdlType(dialect.name, dbType.kind) ?? dbType.kind)
 }
 
 const isArrayDbType = (dbType: Expression.DbType.Any): boolean =>
@@ -40,6 +38,10 @@ const renderCastType = (
   dbType: unknown
 ): string => {
   const kind = (dbType as { readonly kind?: string } | undefined)?.kind as string
+  const portableType = renderPortableDatatypeCastType(dialect.name, kind)
+  if (portableType !== undefined) {
+    return renderDbTypeName(portableType)
+  }
   if (dialect.name !== "mysql") {
     return renderDbTypeName(kind)
   }

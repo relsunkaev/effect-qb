@@ -1996,7 +1996,7 @@ const users = Table.make("users", {
 
       expect(plan.updates).toHaveLength(1)
       expect(plan.updates[0]?.after).toContain(`import * as Pg from "effect-qb/postgres"`)
-      expect(plan.updates[0]?.after).toContain(`import { Table, Column, Json, PrimaryKey, Unique, Index, ForeignKey, Check } from "effect-qb"`)
+      expect(plan.updates[0]?.after).toContain(`import { Table, Column, Cast, Json, PrimaryKey, Unique, Index, ForeignKey, Check } from "effect-qb"`)
       expect(plan.updates[0]?.after).toContain(`import * as Schema from "effect/Schema"`)
       expect(plan.updates[0]?.after).toContain(`const users = Table.make("users"`)
       expect(plan.updates[0]?.after).toContain(`id: Column.uuid()`)
@@ -2056,8 +2056,8 @@ const users = Table.make("users", {
       expect(after).toContain(`Json.key("line_item")`)
       expect(after).toContain(`Json.key("quantity")`)
       expect(after).toContain(`Json.text`)
-      expect(after).toContain(`StdRoot.Cast.to(StdRoot.Query.type.text())`)
-      expect(after).toContain(`StdRoot.Cast.to(Pg.Type.int4())`)
+      expect(after).toContain(`Cast.to(StdRoot.Query.type.text())`)
+      expect(after).toContain(`Cast.to(Pg.Type.int4())`)
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }
