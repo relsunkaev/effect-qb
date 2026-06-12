@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 444-494
+// Code fences: 446-496
 
-// README.md:444-494
+// README.md:446-496
 import * as Schema from "effect/Schema"
 import { Column, Query, Table } from "effect-qb"
 

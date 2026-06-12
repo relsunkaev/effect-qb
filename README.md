@@ -47,6 +47,8 @@ const rendered = Pg.Renderer.make().render(activeUsers)
 - [Type Safety](#type-safety)
   - [Table Shape and Payloads](#table-shape-and-payloads)
   - [Result Rows and Predicate Facts](#result-rows-and-predicate-facts)
+  - [JSON and JSONB Paths](#json-and-jsonb-paths)
+  - [Casting and Type Comparison](#casting-and-type-comparison)
   - [Source Completeness and Aliases](#source-completeness-and-aliases)
   - [Dialect Compatibility](#dialect-compatibility)
   - [Runtime Boundaries](#runtime-boundaries)
@@ -594,15 +596,17 @@ which column and JSON-path facts are guaranteed, which optional sources have
 been promoted, and which row shapes are impossible under the current
 assumptions.
 
-### JSON Schema Compatibility
+### JSON and JSONB Paths
 
-JSON columns carry their Effect Schema type through JSON helper expressions.
-Mutation payloads must still satisfy the target column schema, so deleting a
-required key is rejected before SQL rendering.
+JSON columns carry their Effect Schema type through property-path access and
+JSON helper expressions. Use normal property access for schema-known keys:
+`docs.payload.profile.address.city`. Use root `Json` for portable
+`Column.json(...)` expressions and `Pg.Jsonb` for Postgres `jsonb`
+expressions.
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column, Query, Table } from "effect-qb"
+import { Cast, Column, Json, Query, Scalar, Table } from "effect-qb"
 import { Jsonb } from "effect-qb/postgres"
 import * as Pg from "effect-qb/postgres"
 
@@ -613,6 +617,9 @@ const payloadSchema = Schema.Struct({
       postcode: Schema.NullOr(Schema.String)
     }),
     tags: Schema.Array(Schema.String),
+    metrics: Schema.Struct({
+      count: Schema.Number
+    }),
     legacyName: Schema.optional(Schema.String),
     legacySlug: Schema.optional(Schema.String)
   }),
@@ -624,6 +631,26 @@ const docs = Table.make("docs", {
   payload: Pg.Column.jsonb(payloadSchema)
 })
 
+const portableDocs = Table.make("portable_docs", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  payload: Column.json(payloadSchema)
+})
+
+const city = docs.payload.profile.address.city.pipe(Jsonb.text)
+const portableCity = portableDocs.payload.profile.address.city.pipe(Json.text)
+const count = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
+
+const legacyNameExists = docs.payload.profile.pipe(Jsonb.hasKey("legacyName"))
+const legacySlugExists = Jsonb.hasKey(docs.payload.profile, "legacySlug")
+const countPathExists = docs.payload.profile.metrics.count.pipe(Jsonb.pathExists)
+const countIsPositive = Jsonb.pathMatch(docs.payload, "$.profile.metrics.count > 0")
+
+type City = Scalar.RuntimeOf<typeof city>
+// string
+
+type Count = Scalar.RuntimeOf<typeof count>
+// number
+
 const missingRequiredCity = docs.payload.profile.address.city.pipe(Jsonb.delete)
 
 Query.update(docs, {
@@ -631,6 +658,10 @@ Query.update(docs, {
   payload: missingRequiredCity
 })
 ```
+
+`Json.text` and `Jsonb.text` are SQL text extraction. They do not parse JSON
+numbers into JavaScript numbers. Cast schema-known numeric JSONB paths when you
+need numeric SQL semantics.
 
 Deleting multiple paths is a sequence of terminal deletes. After each delete,
 start the next path from the updated JSON value.
@@ -643,8 +674,68 @@ const withoutLegacyFields = docs.payload.pipe(
 ```
 
 Use the same property-path shape with root `Json.delete` for portable
-`Column.json(...)` values. Keep `Json.key(...)` / `Jsonb.key(...)` for dynamic,
+`Column.json(...)` values. Reach for `Json.key(...)` / `Jsonb.key(...)` only
+when a path segment cannot be expressed as a normal property, such as dynamic,
 invalid-identifier, or reserved JSON keys.
+
+### Casting and Type Comparison
+
+`Cast.to(...)` checks the source expression and target type witness at compile
+time. Portable target types live on `Query.type`; dialect modules expose only
+dialect-specific type witnesses.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Cast, Column, Query, Table } from "effect-qb"
+import { Jsonb } from "effect-qb/postgres"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const docs = Table.make("docs", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  payload: Pg.Column.jsonb(Schema.Struct({
+    profile: Schema.Struct({
+      metrics: Schema.Struct({
+        count: Schema.Number
+      }),
+      address: Schema.Struct({
+        city: Schema.String
+      })
+    })
+  }))
+})
+
+const idAsText = Cast.to(users.id, Query.type.text())
+const countAsFloat = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
+
+const sameEmail = Query.eq(users.email, "ada@example.com")
+const cityText = docs.payload.profile.address.city.pipe(Jsonb.text)
+const sameCity = Query.eq(cityText, "Istanbul")
+
+// @ts-expect-error float8 is Postgres-specific, not portable standard SQL
+Query.type.float8()
+
+// @ts-expect-error text is portable, so it comes from Query.type
+Pg.Type.text()
+
+// @ts-expect-error uuid and text are different comparison families
+Query.eq(users.id, users.email)
+
+// @ts-expect-error schema-known JSONB objects cannot be cast to numeric types
+Cast.to(docs.payload.profile.metrics, Pg.Type.float8())
+
+// @ts-expect-error schema-known JSONB strings cannot be cast to numeric types
+Cast.to(docs.payload.profile.address.city, Pg.Type.float8())
+
+```
+
+Comparisons use the same type-family information. Compatible values compare
+directly, dialect-specific implicit conversions are modeled at the type level,
+and incompatible comparisons require an explicit cast or fail before rendering.
 
 ### Source Completeness and Aliases
 
@@ -979,9 +1070,9 @@ Dialect modules expose:
 
 | Module | Adds |
 | --- | --- |
-| `effect-qb/postgres` | Postgres column extensions, option modifiers, Postgres-only JSON/jsonb helpers, type witnesses for casts/references, schemas, enums, sequences, renderer, executor |
-| `effect-qb/mysql` | MySQL column extensions, MySQL-only JSON helpers, renderer, executor |
-| `effect-qb/sqlite` | SQLite column extensions, SQLite-only JSON helpers, renderer, executor |
+| `effect-qb/postgres` | Postgres column extensions, option modifiers, Postgres-only JSON/jsonb helpers, Postgres-only type witnesses for casts/references, schemas, enums, sequences, renderer, executor |
+| `effect-qb/mysql` | MySQL column extensions, MySQL-only JSON helpers, MySQL-only type witnesses, renderer, executor |
+| `effect-qb/sqlite` | SQLite column extensions, SQLite-only JSON helpers, SQLite-only type witnesses, renderer, executor |
 
 Portable columns and tables are created from `effect-qb`, not from dialect
 modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.
@@ -1025,6 +1116,10 @@ const eventKinds = Query.select({
   id: events.id,
   kind: events.payload.kind.pipe(Jsonb.text)
 }).pipe(Query.from(events))
+
+const created = eventKinds.pipe(
+  Query.where(Query.eq(events.payload.kind.pipe(Jsonb.text), "created"))
+)
 
 Pg.Renderer.make().render(eventKinds)
 ```
@@ -1089,7 +1184,9 @@ My.Renderer.make().render(readDocs)
 
 Use root `Json` for portable JSON access and construction. Reach for `My.Json`
 only when the behavior is MySQL-specific, such as MySQL's `json_type` result
-strings or unsupported-helper diagnostics.
+strings or unsupported-helper diagnostics. Property paths are the normal
+schema-known path API; `Json.key(...)` is only needed for dynamic or
+non-identifier keys.
 
 MySQL renderer differences include backtick quoting, question-mark placeholders,
 MySQL casts/functions where needed, and MySQL legality checks. MySQL does not
@@ -1125,7 +1222,8 @@ Sq.Renderer.make().render(readDocs)
 
 Use root `Json` for portable JSON access and construction. Reach for `Sq.Json`
 only when the behavior is SQLite-specific, such as JSON1 insert restrictions or
-SQLite's `json_type` result strings.
+SQLite's `json_type` result strings. Property paths are the normal schema-known
+path API; `Json.key(...)` is only needed for dynamic or non-identifier keys.
 
 SQLite support includes DDL, mutations, reads, streams, transactions/savepoints,
 and JSON1 helpers. Some SQL features remain intentionally unsupported where
@@ -1204,8 +1302,9 @@ const docs = Table.make("docs", {
 
 const city = docs.payload.profile.address.city.pipe(Jsonb.text)
 const count = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
+const hasMetrics = docs.payload.profile.pipe(Jsonb.hasKey("metrics"))
 
-const plan = Query.select({ city, count }).pipe(Query.from(docs))
+const plan = Query.select({ city, count, hasMetrics }).pipe(Query.from(docs))
 
 ```
 
@@ -1256,9 +1355,9 @@ Concrete modules:
 
 | Module | Purpose |
 | --- | --- |
-| `effect-qb/postgres` | Postgres-specific columns, option modifiers, query helpers, Postgres-only JSON/jsonb, schemas, renderer, executor |
-| `effect-qb/mysql` | MySQL-specific helpers, MySQL-only JSON helpers, renderer, executor |
-| `effect-qb/sqlite` | SQLite-specific helpers, SQLite-only JSON helpers, renderer, executor |
+| `effect-qb/postgres` | Postgres-specific columns, option modifiers, query helpers, Postgres-only JSON/jsonb, Postgres-only type witnesses, schemas, renderer, executor |
+| `effect-qb/mysql` | MySQL-specific helpers, MySQL-only JSON helpers, MySQL-only type witnesses, renderer, executor |
+| `effect-qb/sqlite` | SQLite-specific helpers, SQLite-only JSON helpers, SQLite-only type witnesses, renderer, executor |
 | `effect-qb/postgres/metadata` | Postgres metadata normalization helpers |
 
 ### Development
