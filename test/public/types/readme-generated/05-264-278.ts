@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 263-277
+// Code fences: 264-278
 
-// README.md:263-277
+// README.md:264-278
 import { Column, Index, Table } from "effect-qb"
 
 class Users extends Table.Class<Users>("users")({

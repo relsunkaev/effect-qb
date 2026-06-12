@@ -1,16 +1,16 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 352-362
+// Code fences: 370-380
 
-// README.md:352-362
-import { Casing, Column, Table } from "effect-qb"
+// README.md:370-380
+import { Casing, Column } from "effect-qb"
 
-const users = Table.make("UserAccounts", {
+const Snake = Casing.make("snake_case")
+
+const users = Snake.table("UserAccounts", {
   id: Column.uuid().pipe(Column.primaryKey),
   createdAt: Column.datetime()
-}).pipe(
-  Casing.withCasing("snake_case")
-)
+})
 
 
 export {};

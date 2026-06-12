@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 899-920
+// Code fences: 967-988
 
-// README.md:899-920
+// README.md:967-988
 import { Column, Query, Table } from "effect-qb"
 
 const users = Table.make("users", {

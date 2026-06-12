@@ -46,6 +46,7 @@ const rendered = Pg.Renderer.make().render(activeUsers)
   - [Casing and Naming](#casing-and-naming)
 - [Type Safety](#type-safety)
   - [Table Shape and Payloads](#table-shape-and-payloads)
+  - [Conflict Targets](#conflict-targets)
   - [Result Rows and Predicate Facts](#result-rows-and-predicate-facts)
   - [JSON and JSONB Paths](#json-and-jsonb-paths)
   - [Casting and Type Comparison](#casting-and-type-comparison)
@@ -498,6 +499,73 @@ type UserUpdateFromSchema = Schema.Schema.Type<typeof updateSchema>
 The same metadata powers `table.schemas.select`, `table.schemas.insert`, and
 `table.schemas.update`, so Effect Schema validation and TypeScript payload
 types stay aligned.
+
+### Conflict Targets
+
+`onConflict` and `upsert` column targets must match table arbiter metadata:
+a primary key, unique constraint, or unconditional unique index. This catches
+ordinary columns before rendering SQL.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text().pipe(Column.unique),
+  displayName: Column.text()
+})
+
+const draftUsers = Table.make("draft_users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text(),
+  displayName: Column.text()
+})
+
+Query.insert(users, {
+  id: "user-id",
+  email: "ada@example.com",
+  displayName: "Ada"
+}).pipe(Query.onConflict("email", {
+  update: {
+    displayName: Query.excluded(users.displayName)
+  }
+}))
+
+Query.upsert(users, {
+  id: "user-id",
+  email: "ada@example.com",
+  displayName: "Ada"
+}, "email", {
+  displayName: "Ada Lovelace"
+})
+
+Query.insert(draftUsers, {
+  id: "draft-id",
+  email: "draft@example.com",
+  displayName: "Draft"
+}).pipe(
+  // @ts-expect-error conflict targets must match a primary key, unique constraint, or unique index
+  Query.onConflict("email", {
+    update: {
+      displayName: Query.excluded(draftUsers.displayName)
+    }
+  })
+)
+
+Query.upsert(
+  draftUsers,
+  {
+    id: "draft-id",
+    email: "draft@example.com",
+    displayName: "Draft"
+  },
+  // @ts-expect-error upsert conflict targets must match a primary key, unique constraint, or unique index
+  "email",
+  {
+    displayName: "Draft User"
+  }
+)
+```
 
 ### Result Rows and Predicate Facts
 

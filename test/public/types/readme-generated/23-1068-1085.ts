@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 928-949
+// Code fences: 1068-1085
 
-// README.md:928-949
+// README.md:1068-1085
 import { Column, Query, Table } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
 
@@ -16,12 +16,8 @@ const readUsers = Query.select({
   email: users.email
 }).pipe(Query.from(users))
 
-const rendered = Pg.Renderer.make().render(readUsers)
-
-// rendered.sql:
-// select "users"."id" as "id", "users"."email" as "email" from "users"
-// rendered.params:
-// []
+const rowsEffect = Pg.Executor.make().execute(readUsers)
+const rowStream = Pg.Executor.make().stream(readUsers)
 
 
 export {};
