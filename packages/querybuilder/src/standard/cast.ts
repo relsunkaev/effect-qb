@@ -100,9 +100,13 @@ export const to: {
     value: Value,
     target: Target & CastTargetInput<Value, Target>
   ): CastExpression<Value, Target>
+  // `NoInfer` keeps `Value` out of its own inference constraint: it is inferred
+  // from the argument, then validated against the already-fixed `Target`.
+  // Without it, the validation forms an inference fixpoint that explodes under
+  // higher-order inference (e.g. `.pipe`).
   <Target extends CastTarget>(
     target: Target
-  ): <Value extends CastInput>(value: Value & CastValueInput<Value, Target>) => CastExpression<Value, Target>
+  ): <Value extends CastInput>(value: Value & CastValueInput<NoInfer<Value>, Target>) => CastExpression<Value, Target>
 } = ((...args: [CastInput, CastTarget] | [CastTarget]) =>
   args.length === 1
     ? ((value: CastInput) => standardCast(value as never, args[0] as never))

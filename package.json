@@ -32,7 +32,7 @@
     "@effect/sql-pg": "0.48.0",
     "@effect/sql-sqlite-bun": "0.48.0",
     "@types/bun": "latest",
-    "@typescript/native-preview": "beta",
+    "@typescript/native-preview": "^7.0.0-dev.20260615.1",
     "effect": "^3.19.3",
     "effect-db": "workspace:*",
     "effect-qb": "workspace:*",
