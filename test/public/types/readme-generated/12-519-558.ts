@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 517-576
+// Code fences: 519-558
 
-// README.md:517-576
+// README.md:519-558
 import { Column, Query, Table } from "effect-qb"
 
 const users = Table.make("users", {
@@ -17,6 +17,7 @@ const draftUsers = Table.make("draft_users", {
   displayName: Column.text()
 })
 
+// users.email is unique, so it is a valid conflict target.
 Query.insert(users, {
   id: "user-id",
   email: "ada@example.com",
@@ -27,14 +28,7 @@ Query.insert(users, {
   }
 }))
 
-Query.upsert(users, {
-  id: "user-id",
-  email: "ada@example.com",
-  displayName: "Ada"
-}, "email", {
-  displayName: "Ada Lovelace"
-})
-
+// draft_users.email has no unique constraint, so it is rejected.
 Query.insert(draftUsers, {
   id: "draft-id",
   email: "draft@example.com",
@@ -46,20 +40,6 @@ Query.insert(draftUsers, {
       displayName: Query.excluded(draftUsers.displayName)
     }
   })
-)
-
-Query.upsert(
-  draftUsers,
-  {
-    id: "draft-id",
-    email: "draft@example.com",
-    displayName: "Draft"
-  },
-  // @ts-expect-error upsert conflict targets must match a primary key, unique constraint, or unique index
-  "email",
-  {
-    displayName: "Draft User"
-  }
 )
 
 export {};

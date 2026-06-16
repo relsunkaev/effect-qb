@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1173-1211
+// Code fences: 1406-1444
 
-// README.md:1173-1211
+// README.md:1406-1444
 import * as Schema from "effect/Schema"
 import { Column, Index, Query, Table } from "effect-qb"
 import { Jsonb } from "effect-qb/postgres"
@@ -30,15 +30,15 @@ const events = Table.make("events", {
   )
 )
 
-const eventKinds = Query.select({
+const createdEvents = Query.select({
   id: events.id,
   kind: events.payload.kind.pipe(Jsonb.text)
-}).pipe(Query.from(events))
-
-const created = eventKinds.pipe(
+}).pipe(
+  Query.from(events),
   Query.where(Query.eq(events.payload.kind.pipe(Jsonb.text), "created"))
 )
 
-Pg.Renderer.make().render(eventKinds)
+const rendered = Pg.Renderer.make().render(createdEvents)
+// select "events"."id" as "id", ("events"."payload" ->> $1) as "kind" from "events" where (("events"."payload" ->> $2) = $3)
 
 export {};

@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 872-909
+// Code fences: 852-891
 
-// README.md:872-909
+// README.md:852-891
 import * as Schema from "effect/Schema"
 import { Column, Query, Table } from "effect-qb"
 import { Jsonb } from "effect-qb/postgres"
@@ -20,6 +20,7 @@ const portable = Query.select({
   email: users.email
 }).pipe(Query.from(users))
 
+// A portable plan renders through every dialect.
 Pg.Renderer.make().render(portable)
 My.Renderer.make().render(portable)
 Sq.Renderer.make().render(portable)
@@ -31,6 +32,7 @@ const docs = Table.make("docs", {
   }))
 })
 
+// Pg.Column.jsonb narrows this plan to Postgres.
 const postgresOnly = Query.select({
   kind: docs.payload.kind.pipe(Jsonb.text)
 }).pipe(Query.from(docs))

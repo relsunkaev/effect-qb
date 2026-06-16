@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1287-1307
+// Code fences: 1521-1542
 
-// README.md:1287-1307
+// README.md:1521-1542
 import * as Schema from "effect/Schema"
 import { Column, Json, Query, Table } from "effect-qb"
 import * as Sq from "effect-qb/sqlite"
@@ -21,6 +21,7 @@ const readDocs = Query.select({
   city: docs.payload.profile.city.pipe(Json.text)
 }).pipe(Query.from(docs))
 
-Sq.Renderer.make().render(readDocs)
+const rendered = Sq.Renderer.make().render(readDocs)
+// select "docs"."id" as "id", json_extract("docs"."payload", ?) as "city" from "docs"
 
 export {};

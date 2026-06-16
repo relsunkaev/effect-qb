@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 312-334
+// Code fences: 312-336
 
-// README.md:312-334
+// README.md:312-336
 import { Casing, Column, Query, Table } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
 
@@ -24,5 +24,7 @@ const renderer = Pg.Renderer.make().pipe(
 )
 
 const rendered = renderer.render(readUsers)
+// model keys stay as written; physical identifiers are snake_case:
+// select "user_accounts"."created_at" as "createdAt" from "user_accounts" where ("user_accounts"."display_name" = $1)
 
 export {};

@@ -271,7 +271,7 @@ The portable column surface includes:
 
 - `uuid`
 - `text`, `varchar`, `char`
-- `int`, `bigint`, `number`, `decimal`, `real`
+- `int`, `bigint`, `number`, `real`
 - `boolean`
 - `date`, `time`, `datetime`, `timestamp`
 - `blob`
@@ -331,6 +331,8 @@ const renderer = Pg.Renderer.make().pipe(
 )
 
 const rendered = renderer.render(readUsers)
+// model keys stay as written; physical identifiers are snake_case:
+// select "user_accounts"."created_at" as "createdAt" from "user_accounts" where ("user_accounts"."display_name" = $1)
 ```
 
 <details>
@@ -529,6 +531,7 @@ const draftUsers = Table.make("draft_users", {
   displayName: Column.text()
 })
 
+// users.email is unique, so it is a valid conflict target.
 Query.insert(users, {
   id: "user-id",
   email: "ada@example.com",
@@ -539,14 +542,7 @@ Query.insert(users, {
   }
 }))
 
-Query.upsert(users, {
-  id: "user-id",
-  email: "ada@example.com",
-  displayName: "Ada"
-}, "email", {
-  displayName: "Ada Lovelace"
-})
-
+// draft_users.email has no unique constraint, so it is rejected.
 Query.insert(draftUsers, {
   id: "draft-id",
   email: "draft@example.com",
@@ -559,21 +555,10 @@ Query.insert(draftUsers, {
     }
   })
 )
-
-Query.upsert(
-  draftUsers,
-  {
-    id: "draft-id",
-    email: "draft@example.com",
-    displayName: "Draft"
-  },
-  // @ts-expect-error upsert conflict targets must match a primary key, unique constraint, or unique index
-  "email",
-  {
-    displayName: "Draft User"
-  }
-)
 ```
+
+`Query.upsert(table, values, target, update)` is shorthand for an insert with a
+single-column `onConflict`, and checks the target the same way.
 
 ### Result Rows and Predicate Facts
 
@@ -757,68 +742,61 @@ invalid-identifier, or reserved JSON key.
 
 ### Casting and Type Comparison
 
-`Cast.to(...)` checks the source expression and target type witness at compile
-time. Portable target types live on `Query.type`; dialect modules expose only
-dialect-specific type witnesses.
+`Cast.to` converts an expression to another type and checks the conversion at
+compile time. Comparisons read the same type-family metadata, so a cast is also
+how you bridge two values that belong to different families.
+
+```ts
+import { Cast, Column, Query, Table } from "effect-qb"
+
+const events = Table.make("events", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  externalRef: Column.text()
+})
+
+// id (uuid) and externalRef (text) are different comparison families, so cast
+// one side to compare them.
+const idAsText = Cast.to(events.id, Query.type.text())
+const sameRef = Query.eq(idAsText, events.externalRef)
+
+// @ts-expect-error uuid and text are different comparison families
+Query.eq(events.id, events.externalRef)
+```
+
+Portable target types come from `Query.type` (such as `Query.type.text()`);
+dialect-specific targets come from the dialect module (such as
+`Pg.Type.float8()`). `Query.type` does not expose dialect types, and dialect
+modules do not re-expose portable ones, so each rejects the other's witnesses.
+A compatible cast or comparison resolves before any SQL is rendered; an
+incompatible one fails at compile time.
+
+<details>
+<summary>Casts the type checker rejects</summary>
+
+A schema-known JSONB value can only cast to a compatible family. A numeric path
+casts to a numeric type, but objects and strings do not.
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Cast, Column, Query, Table } from "effect-qb"
-import { Jsonb } from "effect-qb/postgres"
+import { Cast, Column, Table } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
 
 const docs = Table.make("docs", {
   id: Column.uuid().pipe(Column.primaryKey),
   payload: Pg.Column.jsonb(Schema.Struct({
-    profile: Schema.Struct({
-      metrics: Schema.Struct({
-        count: Schema.Number
-      }),
-      address: Schema.Struct({
-        city: Schema.String
-      })
-    })
+    metrics: Schema.Struct({ count: Schema.Number }),
+    address: Schema.Struct({ city: Schema.String })
   }))
 })
 
-// Portable target types come from Query.type; dialect types come from the
-// dialect module. Each rejects the other's witnesses.
-const idAsText = Cast.to(users.id, Query.type.text())
-const countAsFloat = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
+// @ts-expect-error a JSONB object cannot be cast to a numeric type
+Cast.to(docs.payload.metrics, Pg.Type.float8())
 
-// @ts-expect-error float8 is Postgres-specific; use Pg.Type.float8()
-Query.type.float8()
-
-// @ts-expect-error text is portable; use Query.type.text()
-Pg.Type.text()
-
-// Comparisons compare directly when the operands share a type family...
-const sameEmail = Query.eq(users.email, "ada@example.com")
-const cityText = docs.payload.profile.address.city.pipe(Jsonb.text)
-const sameCity = Query.eq(cityText, "Istanbul")
-
-// @ts-expect-error ...and reject operands from different families (uuid vs text)
-Query.eq(users.id, users.email)
-
-// A schema-known numeric path casts to a numeric type (countAsFloat above),
-// but non-numeric JSONB values do not.
-
-// @ts-expect-error schema-known JSONB objects cannot be cast to numeric types
-Cast.to(docs.payload.profile.metrics, Pg.Type.float8())
-
-// @ts-expect-error schema-known JSONB strings cannot be cast to numeric types
-Cast.to(docs.payload.profile.address.city, Pg.Type.float8())
-
+// @ts-expect-error a JSONB string cannot be cast to a numeric type
+Cast.to(docs.payload.address.city, Pg.Type.float8())
 ```
 
-Both casts and comparisons read the same type-family information, so compatible
-values combine directly while incompatible ones need an explicit cast or fail
-before any SQL is rendered.
+</details>
 
 ### Source Completeness and Aliases
 
@@ -854,6 +832,8 @@ Derived-source aliases must be literal, non-empty strings, so result paths and
 source identity stay stable.
 
 ```ts
+const activeUsers = Query.as(complete, "active_users")
+
 const dynamicAlias: string = "users_alias"
 
 // @ts-expect-error derived source aliases must be literal strings
@@ -887,6 +867,7 @@ const portable = Query.select({
   email: users.email
 }).pipe(Query.from(users))
 
+// A portable plan renders through every dialect.
 Pg.Renderer.make().render(portable)
 My.Renderer.make().render(portable)
 Sq.Renderer.make().render(portable)
@@ -898,6 +879,7 @@ const docs = Table.make("docs", {
   }))
 })
 
+// Pg.Column.jsonb narrows this plan to Postgres.
 const postgresOnly = Query.select({
   kind: docs.payload.kind.pipe(Jsonb.text)
 }).pipe(Query.from(docs))
@@ -978,6 +960,276 @@ Core query surfaces include:
 - inserts, updates, deletes, merge, upsert, and returning where supported
 - set operators
 - transaction helpers such as savepoints
+
+The blocks below showcase the surfaces beyond the basic read above.
+
+<details>
+<summary>Predicates and conditional expressions</summary>
+
+Combine predicates with `and`/`or`; `between`, `in`, `notIn`, `isNull`, and
+`isNotNull` cover the common shapes. `case`/`match` build conditional
+expressions.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.int().pipe(Column.primaryKey),
+  email: Column.text().pipe(Column.nullable),
+  status: Column.text()
+})
+
+const filtered = Query.select({
+  id: users.id,
+  label: Query.match(users.status)
+    .when("active", "Active")
+    .when("archived", "Archived")
+    .else("Unknown")
+}).pipe(
+  Query.from(users),
+  Query.where(Query.and(
+    Query.between(users.id, 1, 100),
+    Query.or(
+      Query.in(users.status, "active", "archived"),
+      Query.isNull(users.email)
+    )
+  ))
+)
+```
+
+</details>
+
+<details>
+<summary>Functions and aggregates</summary>
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid(),
+  title: Column.text().pipe(Column.nullable)
+})
+
+const postCount = Function.count(posts.id)
+
+const report = Query.select({
+  label: Function.concat(Function.lower(users.email), "-user"),
+  postCount,
+  latestTitle: Function.max(posts.title)
+}).pipe(
+  Query.from(users),
+  Query.leftJoin(posts, Query.eq(users.id, posts.userId)),
+  Query.groupBy(users.email),
+  Query.having(Query.gt(postCount, 0))
+)
+// select (lower("users"."email") || $1) as "label", count("posts"."id") as "postCount", max("posts"."title") as "latestTitle" from "users" left join "posts" on ("users"."id" = "posts"."userId") group by "users"."email" having (count("posts"."id") > $2)
+```
+
+</details>
+
+<details>
+<summary>Common table expressions</summary>
+
+Pipe `Query.with(name)` onto a complete plan to name it, then reference it like
+any other source. `Query.withRecursive(name)` builds recursive CTEs.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid(),
+  title: Column.text().pipe(Column.nullable)
+})
+
+const activePosts = Query.select({
+  userId: posts.userId,
+  title: posts.title
+}).pipe(
+  Query.from(posts),
+  Query.where(Query.isNotNull(posts.title)),
+  Query.with("active_posts")
+)
+
+const usersWithActivePosts = Query.select({
+  email: users.email,
+  title: activePosts.title
+}).pipe(
+  Query.from(users),
+  Query.innerJoin(activePosts, Query.eq(users.id, activePosts.userId))
+)
+// with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."email" as "email", "active_posts"."title" as "title" from "users" inner join "active_posts" on ("users"."id" = "active_posts"."userId")
+```
+
+</details>
+
+<details>
+<summary>Subqueries (correlated exists)</summary>
+
+A subquery correlates with the outer query by referencing its columns.
+`Query.exists`, `Query.inSubquery`, `Query.scalar`, `Query.compareAny`, and
+`Query.compareAll` all take a select plan.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid()
+})
+
+const userPosts = Query.select({ value: posts.id }).pipe(
+  Query.from(posts),
+  Query.where(Query.eq(posts.userId, users.id))
+)
+
+const authors = Query.select({
+  email: users.email,
+  hasPosts: Query.exists(userPosts)
+}).pipe(Query.from(users))
+```
+
+</details>
+
+<details>
+<summary>Set operators</summary>
+
+`union`, `unionAll`, `intersect`, `intersectAll`, `except`, and `exceptAll`
+combine two source-complete selects with the same projection shape.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text(),
+  active: Column.boolean()
+})
+
+const activeEmails = Query.select({ email: users.email }).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, true))
+)
+
+const inactiveEmails = Query.select({ email: users.email }).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, false))
+)
+
+const allEmails = Query.unionAll(activeEmails, inactiveEmails)
+// (select "users"."email" as "email" from "users" where ("users"."active" = $1)) union all (select "users"."email" as "email" from "users" where ("users"."active" = $2))
+```
+
+</details>
+
+<details>
+<summary>Window functions</summary>
+
+`Function.rowNumber`, `rank`, and `denseRank` take a window spec;
+`Function.over` wraps an aggregate in a window.
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid()
+})
+
+const ranked = Query.select({
+  postId: posts.id,
+  rowInUser: Function.rowNumber({
+    partitionBy: [posts.userId],
+    orderBy: [{ value: posts.id, direction: "asc" }]
+  }),
+  perUser: Function.over(Function.count(posts.id), {
+    partitionBy: [posts.userId]
+  })
+}).pipe(Query.from(posts))
+```
+
+</details>
+
+<details>
+<summary>Merge</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const incoming = Table.make("incoming_users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const merge = Query.merge(users, incoming, Query.eq(users.id, incoming.id), {
+  whenMatched: { update: { email: incoming.email } },
+  whenNotMatched: { values: { id: incoming.id, email: incoming.email } }
+})
+// merge into "users" using "incoming_users" on ("users"."id" = "incoming_users"."id") when matched then update set "email" = "incoming_users"."email" when not matched then insert ("id", "email") values ("incoming_users"."id", "incoming_users"."email")
+```
+
+</details>
+
+<details>
+<summary>Transactions and savepoints</summary>
+
+```ts
+import { Query } from "effect-qb"
+
+const begin = Query.transaction({ isolationLevel: "serializable" })
+const savepoint = Query.savepoint("before_merge")
+const rollbackToSavepoint = Query.rollbackTo("before_merge")
+const releaseSavepoint = Query.releaseSavepoint("before_merge")
+```
+
+</details>
+
+<details>
+<summary>DDL (create / drop)</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const createUsers = Query.createTable(users)
+// create table "users" ("id" uuid not null, "email" text not null, primary key ("id"))
+
+const createEmailIndex = Query.createIndex(users, ["email"], {
+  name: "users_email_idx"
+})
+// create index "users_email_idx" on "users" ("email")
+
+const dropEmailIndex = Query.dropIndex(users, ["email"], {
+  name: "users_email_idx"
+})
+```
+
+</details>
 
 <details>
 <summary>Mutation example</summary>
@@ -1128,29 +1380,10 @@ const executor = Pg.Executor.make({ driver })
 
 ### Portable Standard Surface
 
-Portable APIs are exported from `effect-qb`. Dialect modules add only concrete
-behavior.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-import * as My from "effect-qb/mysql"
-import * as Pg from "effect-qb/postgres"
-import * as Sq from "effect-qb/sqlite"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const plan = Query.select({
-  id: users.id,
-  email: users.email
-}).pipe(Query.from(users))
-
-Pg.Renderer.make().render(plan)
-My.Renderer.make().render(plan)
-Sq.Renderer.make().render(plan)
-```
+Portable APIs are exported from `effect-qb`; dialect modules add only concrete
+behavior. Any plan built entirely from root modules renders through every
+dialect renderer — see [Quick Start](#quick-start) for one plan rendered as
+Postgres, MySQL, and SQLite.
 
 Dialect modules expose:
 
@@ -1198,16 +1431,16 @@ const events = Table.make("events", {
   )
 )
 
-const eventKinds = Query.select({
+const createdEvents = Query.select({
   id: events.id,
   kind: events.payload.kind.pipe(Jsonb.text)
-}).pipe(Query.from(events))
-
-const created = eventKinds.pipe(
+}).pipe(
+  Query.from(events),
   Query.where(Query.eq(events.payload.kind.pipe(Jsonb.text), "created"))
 )
 
-Pg.Renderer.make().render(eventKinds)
+const rendered = Pg.Renderer.make().render(createdEvents)
+// select "events"."id" as "id", ("events"."payload" ->> $1) as "kind" from "events" where (("events"."payload" ->> $2) = $3)
 ```
 
 #### Schemas, Enums, and Sequences
@@ -1265,7 +1498,8 @@ const readDocs = Query.select({
   title: docs.payload.title.pipe(Json.text)
 }).pipe(Query.from(docs))
 
-My.Renderer.make().render(readDocs)
+const rendered = My.Renderer.make().render(readDocs)
+// select `docs`.`id` as `id`, json_unquote(json_extract(`docs`.`payload`, ?)) as `title` from `docs`
 ```
 
 Use root `Json` for portable JSON access and construction. Reach for `My.Json`
@@ -1303,7 +1537,8 @@ const readDocs = Query.select({
   city: docs.payload.profile.city.pipe(Json.text)
 }).pipe(Query.from(docs))
 
-Sq.Renderer.make().render(readDocs)
+const rendered = Sq.Renderer.make().render(readDocs)
+// select "docs"."id" as "id", json_extract("docs"."payload", ?) as "city" from "docs"
 ```
 
 Use root `Json` for portable JSON access and construction. Reach for `Sq.Json`

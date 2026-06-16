@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 682-717, 723-728, 734-751
+// Code fences: 667-702, 708-713, 719-736
 
-// README.md:682-717
+// README.md:667-702
 import * as Schema from "effect/Schema"
 import { Cast, Column, Json, Query, Scalar, Table } from "effect-qb"
 import { Jsonb } from "effect-qb/postgres"
@@ -39,7 +39,7 @@ type City = Scalar.RuntimeOf<typeof city>
 // string
 
 {
-  // README.md:723-728
+  // README.md:708-713
   const count = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
 
   type Count = Scalar.RuntimeOf<typeof count>
@@ -47,7 +47,7 @@ type City = Scalar.RuntimeOf<typeof city>
 }
 
 {
-  // README.md:734-751
+  // README.md:719-736
   const legacyNameExists = docs.payload.profile.pipe(Jsonb.hasKey("legacyName"))
   const countPathExists = docs.payload.profile.metrics.count.pipe(Jsonb.pathExists)
 
