@@ -14,7 +14,6 @@ import * as Pg from "effect-qb/postgres"
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
   email: Column.text(),
-  displayName: Column.text(),
   active: Column.boolean()
 })
 
@@ -221,9 +220,14 @@ const memberships = Table.make("memberships", {
   Index.make((table) => table.userId)
 )
 
-type Organization = Table.SelectOf<typeof organizations>
-type NewOrganization = Table.InsertOf<typeof organizations>
-type OrganizationPatch = Table.UpdateOf<typeof organizations>
+type Membership = Table.SelectOf<typeof memberships>
+// { readonly orgId: string; readonly userId: string; readonly role: string }
+
+type NewMembership = Table.InsertOf<typeof memberships>
+// { readonly orgId: string; readonly userId: string; readonly role: string }
+
+type MembershipPatch = Table.UpdateOf<typeof memberships>
+// { readonly role?: string } — the composite primary key is omitted from updates
 
 ```
 
@@ -292,6 +296,12 @@ const events = Table.make("events", {
 })
 
 type EventRow = Table.SelectOf<typeof events>
+// {
+//   readonly id: string
+//   readonly happenedOn: Date          // decoded by Schema.DateFromString
+//   readonly payload: { readonly visits: number }
+// }
+
 type EventInsert = Table.InsertOf<typeof events>
 
 ```
@@ -610,9 +620,7 @@ columns and to selected expressions that retain enough path metadata.
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column, Query, Table } from "effect-qb"
-import { Jsonb } from "effect-qb/postgres"
-import * as Pg from "effect-qb/postgres"
+import { Column, Json, Query, Table } from "effect-qb"
 
 const payloadSchema = Schema.Union(
   Schema.Struct({
@@ -627,10 +635,10 @@ const payloadSchema = Schema.Union(
 
 const events = Table.make("events", {
   id: Column.uuid().pipe(Column.primaryKey),
-  payload: Pg.Column.jsonb(payloadSchema)
+  payload: Column.json(payloadSchema)
 })
 
-const kind = events.payload.kind.pipe(Jsonb.text)
+const kind = events.payload.kind.pipe(Json.text)
 
 const createdEvents = Query.select({
   payload: events.payload,
@@ -964,11 +972,10 @@ Core query surfaces include:
 The blocks below showcase the surfaces beyond the basic read above.
 
 <details>
-<summary>Predicates and conditional expressions</summary>
+<summary>Predicate combinators</summary>
 
 Combine predicates with `and`/`or`; `between`, `in`, `notIn`, `isNull`, and
-`isNotNull` cover the common shapes. `case`/`match` build conditional
-expressions.
+`isNotNull` cover the common shapes.
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -979,13 +986,7 @@ const users = Table.make("users", {
   status: Column.text()
 })
 
-const filtered = Query.select({
-  id: users.id,
-  label: Query.match(users.status)
-    .when("active", "Active")
-    .when("archived", "Archived")
-    .else("Unknown")
-}).pipe(
+const filtered = Query.select({ id: users.id }).pipe(
   Query.from(users),
   Query.where(Query.and(
     Query.between(users.id, 1, 100),
@@ -995,6 +996,33 @@ const filtered = Query.select({
     )
   ))
 )
+```
+
+</details>
+
+<details>
+<summary>Conditional expressions (case / match)</summary>
+
+`case` builds a searched CASE; `match` builds a simple CASE over one expression.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  status: Column.text()
+})
+
+const labelled = Query.select({
+  id: users.id,
+  tier: Query.case()
+    .when(Query.eq(users.status, "active"), "current")
+    .else("other"),
+  label: Query.match(users.status)
+    .when("active", "Active")
+    .when("archived", "Archived")
+    .else("Unknown")
+}).pipe(Query.from(users))
 ```
 
 </details>
@@ -1111,7 +1139,9 @@ const authors = Query.select({
 <summary>Set operators</summary>
 
 `union`, `unionAll`, `intersect`, `intersectAll`, `except`, and `exceptAll`
-combine two source-complete selects with the same projection shape.
+combine two source-complete selects that share a projection shape — useful for
+stitching together independent queries. The minimal example below splits one
+table by a flag so the two shapes are obviously identical.
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -1194,6 +1224,9 @@ const merge = Query.merge(users, incoming, Query.eq(users.id, incoming.id), {
 <details>
 <summary>Transactions and savepoints</summary>
 
+Each helper builds a statement you issue through an executor, in sequence: begin
+a transaction, optionally mark and roll back to savepoints, then commit.
+
 ```ts
 import { Query } from "effect-qb"
 
@@ -1201,6 +1234,7 @@ const begin = Query.transaction({ isolationLevel: "serializable" })
 const savepoint = Query.savepoint("before_merge")
 const rollbackToSavepoint = Query.rollbackTo("before_merge")
 const releaseSavepoint = Query.releaseSavepoint("before_merge")
+const commit = Query.commit()
 ```
 
 </details>
@@ -1297,18 +1331,16 @@ type errors.
 import { Scalar } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
 
-const mapping: Scalar.DriverValueMapping = {
-  fromDriver: (value) => value,
-  toDriver: (value) => value,
-  selectSql: (sql) => sql,
-  jsonSelectSql: (sql) => sql
+// The pg driver returns int8 (bigint) columns as strings. Decode them to a
+// JavaScript BigInt on the way out, and encode back to a string on the way in.
+const bigintAsString: Scalar.DriverValueMapping = {
+  fromDriver: (value) => typeof value === "string" ? BigInt(value) : value,
+  toDriver: (value) => typeof value === "bigint" ? value.toString() : value
 }
 
 const renderer = Pg.Renderer.make({
   valueMappings: {
-    text: mapping,
-    jsonb: mapping,
-    string: mapping
+    int8: bigintAsString
   }
 })
 
@@ -1409,16 +1441,10 @@ import { Column, Index, Query, Table } from "effect-qb"
 import { Jsonb } from "effect-qb/postgres"
 import * as Pg from "effect-qb/postgres"
 
-const payloadSchema = Schema.Union(
-  Schema.Struct({
-    kind: Schema.Literal("created"),
-    actorId: Schema.String
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("deleted"),
-    reason: Schema.String
-  })
-)
+const payloadSchema = Schema.Struct({
+  kind: Schema.String,
+  actorId: Schema.String
+})
 
 const events = Table.make("events", {
   id: Column.uuid().pipe(Column.primaryKey),
