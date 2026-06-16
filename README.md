@@ -7,8 +7,6 @@ plans for a concrete SQL dialect, and execute them through Effect SQL clients or
 custom driver. It is a query builder, not an ORM: table definitions describe SQL
 shape and runtime schemas, while query plans stay explicit and inspectable.
 
-The default import path is portable:
-
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
@@ -16,6 +14,7 @@ import * as Pg from "effect-qb/postgres"
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
   email: Column.text(),
+  displayName: Column.text(),
   active: Column.boolean()
 })
 
@@ -29,10 +28,17 @@ const activeUsers = Query.select({
 )
 
 type ActiveUser = Query.ResultRow<typeof activeUsers>
+// { readonly id: string; readonly email: string }
 
+// The plan is portable. Here it is rendered for Postgres.
 const rendered = Pg.Renderer.make().render(activeUsers)
-
+// rendered.sql:
+// select "users"."id" as "id", lower("users"."email") as "email" from "users" where ("users"."active" = $1) order by "users"."email" asc
 ```
+
+Columns reference their own table (`users.id`), so a query starts with
+`Query.select(...)` and pipes `from`, `where`, and `orderBy` onto it. The order
+of the piped steps does not change the SQL that is generated.
 
 ## Contents
 
@@ -92,74 +98,53 @@ Public query-builder import paths:
 
 ### Quick Start
 
-Define a table, build a query, render it for a dialect, and derive the result
-row type from the plan.
+Define a table, build a query, derive its result-row type, then render the one
+plan for each dialect. The plan does not change between dialects; only the
+rendered SQL does.
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
+import * as My from "effect-qb/mysql"
 import * as Pg from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
 
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
   email: Column.text(),
   displayName: Column.text(),
-  bio: Column.text().pipe(Column.nullable)
+  active: Column.boolean()
 })
 
-const userDirectory = Query.select({
+const activeUsers = Query.select({
   id: users.id,
   email: Function.lower(users.email),
   displayName: users.displayName
 }).pipe(
   Query.from(users),
-  Query.where(Query.isNotNull(users.bio)),
+  Query.where(Query.eq(users.active, true)),
   Query.orderBy(users.email)
 )
 
-type UserDirectoryRow = Query.ResultRow<typeof userDirectory>
+type ActiveUserRow = Query.ResultRow<typeof activeUsers>
 // {
 //   readonly id: string
 //   readonly email: string
 //   readonly displayName: string
 // }
 
-const rendered = Pg.Renderer.make().render(userDirectory)
-// rendered.sql:
-// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."bio" is not null) order by "users"."email" asc
+const postgres = Pg.Renderer.make().render(activeUsers)
+// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $1) order by "users"."email" asc
 
+const mysql = My.Renderer.make().render(activeUsers)
+// select `users`.`id` as `id`, lower(`users`.`email`) as `email`, `users`.`displayName` as `displayName` from `users` where (`users`.`active` = ?) order by `users`.`email` asc
+
+const sqlite = Sq.Renderer.make().render(activeUsers)
+// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = ?) order by "users"."email" asc
 ```
 
-The query plan above is portable because it only uses root modules. It can be
-rendered by any built-in renderer.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-import * as My from "effect-qb/mysql"
-import * as Pg from "effect-qb/postgres"
-import * as Sq from "effect-qb/sqlite"
-
-const accounts = Table.make("accounts", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const readAccounts = Query.select({
-  id: accounts.id,
-  email: accounts.email
-}).pipe(Query.from(accounts))
-
-const postgres = Pg.Renderer.make().render(readAccounts)
-// postgres.sql:
-// select "accounts"."id" as "id", "accounts"."email" as "email" from "accounts"
-
-const mysql = My.Renderer.make().render(readAccounts)
-// mysql.sql:
-// select `accounts`.`id` as `id`, `accounts`.`email` as `email` from `accounts`
-
-const sqlite = Sq.Renderer.make().render(readAccounts)
-// sqlite.sql:
-// select "accounts"."id" as "id", "accounts"."email" as "email" from "accounts"
-```
+This plan is portable because it only uses root `effect-qb` modules. Reach for a
+dialect module (`effect-qb/postgres`, etc.) only when a query depends on that
+dialect's SQL.
 
 ## Core Concepts
 
@@ -225,6 +210,7 @@ const memberships = Table.make("memberships", {
   userId: Column.uuid(),
   role: Column.text()
 }).pipe(
+  // (local columns on this table, referenced columns on the other table)
   ForeignKey.make((table) => table.orgId, () => organizations.id),
   PrimaryKey.make((table) => [table.orgId, table.userId]),
   Unique.make((table) => [table.orgId, table.role]),
@@ -438,6 +424,10 @@ information to know the answer before SQL is rendered. The main idea is that
 tables, columns, predicates, source availability, and dialects all carry type
 metadata through the plan.
 
+> If you just want to write, render, and execute queries end to end, skip ahead
+> to [Query Lifecycle](#query-lifecycle). This section explains what TypeScript
+> catches for you before any SQL runs.
+
 ### Table Shape and Payloads
 
 Table definitions derive select, insert, and update payloads from column
@@ -445,7 +435,6 @@ metadata. Generated columns are omitted from inserts, nullable/default columns
 become optional for inserts, and primary keys are omitted from updates.
 
 ```ts
-import * as Schema from "effect/Schema"
 import { Column, Query, Table } from "effect-qb"
 
 const users = Table.make("users", {
@@ -462,12 +451,14 @@ type UserInsert = Table.InsertOf<typeof users>
 //   readonly email: string
 //   readonly displayName?: string | null
 // }
+// id is omitted because it is generated.
 
 type UserUpdate = Table.UpdateOf<typeof users>
 // {
 //   readonly email?: string
 //   readonly displayName?: string | null
 // }
+// id is omitted because primary keys are not updated.
 
 const insertWithId: UserInsert = {
   // @ts-expect-error generated primary keys are not insert payload fields
@@ -479,10 +470,27 @@ const updateWithId: UserUpdate = {
   // @ts-expect-error primary keys are not update payload fields
   id: "550e8400-e29b-41d4-a716-446655440000"
 }
+```
 
-const selectSchema = Table.selectSchema(users)
+The same column metadata also produces Effect Schemas for runtime validation,
+so the parsed types match the `InsertOf`/`UpdateOf` types above.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(
+    Column.primaryKey,
+    Column.generated(Query.literal("generated-user-id"))
+  ),
+  email: Column.text(),
+  displayName: Column.text().pipe(Column.nullable)
+})
+
 const insertSchema = Table.insertSchema(users)
 const updateSchema = Table.updateSchema(users)
+
 const parsedInsert = Schema.decodeUnknownSync(insertSchema)({
   email: "ada@example.com"
 })
@@ -490,14 +498,14 @@ const parsedUpdate = Schema.decodeUnknownSync(updateSchema)({
   displayName: null
 })
 
-type UserSelectFromSchema = Schema.Schema.Type<typeof selectSchema>
 type UserInsertFromSchema = Schema.Schema.Type<typeof insertSchema>
+// same shape as UserInsert
 type UserUpdateFromSchema = Schema.Schema.Type<typeof updateSchema>
-
+// same shape as UserUpdate
 ```
 
-The same metadata powers `table.schemas.select`, `table.schemas.insert`, and
-`table.schemas.update`, so Effect Schema validation and TypeScript payload
+`table.schemas.select`, `table.schemas.insert`, and `table.schemas.update`
+expose the same schemas, so Effect Schema validation and TypeScript payload
 types stay aligned.
 
 ### Conflict Targets
@@ -587,7 +595,7 @@ const posts = Table.make("posts", {
   id: Column.uuid().pipe(Column.primaryKey),
   userId: Column.uuid(),
   title: Column.text().pipe(Column.nullable),
-  status: Column.text()
+  publishedAt: Column.datetime().pipe(Column.nullable)
 })
 
 const visiblePosts = Query.select({
@@ -666,11 +674,10 @@ assumptions.
 
 ### JSON and JSONB Paths
 
-JSON columns carry their Effect Schema type through property-path access and
-JSON helper expressions. Use normal property access for schema-known keys:
-`docs.payload.profile.address.city`. Use root `Json` for portable
-`Column.json(...)` expressions and `Pg.Jsonb` for Postgres `jsonb`
-expressions.
+A JSON column carries its Effect Schema type through property-path access, so
+schema-known keys are reached with ordinary property access and keep their type.
+Use root `Json` for portable `Column.json(...)` columns and `Pg.Jsonb` for
+Postgres `jsonb` columns; the path shape is identical.
 
 ```ts
 import * as Schema from "effect/Schema"
@@ -681,17 +688,14 @@ import * as Pg from "effect-qb/postgres"
 const payloadSchema = Schema.Struct({
   profile: Schema.Struct({
     address: Schema.Struct({
-      city: Schema.String,
-      postcode: Schema.NullOr(Schema.String)
+      city: Schema.String
     }),
-    tags: Schema.Array(Schema.String),
     metrics: Schema.Struct({
       count: Schema.Number
     }),
     legacyName: Schema.optional(Schema.String),
     legacySlug: Schema.optional(Schema.String)
-  }),
-  note: Schema.NullOr(Schema.String)
+  })
 })
 
 const docs = Table.make("docs", {
@@ -704,20 +708,32 @@ const portableDocs = Table.make("portable_docs", {
   payload: Column.json(payloadSchema)
 })
 
+// Postgres jsonb and portable json share the same property-path API.
 const city = docs.payload.profile.address.city.pipe(Jsonb.text)
 const portableCity = portableDocs.payload.profile.address.city.pipe(Json.text)
-const count = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
-
-const legacyNameExists = docs.payload.profile.pipe(Jsonb.hasKey("legacyName"))
-const legacySlugExists = Jsonb.hasKey(docs.payload.profile, "legacySlug")
-const countPathExists = docs.payload.profile.metrics.count.pipe(Jsonb.pathExists)
-const countIsPositive = Jsonb.pathMatch(docs.payload, "$.profile.metrics.count > 0")
 
 type City = Scalar.RuntimeOf<typeof city>
 // string
+```
+
+`Json.text` and `Jsonb.text` extract SQL text. They do not parse JSON numbers
+into JavaScript numbers, so cast a schema-known numeric path when you need
+numeric SQL semantics.
+
+```ts
+const count = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
 
 type Count = Scalar.RuntimeOf<typeof count>
 // number
+```
+
+Key checks and deletes use the same paths. Deleting a path that the column
+schema requires makes the value stop matching that schema, which TypeScript
+rejects before the update is built.
+
+```ts
+const legacyNameExists = docs.payload.profile.pipe(Jsonb.hasKey("legacyName"))
+const countPathExists = docs.payload.profile.metrics.count.pipe(Jsonb.pathExists)
 
 const missingRequiredCity = docs.payload.profile.address.city.pipe(Jsonb.delete)
 
@@ -725,26 +741,19 @@ Query.update(docs, {
   // @ts-expect-error payload no longer satisfies payloadSchema
   payload: missingRequiredCity
 })
-```
 
-`Json.text` and `Jsonb.text` are SQL text extraction. They do not parse JSON
-numbers into JavaScript numbers. Cast schema-known numeric JSONB paths when you
-need numeric SQL semantics.
-
-Deleting multiple paths is a sequence of terminal deletes. After each delete,
-start the next path from the updated JSON value.
-
-```ts
+// Deleting several paths is a sequence of terminal deletes. Each step operates
+// on the value returned by the previous delete, not on the original payload.
 const withoutLegacyFields = docs.payload.pipe(
   (payload) => payload.profile.legacyName.pipe(Jsonb.delete),
-  (payload) => payload.profile.legacySlug.pipe(Jsonb.delete)
+  (afterNameDelete) => afterNameDelete.profile.legacySlug.pipe(Jsonb.delete)
 )
 ```
 
-Use the same property-path shape with root `Json.delete` for portable
+The same property-path shape works with root `Json.delete` for portable
 `Column.json(...)` values. Reach for `Json.key(...)` / `Jsonb.key(...)` only
-when a path segment cannot be expressed as a normal property, such as dynamic,
-invalid-identifier, or reserved JSON keys.
+when a path segment cannot be written as a normal property, such as a dynamic,
+invalid-identifier, or reserved JSON key.
 
 ### Casting and Type Comparison
 
@@ -777,21 +786,27 @@ const docs = Table.make("docs", {
   }))
 })
 
+// Portable target types come from Query.type; dialect types come from the
+// dialect module. Each rejects the other's witnesses.
 const idAsText = Cast.to(users.id, Query.type.text())
 const countAsFloat = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
 
+// @ts-expect-error float8 is Postgres-specific; use Pg.Type.float8()
+Query.type.float8()
+
+// @ts-expect-error text is portable; use Query.type.text()
+Pg.Type.text()
+
+// Comparisons compare directly when the operands share a type family...
 const sameEmail = Query.eq(users.email, "ada@example.com")
 const cityText = docs.payload.profile.address.city.pipe(Jsonb.text)
 const sameCity = Query.eq(cityText, "Istanbul")
 
-// @ts-expect-error float8 is Postgres-specific, not portable standard SQL
-Query.type.float8()
-
-// @ts-expect-error text is portable, so it comes from Query.type
-Pg.Type.text()
-
-// @ts-expect-error uuid and text are different comparison families
+// @ts-expect-error ...and reject operands from different families (uuid vs text)
 Query.eq(users.id, users.email)
+
+// A schema-known numeric path casts to a numeric type (countAsFloat above),
+// but non-numeric JSONB values do not.
 
 // @ts-expect-error schema-known JSONB objects cannot be cast to numeric types
 Cast.to(docs.payload.profile.metrics, Pg.Type.float8())
@@ -801,16 +816,15 @@ Cast.to(docs.payload.profile.address.city, Pg.Type.float8())
 
 ```
 
-Comparisons use the same type-family information. Compatible values compare
-directly, dialect-specific implicit conversions are modeled at the type level,
-and incompatible comparisons require an explicit cast or fail before rendering.
+Both casts and comparisons read the same type-family information, so compatible
+values combine directly while incompatible ones need an explicit cast or fail
+before any SQL is rendered.
 
 ### Source Completeness and Aliases
 
-Plans know which sources they reference. Incomplete plans are still composable,
-but rendering, execution, CTEs, and derived sources require complete plans. SQL
-aliases also have to be literal, non-empty strings so result paths and source
-identity stay stable.
+Plans track which sources they reference. An incomplete plan is still
+composable, but rendering, execution, CTEs, and derived sources all require a
+complete plan.
 
 ```ts
 import { Column, Query, Renderer, Table } from "effect-qb"
@@ -834,15 +848,19 @@ type RenderedRow = Renderer.RowOf<typeof rendered>
 // {
 //   readonly email: string
 // }
+```
 
-declare const dynamicAlias: string
+Derived-source aliases must be literal, non-empty strings, so result paths and
+source identity stay stable.
+
+```ts
+const dynamicAlias: string = "users_alias"
 
 // @ts-expect-error derived source aliases must be literal strings
 Query.as(complete, dynamicAlias)
 
 // @ts-expect-error derived source aliases must be non-empty
 Query.as(complete, "")
-
 ```
 
 ### Dialect Compatibility
@@ -927,7 +945,7 @@ const users = Table.make("users", {
 const posts = Table.make("posts", {
   id: Column.uuid().pipe(Column.primaryKey),
   userId: Column.uuid(),
-  title: Column.text(),
+  title: Column.text().pipe(Column.nullable),
   publishedAt: Column.datetime().pipe(Column.nullable)
 })
 
@@ -1299,28 +1317,64 @@ SQLite has no equivalent.
 
 ## Recipes
 
+These combine features covered above into snippets you can copy whole.
+
 <details open>
-<summary>Portable read query</summary>
+<summary>Paginated, filtered, ordered read</summary>
 
 ```ts
-import { Column, Function, Query, Table } from "effect-qb"
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
+  email: Column.text(),
+  displayName: Column.text(),
+  active: Column.boolean()
 })
 
-const plan = Query.select({
+const page = Query.select({
   id: users.id,
-  email: Function.lower(users.email)
-}).pipe(Query.from(users))
+  email: users.email,
+  displayName: users.displayName
+}).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, true)),
+  Query.orderBy(users.email),
+  Query.limit(20),
+  Query.offset(40)
+)
 
-type Row = Query.ResultRow<typeof plan>
-// {
-//   readonly id: string
-//   readonly email: string
-// }
+const rendered = Pg.Renderer.make().render(page)
+// select "users"."id" as "id", "users"."email" as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $1) order by "users"."email" asc limit $2 offset $3
+```
 
+</details>
+
+<details>
+<summary>Postgres upsert returning the affected row</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text().pipe(Column.unique),
+  displayName: Column.text()
+})
+
+const upserted = Query.upsert(
+  users,
+  { id: "user-id", email: "ada@example.com", displayName: "Ada" },
+  "email",
+  { displayName: "Ada Lovelace" }
+).pipe(
+  Query.returning({ id: users.id, email: users.email })
+)
+
+// returning(...) is rendered/executed by a dialect that supports it.
+const rendered = Pg.Renderer.make().render(upserted)
 ```
 
 </details>
@@ -1329,10 +1383,12 @@ type Row = Query.ResultRow<typeof plan>
 <summary>CamelCase models against snake_case database names</summary>
 
 ```ts
-import { Casing, Column, Table } from "effect-qb"
+import { Casing, Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const users = Table.make("Users", {
   id: Column.uuid().pipe(Column.primaryKey),
+  emailAddress: Column.text(),
   createdAt: Column.datetime()
 }).pipe(
   Casing.withCasing({
@@ -1341,39 +1397,17 @@ const users = Table.make("Users", {
   })
 )
 
-```
+const recent = Query.select({
+  id: users.id,
+  emailAddress: users.emailAddress
+}).pipe(
+  Query.from(users),
+  Query.orderBy(users.createdAt)
+)
 
-</details>
-
-<details>
-<summary>Postgres jsonb path read</summary>
-
-```ts
-import * as Schema from "effect/Schema"
-import { Cast, Column, Query, Table } from "effect-qb"
-import { Jsonb } from "effect-qb/postgres"
-import * as Pg from "effect-qb/postgres"
-
-const docs = Table.make("docs", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  payload: Pg.Column.jsonb(Schema.Struct({
-    profile: Schema.Struct({
-      address: Schema.Struct({
-        city: Schema.String
-      }),
-      metrics: Schema.Struct({
-        count: Schema.Number
-      })
-    })
-  }))
-})
-
-const city = docs.payload.profile.address.city.pipe(Jsonb.text)
-const count = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
-const hasMetrics = docs.payload.profile.pipe(Jsonb.hasKey("metrics"))
-
-const plan = Query.select({ city, count, hasMetrics }).pipe(Query.from(docs))
-
+// Model keys stay camelCase; physical identifiers render as snake_case.
+const rendered = Pg.Renderer.make().render(recent)
+// select "users"."id" as "id", "users"."email_address" as "emailAddress" from "users" order by "users"."created_at" asc
 ```
 
 </details>
