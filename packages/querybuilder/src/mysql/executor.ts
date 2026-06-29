@@ -41,8 +41,6 @@ export type MysqlQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any,
 
 /** Runs an effect within the ambient MySQL SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction
-/** Runs an effect in a nested MySQL SQL transaction scope. */
-export const withSavepoint = CoreExecutor.withSavepoint
 
 /** MySQL executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> {

@@ -41,8 +41,6 @@ export type SqliteQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any
 
 /** Runs an effect within the ambient SQLite SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction
-/** Runs an effect in a nested SQLite SQL transaction scope. */
-export const withSavepoint = CoreExecutor.withSavepoint
 
 /** SQLite executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> {

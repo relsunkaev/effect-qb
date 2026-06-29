@@ -1805,12 +1805,29 @@ describe("executor behavior", () => {
     expect(Effect.runSync(Effect.provideService(effect, SqlClient.SqlClient, sql))).toBe("txn:ok")
   })
 
-  test("withSavepoint delegates to the ambient SqlClient transaction service", () => {
-    const effect = Executor.withSavepoint(Effect.succeed("ok"))
+  test("nested withTransaction calls use the ambient transaction service for savepoint scopes", () => {
+    let depth = 0
+    const scopes: string[] = []
     const sql = {
-      withTransaction: <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.map(self, (value) => `sp:${String(value)}`)
+      withTransaction: <A, E, R>(self: Effect.Effect<A, E, R>) =>
+        Effect.acquireUseRelease(
+          Effect.sync(() => {
+            const scope = depth === 0 ? "transaction" : "savepoint"
+            scopes.push(scope)
+            depth++
+          }),
+          () => self,
+          () => Effect.sync(() => {
+            depth--
+          })
+        )
     } as unknown as SqlClient.SqlClient
 
-    expect(Effect.runSync(Effect.provideService(effect, SqlClient.SqlClient, sql))).toBe("sp:ok")
+    const effect = Executor.withTransaction(
+      Executor.withTransaction(Effect.succeed("ok"))
+    )
+
+    expect(Effect.runSync(Effect.provideService(effect, SqlClient.SqlClient, sql))).toBe("ok")
+    expect(scopes).toEqual(["transaction", "savepoint"])
   })
 })

@@ -560,19 +560,13 @@ export const fromSqlClient = <Dialect extends string>(
     stream: (query) => streamFromSqlClient(query)
   }))
 
-/** Runs an effect within the ambient `@effect/sql` transaction service. */
-export const withTransaction = <A, E, R>(
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect))
-
 /**
- * Runs an effect in a nested transaction scope.
+ * Runs an effect within the ambient `@effect/sql` transaction service.
  *
- * When the ambient `@effect/sql` client is already inside a transaction, the
- * underlying client implementation uses a savepoint.
+ * Nested calls rely on the underlying client transaction implementation for
+ * savepoint behavior.
  */
-export const withSavepoint = <A, E, R>(
+export const withTransaction = <A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
   Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect))

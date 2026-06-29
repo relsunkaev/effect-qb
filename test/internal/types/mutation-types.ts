@@ -503,16 +503,16 @@ void invalidMysqlMultiUpdatePayload
 StdRoot.Query.lock("share")(StdRoot.Query.delete(mysqlMutationUsers))
 
 const transactionEffect = Executor.withTransaction(Effect.succeed(insertRow))
-const savepointEffect = Executor.withSavepoint(Effect.succeed(insertRow))
+const nestedTransactionEffect = Executor.withTransaction(Executor.withTransaction(Effect.succeed(insertRow)))
 type TransactionEffect = typeof transactionEffect
 const transactionEffectCheck: Effect.Effect<InsertRow, SqlError.SqlError, SqlClient.SqlClient> = transactionEffect
 const transactionEffectValue: TransactionEffect = transactionEffect
-const savepointEffectCheck: Effect.Effect<InsertRow, SqlError.SqlError, SqlClient.SqlClient> = savepointEffect
-const savepointEffectValue: typeof savepointEffect = savepointEffect
+const nestedTransactionEffectCheck: Effect.Effect<InsertRow, SqlError.SqlError, SqlClient.SqlClient> = nestedTransactionEffect
+const nestedTransactionEffectValue: typeof nestedTransactionEffect = nestedTransactionEffect
 void transactionEffectCheck
 void transactionEffectValue
-void savepointEffectCheck
-void savepointEffectValue
+void nestedTransactionEffectCheck
+void nestedTransactionEffectValue
 
 const renderer = Renderer.make()
 const executor = Executor.custom(<PlanValue extends Q.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
