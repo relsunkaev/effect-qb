@@ -1,16 +1,18 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
 
 const cwd = process.cwd()
-const packageDir = join(cwd, "packages", "querybuilder")
-const tarballPath = async () => {
+const querybuilderPackageDir = join(cwd, "packages", "querybuilder")
+const databasePackageDir = join(cwd, "packages", "database")
+
+const querybuilderTarballPath = async () => {
   const proc = Bun.spawn([
     "bunx",
     "npm",
     "pack",
     "--json",
-    packageDir
+    querybuilderPackageDir
   ], {
     cwd,
     stdout: "pipe",
@@ -33,6 +35,17 @@ const tarballPath = async () => {
   return resolve(cwd, filename)
 }
 
+const databaseTarballPath = async () => {
+  const packageJson = JSON.parse(await Bun.file(join(databasePackageDir, "package.json")).text()) as {
+    readonly name: string
+    readonly version: string
+  }
+  const packDir = await mkdtemp(join(tmpdir(), "effect-db-pack-"))
+  const filename = `${packageJson.name}-${packageJson.version}.tgz`
+  await run(["bun", "pm", "pack", "--destination", packDir], databasePackageDir)
+  return join(packDir, filename)
+}
+
 const run = async (
   command: readonly string[],
   workdir: string
@@ -49,7 +62,8 @@ const run = async (
 }
 
 const main = async () => {
-  const packedTarball = await tarballPath()
+  const packedTarball = await querybuilderTarballPath()
+  const packedDatabaseTarball = await databaseTarballPath()
   const consumerDir = await mkdtemp(join(tmpdir(), "effect-qb-pack-smoke-"))
 
   try {
@@ -58,9 +72,8 @@ const main = async () => {
       private: true,
       type: "module",
       dependencies: {
-        "@effect/experimental": "^0.57.0",
-        "@effect/sql": "^0.48.0",
-        "effect": "^3.19.3",
+        "effect": "4.0.0-beta.66",
+        "effect-db": `file:${packedDatabaseTarball}`,
         "effect-qb": `file:${packedTarball}`
       }
     }, null, 2)}\n`)
@@ -83,6 +96,7 @@ const main = async () => {
     await Bun.write(join(consumerDir, "index.ts"), [
       'import { Check, Column, ForeignKey, Function, Index, Json, PrimaryKey, Query, Scalar, Table, Unique } from "effect-qb"',
       'import * as Pg from "effect-qb/postgres"',
+      'import { defineConfig } from "effect-db"',
       'import * as Schema from "effect/Schema"',
       'import { tableKey } from "effect-qb/postgres/metadata"',
       "",
@@ -113,6 +127,13 @@ const main = async () => {
       ")",
       "",
       "const plan = Query.select({ id: users.id }).pipe(Query.from(users))",
+      "const config = defineConfig({",
+      '  dialect: "postgres",',
+      '  db: { url: "postgres://localhost/db" },',
+      '  source: { include: ["src/**/*.ts"] },',
+      '  migrations: { dir: "migrations", table: "effect_qb_migrations" },',
+      "  safety: { nonDestructiveDefault: true }",
+      "})",
       "const userSelectSchema = Table.selectSchema(users)",
       "const membershipSelectSchema = Table.selectSchema(memberships)",
       "const userInsertSchema = Table.insertSchema(users)",
@@ -168,7 +189,7 @@ const main = async () => {
       "  id: Column.uuid().pipe(Column.primaryKey),",
       "  payload: Column.json(Schema.Struct({",
       "    profile: Schema.Struct({",
-      "      pair: Schema.Tuple(Schema.String, Schema.Number)",
+      "      pair: Schema.Tuple([Schema.String, Schema.Number])",
       "    })",
       "  }))",
       "})",
@@ -186,6 +207,7 @@ const main = async () => {
       "",
       "void standardPlan",
       "void plan",
+      "void config",
       "void userSelectSchema",
       "void userLegacySelectSchema",
       "void packedUserInsert",
@@ -211,6 +233,8 @@ const main = async () => {
   } finally {
     await rm(consumerDir, { recursive: true, force: true })
     await rm(packedTarball, { force: true })
+    await rm(packedDatabaseTarball, { force: true })
+    await rm(dirname(packedDatabaseTarball), { recursive: true, force: true })
   }
 }
 

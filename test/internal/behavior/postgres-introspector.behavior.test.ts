@@ -1,4 +1,4 @@
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
@@ -100,5 +100,33 @@ describe("postgres introspector", () => {
         ]
       })
     ])
+  })
+
+  test("rejects malformed catalog rows before building metadata", async () => {
+    const sql = {
+      unsafe<Row extends object>(statement: string) {
+        if (statement.includes("from pg_class c") && statement.includes("c.relkind = 'r'")) {
+          return Effect.succeed([
+            {
+              schema_name: "public",
+              table_name: "users",
+              table_oid: "not-an-oid"
+            }
+          ] as unknown as ReadonlyArray<Row>)
+        }
+        throw new Error(`Unexpected introspector SQL: ${statement}`)
+      }
+    } as unknown as SqlClient.SqlClient
+
+    let failed = false
+    try {
+      await Effect.runPromise(
+        Effect.provideService(introspectPostgresSchema(), SqlClient.SqlClient, sql)
+      )
+    } catch (error) {
+      failed = true
+      expect(String(error)).toContain("table_oid")
+    }
+    expect(failed).toBe(true)
   })
 })

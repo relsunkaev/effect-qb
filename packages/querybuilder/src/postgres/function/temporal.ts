@@ -39,7 +39,7 @@ const makeTemporal = <
 >(
   name: Name,
   dbType: Db,
-  runtimeSchema: Schema.Schema<Runtime, any, any>
+  runtimeSchema: Schema.Schema<Runtime>
 ): TemporalExpression<Runtime, Db, Name> =>
   makeExpression({
     runtime: undefined as unknown as Runtime,

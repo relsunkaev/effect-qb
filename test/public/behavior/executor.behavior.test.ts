@@ -1,8 +1,9 @@
 // @ts-nocheck
 import { describe, expect, test } from "bun:test"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
+import * as BigDecimal from "effect/BigDecimal"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
@@ -649,6 +650,40 @@ describe("executor behavior", () => {
     expect(rows[1]?.happenedOn).toBeInstanceOf(Date)
     expect(rows[0]?.happenedOn.toISOString()).toBe("2026-03-18T00:00:00.000Z")
     expect(rows[1]?.happenedOn.toISOString()).toBe("2026-03-18T00:00:00.000Z")
+  })
+
+  test("fromDriver applies opt-in v4 codecs after canonical normalization", () => {
+    const events = Table.make("codec_events", {
+      bigCounter: C.int8().pipe(C.schema(Schema.BigIntFromString)),
+      amount: C.number().pipe(C.schema(Schema.BigDecimalFromString)),
+      activeFor: C.interval().pipe(C.schema(Schema.DurationFromString)),
+      payloadBase64: C.bytea().pipe(C.schema(Schema.flip(Schema.Uint8ArrayFromBase64)))
+    })
+
+    const plan = Q.select({
+      bigCounter: events.bigCounter,
+      amount: events.amount,
+      activeFor: events.activeFor,
+      payloadBase64: events.payloadBase64
+    }).pipe(
+      Q.from(events)
+    )
+
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          bigCounter: "42",
+          amount: "12.30",
+          activeFor: "5 seconds",
+          payloadBase64: Buffer.from([1, 2, 3])
+        }
+      ]))
+    }).execute(plan))
+
+    expect(rows[0]?.bigCounter).toBe(42n)
+    expect(BigDecimal.format(rows[0]!.amount)).toBe("12.3")
+    expect(String(rows[0]?.activeFor)).toBe("5000 millis")
+    expect(rows[0]?.payloadBase64).toBe("AQID")
   })
 
   test("fromDriver accepts canonical instant outputs with milliseconds", () => {
@@ -1403,6 +1438,64 @@ describe("executor behavior", () => {
         }
       }
     ])
+  })
+
+  test("fromDriver preserves structured schema issues for nested JSON decode failures", () => {
+    const users = Table.make("schema_issue_users", {
+      id: C.uuid().pipe(C.primaryKey),
+      profile: C.json(Schema.Struct({
+        visits: Schema.NumberFromString,
+        nested: Schema.Struct({
+          enabled: Schema.Boolean
+        })
+      }))
+    })
+
+    const plan = Q.select({
+      profile: users.profile
+    }).pipe(
+      Q.from(users)
+    )
+
+    const error = Effect.runSync(Effect.flip(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        {
+          profile: JSON.stringify({
+            visits: "not-a-number",
+            nested: {
+              enabled: "yes"
+            }
+          })
+        }
+      ]))
+    }).execute(plan)))
+
+    expect(error).toMatchObject({
+      _tag: "RowDecodeError",
+      stage: "schema",
+      projection: {
+        alias: "profile"
+      },
+      dbType: {
+        dialect: "postgres",
+        kind: "json"
+      },
+      raw: JSON.stringify({
+        visits: "not-a-number",
+        nested: {
+          enabled: "yes"
+        }
+      }),
+      normalized: {
+        visits: "not-a-number",
+        nested: {
+          enabled: "yes"
+        }
+      }
+    })
+    expect(error.schemaError).toBeDefined()
+    expect(error.schemaError.message).toContain("visits")
+    expect(error.schemaError.issue).toBeDefined()
   })
 
   test("fromDriver accepts already-decoded JSON string scalars", () => {

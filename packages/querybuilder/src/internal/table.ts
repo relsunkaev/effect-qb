@@ -305,9 +305,9 @@ export interface TableSchemas<
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string
 > {
-  readonly select: Schema.Schema<SelectRow<Name, Fields>>
-  readonly insert: Schema.Schema<InsertRow<Name, Fields>>
-  readonly update: Schema.Schema<UpdateRow<Name, Fields, PrimaryKeyColumns>>
+  readonly select: Schema.Decoder<SelectRow<Name, Fields>, never>
+  readonly insert: Schema.Decoder<InsertRow<Name, Fields>, never>
+  readonly update: Schema.Decoder<UpdateRow<Name, Fields, PrimaryKeyColumns>, never>
 }
 
 type AnyTableSchemas = {
@@ -593,8 +593,8 @@ export function selectSchema<
   PrimaryKeyColumns extends keyof Fields & string
 >(
   table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>
-): Schema.Schema<SelectRow<Name, Fields>> {
-  return schemaFor(table, "select") as Schema.Schema<SelectRow<Name, Fields>>
+): Schema.Decoder<SelectRow<Name, Fields>, never> {
+  return schemaFor(table, "select") as Schema.Decoder<SelectRow<Name, Fields>, never>
 }
 
 export function insertSchema<
@@ -603,8 +603,8 @@ export function insertSchema<
   PrimaryKeyColumns extends keyof Fields & string
 >(
   table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>
-): Schema.Schema<InsertRow<Name, Fields>> {
-  return schemaFor(table, "insert") as Schema.Schema<InsertRow<Name, Fields>>
+): Schema.Decoder<InsertRow<Name, Fields>, never> {
+  return schemaFor(table, "insert") as Schema.Decoder<InsertRow<Name, Fields>, never>
 }
 
 export function updateSchema<
@@ -613,8 +613,8 @@ export function updateSchema<
   PrimaryKeyColumns extends keyof Fields & string
 >(
   table: TableDefinition<Name, Fields, PrimaryKeyColumns, any, any> | TableClassStatic<Name, Fields, PrimaryKeyColumns, any>
-): Schema.Schema<UpdateRow<Name, Fields, PrimaryKeyColumns>> {
-  return schemaFor(table, "update") as Schema.Schema<UpdateRow<Name, Fields, PrimaryKeyColumns>>
+): Schema.Decoder<UpdateRow<Name, Fields, PrimaryKeyColumns>, never> {
+  return schemaFor(table, "update") as Schema.Decoder<UpdateRow<Name, Fields, PrimaryKeyColumns>, never>
 }
 
 const schemasFor = <

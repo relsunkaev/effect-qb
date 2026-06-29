@@ -1590,11 +1590,11 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
 
   const literalSchemaOf = <Value extends LiteralValue>(
     value: Value
-  ): Schema.Schema.Any | undefined => {
+  ): Schema.Top | undefined => {
     if (value === null || value instanceof Date) {
       return undefined
     }
-    return Schema.Literal(value) as Schema.Schema.Any
+    return Schema.Literal(value) as unknown as Schema.Top
   }
 
   const literal = <const Value extends LiteralValue>(

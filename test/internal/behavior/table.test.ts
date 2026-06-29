@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, expect, test } from "bun:test"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
@@ -131,7 +131,7 @@ describe("table definitions", () => {
 
   test("mixed-dialect table fields are rejected", () => {
     expect(() => StdRoot.Table.make("mixed_users", {
-      id: Postgres.Column.custom(Schema.UUID, Postgres.Type.custom("uuid")),
+      id: Postgres.Column.custom(Schema.String.check(Schema.isUUID()), Postgres.Type.custom("uuid")),
       email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
     })).toThrow("Invalid dialects for table 'mixed_users': Mixed table dialects are not supported: postgres, mysql")
   })

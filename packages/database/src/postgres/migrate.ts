@@ -2,8 +2,10 @@ import { createHash } from "node:crypto"
 import { mkdir } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlSchema from "effect/unstable/sql/SqlSchema"
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 
 import { runPostgresUrl } from "../internal/postgres-runtime.js"
 import type { SchemaChange } from "../internal/postgres-schema-diff.js"
@@ -112,6 +114,14 @@ export interface AppliedMigrationRow {
   readonly name: string
   readonly checksum: string | null
 }
+
+const EmptyRequest = Schema.Struct({})
+
+const AppliedMigrationRowSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  checksum: Schema.NullOr(Schema.String)
+})
 
 type LoadedConfig = Awaited<ReturnType<typeof loadPostgresConfig>>
 
@@ -313,10 +323,11 @@ export const readAppliedMigrationRows = (
   tableName: string
 ): Effect.Effect<ReadonlyArray<AppliedMigrationRow>, unknown, SqlClient.SqlClient> =>
   Effect.flatMap(SqlClient.SqlClient, (sql) =>
-    Effect.map(
-      sql.unsafe<AppliedMigrationRow>(`select id, name, checksum from ${qualifyIdentifier(tableName)} order by id`),
-      (rows) => rows
-    ))
+    SqlSchema.findAll({
+      Request: EmptyRequest,
+      Result: AppliedMigrationRowSchema,
+      execute: () => sql.unsafe(`select id, name, checksum from ${qualifyIdentifier(tableName)} order by id`)
+    })({}))
 
 const fileByName = (
   files: ReadonlyArray<MigrationFile>
@@ -369,7 +380,7 @@ export const synchronizeAppliedMigrationChecksums = (
   }
 
   return Effect.flatMap(SqlClient.SqlClient, (sql) =>
-    Effect.zipRight(
+    Effect.andThen(
       Effect.forEach(
         pendingUpdates,
         (update) =>
@@ -414,7 +425,7 @@ export const applyMigrationFiles = (
 ): Effect.Effect<void, unknown, SqlClient.SqlClient> =>
   Effect.flatMap(SqlClient.SqlClient, (sql) =>
     Effect.forEach(files, (file) =>
-      Effect.zipRight(
+      Effect.andThen(
         sql.unsafe(file.sql),
         sql.unsafe(
           `insert into ${qualifyIdentifier(tableName)} (name, checksum) values ($1, $2)`,
@@ -433,7 +444,7 @@ export const rollbackMigrationFiles = (
       if (file.downSql === undefined) {
         return Effect.fail(new Error(`Migration '${file.name}' does not have a rollback section`))
       }
-      return Effect.zipRight(
+      return Effect.andThen(
         sql.unsafe(file.downSql),
         sql.unsafe(
           `delete from ${qualifyIdentifier(tableName)} where name = $1`,

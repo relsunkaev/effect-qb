@@ -34,11 +34,11 @@ export type InsertRow<TableName extends string, Fields extends TableFieldMap> = 
 export type UpdateRow<TableName extends string, Fields extends TableFieldMap, PrimaryKey extends keyof Fields> = Simplify<Partial<{
     [K in UpdateKeys<Fields, PrimaryKey>]: BrandedUpdateType<Fields[K], TableName, Extract<K, string>>;
 }>>;
-type SchemaOfVariant<Variant extends TableSchemaVariant, TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string> = Variant extends "select" ? Schema.Schema<SelectRow<TableName, Fields>> : Variant extends "insert" ? Schema.Schema<InsertRow<TableName, Fields>> : Schema.Schema<UpdateRow<TableName, Fields, PrimaryKeyColumns>>;
+type SchemaOfVariant<Variant extends TableSchemaVariant, TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string> = Variant extends "select" ? Schema.Decoder<SelectRow<TableName, Fields>, never> : Variant extends "insert" ? Schema.Decoder<InsertRow<TableName, Fields>, never> : Schema.Decoder<UpdateRow<TableName, Fields, PrimaryKeyColumns>, never>;
 export declare const deriveSchema: <Variant extends TableSchemaVariant, TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(variant: Variant, tableName: TableName, fields: Fields, primaryKeyColumns: readonly PrimaryKeyColumns[]) => SchemaOfVariant<Variant, TableName, Fields, PrimaryKeyColumns>;
-export declare const deriveSelectSchema: <TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(tableName: TableName, fields: Fields, primaryKeyColumns: readonly PrimaryKeyColumns[]) => Schema.Schema<SelectRow<TableName, Fields>>;
-export declare const deriveInsertSchema: <TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(tableName: TableName, fields: Fields, primaryKeyColumns: readonly PrimaryKeyColumns[]) => Schema.Schema<InsertRow<TableName, Fields>>;
-export declare const deriveUpdateSchema: <TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(tableName: TableName, fields: Fields, primaryKeyColumns: readonly PrimaryKeyColumns[]) => Schema.Schema<UpdateRow<TableName, Fields, PrimaryKeyColumns>>;
+export declare const deriveSelectSchema: <TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(tableName: TableName, fields: Fields, primaryKeyColumns: readonly PrimaryKeyColumns[]) => Schema.Decoder<SelectRow<TableName, Fields>, never>;
+export declare const deriveInsertSchema: <TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(tableName: TableName, fields: Fields, primaryKeyColumns: readonly PrimaryKeyColumns[]) => Schema.Decoder<InsertRow<TableName, Fields>, never>;
+export declare const deriveUpdateSchema: <TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(tableName: TableName, fields: Fields, primaryKeyColumns: readonly PrimaryKeyColumns[]) => Schema.Decoder<UpdateRow<TableName, Fields, PrimaryKeyColumns>, never>;
 /**
  * Derives the `select`, `insert`, and `update` schemas for a table.
  *
@@ -49,8 +49,8 @@ export declare const deriveUpdateSchema: <TableName extends string, Fields exten
  * `deriveUpdateSchema` so individual variants are derived lazily.
  */
 export declare const deriveSchemas: <TableName extends string, Fields extends TableFieldMap, PrimaryKeyColumns extends keyof Fields & string>(tableName: TableName, fields: Fields, primaryKeyColumns: readonly PrimaryKeyColumns[]) => {
-    readonly select: Schema.Schema<SelectRow<TableName, Fields>>;
-    readonly insert: Schema.Schema<InsertRow<TableName, Fields>>;
-    readonly update: Schema.Schema<UpdateRow<TableName, Fields, PrimaryKeyColumns>>;
+    readonly select: Schema.Decoder<SelectRow<TableName, Fields>, never>;
+    readonly insert: Schema.Decoder<InsertRow<TableName, Fields>, never>;
+    readonly update: Schema.Decoder<UpdateRow<TableName, Fields, PrimaryKeyColumns>, never>;
 };
 export {};

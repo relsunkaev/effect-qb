@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Stream from "effect/Stream"
 
 import * as CoreExecutor from "../internal/executor.js"
@@ -140,10 +140,10 @@ const fromDriver = <
   stream(plan) {
     const rendered = renderer.render(plan)
     return Stream.mapError(
-      Stream.mapChunksEffect(
+      Stream.mapArrayEffect(
         sqlDriver.stream(rendered),
         (rows) => Effect.try({
-          try: () => CoreExecutor.decodeChunk(rendered, plan, rows, { driverMode, valueMappings }),
+          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }) as never,
           catch: (error) => error as RowDecodeError
         })
       ),
@@ -173,7 +173,7 @@ const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
  * Creates the standard Postgres executor pipeline.
  *
  * By default this uses the built-in Postgres renderer plus the ambient
- * `@effect/sql` `SqlClient`. Advanced callers can override the renderer,
+ * `effect/unstable/sql` `SqlClient`. Advanced callers can override the renderer,
  * driver, or both.
  */
 export function make(): QueryExecutor<SqlClient.SqlClient>

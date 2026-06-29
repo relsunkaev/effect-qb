@@ -19,7 +19,7 @@ const payloadSchema = Schema.Struct({
       postcode: Schema.NullOr(Schema.String)
     }),
     tags: Schema.Array(Schema.String),
-    pair: Schema.Tuple(Schema.String, Schema.Number),
+    pair: Schema.Tuple([Schema.String, Schema.Number]),
     metrics: Schema.Struct({
       count: Schema.Number,
       active: Schema.Boolean
@@ -185,12 +185,9 @@ Q.update(optionalDocs, {
 
 const recordDocs = Table.make("record_docs", {
   id: Column.uuid().pipe(Column.primaryKey),
-  payload: PgColumn.jsonb(Schema.Record({
-    key: Schema.String,
-    value: Schema.Struct({
-      score: Schema.Number
-    })
-  }))
+  payload: PgColumn.jsonb(Schema.Record(Schema.String, Schema.Struct({
+    score: Schema.Number
+  })))
 })
 
 const recordScore = recordDocs.payload.anyKey!.score
@@ -201,7 +198,7 @@ type _RecordScoreRuntime = Expect<IsExact<RecordScoreRuntime, number | null>>
 
 const variantDocs = Table.make("variant_docs", {
   id: Column.uuid().pipe(Column.primaryKey),
-  payload: PgColumn.jsonb(Schema.Union(
+  payload: PgColumn.jsonb(Schema.Union([
     Schema.Struct({
       kind: Schema.Literal("a"),
       aValue: Schema.String
@@ -210,7 +207,7 @@ const variantDocs = Table.make("variant_docs", {
       kind: Schema.Literal("b"),
       bValue: Schema.Number
     })
-  ))
+  ]))
 })
 
 // @ts-expect-error variant-specific fields are rejected until narrowed or accessed via an explicit key escape hatch

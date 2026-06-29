@@ -16,7 +16,7 @@ import {
 import { mysqlDatatypes } from "./datatypes/index.js"
 
 const primitive = <Type, Db extends Expression.DbType.Any>(
-  schema: Schema.Schema<Type, any, any>,
+  schema: Schema.Schema<Type>,
   dbType: Db
 ): ColumnDefinition<Type, Type, Type, Db, false, false, false, false, false, undefined> =>
   makeColumnDefinition(schema as Schema.Schema<NonNullable<Type>>, {
@@ -41,11 +41,11 @@ const renderNumericDdlType = (
     : `${kind}(${options.precision},${options.scale})`
 }
 
-export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expression.DbType.Any>(
+export const custom = <SchemaType extends Schema.Top, Db extends Expression.DbType.Any>(
   schema: SchemaType,
   dbType: Db
 ) =>
-  makeColumnDefinition(schema as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: enrichDbType(mysqlDatatypes, dbType),
     nullable: false,
     hasDefault: false,
@@ -57,7 +57,7 @@ export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expressi
     identity: undefined
   })
 
-export const uuid = () => primitive(Schema.UUID, mysqlDatatypes.uuid())
+export const uuid = () => primitive(Schema.String.check(Schema.isUUID()), mysqlDatatypes.uuid())
 export const text = () => primitive(Schema.String, mysqlDatatypes.text())
 export const int = () => primitive(Schema.Int, mysqlDatatypes.int())
 export const number = (options?: BaseColumn.NumericOptions) =>
@@ -76,8 +76,8 @@ export const boolean = () => primitive(Schema.Boolean, mysqlDatatypes.boolean())
 export const date = () => primitive(LocalDateStringSchema, mysqlDatatypes.date())
 export const datetime = () => primitive(LocalDateTimeStringSchema, mysqlDatatypes.datetime())
 export const timestamp = () => primitive(LocalDateTimeStringSchema, mysqlDatatypes.timestamp())
-export const json = <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
-  makeColumnDefinition(schema as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+export const json = <SchemaType extends Schema.Top>(schema: SchemaType) =>
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: { ...mysqlDatatypes.json(), variant: "json" } as Expression.DbType.Json<"mysql", "json">,
     nullable: false,
     hasDefault: false,

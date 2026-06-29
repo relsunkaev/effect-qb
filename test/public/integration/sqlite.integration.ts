@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
 import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"

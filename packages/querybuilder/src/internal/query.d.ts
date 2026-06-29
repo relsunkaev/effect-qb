@@ -770,7 +770,7 @@ export declare const mergeManyDependencies: <Values extends readonly Expression.
 export declare const makeExpression: <Runtime, Db extends Expression.DbType.Any, Nullable extends Expression.Nullability, Dialect extends string, Kind extends Expression.ScalarKind, Deps extends string = never, Ast extends ExpressionAst.Any = ExpressionAst.Any, GroupKey extends string = GroupingKeyOfAst<Ast>>(state: {
     readonly runtime: Runtime;
     readonly dbType: Db;
-    readonly runtimeSchema?: Schema.Schema.Any | undefined;
+    readonly runtimeSchema?: Schema.Top | undefined;
     readonly nullability: Nullable;
     readonly dialect: Dialect;
     readonly kind?: Kind | undefined;

@@ -6,7 +6,7 @@
 import * as Schema from "effect/Schema"
 import { Column, Json, Query, Table } from "effect-qb"
 
-const payloadSchema = Schema.Union(
+const payloadSchema = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("created"),
     actorId: Schema.String
@@ -15,7 +15,7 @@ const payloadSchema = Schema.Union(
     kind: Schema.Literal("deleted"),
     reason: Schema.String
   })
-)
+])
 
 const events = Table.make("events", {
   id: Column.uuid().pipe(Column.primaryKey),

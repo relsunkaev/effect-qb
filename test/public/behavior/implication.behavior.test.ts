@@ -219,11 +219,11 @@ describe("implication behavior", () => {
   })
 
   test("predicate facts keep dotted table and column names distinct", () => {
-    const dottedTable = StdRoot.Table.make("a.b", {
-      status: C.custom(Schema.Literal("left", "right"), StdRoot.Query.type.text())
+    const dottedTable = Table.make("a.b", {
+      status: C.custom(Schema.Literals(["left", "right"]), Type.text())
     })
-    const splitTable = StdRoot.Table.make("a", {
-      "b.status": C.custom(Schema.Literal("left", "right"), StdRoot.Query.type.text())
+    const splitTable = Table.make("a", {
+      "b.status": C.custom(Schema.Literals(["left", "right"]), Type.text())
     })
 
     const plan = Q.select({
@@ -253,11 +253,11 @@ describe("implication behavior", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    const dottedTable = StdRoot.Table.make("a.b", {
-      status: C.custom(Schema.Literal("left", "right"), StdRoot.Query.type.text())
+    const dottedTable = Table.make("a.b", {
+      status: C.custom(Schema.Literals(["left", "right"]), Type.text())
     })
-    const splitTable = StdRoot.Table.make("a", {
-      "b.status": C.custom(Schema.Literal("left", "right"), StdRoot.Query.type.text())
+    const splitTable = Table.make("a", {
+      "b.status": C.custom(Schema.Literals(["left", "right"]), Type.text())
     })
 
     const plan = Q.select({

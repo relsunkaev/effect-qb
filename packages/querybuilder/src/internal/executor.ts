@@ -1,9 +1,10 @@
 import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import * as SqlClient from "@effect/sql/SqlClient"
-import * as SqlError from "@effect/sql/SqlError"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlError from "effect/unstable/sql/SqlError"
 import * as Stream from "effect/Stream"
 
 import * as Expression from "./scalar.js"
@@ -44,6 +45,10 @@ export interface RowDecodeError {
   readonly normalized?: unknown
   readonly stage: "normalize" | "schema"
   readonly cause: unknown
+  readonly schemaError?: {
+    readonly message: string
+    readonly issue: unknown
+  }
 }
 
 /**
@@ -183,26 +188,35 @@ const makeRowDecodeError = (
   stage: RowDecodeError["stage"],
   cause: unknown,
   normalized?: unknown
-): RowDecodeError => ({
-  _tag: "RowDecodeError",
-  message: stage === "normalize"
-    ? `Failed to normalize projection '${projection.alias}'`
-    : `Failed to decode projection '${projection.alias}' against its runtime schema`,
-  dialect: rendered.dialect,
-  query: {
-    sql: rendered.sql,
-    params: rendered.params
-  },
-  projection: {
-    alias: projection.alias,
-    path: projection.path
-  },
-  dbType: expression[Expression.TypeId].dbType,
-  raw,
-  normalized,
-  stage,
-  cause
-})
+): RowDecodeError => {
+  const schemaError = Schema.isSchemaError(cause)
+    ? {
+        message: cause.message,
+        issue: cause.issue
+      }
+    : undefined
+  return {
+    _tag: "RowDecodeError",
+    message: stage === "normalize"
+      ? `Failed to normalize projection '${projection.alias}'`
+      : `Failed to decode projection '${projection.alias}' against its runtime schema`,
+    dialect: rendered.dialect,
+    query: {
+      sql: rendered.sql,
+      params: rendered.params
+    },
+    projection: {
+      alias: projection.alias,
+      path: projection.path
+    },
+    dbType: expression[Expression.TypeId].dbType,
+    raw,
+    normalized,
+    stage,
+    cause,
+    ...(schemaError === undefined ? {} : { schemaError })
+  }
+}
 
 const hasOptionalSourceDependency = (
   expression: Expression.Any,
@@ -249,7 +263,7 @@ const dbTypeAllowsTopLevelJsonNull = (
 }
 
 const schemaAcceptsNull = (
-  schema: Schema.Schema.Any | undefined
+  schema: Schema.Top | undefined
 ): boolean =>
   schema !== undefined && (Schema.is(schema) as (value: unknown) => boolean)(null)
 
@@ -325,15 +339,20 @@ const decodeProjectionValue = (
     return normalized
   }
 
-  if ((Schema.is(schema as Schema.Schema.Any) as (value: unknown) => boolean)(normalized)) {
+  if ((Schema.is(schema as Schema.Top) as (value: unknown) => boolean)(normalized)) {
     return normalized
   }
 
-  try {
-    return (Schema.decodeUnknownSync as any)(schema)(normalized)
-  } catch (cause) {
-    throw makeRowDecodeError(rendered, projection, expression, raw, "schema", cause, normalized)
+  const decoded = (Schema.decodeUnknownExit as any)(schema)(normalized)
+  if (Exit.isSuccess(decoded)) {
+    return decoded.value
   }
+
+  const cause = Option.match(Exit.findErrorOption(decoded), {
+    onNone: () => decoded.cause,
+    onSome: (schemaError) => schemaError
+  })
+  throw makeRowDecodeError(rendered, projection, expression, raw, "schema", cause, normalized)
 }
 
 export const makeRowDecoder = (
@@ -390,7 +409,7 @@ export const decodeChunk = (
   } = {}
 ): Chunk.Chunk<any> => {
   const decodeRow = makeRowDecoder(rendered, plan, options)
-  return Chunk.unsafeFromArray(Chunk.toReadonlyArray(rows).map((row) => decodeRow(row)))
+  return Chunk.fromIterable(Chunk.toReadonlyArray(rows).map((row) => decodeRow(row)))
 }
 
 export const decodeRows = (
@@ -524,9 +543,9 @@ export const fromDriver = <
       plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
     ) {
       const rendered = renderer.render(plan) as Renderer.RenderedQuery<any, Dialect>
-      return Stream.mapChunks(
+      return Stream.mapArray(
         sqlDriver.stream(rendered),
-        (rows) => Chunk.unsafeFromArray(remapRows<any>(rendered, Chunk.toReadonlyArray(rows)))
+        (rows) => remapRows<any>(rendered, rows) as never
       ) as Stream.Stream<Query.ResultRow<PlanValue>, Error, Context>
     }
   }
@@ -536,10 +555,10 @@ export const fromDriver = <
 export const streamFromSqlClient = <Dialect extends string>(
   query: Renderer.RenderedQuery<any, Dialect>
 ): Stream.Stream<FlatRow, SqlError.SqlError, SqlClient.SqlClient> =>
-  Stream.unwrapScoped(
+  Stream.unwrap(
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
       Effect.flatMap(
-        Effect.serviceOption(SqlClient.TransactionConnection),
+        Effect.serviceOption(sql.transactionService),
         Option.match({
           onNone: () => sql.reserve,
           onSome: ([connection]) => Effect.succeed(connection)
@@ -561,7 +580,7 @@ export const fromSqlClient = <Dialect extends string>(
   }))
 
 /**
- * Runs an effect within the ambient `@effect/sql` transaction service.
+ * Runs an effect within the ambient `effect/unstable/sql` transaction service.
  *
  * Nested calls rely on the underlying client transaction implementation for
  * savepoint behavior.

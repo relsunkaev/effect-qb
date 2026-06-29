@@ -1573,11 +1573,11 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
 
   const literalSchemaOf = <Value extends LiteralValue>(
     value: Value
-  ): Schema.Schema.Any | undefined => {
+  ): Schema.Top | undefined => {
     if (value === null || value instanceof Date) {
       return undefined
     }
-    return Schema.Literal(value) as Schema.Schema.Any
+    return Schema.Literal(value) as unknown as Schema.Top
   }
 
   const literal = <const Value extends LiteralValue>(
@@ -5187,6 +5187,11 @@ type MutationTargetTupleDialectConstraint<
   Dialect extends string
 > = Exclude<TableDialectOf<Targets[number]>, Dialect | "standard"> extends never ? unknown : never
 
+type TableDialectConstraint<
+  Target extends TableLike,
+  Dialect extends string
+> = Exclude<TableDialectOf<Target>, Dialect> extends never ? unknown : never
+
 type DuplicateMutationTargetSourceName<
   Targets extends readonly MutationTargetLike[],
   Seen extends string = never
@@ -6304,7 +6309,7 @@ type AsCurriedResult<
 
   export interface InsertApi {
     <Target extends MutationTargetLike>(
-      target: Target
+      target: Target & TableDialectConstraint<Target, Dialect>
     ): QueryPlan<
       {},
       never,
@@ -6321,7 +6326,7 @@ type AsCurriedResult<
       EmptyFacts
     >
     <Target extends MutationTargetLike, Values extends Record<string, unknown>>(
-      target: Target,
+      target: Target & TableDialectConstraint<Target, Dialect>,
       values: MutationValuesInput<"insert", Target, Values> & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     ): QueryPlan<
       {},
@@ -6393,7 +6398,7 @@ type AsCurriedResult<
       EmptyFacts
     >
     <Target extends MutationTargetLike, Values extends Record<string, unknown>>(
-      target: Target,
+      target: Target & TableDialectConstraint<Target, Dialect>,
       values: MutationValuesInput<"update", Target, Values> & UpdateValuesNonEmptyConstraint<Values> & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     ): QueryPlan<
       {},
@@ -6418,7 +6423,7 @@ type AsCurriedResult<
     const Columns extends DdlColumnInput,
     UpdateValues extends MutationInputOf<Table.UpdateOf<Target>> | undefined = undefined
   >(
-    target: Target,
+    target: Target & TableDialectConstraint<Target, Dialect>,
     values: Values & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     conflictColumns: ValidateConflictColumnInput<Target, Columns, false>,
     updateValues?: UpdateValues & UpdateValuesNonEmptyConstraint<Exclude<UpdateValues, undefined>> & MutationValuesDialectConstraint<Exclude<UpdateValues, undefined>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
@@ -6442,7 +6447,7 @@ type AsCurriedResult<
 
   interface DeleteApi {
     <Target extends MutationTargetLike>(
-      target: Target
+      target: Target & TableDialectConstraint<Target, Dialect>
     ): QueryPlan<
       {},
       never,
@@ -6478,7 +6483,7 @@ type AsCurriedResult<
   }
 
   type TruncateApi = <Target extends MutationTargetLike>(
-    target: Target,
+    target: Target & TableDialectConstraint<Target, Dialect>,
     options?: TruncateOptions
   ) => QueryPlan<
     {},
@@ -6511,7 +6516,7 @@ type AsCurriedResult<
     MatchedPredicate extends PredicateInput | undefined = undefined,
     NotMatchedPredicate extends PredicateInput | undefined = undefined
   >(
-    target: Target,
+    target: Target & TableDialectConstraint<Target, Dialect>,
     source: Source & (
       SourceRequiredOf<Source> extends never ? unknown : SourceRequirementError<Source>
     ) & SourceDialectConstraint<Source, Dialect>,
@@ -6768,7 +6773,7 @@ type AsCurriedResult<
   >
 
   type CreateTableApi = <Target extends SchemaTableLike>(
-    target: Target,
+    target: Target & TableDialectConstraint<Target, Dialect>,
     options?: CreateTableOptions
   ) => QueryPlan<
     {},
@@ -6784,7 +6789,7 @@ type AsCurriedResult<
   >
 
   type DropTableApi = <Target extends SchemaTableLike>(
-    target: Target,
+    target: Target & TableDialectConstraint<Target, Dialect>,
     options?: DropTableOptions
   ) => QueryPlan<
     {},
@@ -6800,7 +6805,7 @@ type AsCurriedResult<
   >
 
   type CreateIndexApi = <Target extends SchemaTableLike, const Columns extends DdlColumnInput, Name extends string = string>(
-    target: Target,
+    target: Target & TableDialectConstraint<Target, Dialect>,
     columns: Columns & ValidateDdlColumnInput<Target, Columns>,
     options?: CreateIndexOptions<Name>
   ) => QueryPlan<
@@ -6817,7 +6822,7 @@ type AsCurriedResult<
   >
 
   type DropIndexApi = <Target extends SchemaTableLike, const Columns extends DdlColumnInput, Name extends string = string>(
-    target: Target,
+    target: Target & TableDialectConstraint<Target, Dialect>,
     columns: Columns & ValidateDdlColumnInput<Target, Columns>,
     options?: DropIndexOptions<Name>
   ) => QueryPlan<

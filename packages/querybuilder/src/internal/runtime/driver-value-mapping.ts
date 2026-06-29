@@ -9,7 +9,7 @@ export type DriverValueMappings = Expression.DriverValueMappings
 export interface DriverValueContext {
   readonly dialect?: string
   readonly dbType?: Expression.DbType.Any
-  readonly runtimeSchema?: Schema.Schema.Any
+  readonly runtimeSchema?: Schema.Top
   readonly driverValueMapping?: DriverValueMapping
   readonly valueMappings?: DriverValueMappings
 }
@@ -99,13 +99,13 @@ const isJsonDbType = (dbType: Expression.DbType.Any | undefined): boolean => {
 }
 
 const schemaAccepts = (
-  schema: Schema.Schema.Any | undefined,
+  schema: Schema.Top | undefined,
   value: unknown
 ): boolean =>
   schema !== undefined && (Schema.is(schema) as (candidate: unknown) => boolean)(value)
 
 const encodeWithSchema = (
-  schema: Schema.Schema.Any | undefined,
+  schema: Schema.Top | undefined,
   value: unknown
 ): { readonly value: unknown; readonly encoded: boolean } => {
   if (schema === undefined) {

@@ -102,7 +102,7 @@ Q.insert(docsJson, {
 const tupleDocs = Std.Table.make("tuple_docs", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
   payload: Std.Column.json(Schema.Struct({
-    pair: Schema.Tuple(Schema.Number, Schema.String)
+    pair: Schema.Tuple([Schema.Number, Schema.String])
   }))
 })
 
@@ -127,7 +127,7 @@ void preciseSecondSlotIssue
 
 const rootTupleDocs = Std.Table.make("root_tuple_docs", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
-  payload: Std.Column.json(Schema.Tuple(Schema.Number, Schema.String))
+  payload: Std.Column.json(Schema.Tuple([Schema.Number, Schema.String]))
 })
 
 const invalidRootTuplePayload = Json.buildArray("north", 1)

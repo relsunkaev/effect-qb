@@ -19,7 +19,7 @@ const brandString = <BrandName extends string>(
   brand: BrandName
 ): Schema.Schema<string & Brand.Brand<BrandName>> =>
   Schema.String.pipe(
-    Schema.pattern(pattern),
+    Schema.check(Schema.isPattern(pattern)),
     Schema.brand(brand)
   ) as unknown as Schema.Schema<string & Brand.Brand<BrandName>>
 
@@ -100,32 +100,32 @@ export const isValidInstantString = (value: string): boolean => {
 }
 
 export const LocalDateStringSchema = Schema.String.pipe(
-  Schema.pattern(localDatePattern),
-  Schema.filter(isValidLocalDateString),
+  Schema.check(Schema.isPattern(localDatePattern)),
+  Schema.check(Schema.makeFilter((value) => isValidLocalDateString(value))),
   Schema.brand("LocalDateString")
 ) as unknown as Schema.Schema<LocalDateString>
 
 export const LocalTimeStringSchema = Schema.String.pipe(
-  Schema.pattern(localTimePattern),
-  Schema.filter(isValidLocalTimeString),
+  Schema.check(Schema.isPattern(localTimePattern)),
+  Schema.check(Schema.makeFilter((value) => isValidLocalTimeString(value))),
   Schema.brand("LocalTimeString")
 ) as unknown as Schema.Schema<LocalTimeString>
 
 export const OffsetTimeStringSchema = Schema.String.pipe(
-  Schema.pattern(offsetTimePattern),
-  Schema.filter(isValidOffsetTimeString),
+  Schema.check(Schema.isPattern(offsetTimePattern)),
+  Schema.check(Schema.makeFilter((value) => isValidOffsetTimeString(value))),
   Schema.brand("OffsetTimeString")
 ) as unknown as Schema.Schema<OffsetTimeString>
 
 export const LocalDateTimeStringSchema = Schema.String.pipe(
-  Schema.pattern(localDateTimePattern),
-  Schema.filter(isValidLocalDateTimeString),
+  Schema.check(Schema.isPattern(localDateTimePattern)),
+  Schema.check(Schema.makeFilter((value) => isValidLocalDateTimeString(value))),
   Schema.brand("LocalDateTimeString")
 ) as unknown as Schema.Schema<LocalDateTimeString>
 
 export const InstantStringSchema = Schema.String.pipe(
-  Schema.pattern(instantPattern),
-  Schema.filter(isValidInstantString),
+  Schema.check(Schema.isPattern(instantPattern)),
+  Schema.check(Schema.makeFilter((value) => isValidInstantString(value))),
   Schema.brand("InstantString")
 ) as unknown as Schema.Schema<InstantString>
 
@@ -177,32 +177,29 @@ export const isCanonicalDecimalString = (value: string): boolean => {
 }
 
 export const BigIntStringSchema = Schema.String.pipe(
-  Schema.filter(isCanonicalBigIntString),
+  Schema.check(Schema.makeFilter((value) => isCanonicalBigIntString(value))),
   Schema.brand("BigIntString")
 ) as unknown as Schema.Schema<BigIntString>
 
 export const DecimalStringSchema = Schema.String.pipe(
-  Schema.filter(isCanonicalDecimalString),
+  Schema.check(Schema.makeFilter((value) => isCanonicalDecimalString(value))),
   Schema.brand("DecimalString")
 ) as unknown as Schema.Schema<DecimalString>
 
 export const JsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
-  Schema.Union(
+  Schema.Union([
     Schema.String,
-    Schema.Number.pipe(Schema.finite()),
+    Schema.Number.check(Schema.isFinite()),
     Schema.Boolean,
     Schema.Null,
     Schema.Array(JsonValueSchema),
-    Schema.Record({
-      key: Schema.String,
-      value: JsonValueSchema
-    })
-  )
+    Schema.Record(Schema.String, JsonValueSchema)
+  ])
 )
 
-export const JsonPrimitiveSchema: Schema.Schema<JsonPrimitive> = Schema.Union(
+export const JsonPrimitiveSchema: Schema.Schema<JsonPrimitive> = Schema.Union([
   Schema.String,
-  Schema.Number.pipe(Schema.finite()),
+  Schema.Number.check(Schema.isFinite()),
   Schema.Boolean,
   Schema.Null
-)
+])

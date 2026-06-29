@@ -98,7 +98,7 @@ describe("dialect behavior", () => {
   test("mixed-dialect tables are rejected consistently from the shared table layer", () => {
     expect(() =>
       StdRoot.Table.make("mixed_users", {
-        id: Postgres.Column.custom(Schema.UUID, Postgres.Type.custom("uuid")),
+        id: Postgres.Column.custom(Schema.String.check(Schema.isUUID()), Postgres.Type.custom("uuid")),
         email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text()),
       }),
     ).toThrow(

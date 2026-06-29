@@ -37,12 +37,12 @@ type _AssertNormalizeConflict = Assert<IsExact<
 >>
 
 const pgUsers = Std.Table.make("users", {
-  id: Postgres.Column.custom(Schema.UUID, Postgres.Type.custom("uuid")).pipe(Std.Column.primaryKey),
+  id: Postgres.Column.custom(Schema.String.check(Schema.isUUID()), Postgres.Type.custom("uuid")).pipe(Std.Column.primaryKey),
   email: Postgres.Column.custom(Schema.String, Postgres.Type.citext())
 })
 
 const myUsers = Std.Table.make("users", {
-  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
+  id: Mysql.Column.custom(Schema.String.check(Schema.isUUID()), Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
   email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
 })
 

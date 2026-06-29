@@ -2,8 +2,8 @@ import * as StdRoot from "#standard"
 import * as Std from "effect-qb"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as SqlClient from "@effect/sql/SqlClient"
-import * as SqlError from "@effect/sql/SqlError"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlError from "effect/unstable/sql/SqlError"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
@@ -21,7 +21,7 @@ const auditLogs = Std.Table.make("audit_logs", {
   note: Std.Column.text().pipe(Std.Column.nullable)
 })
 const mysqlUsers = Std.Table.make("users", {
-  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
+  id: Mysql.Column.custom(Schema.String.check(Schema.isUUID()), Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
   email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text()).pipe(Std.Column.unique),
   bio: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text()).pipe(Std.Column.nullable)
 })
@@ -336,24 +336,24 @@ const postgresMutationRow: PostgresMutationRow = { id: "user-id" }
 void postgresMutationRow
 
 const pgUsers = Std.Table.make("users", {
-  id: Postgres.Column.custom(Schema.UUID, Postgres.Type.custom("uuid")).pipe(Std.Column.primaryKey),
+  id: Postgres.Column.custom(Schema.String.check(Schema.isUUID()), Postgres.Type.custom("uuid")).pipe(Std.Column.primaryKey),
   email: Postgres.Column.custom(Schema.String, Postgres.Type.custom("text"))
 })
 
 const pgPosts = Std.Table.make("posts", {
-  id: Postgres.Column.custom(Schema.UUID, Postgres.Type.custom("uuid")).pipe(Std.Column.primaryKey),
-  userId: Postgres.Column.custom(Schema.UUID, Postgres.Type.custom("uuid")),
+  id: Postgres.Column.custom(Schema.String.check(Schema.isUUID()), Postgres.Type.custom("uuid")).pipe(Std.Column.primaryKey),
+  userId: Postgres.Column.custom(Schema.String.check(Schema.isUUID()), Postgres.Type.custom("uuid")),
   title: Postgres.Column.custom(Schema.String, Postgres.Type.custom("text")).pipe(Std.Column.nullable)
 })
 
 const mysqlMutationUsers = Std.Table.make("users", {
-  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
+  id: Mysql.Column.custom(Schema.String.check(Schema.isUUID()), Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
   email: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text())
 })
 
 const mysqlMutationPosts = Std.Table.make("posts", {
-  id: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
-  userId: Mysql.Column.custom(Schema.UUID, Mysql.Datatypes.mysqlDatatypes.uuid()),
+  id: Mysql.Column.custom(Schema.String.check(Schema.isUUID()), Mysql.Datatypes.mysqlDatatypes.uuid()).pipe(Std.Column.primaryKey),
+  userId: Mysql.Column.custom(Schema.String.check(Schema.isUUID()), Mysql.Datatypes.mysqlDatatypes.uuid()),
   title: Mysql.Column.custom(Schema.String, Mysql.Datatypes.mysqlDatatypes.text()).pipe(Std.Column.nullable)
 })
 

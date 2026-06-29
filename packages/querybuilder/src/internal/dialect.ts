@@ -32,7 +32,7 @@ export interface RenderState {
 
 export interface RenderValueContext {
   readonly dbType?: Expression.DbType.Any
-  readonly runtimeSchema?: Schema.Schema.Any
+  readonly runtimeSchema?: Schema.Top
   readonly driverValueMapping?: Expression.DriverValueMapping
 }
 

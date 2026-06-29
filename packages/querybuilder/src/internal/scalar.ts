@@ -162,7 +162,7 @@ export interface State<
 > {
   readonly runtime: Runtime
   readonly dbType: Db
-  readonly runtimeSchema?: Schema.Schema.Any
+  readonly runtimeSchema?: Schema.Top
   readonly driverValueMapping?: DriverValueMapping
   readonly nullability: Nullable
   readonly dialect: Dialect

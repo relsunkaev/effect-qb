@@ -1,6 +1,6 @@
 {
   "name": "effect-qb-workspace",
-  "version": "0.19.0",
+  "version": "4.0.0-beta.66",
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -11,6 +11,9 @@
     "#mysql": "./packages/querybuilder/src/mysql.ts",
     "#sqlite": "./packages/querybuilder/src/sqlite.ts",
     "#internal/*": "./packages/querybuilder/src/internal/*"
+  },
+  "overrides": {
+    "@effect/platform-node-shared": "4.0.0-beta.66"
   },
   "scripts": {
     "build": "bun scripts/build-package.ts",
@@ -23,17 +26,13 @@
     "test:integration:datatypes": "bun scripts/test-datatype-matrix-integration.ts"
   },
   "devDependencies": {
-    "@effect/cli": "^0.75.0",
-    "@effect/experimental": "^0.57.0",
-    "@effect/platform": "^0.96.0",
-    "@effect/platform-bun": "^0.89.0",
-    "@effect/sql": "^0.48.0",
-    "@effect/sql-mysql2": "0.48.0",
-    "@effect/sql-pg": "0.48.0",
-    "@effect/sql-sqlite-bun": "0.48.0",
+    "@effect/platform-bun": "4.0.0-beta.66",
+    "@effect/sql-mysql2": "4.0.0-beta.66",
+    "@effect/sql-pg": "4.0.0-beta.66",
+    "@effect/sql-sqlite-bun": "4.0.0-beta.66",
     "@types/bun": "latest",
     "@typescript/native-preview": "beta",
-    "effect": "^3.19.3",
+    "effect": "4.0.0-beta.66",
     "effect-db": "workspace:*",
     "effect-qb": "workspace:*",
     "pgsql-ast-parser": "^12.0.2",

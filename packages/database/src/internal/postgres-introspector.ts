@@ -1,5 +1,7 @@
 import * as Effect from "effect/Effect"
-import * as SqlClient from "@effect/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlSchema from "effect/unstable/sql/SqlSchema"
+import * as Schema from "effect/Schema"
 
 import { SchemaExpression } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, ReferentialAction, TableOptionSpec } from "effect-qb/postgres/metadata"
@@ -89,6 +91,117 @@ type EnumRow = {
   readonly enum_label: string
   readonly sort_order: number
 }
+
+const EmptyRequest = Schema.Struct({})
+
+const FilterRequest = Schema.Struct({
+  schemas: Schema.NullOr(Schema.Array(Schema.String)),
+  tables: Schema.NullOr(Schema.Array(Schema.String))
+})
+
+const TableOidsRequest = Schema.Struct({
+  tableOids: Schema.Array(Schema.Number)
+})
+
+const IndexOidsRequest = Schema.Struct({
+  indexOids: Schema.Array(Schema.Number)
+})
+
+const OpclassOidsRequest = Schema.Struct({
+  opclassOids: Schema.Array(Schema.Number)
+})
+
+const EnumTypeNamesRequest = Schema.Struct({
+  enumTypeNames: Schema.Array(Schema.String)
+})
+
+const TableRowSchema = Schema.Struct({
+  schema_name: Schema.String,
+  table_name: Schema.String,
+  table_oid: Schema.Number
+})
+
+const ColumnRowSchema = Schema.Struct({
+  schema_name: Schema.String,
+  table_name: Schema.String,
+  table_oid: Schema.Number,
+  attnum: Schema.Number,
+  column_name: Schema.String,
+  ddl_type: Schema.String,
+  db_type_kind: Schema.String,
+  type_schema: Schema.String,
+  type_kind: Schema.String,
+  nullable: Schema.Boolean,
+  has_default: Schema.Boolean,
+  default_sql: Schema.NullOr(Schema.String),
+  generated_sql: Schema.NullOr(Schema.String),
+  identity_generation: Schema.Literals(["", "a", "d"]),
+  attcollation_oid: Schema.Number
+})
+
+const ConstraintRowSchema = Schema.Struct({
+  schema_name: Schema.String,
+  table_name: Schema.String,
+  constraint_name: Schema.String,
+  constraint_type: Schema.Literals(["p", "u", "f", "c"]),
+  local_attnums: Schema.NullOr(Schema.Array(Schema.Number)),
+  referenced_attnums: Schema.NullOr(Schema.Array(Schema.Number)),
+  referenced_schema_name: Schema.NullOr(Schema.String),
+  referenced_table_name: Schema.NullOr(Schema.String),
+  deferrable: Schema.Boolean,
+  initially_deferred: Schema.Boolean,
+  check_sql: Schema.NullOr(Schema.String),
+  no_inherit: Schema.Boolean,
+  nulls_not_distinct: Schema.Boolean,
+  on_update: Schema.String,
+  on_delete: Schema.String
+})
+
+const IndexRowSchema = Schema.Struct({
+  schema_name: Schema.String,
+  table_name: Schema.String,
+  index_name: Schema.String,
+  index_oid: Schema.Number,
+  unique: Schema.Boolean,
+  method: Schema.String,
+  predicate_sql: Schema.NullOr(Schema.String),
+  indnkeyatts: Schema.Number,
+  indnatts: Schema.Number,
+  indkey: Schema.String,
+  indclass: Schema.String,
+  indcollation: Schema.String,
+  indoption: Schema.String
+})
+
+const IndexKeyRowSchema = Schema.Struct({
+  index_oid: Schema.Number,
+  position: Schema.Number,
+  key_sql: Schema.String
+})
+
+const OpclassRowSchema = Schema.Struct({
+  oid: Schema.Number,
+  opcdefault: Schema.Boolean,
+  schema_name: Schema.String,
+  opclass_name: Schema.String
+})
+
+const CollationRowSchema = Schema.Struct({
+  oid: Schema.Number,
+  schema_name: Schema.String,
+  collation_name: Schema.String
+})
+
+const DefaultCollationRowSchema = Schema.Struct({
+  oid: Schema.Number
+})
+
+const EnumRowSchema = Schema.Struct({
+  schema_name: Schema.String,
+  type_name: Schema.String,
+  enum_label: Schema.String,
+  sort_order: Schema.Number
+})
 
 const normalizeFilter = (filter?: FilterConfig): {
   readonly schemas: readonly string[] | null
@@ -219,7 +332,10 @@ export const introspectPostgresSchema = (
   Effect.flatMap(SqlClient.SqlClient, (sql) =>
     Effect.gen(function*() {
       const normalizedFilter = normalizeFilter(filter)
-      const tables = yield* sql.unsafe<TableRow>(`
+      const tables = yield* SqlSchema.findAll({
+        Request: FilterRequest,
+        Result: TableRowSchema,
+        execute: (request) => sql.unsafe(`
         select
           n.nspname as schema_name,
           c.relname as table_name,
@@ -231,7 +347,8 @@ export const introspectPostgresSchema = (
           and ($1::text[] is null or n.nspname = any($1))
           and ($2::text[] is null or c.relname = any($2))
         order by n.nspname, c.relname
-      `, [normalizedFilter.schemas, normalizedFilter.tables])
+      `, [request.schemas, request.tables])
+      })(normalizedFilter)
 
       const tableOids = tables.map((table) => table.table_oid)
       if (tableOids.length === 0) {
@@ -242,7 +359,10 @@ export const introspectPostgresSchema = (
         } satisfies SchemaModel
       }
 
-      const columns = yield* sql.unsafe<ColumnRow>(`
+      const columns = yield* SqlSchema.findAll({
+        Request: TableOidsRequest,
+        Result: ColumnRowSchema,
+        execute: (request) => sql.unsafe(`
         select
           n.nspname as schema_name,
           c.relname as table_name,
@@ -269,9 +389,13 @@ export const introspectPostgresSchema = (
           and not a.attisdropped
           and c.oid = any($1::oid[])
         order by n.nspname, c.relname, a.attnum
-      `, [tableOids])
+      `, [request.tableOids])
+      })({ tableOids })
 
-      const constraints = yield* sql.unsafe<ConstraintRow>(`
+      const constraints = yield* SqlSchema.findAll({
+        Request: TableOidsRequest,
+        Result: ConstraintRowSchema,
+        execute: (request) => sql.unsafe(`
         select
           n.nspname as schema_name,
           c.relname as table_name,
@@ -297,9 +421,13 @@ export const introspectPostgresSchema = (
         where c.oid = any($1::oid[])
           and con.contype in ('p', 'u', 'f', 'c')
         order by n.nspname, c.relname, con.conname
-      `, [tableOids])
+      `, [request.tableOids])
+      })({ tableOids })
 
-      const indexes = yield* sql.unsafe<IndexRow>(`
+      const indexes = yield* SqlSchema.findAll({
+        Request: TableOidsRequest,
+        Result: IndexRowSchema,
+        execute: (request) => sql.unsafe(`
         select
           n.nspname as schema_name,
           c.relname as table_name,
@@ -324,12 +452,16 @@ export const introspectPostgresSchema = (
           and not ind.indisprimary
           and con.oid is null
         order by n.nspname, c.relname, idx.relname
-      `, [tableOids])
+      `, [request.tableOids])
+      })({ tableOids })
 
       const indexOids = indexes.map((index) => index.index_oid)
       const indexKeys = indexOids.length === 0
         ? []
-        : yield* sql.unsafe<IndexKeyRow>(`
+        : yield* SqlSchema.findAll({
+            Request: IndexOidsRequest,
+            Result: IndexKeyRowSchema,
+            execute: (request) => sql.unsafe(`
             select
               ind.indexrelid as index_oid,
               pos.n as position,
@@ -338,12 +470,16 @@ export const introspectPostgresSchema = (
             cross join lateral generate_series(1, ind.indnkeyatts) as pos(n)
             where ind.indexrelid = any($1::oid[])
             order by ind.indexrelid, pos.n
-          `, [indexOids])
+          `, [request.indexOids])
+          })({ indexOids })
 
       const opclassOids = indexes.flatMap((index) => parseVector(index.indclass))
       const opclassRows = opclassOids.length === 0
         ? []
-        : yield* sql.unsafe<OpclassRow>(`
+        : yield* SqlSchema.findAll({
+            Request: OpclassOidsRequest,
+            Result: OpclassRowSchema,
+            execute: (request) => sql.unsafe(`
             select
               op.oid,
               op.opcdefault,
@@ -352,9 +488,13 @@ export const introspectPostgresSchema = (
             from pg_opclass op
             join pg_namespace n on n.oid = op.opcnamespace
             where op.oid = any($1::oid[])
-          `, [[...new Set(opclassOids)]])
+          `, [request.opclassOids])
+          })({ opclassOids: [...new Set(opclassOids)] })
       const opclassByOid = new Map(opclassRows.map((row) => [row.oid, row] as const))
-      const collations = yield* sql.unsafe<CollationRow>(`
+      const collations = yield* SqlSchema.findAll({
+        Request: EmptyRequest,
+        Result: CollationRowSchema,
+        execute: () => sql.unsafe(`
         select
           c.oid,
           n.nspname as schema_name,
@@ -362,14 +502,19 @@ export const introspectPostgresSchema = (
         from pg_collation c
         join pg_namespace n on n.oid = c.collnamespace
       `)
+      })({})
       const collationByOid = new Map(collations.map((row) => [row.oid, row] as const))
-      const defaultCollationRow = yield* sql.unsafe<{ readonly oid: number }>(`
+      const defaultCollationRow = yield* SqlSchema.findAll({
+        Request: EmptyRequest,
+        Result: DefaultCollationRowSchema,
+        execute: () => sql.unsafe(`
         select c.oid
         from pg_collation c
         where c.collname = 'default'
           and c.collnamespace = 'pg_catalog'::regnamespace
         limit 1
       `)
+      })({})
       const defaultCollationOid = defaultCollationRow[0]?.oid ?? 0
 
       const enumTypeNames = columns
@@ -378,7 +523,10 @@ export const introspectPostgresSchema = (
 
       const enums = enumTypeNames.length === 0
         ? []
-        : yield* sql.unsafe<EnumRow>(`
+        : yield* SqlSchema.findAll({
+            Request: EnumTypeNamesRequest,
+            Result: EnumRowSchema,
+            execute: (request) => sql.unsafe(`
             select
               n.nspname as schema_name,
               t.typname as type_name,
@@ -389,7 +537,8 @@ export const introspectPostgresSchema = (
             join pg_enum e on e.enumtypid = t.oid
             where concat(n.nspname, '.', t.typname) = any($1::text[])
             order by n.nspname, t.typname, e.enumsortorder
-          `, [[...new Set(enumTypeNames)]])
+          `, [request.enumTypeNames])
+          })({ enumTypeNames: [...new Set(enumTypeNames)] })
 
       const columnsByTable = new Map<string, ColumnModel[]>()
       const attnumByTable = new Map<string, Map<number, string>>()

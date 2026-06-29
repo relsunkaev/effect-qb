@@ -20,7 +20,7 @@ import {
 import { standardDatatypes } from "./datatypes/index.js"
 
 const primitive = <Type, Db extends Expression.DbType.Any>(
-  schema: Schema.Schema<Type, any, any>,
+  schema: Schema.Schema<Type>,
   dbType: Db
 ): ColumnDefinition<Type, Type, Type, Db, false, false, false, false, false, undefined> =>
   makeColumnDefinition(schema as Schema.Schema<NonNullable<Type>>, {
@@ -48,15 +48,15 @@ const renderNumericDdlType = (
 const boundedString = (length?: number): Schema.Schema<string> =>
   length === undefined
     ? Schema.String
-    : Schema.String.pipe(Schema.maxLength(length))
+    : Schema.String.check(Schema.isMaxLength(length))
 
-const finiteNumber = Schema.Number.pipe(Schema.finite())
+const finiteNumber = Schema.Number.check(Schema.isFinite())
 
-export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expression.DbType.Any>(
+export const custom = <SchemaType extends Schema.Top, Db extends Expression.DbType.Any>(
   schema: SchemaType,
   dbType: Db
 ) =>
-  makeColumnDefinition(schema as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: enrichDbType(standardDatatypes, dbType),
     nullable: false,
     hasDefault: false,
@@ -68,7 +68,7 @@ export const custom = <SchemaType extends Schema.Schema.Any, Db extends Expressi
     identity: undefined
   })
 
-export const uuid = () => primitive(Schema.UUID, standardDatatypes.uuid())
+export const uuid = () => primitive(Schema.String.check(Schema.isUUID()), standardDatatypes.uuid())
 export const text = () => primitive(Schema.String, standardDatatypes.text())
 export const varchar = (length?: number) =>
   makeColumnDefinition(boundedString(length), {
@@ -114,9 +114,9 @@ export const date = () => primitive(LocalDateStringSchema, standardDatatypes.dat
 export const time = () => primitive(LocalTimeStringSchema, standardDatatypes.time())
 export const datetime = () => primitive(LocalDateTimeStringSchema, standardDatatypes.datetime())
 export const timestamp = () => primitive(LocalDateTimeStringSchema, standardDatatypes.timestamp())
-export const blob = () => primitive(Schema.Uint8ArrayFromSelf, standardDatatypes.blob())
-export const json = <SchemaType extends Schema.Schema.Any>(schema: SchemaType) =>
-  makeColumnDefinition(schema as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>, any, any>, {
+export const blob = () => primitive(Schema.Uint8Array, standardDatatypes.blob())
+export const json = <SchemaType extends Schema.Top>(schema: SchemaType) =>
+  makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
     dbType: { ...standardDatatypes.json(), variant: "json" } as Expression.DbType.Json<"standard", "json">,
     nullable: false,
     hasDefault: false,

@@ -1,6 +1,6 @@
 {
   "name": "effect-db",
-  "version": "0.19.0",
+  "version": "4.0.0-beta.66",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -56,15 +56,13 @@
     "prepack": "bun run build"
   },
   "dependencies": {
-    "effect-qb": "workspace:*"
+    "@effect/platform-bun": "4.0.0-beta.66",
+    "@effect/platform-node-shared": "4.0.0-beta.66",
+    "@effect/sql-pg": "4.0.0-beta.66",
+    "effect-qb": "workspace:*",
+    "typescript": "^6.0.2"
   },
   "peerDependencies": {
-    "@effect/cli": "^0.75.0",
-    "@effect/platform": "^0.96.0",
-    "@effect/platform-bun": "^0.89.0",
-    "@effect/sql": "^0.48.0",
-    "@effect/sql-pg": "^0.48.0",
-    "effect": "^3.19.3",
-    "typescript": "^6.0.2"
+    "effect": "4.0.0-beta.66"
   }
 }

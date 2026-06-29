@@ -80,7 +80,7 @@ of the piped steps does not change the SQL that is generated.
 ### Install
 
 ```sh
-bun add effect-qb effect @effect/sql @effect/experimental
+bun add effect-qb effect
 ```
 
 Runtime requirements:
@@ -622,7 +622,7 @@ columns and to selected expressions that retain enough path metadata.
 import * as Schema from "effect/Schema"
 import { Column, Json, Query, Table } from "effect-qb"
 
-const payloadSchema = Schema.Union(
+const payloadSchema = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("created"),
     actorId: Schema.String
@@ -631,7 +631,7 @@ const payloadSchema = Schema.Union(
     kind: Schema.Literal("deleted"),
     reason: Schema.String
   })
-)
+])
 
 const events = Table.make("events", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -1417,7 +1417,7 @@ nested result shape described by the query plan.
 ### Executing Queries
 
 Use concrete executors for execution. By default, a concrete executor uses the
-built-in renderer and the ambient `@effect/sql` `SqlClient` service.
+built-in renderer and the ambient `effect/unstable/sql` `SqlClient` service.
 
 ```ts
 import { Column, Query, Table } from "effect-qb"

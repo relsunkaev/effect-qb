@@ -105,7 +105,7 @@ const maybeBrandSchema = (
   column: AnyColumnDefinition,
   tableName: string,
   columnName: string
-): Schema.Schema.Any =>
+): Schema.Top =>
   column.metadata.brand === true
     ? Schema.brand(`${tableName}.${columnName}`)(column.schema)
     : column.schema
@@ -114,7 +114,7 @@ const selectSchema = (
   column: AnyColumnDefinition,
   tableName: string,
   columnName: string
-): Schema.Schema.Any =>
+): Schema.Top =>
   column.metadata.nullable ? Schema.NullOr(maybeBrandSchema(column, tableName, columnName)) : maybeBrandSchema(column, tableName, columnName)
 
 const insertSchema = (
@@ -151,9 +151,9 @@ type SchemaOfVariant<
   TableName extends string,
   Fields extends TableFieldMap,
   PrimaryKeyColumns extends keyof Fields & string
-> = Variant extends "select" ? Schema.Schema<SelectRow<TableName, Fields>>
-  : Variant extends "insert" ? Schema.Schema<InsertRow<TableName, Fields>>
-  : Schema.Schema<UpdateRow<TableName, Fields, PrimaryKeyColumns>>
+> = Variant extends "select" ? Schema.Decoder<SelectRow<TableName, Fields>, never>
+  : Variant extends "insert" ? Schema.Decoder<InsertRow<TableName, Fields>, never>
+  : Schema.Decoder<UpdateRow<TableName, Fields, PrimaryKeyColumns>, never>
 
 const fieldSchemaForVariant = (
   variant: TableSchemaVariant,
@@ -202,7 +202,7 @@ export const deriveSelectSchema = <
   tableName: TableName,
   fields: Fields,
   primaryKeyColumns: readonly PrimaryKeyColumns[]
-): Schema.Schema<SelectRow<TableName, Fields>> =>
+): Schema.Decoder<SelectRow<TableName, Fields>, never> =>
   deriveSchema("select", tableName, fields, primaryKeyColumns)
 
 export const deriveInsertSchema = <
@@ -213,7 +213,7 @@ export const deriveInsertSchema = <
   tableName: TableName,
   fields: Fields,
   primaryKeyColumns: readonly PrimaryKeyColumns[]
-): Schema.Schema<InsertRow<TableName, Fields>> =>
+): Schema.Decoder<InsertRow<TableName, Fields>, never> =>
   deriveSchema("insert", tableName, fields, primaryKeyColumns)
 
 export const deriveUpdateSchema = <
@@ -224,7 +224,7 @@ export const deriveUpdateSchema = <
   tableName: TableName,
   fields: Fields,
   primaryKeyColumns: readonly PrimaryKeyColumns[]
-): Schema.Schema<UpdateRow<TableName, Fields, PrimaryKeyColumns>> =>
+): Schema.Decoder<UpdateRow<TableName, Fields, PrimaryKeyColumns>, never> =>
   deriveSchema("update", tableName, fields, primaryKeyColumns)
 
 /**
@@ -245,9 +245,9 @@ export const deriveSchemas = <
   fields: Fields,
   primaryKeyColumns: readonly PrimaryKeyColumns[]
 ): {
-  readonly select: Schema.Schema<SelectRow<TableName, Fields>>
-  readonly insert: Schema.Schema<InsertRow<TableName, Fields>>
-  readonly update: Schema.Schema<UpdateRow<TableName, Fields, PrimaryKeyColumns>>
+  readonly select: Schema.Decoder<SelectRow<TableName, Fields>, never>
+  readonly insert: Schema.Decoder<InsertRow<TableName, Fields>, never>
+  readonly update: Schema.Decoder<UpdateRow<TableName, Fields, PrimaryKeyColumns>, never>
 } => ({
   select: deriveSelectSchema(tableName, fields, primaryKeyColumns),
   insert: deriveInsertSchema(tableName, fields, primaryKeyColumns),
