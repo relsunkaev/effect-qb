@@ -94,7 +94,7 @@ jobs:
       - name: Publish querybuilder to npm
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.maintenance_action == 'publish' }}
         working-directory: packages/querybuilder
-        run: bunx npm publish --access public --tag "${{ steps.npm-tag.outputs.tag }}"
+        run: bun publish --access public --tag "${{ steps.npm-tag.outputs.tag }}"
 
       - name: Publish database to npm
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.maintenance_action == 'publish' }}
