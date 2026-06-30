@@ -75,6 +75,9 @@ const main = async () => {
         "effect": "4.0.0-beta.66",
         "effect-db": `file:${packedDatabaseTarball}`,
         "effect-qb": `file:${packedTarball}`
+      },
+      overrides: {
+        "effect-qb": `file:${packedTarball}`
       }
     }, null, 2)}\n`)
 

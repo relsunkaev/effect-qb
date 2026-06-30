@@ -4,6 +4,70 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 4.0.0-beta.67 - 2026-06-30
+
+### Breaking Changes
+
+- feat(querybuilder)!: remove renderer make casing option
+- feat(querybuilder)!: require callback table options
+- feat(querybuilder)!: add path-aware JSON traversal
+- feat(querybuilder)!: remove JSON asText aliases
+- feat(querybuilder)!: consolidate cast surface
+- feat(querybuilder)!: separate standard and dialect type helpers
+- feat(querybuilder)!: remove executor withSavepoint helper
+
+### Features
+
+- feat: validate effect-db sql rows with SqlSchema
+- feat: preserve schema issues in row decode errors
+- feat(querybuilder): add table option namespaces
+- feat(querybuilder): consolidate dialect helper exports
+- feat(querybuilder): support row-local check callbacks
+- feat(querybuilder): type-check conflict arbiters
+- feat(querybuilder): enforce datatype matrix coverage
+
+### Fixes
+
+- fix: preserve json path schema transforms
+- fix(database): emit package declarations
+- fix(querybuilder): allow schema-backed jsonb scalar casts
+- fix(querybuilder): render portable mysql datatypes as executable SQL
+- fix(querybuilder): stabilize curried Cast.to inference; bump tsgo
+
+### Docs
+
+- docs: cover opt-in Effect v4 schema codecs
+- docs: record schema model migration decision
+- docs: remove broken database beta guidance
+- docs: update jsonb readme examples
+- docs(readme): clarify type and json examples
+- docs(readme): document json paths and cast type safety
+- docs(readme): document conflict target type safety
+- docs(readme): restructure code examples for clarity
+- docs(readme): rewrite casting example, showcase more query features
+- docs(readme): sharpen example salience
+- docs(readme): show scoped executor transactions
+
+### CI
+
+- ci: add beta package deprecation path
+
+### Chores
+
+- chore: migrate Effect dependency surface to v4 beta
+- chore(release): prepare beta channel
+- chore(release): v4.0.0-beta.66
+- chore(beads): close readme check callback task
+- chore(beads): record JSON type-safety epic
+- chore: track @typescript/native-preview via the beta tag
+- chore(beads): track effect v4 merge
+- chore(beads): track v4 beta release
+
+### Other
+
+- bd init: initialize beads issue tracking
+- Add datatype matrix coverage tests
+
 ## 0.19.0 - 2026-05-27
 
 ### Breaking Changes
