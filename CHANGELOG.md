@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 4.0.0-beta.92 - 2026-06-30
+
+### Chores
+
+- chore(beads): record beta release publish blocker
+- chore(effect): update beta dependencies to beta.92
+- chore(beads): track beta.92 release
+
 ## 4.0.0-beta.67 - 2026-06-30
 
 ### Breaking Changes
