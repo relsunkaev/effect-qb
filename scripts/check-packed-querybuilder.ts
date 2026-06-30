@@ -72,7 +72,7 @@ const main = async () => {
       private: true,
       type: "module",
       dependencies: {
-        "effect": "4.0.0-beta.66",
+        "effect": "4.0.0-beta.92",
         "effect-db": `file:${packedDatabaseTarball}`,
         "effect-qb": `file:${packedTarball}`
       },

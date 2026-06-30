@@ -5,13 +5,13 @@
     "": {
       "name": "effect-qb-workspace",
       "devDependencies": {
-        "@effect/platform-bun": "4.0.0-beta.66",
-        "@effect/sql-mysql2": "4.0.0-beta.66",
-        "@effect/sql-pg": "4.0.0-beta.66",
-        "@effect/sql-sqlite-bun": "4.0.0-beta.66",
+        "@effect/platform-bun": "4.0.0-beta.92",
+        "@effect/sql-mysql2": "4.0.0-beta.92",
+        "@effect/sql-pg": "4.0.0-beta.92",
+        "@effect/sql-sqlite-bun": "4.0.0-beta.92",
         "@types/bun": "latest",
         "@typescript/native-preview": "beta",
-        "effect": "4.0.0-beta.66",
+        "effect": "4.0.0-beta.92",
         "effect-db": "workspace:*",
         "effect-qb": "workspace:*",
         "pgsql-ast-parser": "^12.0.2",
@@ -25,14 +25,14 @@
         "effectdb": "./dist/cli.js",
       },
       "dependencies": {
-        "@effect/platform-bun": "4.0.0-beta.66",
-        "@effect/platform-node-shared": "4.0.0-beta.66",
-        "@effect/sql-pg": "4.0.0-beta.66",
+        "@effect/platform-bun": "4.0.0-beta.92",
+        "@effect/platform-node-shared": "4.0.0-beta.92",
+        "@effect/sql-pg": "4.0.0-beta.92",
         "effect-qb": "workspace:*",
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "effect": "4.0.0-beta.66",
+        "effect": "4.0.0-beta.92",
       },
     },
     "packages/querybuilder": {
@@ -46,23 +46,23 @@
         "@typescript/native-preview": "beta",
       },
       "peerDependencies": {
-        "effect": "4.0.0-beta.66",
+        "effect": "4.0.0-beta.92",
       },
     },
   },
   "overrides": {
-    "@effect/platform-node-shared": "4.0.0-beta.66",
+    "@effect/platform-node-shared": "4.0.0-beta.92",
   },
   "packages": {
-    "@effect/platform-bun": ["@effect/platform-bun@4.0.0-beta.66", "", { "dependencies": { "@effect/platform-node-shared": "^4.0.0-beta.66" }, "peerDependencies": { "effect": "^4.0.0-beta.66" } }, "sha512-egxbmAEtJZ8FYTaPMrYu3VwjgVuzHj3VdUyPyZ/QhSFP/DW2Yunlk/ouChi1JzX/m+Gj8tdMma7NiqO59J9d5Q=="],
+    "@effect/platform-bun": ["@effect/platform-bun@4.0.0-beta.92", "", { "dependencies": { "@effect/platform-node-shared": "^4.0.0-beta.92" }, "peerDependencies": { "effect": "^4.0.0-beta.92" } }, "sha512-Q/XKoE7gIHa1+ypOflLxR/TXitR094XUfTJmHGi/hV791+e2QJP+7Dcz+BPGqAKi9RU3DPyOMHzoUPop9eDKow=="],
 
-    "@effect/platform-node-shared": ["@effect/platform-node-shared@4.0.0-beta.66", "", { "dependencies": { "@types/ws": "^8.18.1", "ws": "^8.20.0" }, "peerDependencies": { "effect": "^4.0.0-beta.66" } }, "sha512-+ymrhBnESv/hmn5SKTe2//IY9Ox/hGPeoogEWhW47ZGyhFI5eMYFxdEUBa+3IAV05rrBzrxON9lynu68n0DM7w=="],
+    "@effect/platform-node-shared": ["@effect/platform-node-shared@4.0.0-beta.92", "", { "dependencies": { "@types/ws": "^8.18.1", "ws": "^8.20.0" }, "peerDependencies": { "effect": "^4.0.0-beta.92" } }, "sha512-156ADSfmWcqz0mC8VxlHN9IHyT97AbYsBc3wJxyz2ceiWyGJOWkIRd6H/n5Be4hd6dQ4IegSt6J3HinBIJ9S/A=="],
 
-    "@effect/sql-mysql2": ["@effect/sql-mysql2@4.0.0-beta.66", "", { "dependencies": { "mysql2": "^3.22.0" }, "peerDependencies": { "effect": "^4.0.0-beta.66" } }, "sha512-4Vx3qV+nH5IQVNZV0YUHWV8hqTyErYUEOnHH9P4XIagQYMMgAs1kf8XubL0WGjxhBE7pjH1VFQEjzyyKvk4xfQ=="],
+    "@effect/sql-mysql2": ["@effect/sql-mysql2@4.0.0-beta.92", "", { "dependencies": { "mysql2": "^3.22.3" }, "peerDependencies": { "effect": "^4.0.0-beta.92" } }, "sha512-c6jwlO/SK//Uc5u0biFyKiYXh6oBj7edZ9OLNr8xg00dDMmwaQcSMo2B6JWEXLwVo7qGceYCgWFJN1HKEtW+WA=="],
 
-    "@effect/sql-pg": ["@effect/sql-pg@4.0.0-beta.66", "", { "dependencies": { "pg": "^8.20.0", "pg-connection-string": "2.12.0", "pg-cursor": "^2.19.0", "pg-pool": "^3.13.0", "pg-types": "^4.1.0" }, "peerDependencies": { "effect": "^4.0.0-beta.66" } }, "sha512-Ih1gpkowMsUnZ2ljn3F4af4lCCcJGiQPvKfQnPC3Dmwhw+8GOglEV57Y4RdeXw/kCd68YVrG4GXsna7Dx4NRSA=="],
+    "@effect/sql-pg": ["@effect/sql-pg@4.0.0-beta.92", "", { "dependencies": { "pg": "^8.20.0", "pg-connection-string": "2.12.0", "pg-cursor": "^2.19.0", "pg-pool": "^3.13.0", "pg-types": "^4.1.0" }, "peerDependencies": { "effect": "^4.0.0-beta.92" } }, "sha512-R6EM1Kn8yP08onDu6GjG9NyWSVIXuT7AVwxhM+hjibNxuYbHVTzuqUlHe7bDzzS550MBxVG1JXldzLY52AhKIA=="],
 
-    "@effect/sql-sqlite-bun": ["@effect/sql-sqlite-bun@4.0.0-beta.66", "", { "peerDependencies": { "effect": "^4.0.0-beta.66" } }, "sha512-UYsrAb/5T0ZRypeN9Kmv3/ZInibGCjM6dtoiAWtfG+xKyuq8N05wmuVCXB0+XgVmUBxDWjw/S1fu4ivS0vZVuw=="],
+    "@effect/sql-sqlite-bun": ["@effect/sql-sqlite-bun@4.0.0-beta.92", "", { "peerDependencies": { "effect": "^4.0.0-beta.92" } }, "sha512-0BXOiHDygOM/oAw2Vm4RSL7reU3KZgv3TERZt+Mup+T2TV+97vZSKluBVWv9rB1tTzefYNcJiZ6Xz8lsyXZ8RQ=="],
 
     "@msgpackr-extract/msgpackr-extract-darwin-arm64": ["@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-LCkGo6JDfaBhgST7UpPWgNgLINpcpabaHfyz5OBx75nUYxBsaEPxjnyNjWpeb/xBup/682QnBfRBy2/LvPutZQ=="],
 
@@ -112,7 +112,7 @@
 
     "discontinuous-range": ["discontinuous-range@1.0.0", "", {}, "sha512-c68LpLbO+7kP/b1Hr1qs8/BJ09F5khZGTxqxZuhzxpmwJKOgRFHJWIb9/KmqnqHhLdO55aOxFH/EGBvUQbL/RQ=="],
 
-    "effect": ["effect@4.0.0-beta.66", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.6.0", "find-my-way-ts": "^0.1.6", "ini": "^6.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^1.11.9", "multipasta": "^0.2.7", "toml": "^4.1.1", "uuid": "^13.0.0", "yaml": "^2.8.3" } }, "sha512-4arEr62cziFa8BBVDUwJCJJmaVepXf/kRg7KtC0h8+bufngscrHbwWFhr9c+HonwOF+31U3iD3xUJmw9KzX7Dw=="],
+    "effect": ["effect@4.0.0-beta.92", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.8.0", "find-my-way-ts": "^0.1.6", "ini": "^7.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^2.0.1", "multipasta": "^0.2.7", "toml": "^4.1.1", "uuid": "^14.0.0", "yaml": "^2.9.0" } }, "sha512-et6Fy8X9cxhzV/w4U372lB7YCP/B9a8FYVxlx9UMzSgnmwWKxpldnaHz7mHpZHh+OU+ENhU9DO/rTAakmT0sEA=="],
 
     "effect-db": ["effect-db@workspace:packages/database"],
 
@@ -126,7 +126,7 @@
 
     "iconv-lite": ["iconv-lite@0.7.2", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-im9DjEDQ55s9fL4EYzOAv0yMqmMBSZp6G0VvFyTMPKWxiSBHUj9NW/qqLmXUwXrrM7AvqSlTCfvqRb0cM8yYqw=="],
 
-    "ini": ["ini@6.0.0", "", {}, "sha512-IBTdIkzZNOpqm7q3dRqJvMaldXjDHWkEDfrwGEQTs5eaQMWV+djAhR+wahyNNMAa+qpbDUhBMVt4ZKNwpPm7xQ=="],
+    "ini": ["ini@7.0.0", "", {}, "sha512-ifK0CgjALofS5bkrcTy4RaQ9Vx2Knf/eLeIO+NaswQEpH1UblrtTSCIvN71qQDMq0PeQ/SSPojvEJp9vvvfr+w=="],
 
     "is-property": ["is-property@1.0.2", "", {}, "sha512-Ks/IoX00TtClbGQr4TWXemAnktAQvYB7HzcCxDGqEZU6oCmb2INHuOoKxbtR+HFkmYWBKv/dOZtGRiAjDhj92g=="],
 
@@ -138,7 +138,7 @@
 
     "moo": ["moo@0.5.3", "", {}, "sha512-m2fmM2dDm7GZQsY7KK2cme8agi+AAljILjQnof7p1ZMDe6dQ4bdnSMx0cPppudoeNv5hEFQirN6u+O4fDE0IWA=="],
 
-    "msgpackr": ["msgpackr@1.12.1", "", { "optionalDependencies": { "msgpackr-extract": "^3.0.2" } }, "sha512-4EUH9tQHnMmEgzW/MdAP0KIfa1T9AF+htl0ffe2n5vb2EKn9y2co8ccpgWko6S52Jy1PQZKwRnx5/KkYjtd9MQ=="],
+    "msgpackr": ["msgpackr@2.0.4", "", { "optionalDependencies": { "msgpackr-extract": "^3.0.4" } }, "sha512-o1C5KRmuRt+apqMr1HuGSqWStZoRBUpEsCsl15uM9VdAF1qHLtvMOU2En747EnTyEl6c4pzPewRMFF31s1CNbA=="],
 
     "msgpackr-extract": ["msgpackr-extract@3.0.4", "", { "dependencies": { "node-gyp-build-optional-packages": "5.2.2" }, "optionalDependencies": { "@msgpackr-extract/msgpackr-extract-darwin-arm64": "3.0.4", "@msgpackr-extract/msgpackr-extract-darwin-x64": "3.0.4", "@msgpackr-extract/msgpackr-extract-linux-arm": "3.0.4", "@msgpackr-extract/msgpackr-extract-linux-arm64": "3.0.4", "@msgpackr-extract/msgpackr-extract-linux-x64": "3.0.4", "@msgpackr-extract/msgpackr-extract-win32-x64": "3.0.4" }, "bin": { "download-msgpackr-prebuilds": "bin/download-prebuilds.js" } }, "sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw=="],
 
@@ -206,7 +206,7 @@
 
     "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
 
-    "uuid": ["uuid@13.0.2", "", { "bin": { "uuid": "dist-node/bin/uuid" } }, "sha512-vzi9uRZ926x4XV73S/4qQaTwPXM2JBj6/6lI/byHH1jOpCzb0zDbfytgA9LcN/hzb2l7WQSQnxITOVx5un/wGw=="],
+    "uuid": ["uuid@14.0.1", "", { "bin": { "uuid": "dist-node/bin/uuid" } }, "sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew=="],
 
     "ws": ["ws@8.21.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="],
 

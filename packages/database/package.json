@@ -56,13 +56,13 @@
     "prepack": "bun run build"
   },
   "dependencies": {
-    "@effect/platform-bun": "4.0.0-beta.66",
-    "@effect/platform-node-shared": "4.0.0-beta.66",
-    "@effect/sql-pg": "4.0.0-beta.66",
+    "@effect/platform-bun": "4.0.0-beta.92",
+    "@effect/platform-node-shared": "4.0.0-beta.92",
+    "@effect/sql-pg": "4.0.0-beta.92",
     "effect-qb": "workspace:*",
     "typescript": "^6.0.2"
   },
   "peerDependencies": {
-    "effect": "4.0.0-beta.66"
+    "effect": "4.0.0-beta.92"
   }
 }
