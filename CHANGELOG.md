@@ -7,6 +7,7 @@ All notable changes to this project are documented here.
 ### Fixes
 
 - fix(database): canonicalize int and dec/decimal postgres type aliases
+- fix(database): treat explicit noAction referential actions as the default in schema diffs
 
 ## 4.0.0-beta.92 - 2026-06-30
 

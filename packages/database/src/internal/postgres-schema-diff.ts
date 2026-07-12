@@ -162,6 +162,9 @@ const normalizedIndexExpressionSql = (expression: unknown): string | null => {
   }
 }
 
+const normalizeReferentialAction = (action: string | null | undefined): string | null =>
+  action === undefined || action === null || action === "noAction" ? null : action
+
 const constraintSignature = (
   table: TableModel,
   option: Exclude<TableOptionSpec, { readonly kind: "index" }>
@@ -193,8 +196,8 @@ const constraintSignature = (
         referencedSchemaName: reference.schemaName ?? "public",
         referencedTableName: reference.tableName,
         referencedColumns: reference.columns,
-        onUpdate: option.onUpdate ?? null,
-        onDelete: option.onDelete ?? null,
+        onUpdate: normalizeReferentialAction(option.onUpdate),
+        onDelete: normalizeReferentialAction(option.onDelete),
         deferrable: option.deferrable ?? false,
         initiallyDeferred: option.initiallyDeferred ?? false
       })
@@ -275,8 +278,8 @@ const constraintShapeSignature = (
         referencedSchemaName: reference.schemaName ?? "public",
         referencedTableName: reference.tableName,
         referencedColumns: reference.columns,
-        onUpdate: option.onUpdate ?? null,
-        onDelete: option.onDelete ?? null,
+        onUpdate: normalizeReferentialAction(option.onUpdate),
+        onDelete: normalizeReferentialAction(option.onDelete),
         deferrable: option.deferrable ?? false,
         initiallyDeferred: option.initiallyDeferred ?? false
       })
