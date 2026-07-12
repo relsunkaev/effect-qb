@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Fixes
+
+- fix(database): canonicalize int and dec/decimal postgres type aliases
+
 ## 4.0.0-beta.92 - 2026-06-30
 
 ### Chores
