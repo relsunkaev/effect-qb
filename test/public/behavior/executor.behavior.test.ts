@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { describe, expect, test } from "bun:test"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import * as BigDecimal from "effect/BigDecimal"
 import * as Schema from "effect/Schema"
@@ -11,7 +10,7 @@ import { Cast, Query as Q, Function as F, Table } from "#standard"
 import { Column as C, Executor, Renderer, Type } from "#postgres"
 import * as StdRoot from "#standard"
 
-const userId = "11111111-1111-1111-1111-111111111111"
+const userId = "11111111-1111-4111-8111-111111111111"
 
 describe("executor behavior", () => {
   test("fromDriver decodes nested rows with null leaves", () => {
@@ -120,11 +119,11 @@ describe("executor behavior", () => {
       ]))
     })
 
-    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+    const result = Effect.runSync(Effect.result(executor.execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -156,11 +155,11 @@ describe("executor behavior", () => {
       ]))
     })
 
-    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+    const result = Effect.runSync(Effect.result(executor.execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -233,7 +232,7 @@ describe("executor behavior", () => {
     } as unknown as SqlClient.SqlClient
 
     const rows = Effect.runSync(
-      Effect.provideService(executor.execute(plan), SqlClient.SqlClient, sql)
+      Effect.provideService(SqlClient.SqlClient)(executor.execute(plan), sql)
     )
 
     expect(rows).toEqual([
@@ -268,9 +267,9 @@ describe("executor behavior", () => {
       ]))
     })
 
-    expect(Effect.runSync(Effect.either(executor.execute(plan)))).toMatchObject({
-      _tag: "Left",
-      left: {
+    expect(Effect.runSync(Effect.result(executor.execute(plan)))).toMatchObject({
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -328,7 +327,7 @@ describe("executor behavior", () => {
       Q.from(events)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           happenedOn: "2026-02-31"
@@ -337,8 +336,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "normalize",
         projection: {
@@ -363,7 +362,7 @@ describe("executor behavior", () => {
       Q.from(events)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           happenedOn: "app:2026-03-18"
@@ -372,8 +371,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "normalize",
         projection: {
@@ -398,7 +397,7 @@ describe("executor behavior", () => {
       Q.from(events)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driverMode: "normalized",
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
@@ -408,8 +407,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -514,7 +513,7 @@ describe("executor behavior", () => {
         Q.from(events)
       )
 
-      const result = Effect.runSync(Effect.either(Executor.make({
+      const result = Effect.runSync(Effect.result(Executor.make({
         driverMode: invalidCase.driverMode,
         driver: Executor.driver("postgres", () => Effect.succeed([
           {
@@ -524,8 +523,8 @@ describe("executor behavior", () => {
       }).execute(plan)))
 
       expect(result).toMatchObject({
-        _tag: "Left",
-        left: {
+        _tag: "Failure",
+        failure: {
           _tag: "RowDecodeError",
           stage: invalidCase.stage,
           projection: {
@@ -654,10 +653,10 @@ describe("executor behavior", () => {
 
   test("fromDriver applies opt-in v4 codecs after canonical normalization", () => {
     const events = Table.make("codec_events", {
-      bigCounter: C.int8().pipe(C.schema(Schema.BigIntFromString)),
-      amount: C.number().pipe(C.schema(Schema.BigDecimalFromString)),
-      activeFor: C.interval().pipe(C.schema(Schema.DurationFromString)),
-      payloadBase64: C.bytea().pipe(C.schema(Schema.flip(Schema.Uint8ArrayFromBase64)))
+      bigCounter: C.int8().pipe(StdRoot.Column.schema(Schema.BigIntFromString)),
+      amount: StdRoot.Column.number().pipe(StdRoot.Column.schema(Schema.BigDecimalFromString)),
+      activeFor: C.interval().pipe(StdRoot.Column.schema(Schema.DurationFromString)),
+      payloadBase64: C.bytea().pipe(StdRoot.Column.schema(Schema.flip(Schema.Uint8ArrayFromBase64)))
     })
 
     const plan = Q.select({
@@ -825,7 +824,7 @@ describe("executor behavior", () => {
     } as unknown as SqlClient.SqlClient
 
     const rows = Effect.runSync(
-      Effect.provideService(executor.execute(plan), SqlClient.SqlClient, sql)
+      Effect.provideService(SqlClient.SqlClient)(executor.execute(plan), sql)
     )
 
     expect(rows).toEqual([
@@ -970,7 +969,7 @@ describe("executor behavior", () => {
       Q.from(docs)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           payload: Number.NaN
@@ -979,8 +978,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "normalize",
         projection: {
@@ -1005,7 +1004,7 @@ describe("executor behavior", () => {
       Q.from(docs)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           payload: new Date("2026-03-18T00:00:00.000Z")
@@ -1014,8 +1013,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "normalize",
         projection: {
@@ -1040,7 +1039,7 @@ describe("executor behavior", () => {
       Q.from(docs)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driverMode: "normalized",
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
@@ -1050,8 +1049,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -1076,7 +1075,7 @@ describe("executor behavior", () => {
       Q.from(docs)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driverMode: "normalized",
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
@@ -1086,8 +1085,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -1112,7 +1111,7 @@ describe("executor behavior", () => {
       Q.from(metrics)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driverMode: "normalized",
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
@@ -1122,8 +1121,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -1148,7 +1147,7 @@ describe("executor behavior", () => {
       Q.from(metrics)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           total: "0x10"
@@ -1157,8 +1156,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "normalize",
         projection: {
@@ -1185,7 +1184,7 @@ describe("executor behavior", () => {
       Q.from(metrics)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driverMode: "normalized",
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
@@ -1196,8 +1195,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema"
       }
@@ -1215,7 +1214,7 @@ describe("executor behavior", () => {
       Q.from(metrics)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driverMode: "normalized",
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
@@ -1225,8 +1224,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -1251,7 +1250,7 @@ describe("executor behavior", () => {
       Q.from(users)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driverMode: "normalized",
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
@@ -1261,8 +1260,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -1285,7 +1284,7 @@ describe("executor behavior", () => {
       Q.from(users)
     )
 
-    const result = Effect.runSync(Effect.either(Executor.make({
+    const result = Effect.runSync(Effect.result(Executor.make({
       driverMode: "normalized",
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
@@ -1295,8 +1294,8 @@ describe("executor behavior", () => {
     }).execute(plan)))
 
     expect(result).toMatchObject({
-      _tag: "Left",
-      left: {
+      _tag: "Failure",
+      failure: {
         _tag: "RowDecodeError",
         stage: "schema",
         projection: {
@@ -1442,8 +1441,8 @@ describe("executor behavior", () => {
 
   test("fromDriver preserves structured schema issues for nested JSON decode failures", () => {
     const users = Table.make("schema_issue_users", {
-      id: C.uuid().pipe(C.primaryKey),
-      profile: C.json(Schema.Struct({
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      profile: C.jsonb(Schema.Struct({
         visits: Schema.NumberFromString,
         nested: Schema.Struct({
           enabled: Schema.Boolean
@@ -1478,7 +1477,7 @@ describe("executor behavior", () => {
       },
       dbType: {
         dialect: "postgres",
-        kind: "json"
+        kind: "jsonb"
       },
       raw: JSON.stringify({
         visits: "not-a-number",
@@ -1494,7 +1493,7 @@ describe("executor behavior", () => {
       }
     })
     expect(error.schemaError).toBeDefined()
-    expect(error.schemaError.message).toContain("visits")
+    expect(error.schemaError.message).toContain("enabled")
     expect(error.schemaError.issue).toBeDefined()
   })
 
@@ -1606,7 +1605,7 @@ describe("executor behavior", () => {
           profile__createdAt: "2026-03-18 10:00:00"
         },
         {
-          profile__id: "22222222-2222-2222-2222-222222222222",
+          profile__id: "22222222-2222-4222-8222-222222222222",
           profile__email: null,
           profile__createdAt: new Date("2026-03-19T11:30:00Z")
         }
@@ -1620,9 +1619,7 @@ describe("executor behavior", () => {
       })
 
       const executedRows = Effect.runSync(executor.execute(plan))
-      const streamedRows = Chunk.toReadonlyArray(
-        Effect.runSync(Stream.runCollect(executor.stream(plan)))
-      )
+      const streamedRows = Effect.runSync(Stream.runCollect(executor.stream(plan)))
 
       expect(streamedRows).toEqual(executedRows)
       expect(streamedRows).toEqual([
@@ -1635,7 +1632,7 @@ describe("executor behavior", () => {
         },
         {
           profile: {
-            id: "22222222-2222-2222-2222-222222222222",
+            id: "22222222-2222-4222-8222-222222222222",
             email: null,
             createdAt: "2026-03-19T11:30:00"
           }
@@ -1655,9 +1652,9 @@ describe("executor behavior", () => {
       )
 
       const flatRows = [
-        { id: "11111111-1111-1111-1111-111111111111" },
-        { id: "22222222-2222-2222-2222-222222222222" },
-        { id: "33333333-3333-3333-3333-333333333333" }
+        { id: "11111111-1111-4111-8111-111111111111" },
+        { id: "22222222-2222-4222-8222-222222222222" },
+        { id: "33333333-3333-4333-8333-333333333333" }
       ]
 
       const executor = Executor.make({
@@ -1667,14 +1664,12 @@ describe("executor behavior", () => {
         })
       })
 
-      const streamedRows = Chunk.toReadonlyArray(
-        Effect.runSync(Stream.runCollect(executor.stream(plan)))
-      )
+      const streamedRows = Effect.runSync(Stream.runCollect(executor.stream(plan)))
 
       expect(streamedRows).toEqual([
-        { id: "11111111-1111-1111-1111-111111111111" },
-        { id: "22222222-2222-2222-2222-222222222222" },
-        { id: "33333333-3333-3333-3333-333333333333" }
+        { id: "11111111-1111-4111-8111-111111111111" },
+        { id: "22222222-2222-4222-8222-222222222222" },
+        { id: "33333333-3333-4333-8333-333333333333" }
       ])
     })
 
@@ -1747,11 +1742,11 @@ describe("executor behavior", () => {
         })
       })
 
-      const result = Effect.runSync(Effect.either(Stream.runCollect(executor.stream(plan))))
+      const result = Effect.runSync(Effect.result(Stream.runCollect(executor.stream(plan))))
 
       expect(result).toMatchObject({
-        _tag: "Left",
-        left: {
+        _tag: "Failure",
+        failure: {
           _tag: "RowDecodeError",
           stage: "schema",
           projection: {
@@ -1788,9 +1783,7 @@ describe("executor behavior", () => {
         })
       })
 
-      const rows = Chunk.toReadonlyArray(
-        Effect.runSync(Stream.runCollect(executor.stream(plan)))
-      )
+      const rows = Effect.runSync(Stream.runCollect(executor.stream(plan)))
 
       expect(rows).toEqual([{ id: userId }])
       expect(streamCalls).toBe(1)
@@ -1815,8 +1808,8 @@ describe("executor behavior", () => {
           execute: () => Effect.succeed([]),
           stream: () =>
             Stream.fromIterable([
-              { id: "11111111-1111-1111-1111-111111111111" },
-              { id: "22222222-2222-2222-2222-222222222222" }
+              { id: "11111111-1111-4111-8111-111111111111" },
+              { id: "22222222-2222-4222-8222-222222222222" }
             ]).pipe(
               Stream.ensuring(Effect.sync(() => {
                 finalized = true
@@ -1825,11 +1818,9 @@ describe("executor behavior", () => {
         })
       })
 
-      const rows = Chunk.toReadonlyArray(
-        Effect.runSync(Stream.runCollect(executor.stream(plan).pipe(Stream.take(1))))
-      )
+      const rows = Effect.runSync(Stream.runCollect(executor.stream(plan).pipe(Stream.take(1))))
 
-      expect(rows).toEqual([{ id: "11111111-1111-1111-1111-111111111111" }])
+      expect(rows).toEqual([{ id: "11111111-1111-4111-8111-111111111111" }])
       expect(finalized).toBe(true)
     })
 
@@ -1851,6 +1842,7 @@ describe("executor behavior", () => {
 
       const executor = Executor.make()
       const sql = {
+        transactionService: SqlClient.TransactionConnection(0),
         reserve: Effect.succeed({
           executeStream<Row extends object>(
             statement: string,
@@ -1868,15 +1860,9 @@ describe("executor behavior", () => {
         })
       } as unknown as SqlClient.SqlClient
 
-      const rows = Chunk.toReadonlyArray(
-        Effect.runSync(
-          Effect.provideService(
-            Stream.runCollect(executor.stream(plan)),
-            SqlClient.SqlClient,
-            sql
-          )
+      const rows = Effect.runSync(
+          Effect.provideService(SqlClient.SqlClient)(Stream.runCollect(executor.stream(plan)), sql)
         )
-      )
 
       expect(rows).toEqual([
         {
@@ -1895,7 +1881,7 @@ describe("executor behavior", () => {
       withTransaction: <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.map(self, (value) => `txn:${String(value)}`)
     } as unknown as SqlClient.SqlClient
 
-    expect(Effect.runSync(Effect.provideService(effect, SqlClient.SqlClient, sql))).toBe("txn:ok")
+    expect(Effect.runSync(Effect.provideService(SqlClient.SqlClient)(effect, sql))).toBe("txn:ok")
   })
 
   test("nested withTransaction calls use the ambient transaction service for savepoint scopes", () => {
@@ -1920,7 +1906,7 @@ describe("executor behavior", () => {
       Executor.withTransaction(Effect.succeed("ok"))
     )
 
-    expect(Effect.runSync(Effect.provideService(effect, SqlClient.SqlClient, sql))).toBe("ok")
+    expect(Effect.runSync(Effect.provideService(SqlClient.SqlClient)(effect, sql))).toBe("ok")
     expect(scopes).toEqual(["transaction", "savepoint"])
   })
 })

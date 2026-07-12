@@ -5,7 +5,7 @@ import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
 import * as StdRoot from "#standard"
 
-const userId = "11111111-1111-1111-1111-111111111111"
+const userId = "11111111-1111-4111-8111-111111111111"
 
 describe("mysql dialect legality", () => {
   test("rejects full outer joins instead of rendering unsupported mysql sql", () => {

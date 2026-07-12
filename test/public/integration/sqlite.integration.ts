@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
-import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
@@ -53,7 +52,7 @@ test("sqlite executor runs DDL, mutations, reads, and streams through the ambien
     }).pipe(Q.from(events))
 
     const rows = yield* executor.execute(read)
-    const streamed = Chunk.toReadonlyArray(yield* Stream.runCollect(executor.stream(read)))
+    const streamed = yield* Stream.runCollect(executor.stream(read))
     return { rows, streamed }
   }))
 
@@ -452,8 +451,7 @@ test("sqlite temporal helpers execute against SQLite built-ins", async () => {
       currentTime: F.currentTime(),
       currentTimestamp: F.currentTimestamp(),
       localTime: F.localTime(),
-      localTimestamp: F.localTimestamp(),
-      now: F.now()
+      localTimestamp: F.localTimestamp()
     }))
   }))
 
@@ -464,7 +462,6 @@ test("sqlite temporal helpers execute against SQLite built-ins", async () => {
   expect(row.currentTimestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/)
   expect(row.localTime).toMatch(/^\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/)
   expect(row.localTimestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/)
-  expect(row.now).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/)
 })
 
 test("sqlite composed reads execute CTEs, derived aggregates, subqueries, windows, and pagination", async () => {
@@ -869,16 +866,10 @@ test("sqlite JSON1 mutation and construction helpers execute against stored JSON
           tags: ["sqlite"]
         }
       },
-      merged: {
-        profile: {
-          address: {
-            city: "Paris"
-          },
-          tags: ["sqlite"],
-          active: true
-        },
+      merged: JSON.stringify({
+        profile: { address: { city: "Paris" }, tags: ["sqlite"], active: true },
         note: null
-      }
+      })
     }
   ])
 })

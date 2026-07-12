@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test"
-import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Schema from "effect/Schema"
@@ -8,6 +7,7 @@ import * as Stream from "effect/Stream"
 import { Column as C, Table } from "#standard"
 import { Function as F, Query as Q } from "#standard"
 import { Executor, Type } from "#postgres"
+import * as Postgres from "#postgres"
 import { createDeferred, execPostgres, runPostgres } from "./helpers.ts"
 
 const eventsTableName = "integration_pg_events"
@@ -71,7 +71,7 @@ const makeLatestPostPlan = () => {
   }).pipe(
     Q.from(users),
     Q.innerJoin(publishedPosts, Q.eq(users.id, publishedPosts.userId)),
-    Q.distinctOn(users.id),
+    Postgres.Query.distinctOn(users.id),
     Q.orderBy(users.id),
     Q.orderBy(publishedPosts.publishedAt, "desc")
   )
@@ -199,9 +199,7 @@ test("postgres executor streams live temporal, numeric, and json values", async 
     Q.from(events)
   )
 
-  const rows = Chunk.toReadonlyArray(
-    await runPostgres(Stream.runCollect(Executor.make().stream(plan)))
-  )
+  const rows = await runPostgres(Stream.runCollect(Executor.make().stream(plan)))
 
   expect(rows).toHaveLength(1)
   const row = rows[0]!
@@ -257,7 +255,7 @@ test("postgres executor keeps outer mutations after a nested transaction rollbac
     yield* sql.withTransaction(
       Effect.gen(function*() {
         yield* executor.execute(insertAudit)
-        yield* Effect.catchAll(
+        yield* Effect.catch(
           sql.withTransaction(
             Effect.gen(function*() {
               yield* executor.execute(updateAudit)
@@ -302,14 +300,12 @@ test("postgres executor streams uncommitted rows inside a transaction and rolls 
 
   await runPostgres(Effect.gen(function*() {
     const sql = yield* SqlClient.SqlClient
-    yield* Effect.catchAll(
+    yield* Effect.catch(
       sql.withTransaction(
         Effect.gen(function*() {
           yield* executor.execute(insertAudit)
 
-          const rows = Chunk.toReadonlyArray(
-            yield* Stream.runCollect(executor.stream(readAudit))
-          )
+          const rows = yield* Stream.runCollect(executor.stream(readAudit))
 
           expect(rows).toEqual([
             {
@@ -363,7 +359,7 @@ test("postgres lock nowait failures are normalized from live row locks", async (
 
   await locked.promise
 
-  const contender = await runPostgres(Effect.either(Effect.gen(function*() {
+  const contender = await runPostgres(Effect.result(Effect.gen(function*() {
     const sql = yield* SqlClient.SqlClient
     return yield* sql.withTransaction(executor.execute(nowaitPlan))
   })))
@@ -371,15 +367,15 @@ test("postgres lock nowait failures are normalized from live row locks", async (
   release.resolve()
   await holder
 
-  expect(contender._tag).toBe("Left")
-  if (contender._tag !== "Left") {
+  expect(contender._tag).toBe("Failure")
+  if (contender._tag !== "Failure") {
     throw new Error("Expected Postgres lock failure")
   }
 
-  expect(contender.left._tag).toBe("@postgres/object-not-in-prerequisite-state/lock-not-available")
-  expect("query" in contender.left).toBe(true)
-  if (!("query" in contender.left) || !contender.left.query) {
+  expect(contender.failure._tag).toBe("@postgres/object-not-in-prerequisite-state/lock-not-available")
+  expect("query" in contender.failure).toBe(true)
+  if (!("query" in contender.failure) || !contender.failure.query) {
     throw new Error("Expected rendered query details on Postgres lock failure")
   }
-  expect(contender.left.query.sql).toContain('for update nowait')
+  expect(contender.failure.query.sql).toContain('for update nowait')
 })

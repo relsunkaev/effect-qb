@@ -51,7 +51,7 @@ describe("postgres schema composition", () => {
     )
 
     const rendered = Pg.Renderer.make().render(Query.insert(events, {
-      id: "11111111-1111-1111-1111-111111111111",
+      id: "11111111-1111-4111-8111-111111111111",
       createdAt: "2026-05-23T12:00:00",
       meta: { kind: "created" }
     }))

@@ -7,8 +7,8 @@ import { Query as Q, Function as F, Table } from "#standard"
 import { Column as C, Executor, Renderer, Type } from "#postgres"
 import * as StdRoot from "#standard"
 
-const userId = "11111111-1111-1111-1111-111111111111"
-const postId = "22222222-2222-2222-2222-222222222222"
+const userId = "11111111-1111-4111-8111-111111111111"
+const postId = "22222222-2222-4222-8222-222222222222"
 
 describe("implication behavior", () => {
   test("fromDriver remaps nested projection paths while preserving null joined siblings", () => {
@@ -220,10 +220,10 @@ describe("implication behavior", () => {
 
   test("predicate facts keep dotted table and column names distinct", () => {
     const dottedTable = Table.make("a.b", {
-      status: C.custom(Schema.Literals(["left", "right"]), Type.text())
+      status: C.custom(Schema.Literals(["left", "right"]), StdRoot.Query.type.text())
     })
     const splitTable = Table.make("a", {
-      "b.status": C.custom(Schema.Literals(["left", "right"]), Type.text())
+      "b.status": C.custom(Schema.Literals(["left", "right"]), StdRoot.Query.type.text())
     })
 
     const plan = Q.select({
@@ -254,10 +254,10 @@ describe("implication behavior", () => {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
     const dottedTable = Table.make("a.b", {
-      status: C.custom(Schema.Literals(["left", "right"]), Type.text())
+      status: C.custom(Schema.Literals(["left", "right"]), StdRoot.Query.type.text())
     })
     const splitTable = Table.make("a", {
-      "b.status": C.custom(Schema.Literals(["left", "right"]), Type.text())
+      "b.status": C.custom(Schema.Literals(["left", "right"]), StdRoot.Query.type.text())
     })
 
     const plan = Q.select({

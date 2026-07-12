@@ -29,7 +29,6 @@ const unwrapPostgresDriverCause = (cause: unknown): unknown => {
   while (
     isRecord(current) &&
     "_tag" in current &&
-    current._tag === "SqlError" &&
     "cause" in current
   ) {
     current = current.cause

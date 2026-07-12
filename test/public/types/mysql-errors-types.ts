@@ -48,7 +48,7 @@ const driver = Mysql.Executor.driver(() =>
     code: "ER_DUP_ENTRY",
     errno: 1062,
     sqlState: "23000",
-    sqlMessage: "Duplicate entry '11111111-1111-1111-1111-111111111111' for key 'PRIMARY'"
+    sqlMessage: "Duplicate entry '11111111-1111-4111-8111-111111111111' for key 'PRIMARY'"
   }))
 
 const executor = Mysql.Executor.make({ driver })

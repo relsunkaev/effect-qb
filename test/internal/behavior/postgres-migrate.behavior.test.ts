@@ -50,11 +50,7 @@ describe("postgres migrations", () => {
     } as unknown as SqlClient.SqlClient
 
     await Effect.runPromise(
-      Effect.provideService(
-        ensureMigrationTable(`"tenant.a"."effect.db_migrations"`),
-        SqlClient.SqlClient,
-        sql
-      )
+      Effect.provideService(SqlClient.SqlClient)(ensureMigrationTable(`"tenant.a"."effect.db_migrations"`), sql)
     )
 
     expect(statements).toEqual([
@@ -118,11 +114,7 @@ describe("postgres migrations", () => {
     let failed = false
     try {
       await Effect.runPromise(
-        Effect.provideService(
-          readAppliedMigrationRows("effect_qb_migrations"),
-          SqlClient.SqlClient,
-          sql
-        )
+        Effect.provideService(SqlClient.SqlClient)(readAppliedMigrationRows("effect_qb_migrations"), sql)
       )
     } catch (error) {
       failed = true

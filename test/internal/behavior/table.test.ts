@@ -13,7 +13,7 @@ import { Column as C, Executor, Renderer } from "#postgres"
 import { unsafeAny, unsafeNever } from "../../helpers/unsafe.ts"
 import * as StdRoot from "#standard"
 
-const userId = "11111111-1111-1111-1111-111111111111"
+const userId = "11111111-1111-4111-8111-111111111111"
 
 describe("table definitions", () => {
   test("factory tables expose direct columns and schemas", () => {
@@ -977,7 +977,7 @@ describe("table definitions", () => {
     } as unknown as SqlClient.SqlClient
 
     const rows = Effect.runSync(
-      Effect.provideService(executor.execute(plan), SqlClient.SqlClient, sql)
+      Effect.provideService(SqlClient.SqlClient)(executor.execute(plan), sql)
     )
 
     expect(rows).toEqual([
