@@ -2454,4 +2454,30 @@ export const users = (() => Table.make("users", {
       await rm(tempDir, { recursive: true, force: true })
     }
   })
+
+  test("schema diff treats 'int' source columns and introspected 'integer' columns as equal", () => {
+    const sourceUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      age: StdRoot.Column.int()
+    })
+    const databaseUsers = StdRoot.Table.make("users", {
+      id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+      age: StdRoot.Column.int()
+    })
+
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [toTableModel(sourceUsers as unknown as Parameters<typeof toTableModel>[0])]
+    }
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [toTableModel(databaseUsers as unknown as Parameters<typeof toTableModel>[0])]
+    }
+    // Introspection reports the canonical type name, not the DDL alias.
+    ;(database.tables[0]!.columns.find((column) => column.name === "age") as { ddlType: string }).ddlType = "integer"
+
+    expect(planPostgresSchemaDiff(source, database).changes).toEqual([])
+  })
 })

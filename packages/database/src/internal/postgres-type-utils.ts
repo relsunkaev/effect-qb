@@ -87,10 +87,14 @@ const canonicalBaseType = (value: string): string => {
       return "bool"
     case "smallint":
       return "int2"
+    case "int":
     case "integer":
       return "int4"
     case "bigint":
       return "int8"
+    case "dec":
+    case "decimal":
+      return "numeric"
     case "real":
       return "float4"
     case "double precision":
