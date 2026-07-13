@@ -18,6 +18,10 @@ All notable changes to this project are documented here.
 - test: repair stale suite for effect 4.0.0-beta.92
 - test(pack): use declared Effect peer version
 
+### Docs
+
+- docs(readme): update beta install command
+
 ### Chores
 
 - chore(beads): record beta.92 publish blocker
