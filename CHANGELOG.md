@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 4.0.0-beta.98 - 2026-07-13
+
+### Fixes
+
+- fix(database): canonicalize int and dec/decimal postgres type aliases
+- fix(database): treat explicit noAction referential actions as the default
+- fix(ci): publish npm packages with trusted authentication
+
+### Tests
+
+- test: repair stale suite for effect 4.0.0-beta.92
+
+### Chores
+
+- chore(beads): record beta.92 publish blocker
+- chore(beads): close beta.92 release
+- chore(effect): update beta dependencies to beta.98
+
 ### Fixes
 
 - fix(database): canonicalize int and dec/decimal postgres type aliases
