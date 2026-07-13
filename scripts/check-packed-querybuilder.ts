@@ -62,6 +62,14 @@ const run = async (
 }
 
 const main = async () => {
+  const querybuilderPackage = JSON.parse(await Bun.file(join(querybuilderPackageDir, "package.json")).text()) as {
+    readonly peerDependencies?: { readonly effect?: string }
+  }
+  const effectVersion = querybuilderPackage.peerDependencies?.effect
+  if (effectVersion === undefined) {
+    throw new Error("effect-qb must declare an effect peer dependency")
+  }
+
   const packedTarball = await querybuilderTarballPath()
   const packedDatabaseTarball = await databaseTarballPath()
   const consumerDir = await mkdtemp(join(tmpdir(), "effect-qb-pack-smoke-"))
@@ -72,7 +80,7 @@ const main = async () => {
       private: true,
       type: "module",
       dependencies: {
-        "effect": "4.0.0-beta.92",
+        "effect": effectVersion,
         "effect-db": `file:${packedDatabaseTarball}`,
         "effect-qb": `file:${packedTarball}`
       },

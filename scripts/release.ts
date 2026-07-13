@@ -322,7 +322,7 @@ const renderChangelogSection = (version: string, commits: ReadonlyArray<Commit>)
   ].join("\n").trimEnd()
 }
 
-const insertChangelogSection = (existing: string, section: string): string => {
+export const insertChangelogSection = (existing: string, section: string): string => {
   const unreleasedMarker = "## Unreleased"
   const unreleasedIndex = existing.indexOf(unreleasedMarker)
 
@@ -330,15 +330,16 @@ const insertChangelogSection = (existing: string, section: string): string => {
     return `${existing.trimEnd()}\n\n${section}\n`
   }
 
-  const afterUnreleased = existing.indexOf("\n\n", unreleasedIndex)
+  const afterUnreleased = existing.indexOf("\n", unreleasedIndex)
 
   if (afterUnreleased === -1) {
     return `${existing.trimEnd()}\n\n${section}\n`
   }
 
-  const prefix = existing.slice(0, afterUnreleased + 2)
-  const suffix = existing.slice(afterUnreleased + 2).trimStart()
-  return `${prefix}${section}\n\n${suffix}`
+  const nextSection = existing.indexOf("\n## ", afterUnreleased)
+  const prefix = existing.slice(0, afterUnreleased + 1)
+  const suffix = nextSection === -1 ? "" : existing.slice(nextSection + 1).trimStart()
+  return `${prefix}\n${section}\n${suffix ? `\n${suffix}` : ""}`
 }
 
 const main = async () => {
@@ -404,4 +405,6 @@ const main = async () => {
   }
 }
 
-await main()
+if (import.meta.main) {
+  await main()
+}
