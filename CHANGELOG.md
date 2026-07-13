@@ -16,6 +16,7 @@ All notable changes to this project are documented here.
 ### Tests
 
 - test: repair stale suite for effect 4.0.0-beta.92
+- test(pack): use declared Effect peer version
 
 ### Chores
 
