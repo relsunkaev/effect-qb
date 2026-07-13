@@ -212,7 +212,7 @@ describe("select sources behavior", () => {
 
   test("rejects mutation plans in subquery expressions before rendering invalid nested sql", () => {
     const insertPlan = StdRoot.Query.insert(pgUsers, {
-      id: "11111111-1111-1111-1111-111111111111",
+      id: "11111111-1111-4111-8111-111111111111",
       email: "alice@example.com"
     })
     const plan = StdRoot.Query.select({

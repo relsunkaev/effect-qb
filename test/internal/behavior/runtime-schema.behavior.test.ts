@@ -4,6 +4,7 @@ import * as Schema from "effect/Schema"
 
 import { expressionRuntimeSchema } from "#internal/runtime/schema.ts"
 import * as Postgres from "#postgres"
+import { Column, Json, Table } from "#standard"
 
 const schemaOf = (expression: unknown): Schema.Top => {
   const schema = expressionRuntimeSchema(expression as never)
@@ -16,8 +17,8 @@ const decode = (expression: unknown, value: unknown): unknown =>
 
 describe("runtime schema inference", () => {
   test("narrows exact JSON object paths and preserves refined leaves", () => {
-    const docs = Postgres.Table.make("schema_docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docs = Table.make("schema_docs", {
+      id: Column.uuid().pipe(Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Struct({
         profile: Schema.Struct({
           city: Schema.String.check(Schema.isMaxLength(5))
@@ -25,40 +26,28 @@ describe("runtime schema inference", () => {
       }))
     })
 
-    const city = Postgres.Json.jsonb.get(
-      docs.payload,
-      Postgres.Json.jsonb.path(
-        Postgres.Json.jsonb.key("profile"),
-        Postgres.Json.jsonb.key("city")
-      )
-    )
+    const city = Postgres.Jsonb.get(docs.payload.profile.city)
 
     expect(decode(city, "Paris")).toBe("Paris")
     expect(() => decode(city, "Phoenix")).toThrow()
   })
 
   test("narrows exact JSON tuple indexes and preserves transformations", () => {
-    const docs = Postgres.Table.make("schema_tuple_docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docs = Table.make("schema_tuple_docs", {
+      id: Column.uuid().pipe(Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Struct({
         tags: Schema.Tuple([Schema.String, Schema.NumberFromString])
       }))
     })
 
-    const secondTag = Postgres.Json.jsonb.get(
-      docs.payload,
-      Postgres.Json.jsonb.path(
-        Postgres.Json.jsonb.key("tags"),
-        Postgres.Json.jsonb.index(1)
-      )
-    )
+    const secondTag = Postgres.Jsonb.get(docs.payload.tags[1])
 
     expect(decode(secondTag, "42")).toBe(42)
   })
 
   test("narrows JSON paths through unions", () => {
-    const docs = Postgres.Table.make("schema_union_docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docs = Table.make("schema_union_docs", {
+      id: Column.uuid().pipe(Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Union([
         Schema.Struct({
           kind: Schema.Literal("signup"),
@@ -71,10 +60,7 @@ describe("runtime schema inference", () => {
       ]))
     })
 
-    const kind = Postgres.Json.jsonb.get(
-      docs.payload,
-      Postgres.Json.jsonb.key("kind")
-    )
+    const kind = Postgres.Jsonb.get(docs.payload.kind)
 
     expect(decode(kind, "signup")).toBe("signup")
     expect(decode(kind, "purchase")).toBe("purchase")
@@ -82,8 +68,8 @@ describe("runtime schema inference", () => {
   })
 
   test("handles optional JSON properties and falls back for missing paths", () => {
-    const docs = Postgres.Table.make("schema_optional_docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docs = Table.make("schema_optional_docs", {
+      id: Column.uuid().pipe(Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Struct({
         profile: Schema.Struct({
           nickname: Schema.optional(Schema.String.check(Schema.isMaxLength(4)))
@@ -91,20 +77,8 @@ describe("runtime schema inference", () => {
       }))
     })
 
-    const nickname = Postgres.Json.jsonb.get(
-      docs.payload,
-      Postgres.Json.jsonb.path(
-        Postgres.Json.jsonb.key("profile"),
-        Postgres.Json.jsonb.key("nickname")
-      )
-    )
-    const missing = Postgres.Json.jsonb.get(
-      docs.payload,
-      Postgres.Json.jsonb.path(
-        Postgres.Json.jsonb.key("profile"),
-        Postgres.Json.jsonb.key("unknown")
-      )
-    )
+    const nickname = Postgres.Jsonb.get(docs.payload.profile.nickname)
+    const missing = Postgres.Jsonb.get(docs.payload.profile, Postgres.Jsonb.key("unknown"))
 
     expect(decode(nickname, "Rami")).toBe("Rami")
     expect(() => decode(nickname, "Ramazan")).toThrow()
@@ -114,27 +88,15 @@ describe("runtime schema inference", () => {
   })
 
   test("falls back to JSON value schemas for wildcard paths", () => {
-    const docs = Postgres.Table.make("schema_wildcard_docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
+    const docs = Table.make("schema_wildcard_docs", {
+      id: Column.uuid().pipe(Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Struct({
         tags: Schema.Tuple([Schema.String, Schema.NumberFromString])
       }))
     })
 
-    const exactSecondTag = Postgres.Json.jsonb.get(
-      docs.payload,
-      Postgres.Json.jsonb.path(
-        Postgres.Json.jsonb.key("tags"),
-        Postgres.Json.jsonb.index(1)
-      )
-    )
-    const wildcardTags = Postgres.Json.jsonb.get(
-      docs.payload,
-      Postgres.Json.jsonb.path(
-        Postgres.Json.jsonb.key("tags"),
-        Postgres.Json.jsonb.wildcard()
-      )
-    )
+    const exactSecondTag = Postgres.Jsonb.get(docs.payload.tags[1])
+    const wildcardTags = Postgres.Jsonb.get(docs.payload.tags, Postgres.Jsonb.wildcard())
 
     expect(decode(exactSecondTag, "42")).toBe(42)
     expect(decode(wildcardTags, "42")).toBe("42")
@@ -142,20 +104,20 @@ describe("runtime schema inference", () => {
   })
 
   test("keeps JSON-compatible toJson schemas and falls back for non-JSON schemas", () => {
-    const docs = Postgres.Table.make("schema_to_json_docs", {
-      id: Postgres.Column.uuid().pipe(Postgres.Column.primaryKey),
-      shortCode: Postgres.Column.text().pipe(
-        Postgres.Column.schema(Schema.String.check(Schema.isMaxLength(3)))
+    const docs = Table.make("schema_to_json_docs", {
+      id: Column.uuid().pipe(Column.primaryKey),
+      shortCode: Column.text().pipe(
+        Column.schema(Schema.String.check(Schema.isMaxLength(3)))
       ),
       payloadBytes: Postgres.Column.bytea()
     })
 
-    const shortCodeJson = Postgres.Json.json.toJson(docs.shortCode)
-    const bytesJson = Postgres.Json.json.toJson(docs.payloadBytes)
+    const shortCodeJson = Json.toJson(docs.shortCode)
+    const bytesJson = Json.toJson(docs.payloadBytes)
 
     expect(decode(shortCodeJson, "abc")).toBe("abc")
     expect(() => decode(shortCodeJson, "abcd")).toThrow()
     expect(decode(bytesJson, "AQID")).toBe("AQID")
-    expect(() => decode(bytesJson, new Uint8Array([1, 2, 3]))).toThrow()
+    expect(decode(bytesJson, new Uint8Array([1, 2, 3]))).toEqual({ 0: 1, 1: 2, 2: 3 })
   })
 })

@@ -15,7 +15,7 @@ const readPlan = Q.select({
 )
 
 const insertPlan = Q.insert(users, {
-  id: "11111111-1111-1111-1111-111111111111",
+  id: "11111111-1111-4111-8111-111111111111",
   email: "alice@example.com"
 })
 

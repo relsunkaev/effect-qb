@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import * as Either from "effect/Either"
+import * as Result from "effect/Result"
 import * as Effect from "effect/Effect"
 import * as Stream from "effect/Stream"
 
@@ -75,13 +75,13 @@ describe("mysql errors", () => {
         }))
     })
 
-    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+    const result = Effect.runSync(Effect.result(executor.execute(plan)))
 
-    expect(Either.isLeft(result)).toBe(true)
-    if (Either.isRight(result)) {
+    expect(Result.isFailure(result)).toBe(true)
+    if (Result.isSuccess(result)) {
       throw new Error("Expected MySQL failure")
     }
-    const error = result.left
+    const error = result.failure
     if (!("_tag" in error) || error._tag !== "@mysql/unknown/query-requirements") {
       throw new Error(`Expected @mysql/unknown/query-requirements, got ${String(error)}`)
     }
@@ -103,7 +103,7 @@ describe("mysql errors", () => {
     })
 
     const plan = StdRoot.Query.insert(users, {
-      id: "11111111-1111-1111-1111-111111111111",
+      id: "11111111-1111-4111-8111-111111111111",
       email: "alice@example.com"
     })
 
@@ -119,13 +119,13 @@ describe("mysql errors", () => {
         }))
     })
 
-    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+    const result = Effect.runSync(Effect.result(executor.execute(plan)))
 
-    expect(Either.isLeft(result)).toBe(true)
-    if (Either.isRight(result)) {
+    expect(Result.isFailure(result)).toBe(true)
+    if (Result.isSuccess(result)) {
       throw new Error("Expected MySQL failure")
     }
-    const error = result.left
+    const error = result.failure
     if (!("_tag" in error) || error._tag !== "@mysql/server/dup-entry") {
       throw new Error(`Expected @mysql/server/dup-entry, got ${String(error)}`)
     }
@@ -161,13 +161,13 @@ describe("mysql errors", () => {
       })
     })
 
-    const result = Effect.runSync(Effect.either(Stream.runCollect(executor.stream(plan))))
+    const result = Effect.runSync(Effect.result(Stream.runCollect(executor.stream(plan))))
 
-    expect(Either.isLeft(result)).toBe(true)
-    if (Either.isRight(result)) {
+    expect(Result.isFailure(result)).toBe(true)
+    if (Result.isSuccess(result)) {
       throw new Error("Expected MySQL stream failure")
     }
-    const error = result.left
+    const error = result.failure
     if (!("_tag" in error) || error._tag !== "@mysql/unknown/query-requirements") {
       throw new Error(`Expected @mysql/unknown/query-requirements, got ${String(error)}`)
     }
@@ -196,13 +196,13 @@ describe("mysql errors", () => {
         }))
     })
 
-    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+    const result = Effect.runSync(Effect.result(executor.execute(plan)))
 
-    expect(Either.isLeft(result)).toBe(true)
-    if (Either.isRight(result)) {
+    expect(Result.isFailure(result)).toBe(true)
+    if (Result.isSuccess(result)) {
       throw new Error("Expected MySQL failure")
     }
-    const error = result.left
+    const error = result.failure
     if (!("_tag" in error) || error._tag !== "@mysql/client/connection-error") {
       throw new Error(`Expected @mysql/client/connection-error, got ${String(error)}`)
     }
@@ -235,14 +235,14 @@ describe("mysql errors", () => {
     } as unknown as SqlClient.SqlClient
 
     const result = Effect.runSync(
-      Effect.either(Effect.provideService(executor.execute(plan), SqlClient.SqlClient, sql))
+      Effect.result(Effect.provideService(SqlClient.SqlClient)(executor.execute(plan), sql))
     )
 
-    expect(Either.isLeft(result)).toBe(true)
-    if (Either.isRight(result)) {
+    expect(Result.isFailure(result)).toBe(true)
+    if (Result.isSuccess(result)) {
       throw new Error("Expected MySQL failure")
     }
-    const error = result.left
+    const error = result.failure
     if (!("_tag" in error) || error._tag !== "@mysql/server/parse-error") {
       throw new Error(`Expected @mysql/server/parse-error, got ${String(error)}`)
     }
@@ -277,6 +277,7 @@ describe("mysql errors", () => {
 
     const executor = Mysql.Executor.make()
     const sql = {
+      transactionService: SqlClient.TransactionConnection(0),
       reserve: Effect.succeed({
         executeStream: () => Stream.fail({
           code: "ER_PARSE_ERROR",
@@ -288,14 +289,14 @@ describe("mysql errors", () => {
     } as unknown as SqlClient.SqlClient
 
     const result = Effect.runSync(
-      Effect.either(Effect.provideService(Stream.runCollect(executor.stream(plan)), SqlClient.SqlClient, sql))
+      Effect.result(Effect.provideService(SqlClient.SqlClient)(Stream.runCollect(executor.stream(plan)), sql))
     )
 
-    expect(Either.isLeft(result)).toBe(true)
-    if (Either.isRight(result)) {
+    expect(Result.isFailure(result)).toBe(true)
+    if (Result.isSuccess(result)) {
       throw new Error("Expected MySQL stream failure")
     }
-    const error = result.left
+    const error = result.failure
     if (!("_tag" in error) || error._tag !== "@mysql/server/parse-error") {
       throw new Error(`Expected @mysql/server/parse-error, got ${String(error)}`)
     }
@@ -338,13 +339,13 @@ describe("mysql errors", () => {
         }))
     })
 
-    const result = Effect.runSync(Effect.either(executor.execute(plan)))
+    const result = Effect.runSync(Effect.result(executor.execute(plan)))
 
-    expect(Either.isLeft(result)).toBe(true)
-    if (Either.isRight(result)) {
+    expect(Result.isFailure(result)).toBe(true)
+    if (Result.isSuccess(result)) {
       throw new Error("Expected MySQL failure")
     }
-    const error = result.left
+    const error = result.failure
     if (!("_tag" in error) || error._tag !== "@mysql/unknown/query-requirements") {
       throw new Error(`Expected @mysql/unknown/query-requirements, got ${String(error)}`)
     }

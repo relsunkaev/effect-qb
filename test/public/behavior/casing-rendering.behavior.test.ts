@@ -204,7 +204,7 @@ describe("casing rendering behavior", () => {
         displayName: StdRoot.Query.excluded(users.displayName)
       }
     })(StdRoot.Query.insert(users, {
-      id: "11111111-1111-1111-1111-111111111111",
+      id: "11111111-1111-4111-8111-111111111111",
       emailAddress: "alice@example.com",
       displayName: "Alice"
     }))
@@ -214,7 +214,7 @@ describe("casing rendering behavior", () => {
         displayName: StdRoot.Query.excluded(users.displayName)
       }
     })(StdRoot.Query.insert(users, {
-      id: "11111111-1111-1111-1111-111111111111",
+      id: "11111111-1111-4111-8111-111111111111",
       emailAddress: "alice@example.com",
       displayName: "Alice"
     }))
@@ -224,7 +224,7 @@ describe("casing rendering behavior", () => {
         displayName: StdRoot.Query.excluded(users.displayName)
       }
     })(StdRoot.Query.insert(users, {
-      id: "11111111-1111-1111-1111-111111111111",
+      id: "11111111-1111-4111-8111-111111111111",
       emailAddress: "alice@example.com",
       displayName: "Alice"
     }))
@@ -251,7 +251,7 @@ describe("casing rendering behavior", () => {
       })
     )
 
-    const id = "11111111-1111-1111-1111-111111111111"
+    const id = "11111111-1111-4111-8111-111111111111"
     const mysqlPlan = StdRoot.Query.update(users, {
       displayName: "Alice"
     }).pipe(
@@ -341,7 +341,7 @@ describe("casing rendering behavior", () => {
     })
 
     const plan = Query.insert(users, {
-      id: "11111111-1111-1111-1111-111111111111",
+      id: "11111111-1111-4111-8111-111111111111",
       createdAt: "2026-05-23T12:00:00"
     })
 

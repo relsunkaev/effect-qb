@@ -40,7 +40,7 @@ const at = (base: any, ...segments: readonly any[]) =>
   segments.reduce((value, segment) => value.pipe(segment), base)
 
 describe("json behavior", () => {
-  const jsonDocId = "11111111-1111-1111-1111-111111111111"
+  const jsonDocId = "11111111-1111-4111-8111-111111111111"
 
   test("postgres renders the shared json surface for json columns", () => {
     const docs = makeJsonTable(Postgres)
