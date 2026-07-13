@@ -2480,4 +2480,40 @@ export const users = (() => Table.make("users", {
 
     expect(planPostgresSchemaDiff(source, database).changes).toEqual([])
   })
+
+  test("schema diff treats explicit 'noAction' referential actions as the default", () => {
+    const makeUsers = () =>
+      StdRoot.Table.make("users", {
+        id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
+        orgId: StdRoot.Column.uuid()
+      })
+    const withForeignKey = (table: unknown, extra: Record<string, unknown>) => {
+      ;(table as any)[StdRoot.Table.OptionsSymbol] = [
+        ...(table as any)[StdRoot.Table.OptionsSymbol],
+        {
+          kind: "foreignKey",
+          columns: ["orgId"],
+          references: { tableName: "orgs", columns: ["id"], knownColumns: ["id"] },
+          ...extra
+        }
+      ]
+      return table
+    }
+
+    const source: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [toTableModel(withForeignKey(makeUsers(), {}) as Parameters<typeof toTableModel>[0])]
+    }
+    // Introspection reports the default referential actions explicitly.
+    const database: SchemaModel = {
+      dialect: "postgres",
+      enums: [],
+      tables: [toTableModel(
+        withForeignKey(makeUsers(), { onUpdate: "noAction", onDelete: "noAction" }) as Parameters<typeof toTableModel>[0]
+      )]
+    }
+
+    expect(planPostgresSchemaDiff(source, database).changes).toEqual([])
+  })
 })

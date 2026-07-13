@@ -7,6 +7,7 @@ All notable changes to this project are documented here.
 ### Fixes
 
 - fix(database): canonicalize int and dec/decimal postgres type aliases
+- fix(database): treat explicit noAction referential actions as the default in schema diffs
 - fix(querybuilder): skip runtime literal schemas for non-finite numbers so renderers report them
 - fix(querybuilder): unwrap effect sql error reason wrappers when normalizing driver errors
 
