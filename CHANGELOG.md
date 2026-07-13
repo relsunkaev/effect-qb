@@ -11,6 +11,7 @@ All notable changes to this project are documented here.
 - fix(database): canonicalize int and dec/decimal postgres type aliases
 - fix(database): treat explicit noAction referential actions as the default
 - fix(ci): publish npm packages with trusted authentication
+- fix(release): consume unreleased changelog entries
 
 ### Tests
 
@@ -21,18 +22,6 @@ All notable changes to this project are documented here.
 - chore(beads): record beta.92 publish blocker
 - chore(beads): close beta.92 release
 - chore(effect): update beta dependencies to beta.98
-
-### Fixes
-
-- fix(database): canonicalize int and dec/decimal postgres type aliases
-- fix(database): treat explicit noAction referential actions as the default in schema diffs
-- fix(querybuilder): skip runtime literal schemas for non-finite numbers so renderers report them
-- fix(querybuilder): unwrap effect sql error reason wrappers when normalizing driver errors
-
-### Other
-
-- test: repair stale suite for effect 4.0.0-beta.92
-- ci: smoke test current package entrypoints
 
 ## 4.0.0-beta.92 - 2026-06-30
 
@@ -1165,4 +1154,3 @@ All notable changes to this project are documented here.
 - Bootstrap effect-db with typed SQL core and dialect renderers
 - Rename package to effect-qb and tighten query type semantics
 - Implement predicate analysis and Postgres error normalization
-
