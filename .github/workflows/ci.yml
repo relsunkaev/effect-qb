@@ -75,10 +75,15 @@ jobs:
       - name: Smoke test published entrypoints
         run: |
           node --input-type=module <<'EOF'
-          import * as QueryBuilder from "./packages/querybuilder/dist/postgres.js"
+          import * as Root from "./packages/querybuilder/dist/index.js"
+          import * as Postgres from "./packages/querybuilder/dist/postgres.js"
           import * as Database from "./packages/database/dist/index.js"
 
-          if (typeof QueryBuilder.Query?.select !== "function") {
+          if (typeof Root.Query?.select !== "function") {
+            throw new Error("querybuilder root entrypoint did not load")
+          }
+
+          if (typeof Postgres.Renderer?.make !== "function" || typeof Postgres.Executor?.make !== "function") {
             throw new Error("querybuilder postgres entrypoint did not load")
           }
 

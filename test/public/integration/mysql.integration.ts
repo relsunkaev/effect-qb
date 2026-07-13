@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test"
-import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Schema from "effect/Schema"
@@ -221,9 +220,7 @@ test("mysql executor streams live temporal, numeric, and json values", async () 
     Q.from(events)
   )
 
-  const rows = Chunk.toReadonlyArray(
-    await runMysql(Stream.runCollect(Executor.make().stream(plan)))
-  )
+  const rows = await runMysql(Stream.runCollect(Executor.make().stream(plan)))
 
   expect(rows).toHaveLength(1)
   const row = rows[0]!
@@ -300,7 +297,7 @@ test("mysql executor keeps outer mutations after a nested transaction rollback a
       Effect.gen(function*() {
         yield* executor.execute(insertAudit)
         yield* executor.execute(promoteOnePending)
-        yield* Effect.catchAll(
+        yield* Effect.catch(
           sql.withTransaction(
             Effect.gen(function*() {
               yield* executor.execute(updateAudit)
@@ -359,14 +356,12 @@ test("mysql executor streams uncommitted rows inside a transaction and rolls the
 
   await runMysql(Effect.gen(function*() {
     const sql = yield* SqlClient.SqlClient
-    yield* Effect.catchAll(
+    yield* Effect.catch(
       sql.withTransaction(
         Effect.gen(function*() {
           yield* executor.execute(insertAudit)
 
-          const rows = Chunk.toReadonlyArray(
-            yield* Stream.runCollect(executor.stream(readAudit))
-          )
+          const rows = yield* Stream.runCollect(executor.stream(readAudit))
 
           expect(rows).toEqual([
             {
@@ -420,7 +415,7 @@ test("mysql lock nowait failures are normalized from live row locks", async () =
 
   await locked.promise
 
-  const contender = await runMysql(Effect.either(Effect.gen(function*() {
+  const contender = await runMysql(Effect.result(Effect.gen(function*() {
     const sql = yield* SqlClient.SqlClient
     return yield* sql.withTransaction(executor.execute(nowaitPlan))
   })))
@@ -428,15 +423,15 @@ test("mysql lock nowait failures are normalized from live row locks", async () =
   release.resolve()
   await holder
 
-  expect(contender._tag).toBe("Left")
-  if (contender._tag !== "Left") {
+  expect(contender._tag).toBe("Failure")
+  if (contender._tag !== "Failure") {
     throw new Error("Expected MySQL lock failure")
   }
 
-  expect(contender.left._tag).toBe("@mysql/server/lock-nowait")
-  expect("query" in contender.left).toBe(true)
-  if (!("query" in contender.left) || !contender.left.query) {
+  expect(contender.failure._tag).toBe("@mysql/server/lock-nowait")
+  expect("query" in contender.failure).toBe(true)
+  if (!("query" in contender.failure) || !contender.failure.query) {
     throw new Error("Expected rendered query details on MySQL lock failure")
   }
-  expect(contender.left.query.sql).toContain("for update nowait")
+  expect(contender.failure.query.sql).toContain("for update nowait")
 })

@@ -7,6 +7,13 @@ All notable changes to this project are documented here.
 ### Fixes
 
 - fix(database): canonicalize int and dec/decimal postgres type aliases
+- fix(querybuilder): skip runtime literal schemas for non-finite numbers so renderers report them
+- fix(querybuilder): unwrap effect sql error reason wrappers when normalizing driver errors
+
+### Other
+
+- test: repair stale suite for effect 4.0.0-beta.92
+- ci: smoke test current package entrypoints
 
 ## 4.0.0-beta.92 - 2026-06-30
 

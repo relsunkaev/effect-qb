@@ -82,7 +82,7 @@ describe("rendering behavior", () => {
       email: Standard.Column.text(),
       bio: Standard.Column.text().pipe(Standard.Column.nullable)
     })
-    const id = "11111111-1111-1111-1111-111111111111"
+    const id = "11111111-1111-4111-8111-111111111111"
     const insert = Standard.Query.insert(users, {
       id,
       email: "alice@example.com",
@@ -118,7 +118,7 @@ describe("rendering behavior", () => {
       id: Standard.Column.uuid().pipe(Standard.Column.primaryKey),
       email: Standard.Column.text()
     })
-    const id = "11111111-1111-1111-1111-111111111111"
+    const id = "11111111-1111-4111-8111-111111111111"
     const plans = [
       Standard.Query.returning({ id: users.id })(Standard.Query.insert(users, {
         id,
@@ -146,7 +146,7 @@ describe("rendering behavior", () => {
       id: Standard.Column.uuid().pipe(Standard.Column.primaryKey),
       email: Standard.Column.text()
     })
-    const id = "11111111-1111-1111-1111-111111111111"
+    const id = "11111111-1111-4111-8111-111111111111"
     const insert = Standard.Query.insert(users, {
       id,
       email: "alice@example.com"

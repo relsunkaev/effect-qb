@@ -77,7 +77,7 @@ describe("postgres introspector", () => {
     } as unknown as SqlClient.SqlClient
 
     const model = await Effect.runPromise(
-      Effect.provideService(introspectPostgresSchema(), SqlClient.SqlClient, sql)
+      Effect.provideService(SqlClient.SqlClient)(introspectPostgresSchema(), sql)
     )
 
     expect(model.tables).toEqual([
@@ -121,7 +121,7 @@ describe("postgres introspector", () => {
     let failed = false
     try {
       await Effect.runPromise(
-        Effect.provideService(introspectPostgresSchema(), SqlClient.SqlClient, sql)
+        Effect.provideService(SqlClient.SqlClient)(introspectPostgresSchema(), sql)
       )
     } catch (error) {
       failed = true

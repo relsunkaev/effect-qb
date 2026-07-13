@@ -17,13 +17,13 @@ const rendered = Renderer.make().render(Q.select({
 type RenderedRow = Renderer.RowOf<typeof rendered>
 
 const validRenderedRow: RenderedRow = {
-  id: "11111111-1111-1111-1111-111111111111",
+  id: "11111111-1111-4111-8111-111111111111",
   email: "alice@example.com"
 }
 
 // @ts-expect-error Renderer.RowOf should require every selected projection.
 const missingRenderedField: RenderedRow = {
-  id: "11111111-1111-1111-1111-111111111111"
+  id: "11111111-1111-4111-8111-111111111111"
 }
 
 const wrongRenderedFieldType: RenderedRow = {

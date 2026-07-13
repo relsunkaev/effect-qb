@@ -1563,6 +1563,9 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     if (value === null || value instanceof Date) {
       return undefined
     }
+    if (typeof value === "number" && !Number.isFinite(value)) {
+      return undefined
+    }
     return Schema.Literal(value) as unknown as Schema.Top
   }
 
