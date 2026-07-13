@@ -154,8 +154,48 @@ const getLatestTag = async (): Promise<string | null> => {
   return result.exitCode === 0 ? result.stdout.trim() : null
 }
 
-const getLatestReleaseBoundary = async (): Promise<ReleaseBoundary | null> => {
-  const latestTag = await getLatestTag()
+const getReleaseTags = async (): Promise<ReadonlyArray<string>> => {
+  const result = await run([
+    "git",
+    "tag",
+    "--merged",
+    "HEAD",
+    "--sort=-version:refname",
+    "--list",
+    "v[0-9]*"
+  ])
+
+  return result.stdout.split("\n").map((tag) => tag.trim()).filter(Boolean)
+}
+
+export const selectReleaseTag = (
+  tags: ReadonlyArray<string>,
+  explicitVersion: string | null
+): string | null => {
+  if (explicitVersion === null) {
+    return tags[0] ?? null
+  }
+
+  const target = parseSemver(explicitVersion)
+  const parsedTags = tags.map((tag) => ({ tag, version: parseSemver(tag.slice(1)) }))
+  const latestStable = parsedTags.find(({ version }) => version.prerelease === null)?.tag ?? null
+
+  if (target.prerelease === null) {
+    return latestStable
+  }
+
+  return parsedTags.find(({ version }) =>
+    version.prerelease !== null &&
+    version.major === target.major &&
+    version.minor === target.minor &&
+    version.patch === target.patch
+  )?.tag ?? latestStable
+}
+
+const getLatestReleaseBoundary = async (explicitVersion: Semver | null): Promise<ReleaseBoundary | null> => {
+  const latestTag = explicitVersion === null
+    ? await getLatestTag()
+    : selectReleaseTag(await getReleaseTags(), formatSemver(explicitVersion))
 
   if (latestTag) {
     const hashResult = await run(["git", "rev-list", "-n", "1", latestTag])
@@ -347,7 +387,8 @@ const main = async () => {
   const args = new Set(argv)
   const push = args.has("--push")
   const dryRun = args.has("--dry-run")
-  const explicitVersion = getArgValue(argv, "--version")
+  const explicitVersionValue = getArgValue(argv, "--version")
+  const explicitVersion = explicitVersionValue === null ? null : parseSemver(explicitVersionValue)
 
   const status = await run(["git", "status", "--short"])
   if (status.stdout.trim()) {
@@ -355,7 +396,7 @@ const main = async () => {
   }
 
   const packageVersion = await getPackageVersion()
-  const boundary = await getLatestReleaseBoundary()
+  const boundary = await getLatestReleaseBoundary(explicitVersion)
   const commits = await getCommits(boundary ? `${boundary.hash}..HEAD` : "HEAD")
 
   if (boundary && commits.length === 0) {
@@ -366,7 +407,7 @@ const main = async () => {
   const bump = determineBump(commits, baseVersion.major)
   const nextVersion = explicitVersion === null
     ? bumpSemver(baseVersion, bump)
-    : parseSemver(explicitVersion)
+    : explicitVersion
   const changelogSection = renderChangelogSection(formatSemver(nextVersion), commits)
 
   console.log(`Release version: ${formatSemver(nextVersion)}`)

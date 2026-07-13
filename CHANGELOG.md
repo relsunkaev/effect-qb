@@ -4,6 +4,94 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.20.0 - 2026-07-13
+
+### Breaking Changes
+
+- feat(querybuilder)!: remove renderer make casing option
+- feat(querybuilder)!: require callback table options
+- feat(querybuilder)!: add path-aware JSON traversal
+- feat(querybuilder)!: remove JSON asText aliases
+- feat(querybuilder)!: consolidate cast surface
+- feat(querybuilder)!: separate standard and dialect type helpers
+- feat(querybuilder)!: remove executor withSavepoint helper
+
+### Features
+
+- feat: validate effect-db sql rows with SqlSchema
+- feat: preserve schema issues in row decode errors
+- feat(querybuilder): add table option namespaces
+- feat(querybuilder): consolidate dialect helper exports
+- feat(querybuilder): support row-local check callbacks
+- feat(querybuilder): type-check conflict arbiters
+- feat(querybuilder): enforce datatype matrix coverage
+
+### Fixes
+
+- fix: preserve json path schema transforms
+- fix(database): emit package declarations
+- fix(querybuilder): allow schema-backed jsonb scalar casts
+- fix(querybuilder): render portable mysql datatypes as executable SQL
+- fix(querybuilder): stabilize curried Cast.to inference; bump tsgo
+- fix(database): canonicalize int and dec/decimal postgres type aliases
+- fix(database): treat explicit noAction referential actions as the default
+- fix(ci): publish npm packages with trusted authentication
+- fix(release): consume unreleased changelog entries
+- fix(release): classify beta GitHub releases
+- fix(release): select stable changelog boundary
+
+### Docs
+
+- docs: cover opt-in Effect v4 schema codecs
+- docs: record schema model migration decision
+- docs: remove broken database beta guidance
+- docs: update jsonb readme examples
+- docs(readme): clarify type and json examples
+- docs(readme): document json paths and cast type safety
+- docs(readme): document conflict target type safety
+- docs(readme): restructure code examples for clarity
+- docs(readme): rewrite casting example, showcase more query features
+- docs(readme): sharpen example salience
+- docs(readme): show scoped executor transactions
+- docs(readme): update beta install command
+
+### Tests
+
+- test: repair stale suite for effect 4.0.0-beta.92
+- test(pack): use declared Effect peer version
+
+### CI
+
+- ci: add beta package deprecation path
+- ci(release): publish querybuilder with bun
+
+### Chores
+
+- chore: migrate Effect dependency surface to v4 beta
+- chore(release): prepare beta channel
+- chore(release): v4.0.0-beta.66
+- chore(beads): close readme check callback task
+- chore(beads): record JSON type-safety epic
+- chore: track @typescript/native-preview via the beta tag
+- chore(beads): track effect v4 merge
+- chore(beads): track v4 beta release
+- chore(release): v4.0.0-beta.67
+- chore(beads): record beta release publish blocker
+- chore(effect): update beta dependencies to beta.92
+- chore(beads): track beta.92 release
+- chore(release): v4.0.0-beta.92
+- chore(beads): record beta.92 publish blocker
+- chore(beads): close beta.92 release
+- chore(effect): update beta dependencies to beta.98
+- chore(release): v4.0.0-beta.98
+- chore(beads): close beta.98 release
+- chore(beads): track v0.20.0 release
+
+### Other
+
+- bd init: initialize beads issue tracking
+- Add datatype matrix coverage tests
+
 ## 4.0.0-beta.98 - 2026-07-13
 
 ### Fixes
