@@ -1,4 +1,4 @@
-# effect-qb
+# `effect-qb`
 
 Typed SQL query building for Effect-oriented TypeScript applications.
 
