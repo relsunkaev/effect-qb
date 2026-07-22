@@ -1,8 +1,8 @@
 import * as Std from "effect-qb"
-import { randomUUID } from "node:crypto"
-import { readFile, rm, writeFile } from "node:fs/promises"
-import { basename, dirname, extname, join, relative, resolve } from "node:path"
-import { pathToFileURL } from "node:url"
+import * as Crypto from "effect/Crypto"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 import { glob } from "tinyglobby"
 import ts from "typescript"
 
@@ -14,6 +14,7 @@ import {
   tableKey,
   type SchemaModel
 } from "effect-qb/postgres/metadata"
+import { runNodePlatform } from "./node-platform.js"
 
 type DiscoveryImportInfo = {
   readonly postgresModules: Set<string>
@@ -543,144 +544,176 @@ const discoverInFile = (
   return declarations
 }
 
-const createTemporaryExportModule = async (
+const createTemporaryExportModuleEffect = (
   filePath: string,
   names: readonly string[]
-): Promise<string> => {
-  const extension = extname(filePath) || ".ts"
-  const tempPath = join(dirname(filePath), `.__effect_qb_discovery_${basename(filePath, extension)}_${randomUUID()}${extension}`)
-  const contents = await readFile(filePath, "utf8")
-  await writeFile(
-    tempPath,
-    `${contents}\nconst __effect_qb_discovery_exports = { ${names.join(", ")} }\nexport default __effect_qb_discovery_exports\n`
-  )
-  return tempPath
-}
+): Effect.Effect<string, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const crypto = yield* Crypto.Crypto
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    const extension = paths.extname(filePath) || ".ts"
+    const uuid = yield* crypto.randomUUIDv4
+    const tempPath = paths.join(
+      paths.dirname(filePath),
+      `.__effect_qb_discovery_${paths.basename(filePath, extension)}_${uuid}${extension}`
+    )
+    const contents = yield* fs.readFileString(filePath)
+    yield* fs.writeFileString(
+      tempPath,
+      `${contents}\nconst __effect_qb_discovery_exports = { ${names.join(", ")} }\nexport default __effect_qb_discovery_exports\n`
+    )
+    return tempPath
+  })
 
-const importDiscoveredValues = async (
+const importDiscoveredValuesEffect = (
   declarations: readonly SourceDeclaration[]
-): Promise<ReadonlyArray<unknown>> => {
-  const byFile = new Map<string, string[]>()
-  for (const declaration of declarations) {
-    const names = byFile.get(declaration.filePath) ?? []
-    names.push(declaration.identifier)
-    byFile.set(declaration.filePath, names)
-  }
-  const values: unknown[] = []
-  for (const [filePath, names] of byFile) {
-    const tempPath = await createTemporaryExportModule(filePath, [...new Set(names)])
-    try {
-      const imported = await import(pathToFileURL(tempPath).href)
+): Effect.Effect<ReadonlyArray<unknown>, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    const byFile = new Map<string, string[]>()
+    for (const declaration of declarations) {
+      const names = byFile.get(declaration.filePath) ?? []
+      names.push(declaration.identifier)
+      byFile.set(declaration.filePath, names)
+    }
+    const values: unknown[] = []
+    for (const [filePath, names] of byFile) {
+      const tempPath = yield* createTemporaryExportModuleEffect(filePath, [...new Set(names)])
+      const imported = yield* Effect.flatMap(paths.toFileUrl(tempPath), (url) =>
+        Effect.tryPromise({
+          try: () => import(url.href),
+          catch: (cause) => cause instanceof Error ? cause : new Error(String(cause))
+        })).pipe(
+          Effect.ensuring(Effect.ignore(fs.remove(tempPath, { force: true })))
+        )
       const exportedValues = imported.default as Record<string, unknown> | undefined
       for (const name of names) {
         values.push(exportedValues?.[name])
       }
-    } finally {
-      await rm(tempPath, { force: true }).catch(() => undefined)
     }
-  }
-  return values
-}
+    return values
+  })
 
-const scanPattern = async (
+const scanPatternEffect = (
   cwd: string,
   pattern: string
-): Promise<ReadonlyArray<string>> => {
-  const matches: string[] = []
-  for (const match of await glob(pattern, {
-    cwd,
-    absolute: true,
-    dot: true,
-    followSymbolicLinks: true
-  })) {
-    if (DEFAULT_SOURCE_EXTENSIONS.has(extname(match))) {
-      matches.push(resolve(match))
+): Effect.Effect<ReadonlyArray<string>, unknown, Path.Path> =>
+  Effect.gen(function*() {
+    const paths = yield* Path.Path
+    const matches: string[] = []
+    for (const match of yield* Effect.tryPromise({
+      try: () => glob(pattern, {
+        cwd,
+        absolute: true,
+        dot: true,
+        followSymbolicLinks: true
+      }),
+      catch: (cause) => cause instanceof Error ? cause : new Error(String(cause))
+    })) {
+      if (DEFAULT_SOURCE_EXTENSIONS.has(paths.extname(match))) {
+        matches.push(paths.resolve(match))
+      }
     }
-  }
-  return matches
-}
+    return matches
+  })
 
-export const discoverSourceSchema = async (
+export const discoverSourceSchemaEffect = (
   cwd: string,
   source: {
     readonly include: readonly string[]
     readonly exclude?: readonly string[]
   }
-): Promise<DiscoveredSourceSchema> => {
-  const included = new Set<string>()
-  for (const pattern of source.include) {
-    for (const match of await scanPattern(cwd, pattern)) {
-      included.add(match)
-    }
-  }
-  const excluded = new Set<string>()
-  for (const pattern of source.exclude ?? []) {
-    for (const match of await scanPattern(cwd, pattern)) {
-      excluded.add(match)
-    }
-  }
-  const declarations: SourceDeclaration[] = []
-  for (const filePath of [...included].filter((file) => !excluded.has(file)).sort()) {
-    const contents = await readFile(filePath, "utf8")
-    declarations.push(...discoverInFile(filePath, contents))
-  }
-  const duplicateKeys = new Map<string, string>()
-  for (const declaration of declarations) {
-    const key = `${declaration.filePath}:${declaration.identifier}`
-    if (duplicateKeys.has(key)) {
-      throw new Error(`Duplicate discovered declaration '${declaration.identifier}' in '${relative(cwd, declaration.filePath)}'`)
-    }
-    duplicateKeys.set(key, key)
-  }
-  const values = await importDiscoveredValues(declarations)
-  const bindings: SourceBinding[] = []
-  const seenKeys = new Map<string, SourceDeclaration>()
-  for (const [index, value] of values.entries()) {
-    const declaration = declarations[index]
-    if (declaration === undefined) {
-      continue
-    }
-    if (isTableDefinition(value)) {
-      const state = (value as any)[Std.Table.TypeId] as {
-        readonly schemaName?: string
-        readonly baseName: string
+): Effect.Effect<DiscoveredSourceSchema, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    const included = new Set<string>()
+    for (const pattern of source.include) {
+      for (const match of yield* scanPatternEffect(cwd, pattern)) {
+        included.add(match)
       }
-      const key = sourceIdentityKey(state.schemaName, state.baseName)
-      const existing = seenKeys.get(key)
-      if (existing) {
-        throw new Error(
-          `Duplicate discovered table identity '${tableKey(state.schemaName, state.baseName)}' in '${relative(cwd, existing.filePath)}' and '${relative(cwd, declaration.filePath)}'`
-        )
-      }
-      seenKeys.set(key, declaration)
-      bindings.push({
-        declaration,
-        value,
-        key,
-        kind: "table"
-      })
-      continue
     }
-    if (isEnumDefinition(value)) {
-      const key = sourceIdentityKey(value.schemaName, value.name)
-      const existing = seenKeys.get(key)
-      if (existing) {
-        throw new Error(
-          `Duplicate discovered enum identity '${enumKey(value.schemaName, value.name)}' in '${relative(cwd, existing.filePath)}' and '${relative(cwd, declaration.filePath)}'`
-        )
+    const excluded = new Set<string>()
+    for (const pattern of source.exclude ?? []) {
+      for (const match of yield* scanPatternEffect(cwd, pattern)) {
+        excluded.add(match)
       }
-      seenKeys.set(key, declaration)
-      bindings.push({
-        declaration,
-        value,
-        key,
-        kind: "enum"
-      })
     }
+    const declarations: SourceDeclaration[] = []
+    for (const filePath of [...included].filter((file) => !excluded.has(file)).sort()) {
+      const contents = yield* fs.readFileString(filePath)
+      declarations.push(...discoverInFile(filePath, contents))
+    }
+    const duplicateKeys = new Map<string, string>()
+    for (const declaration of declarations) {
+      const key = `${declaration.filePath}:${declaration.identifier}`
+      if (duplicateKeys.has(key)) {
+        return yield* Effect.fail(new Error(
+          `Duplicate discovered declaration '${declaration.identifier}' in '${paths.relative(cwd, declaration.filePath)}'`
+        ))
+      }
+      duplicateKeys.set(key, key)
+    }
+    const values = yield* importDiscoveredValuesEffect(declarations)
+    const bindings: SourceBinding[] = []
+    const seenKeys = new Map<string, SourceDeclaration>()
+    for (const [index, value] of values.entries()) {
+      const declaration = declarations[index]
+      if (declaration === undefined) {
+        continue
+      }
+      if (isTableDefinition(value)) {
+        const state = (value as any)[Std.Table.TypeId] as {
+          readonly schemaName?: string
+          readonly baseName: string
+        }
+        const key = sourceIdentityKey(state.schemaName, state.baseName)
+        const existing = seenKeys.get(key)
+        if (existing) {
+          return yield* Effect.fail(new Error(
+            `Duplicate discovered table identity '${tableKey(state.schemaName, state.baseName)}' in '${paths.relative(cwd, existing.filePath)}' and '${paths.relative(cwd, declaration.filePath)}'`
+          ))
+        }
+        seenKeys.set(key, declaration)
+        bindings.push({
+          declaration,
+          value,
+          key,
+          kind: "table"
+        })
+        continue
+      }
+      if (isEnumDefinition(value)) {
+        const key = sourceIdentityKey(value.schemaName, value.name)
+        const existing = seenKeys.get(key)
+        if (existing) {
+          return yield* Effect.fail(new Error(
+            `Duplicate discovered enum identity '${enumKey(value.schemaName, value.name)}' in '${paths.relative(cwd, existing.filePath)}' and '${paths.relative(cwd, declaration.filePath)}'`
+          ))
+        }
+        seenKeys.set(key, declaration)
+        bindings.push({
+          declaration,
+          value,
+          key,
+          kind: "enum"
+        })
+      }
+    }
+    return {
+      declarations,
+      bindings,
+      model: fromDiscoveredValues(values)
+    }
+  })
+
+export const discoverSourceSchema = (
+  cwd: string,
+  source: {
+    readonly include: readonly string[]
+    readonly exclude?: readonly string[]
   }
-  return {
-    declarations,
-    bindings,
-    model: fromDiscoveredValues(values)
-  }
-}
+): Promise<DiscoveredSourceSchema> =>
+  runNodePlatform(discoverSourceSchemaEffect(cwd, source))

@@ -1,14 +1,13 @@
 import { tableKey, type SchemaModel } from "effect-qb/postgres/metadata"
+import * as Effect from "effect/Effect"
 
 import { introspectPostgresSchema } from "../internal/postgres-introspector.js"
-import { runPostgresUrl } from "../internal/postgres-runtime.js"
+import { runNodePlatform, type PlatformServices } from "../internal/node-platform.js"
+import type { EffectDbConfig } from "../internal/postgres-config.js"
+import { providePostgresUrl } from "../internal/postgres-runtime.js"
 import { planPostgresSchemaDiff, type SchemaChange, type SchemaPlan } from "../internal/postgres-schema-diff.js"
-import { discoverSourceSchema } from "../internal/postgres-source-discovery.js"
+import { discoverSourceSchemaEffect, type DiscoveredSourceSchema } from "../internal/postgres-source-discovery.js"
 import { filterDiscoveredSourceSchema } from "../internal/postgres-source-filter.js"
-import type { loadPostgresConfig } from "../internal/postgres-config.js"
-
-type LoadedConfig = Awaited<ReturnType<typeof loadPostgresConfig>>
-type EffectDbConfig = LoadedConfig["config"]
 
 export type { SchemaChange, SchemaPlan }
 
@@ -114,24 +113,35 @@ export const withoutManagedMigrationTable = (
   }
 }
 
-export const loadPostgresSchemaPlan = async (
+export const loadPostgresSchemaPlanEffect = (
+  cwd: string,
+  config: EffectDbConfig,
+  databaseUrl: string
+): Effect.Effect<{
+  readonly plan: SchemaPlan
+  readonly discovered: DiscoveredSourceSchema
+}, unknown, PlatformServices> =>
+  Effect.gen(function*() {
+    const discovered = filterDiscoveredSourceSchema(
+      yield* discoverSourceSchemaEffect(cwd, config.source),
+      config.filter
+    )
+    const database = withoutManagedMigrationTable(
+      yield* providePostgresUrl(databaseUrl, introspectPostgresSchema(config.filter)),
+      config.migrations.table
+    )
+    return {
+      plan: planPostgresSchemaDiff(discovered.model, database),
+      discovered
+    }
+  })
+
+export const loadPostgresSchemaPlan = (
   cwd: string,
   config: EffectDbConfig,
   databaseUrl: string
 ): Promise<{
   readonly plan: SchemaPlan
-  readonly discovered: Awaited<ReturnType<typeof discoverSourceSchema>>
-}> => {
-  const discovered = filterDiscoveredSourceSchema(
-    await discoverSourceSchema(cwd, config.source),
-    config.filter
-  )
-  const database = withoutManagedMigrationTable(
-    await runPostgresUrl(databaseUrl, introspectPostgresSchema(config.filter)),
-    config.migrations.table
-  )
-  return {
-    plan: planPostgresSchemaDiff(discovered.model, database),
-    discovered
-  }
-}
+  readonly discovered: DiscoveredSourceSchema
+}> =>
+  runNodePlatform(loadPostgresSchemaPlanEffect(cwd, config, databaseUrl))

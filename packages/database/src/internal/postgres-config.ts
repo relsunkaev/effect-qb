@@ -1,6 +1,8 @@
-import { access } from "node:fs/promises"
-import { dirname, resolve } from "node:path"
-import { pathToFileURL } from "node:url"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+
+import { runNodePlatform } from "./node-platform.js"
 
 export type FilterConfig = {
   readonly schemas?: readonly string[]
@@ -245,85 +247,97 @@ const defaultConfig = (): EffectDbConfig => ({
   }
 })
 
-const fileExists = async (path: string): Promise<boolean> => {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
-  }
-}
+const loadModuleConfig = (path: string): Effect.Effect<unknown, Error, Path.Path> =>
+  Effect.gen(function*() {
+    const paths = yield* Path.Path
+    const url = yield* paths.toFileUrl(path)
+    const imported = yield* Effect.tryPromise({
+      try: () => import(url.href),
+      catch: (cause) => cause instanceof Error ? cause : new Error(String(cause))
+    })
+    return imported.default ?? imported.config ?? imported
+  })
 
-const loadModuleConfig = async (path: string): Promise<unknown> => {
-  const imported = await import(pathToFileURL(path).href)
-  return imported.default ?? imported.config ?? imported
-}
-
-export const loadPostgresConfig = async (
+export const loadPostgresConfigEffect = (
   cwd: string,
   explicitPath?: string
-): Promise<LoadedPostgresConfig> => {
-  const configPath = explicitPath === undefined
-    ? await (async () => {
-        for (const name of DEFAULT_CONFIG_NAMES) {
-          const candidate = resolve(cwd, name)
-          if (await fileExists(candidate)) {
-            return candidate
+): Effect.Effect<LoadedPostgresConfig, unknown, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    const configPath = explicitPath === undefined
+      ? yield* Effect.gen(function*() {
+          for (const name of DEFAULT_CONFIG_NAMES) {
+            const candidate = paths.resolve(cwd, name)
+            if (yield* fs.exists(candidate)) {
+              return candidate
+            }
           }
-        }
-        return undefined
-      })()
-    : resolve(cwd, explicitPath)
+          return undefined
+        })
+      : paths.resolve(cwd, explicitPath)
 
-  if (configPath === undefined) {
+    if (configPath === undefined) {
+      return {
+        config: defaultConfig(),
+        cwd
+      }
+    }
+
+    const loaded = yield* loadModuleConfig(configPath)
+    if (typeof loaded !== "object" || loaded === null) {
+      return yield* Effect.fail(new Error(`Config file '${configPath}' did not export an object`))
+    }
+    yield* Effect.try({
+      try: () => validatePartialPostgresConfig(loaded, "config"),
+      catch: (cause) => cause
+    })
+
+    const partial = loaded as Partial<EffectDbConfig>
+
+    const merged = {
+      ...defaultConfig(),
+      ...partial,
+      db: {
+        ...defaultConfig().db,
+        ...(partial.db ?? {})
+      },
+      source: {
+        ...defaultConfig().source,
+        ...(partial.source ?? {})
+      },
+      filter: partial.filter === undefined
+        ? undefined
+        : {
+            ...(partial.filter ?? {})
+          },
+      migrations: {
+        ...defaultConfig().migrations,
+        ...(partial.migrations ?? {})
+      },
+      safety: {
+        ...defaultConfig().safety,
+        ...(partial.safety ?? {})
+      }
+    } satisfies EffectDbConfig
+
+    yield* Effect.try({
+      try: () => validateResolvedPostgresConfig(merged),
+      catch: (cause) => cause
+    })
+
     return {
-      config: defaultConfig(),
-      cwd
+      config: merged,
+      cwd: paths.dirname(configPath),
+      path: configPath
     }
-  }
+  })
 
-  const loaded = await loadModuleConfig(configPath)
-  if (typeof loaded !== "object" || loaded === null) {
-    throw new Error(`Config file '${configPath}' did not export an object`)
-  }
-  validatePartialPostgresConfig(loaded, "config")
-
-  const partial = loaded as Partial<EffectDbConfig>
-
-  const merged = {
-    ...defaultConfig(),
-    ...partial,
-    db: {
-      ...defaultConfig().db,
-      ...(partial.db ?? {})
-    },
-    source: {
-      ...defaultConfig().source,
-      ...(partial.source ?? {})
-    },
-    filter: partial.filter === undefined
-      ? undefined
-      : {
-          ...(partial.filter ?? {})
-        },
-    migrations: {
-      ...defaultConfig().migrations,
-      ...(partial.migrations ?? {})
-    },
-    safety: {
-      ...defaultConfig().safety,
-      ...(partial.safety ?? {})
-    }
-  } satisfies EffectDbConfig
-
-  validateResolvedPostgresConfig(merged)
-
-  return {
-    config: merged,
-    cwd: dirname(configPath),
-    path: configPath
-  }
-}
+export const loadPostgresConfig = (
+  cwd: string,
+  explicitPath?: string
+): Promise<LoadedPostgresConfig> =>
+  runNodePlatform(loadPostgresConfigEffect(cwd, explicitPath))
 
 export const resolveDatabaseUrl = (
   config: EffectDbConfig,

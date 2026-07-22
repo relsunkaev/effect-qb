@@ -1,6 +1,7 @@
 export {
   defineConfig,
   loadPostgresConfig,
+  loadPostgresConfigEffect,
   resolveDatabaseUrl,
   type EffectDbConfig,
   type FilterConfig,

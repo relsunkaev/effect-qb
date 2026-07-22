@@ -1,15 +1,16 @@
-import { createHash } from "node:crypto"
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
-import { basename, join, resolve } from "node:path"
-
+import * as Crypto from "effect/Crypto"
+import * as Encoding from "effect/Encoding"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlSchema from "effect/unstable/sql/SqlSchema"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 import * as Schema from "effect/Schema"
 
-import { runPostgresUrl } from "../internal/postgres-runtime.js"
+import { runNodePath, runNodePlatform, type PlatformServices } from "../internal/node-platform.js"
+import type { LoadedPostgresConfig } from "../internal/postgres-config.js"
+import { providePostgresUrl } from "../internal/postgres-runtime.js"
 import type { SchemaChange } from "../internal/postgres-schema-diff.js"
-import type { loadPostgresConfig } from "../internal/postgres-config.js"
 
 const MIGRATION_UP_MARKER = "-- effect-db:up"
 const MIGRATION_DOWN_MARKER = "-- effect-db:down"
@@ -98,8 +99,14 @@ const migrationTableSql = (tableName: string): string =>
 const normalizeMigrationContents = (contents: string): string =>
   contents.replaceAll("\r\n", "\n")
 
-const migrationChecksumOf = (contents: string): string =>
-  `${MIGRATION_CHECKSUM_PREFIX}:${createHash("sha256").update(normalizeMigrationContents(contents)).digest("hex")}`
+const migrationChecksumOfEffect = (
+  contents: string
+): Effect.Effect<string, unknown, Crypto.Crypto> =>
+  Effect.flatMap(Crypto.Crypto, (crypto) =>
+    Effect.map(
+      crypto.digest("SHA-256", new TextEncoder().encode(normalizeMigrationContents(contents))),
+      (digest) => `${MIGRATION_CHECKSUM_PREFIX}:${Encoding.encodeHex(digest)}`
+    ))
 
 export interface MigrationFile {
   readonly name: string
@@ -125,8 +132,6 @@ const AppliedMigrationRowSchema = Schema.Struct({
   name: Schema.String,
   checksum: Schema.NullOr(Schema.String)
 })
-
-type LoadedConfig = Awaited<ReturnType<typeof loadPostgresConfig>>
 
 const renderStatements = (statements: readonly string[]): string =>
   statements
@@ -198,28 +203,34 @@ export const renderMigrationFile = (
   return sections.join("\n")
 }
 
-export const writeMigrationFile = async (
+export const writeMigrationFileEffect = (
   migrationsDir: string,
   name: string,
   changes: readonly SchemaChange[]
-): Promise<string> => {
-  const directory = resolve(migrationsDir)
-  await mkdir(directory, { recursive: true })
-  const files = (await readdir(directory)).filter((file) => file.endsWith(".sql"))
-  const nextNumber = files
-    .map((file) => /^(\d+)_/.exec(file)?.[1])
-    .filter((value): value is string => value !== undefined)
-    .map((value) => Number(value))
-    .reduce((max, current) => Math.max(max, current), 0) + 1
-  const fileName = `${String(nextNumber).padStart(4, "0")}_${sanitizeName(name)}.sql`
-  const filePath = join(directory, fileName)
-  await writeFile(filePath, `${renderMigrationFile(changes)}\n`)
-  return filePath
-}
+): Effect.Effect<string, unknown, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    const directory = paths.resolve(migrationsDir)
+    yield* fs.makeDirectory(directory, { recursive: true })
+    const files = (yield* fs.readDirectory(directory)).filter((file) => file.endsWith(".sql"))
+    const nextNumber = files
+      .map((file) => /^(\d+)_/.exec(file)?.[1])
+      .filter((value): value is string => value !== undefined)
+      .map((value) => Number(value))
+      .reduce((max, current) => Math.max(max, current), 0) + 1
+    const fileName = `${String(nextNumber).padStart(4, "0")}_${sanitizeName(name)}.sql`
+    const filePath = paths.join(directory, fileName)
+    yield* fs.writeFileString(filePath, `${renderMigrationFile(changes)}\n`)
+    return filePath
+  })
 
-const ensureDirectory = async (dir: string): Promise<void> => {
-  await mkdir(resolve(dir), { recursive: true })
-}
+export const writeMigrationFile = (
+  migrationsDir: string,
+  name: string,
+  changes: readonly SchemaChange[]
+): Promise<string> =>
+  runNodePlatform(writeMigrationFileEffect(migrationsDir, name, changes))
 
 export const applyStatements = (
   statements: readonly string[]
@@ -233,59 +244,53 @@ export const applyStatements = (
       )
     ))
 
-export const readPendingMigrationFiles = async (
+export const readPendingMigrationFilesEffect = (
   migrationsDir: string,
   appliedNames: ReadonlySet<string>
-): Promise<ReadonlyArray<MigrationFile>> => {
-  await ensureDirectory(migrationsDir)
-  const directory = resolve(migrationsDir)
-  const files = (await readdir(directory))
-    .filter((file) => file.endsWith(".sql"))
-    .map((file) => join(directory, file))
-    .sort()
-  const pending: MigrationFile[] = []
-  for (const path of files) {
-    const name = basename(path)
-    if (appliedNames.has(name)) {
-      continue
+): Effect.Effect<ReadonlyArray<MigrationFile>, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    const directory = paths.resolve(migrationsDir)
+    yield* fs.makeDirectory(directory, { recursive: true })
+    const files = (yield* fs.readDirectory(directory))
+      .filter((file) => file.endsWith(".sql"))
+      .map((file) => paths.join(directory, file))
+      .sort()
+    const pending: MigrationFile[] = []
+    for (const filePath of files) {
+      const name = paths.basename(filePath)
+      if (appliedNames.has(name)) {
+        continue
+      }
+      const contents = yield* fs.readFileString(filePath)
+      const parsed = parseMigrationSections(contents)
+      pending.push({
+        name,
+        path: filePath,
+        sql: parsed.sql,
+        downSql: parsed.downSql,
+        checksum: yield* migrationChecksumOfEffect(contents)
+      })
     }
-    const contents = await readFile(path, "utf8")
-    const parsed = parseMigrationSections(contents)
-    pending.push({
-      name,
-      path,
-      sql: parsed.sql,
-      downSql: parsed.downSql,
-      checksum: migrationChecksumOf(contents)
-    })
-  }
-  return pending
-}
+    return pending
+  })
 
-export const readMigrationFiles = async (
+export const readPendingMigrationFiles = (
+  migrationsDir: string,
+  appliedNames: ReadonlySet<string>
+): Promise<ReadonlyArray<MigrationFile>> =>
+  runNodePlatform(readPendingMigrationFilesEffect(migrationsDir, appliedNames))
+
+export const readMigrationFilesEffect = (
   migrationsDir: string
-): Promise<ReadonlyArray<MigrationFile>> => {
-  await ensureDirectory(migrationsDir)
-  const directory = resolve(migrationsDir)
-  const files = (await readdir(directory))
-    .filter((file) => file.endsWith(".sql"))
-    .map((file) => join(directory, file))
-    .sort()
-  const parsed: MigrationFile[] = []
-  for (const path of files) {
-    const name = basename(path)
-    const contents = await readFile(path, "utf8")
-    const sections = parseMigrationSections(contents)
-    parsed.push({
-      name,
-      path,
-      sql: sections.sql,
-      downSql: sections.downSql,
-      checksum: migrationChecksumOf(contents)
-    })
-  }
-  return parsed
-}
+): Effect.Effect<ReadonlyArray<MigrationFile>, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+  readPendingMigrationFilesEffect(migrationsDir, new Set())
+
+export const readMigrationFiles = (
+  migrationsDir: string
+): Promise<ReadonlyArray<MigrationFile>> =>
+  runNodePlatform(readMigrationFilesEffect(migrationsDir))
 
 export const ensureMigrationTable = (
   tableName: string
@@ -297,10 +302,10 @@ export const ensureMigrationTable = (
       yield* Effect.asVoid(sql.unsafe(`alter table ${qualifyIdentifier(tableName)} alter column checksum drop not null`))
     }))
 
-export const withMigrationLock = <A>(
+export const withMigrationLock = <A, E, R>(
   tableName: string,
-  effect: Effect.Effect<A, unknown, SqlClient.SqlClient>
-): Effect.Effect<A, unknown, SqlClient.SqlClient> =>
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, unknown, SqlClient.SqlClient | R> =>
   Effect.flatMap(SqlClient.SqlClient, (sql) =>
     sql.withTransaction(Effect.gen(function*() {
       yield* Effect.asVoid(sql.unsafe(
@@ -471,27 +476,51 @@ export const deleteAppliedMigrationNames = (
 export const migrationFileLabel = (path: string): string =>
   path.slice(path.lastIndexOf("/") + 1)
 
-export const migrationDirFromConfig = (cwd: string, dir: string): string =>
-  resolve(cwd, dir)
+export const migrationDirFromConfigEffect = (
+  cwd: string,
+  dir: string
+): Effect.Effect<string, never, Path.Path> =>
+  Effect.map(Path.Path, (paths) => paths.resolve(cwd, dir))
 
-export const loadPostgresMigrationState = async (
-  loaded: LoadedConfig,
+export const migrationDirFromConfig = (cwd: string, dir: string): string =>
+  runNodePath(migrationDirFromConfigEffect(cwd, dir))
+
+export const loadPostgresMigrationStateEffect = (
+  loaded: LoadedPostgresConfig,
   databaseUrl: string
-) => {
-  const files = await readMigrationFiles(migrationDirFromConfig(loaded.cwd, loaded.config.migrations.dir))
-  const appliedRows = await runPostgresUrl(
-    databaseUrl,
-    withMigrationLock(
-      loaded.config.migrations.table,
-      loadAppliedMigrationRows(loaded.config.migrations.table, files)
+): Effect.Effect<{
+  readonly files: ReadonlyArray<MigrationFile>
+  readonly appliedRows: ReadonlyArray<AppliedMigrationRow>
+  readonly appliedNames: ReadonlySet<string>
+  readonly pending: ReadonlyArray<MigrationFile>
+}, unknown, PlatformServices> =>
+  Effect.gen(function*() {
+    const migrationsDir = yield* migrationDirFromConfigEffect(loaded.cwd, loaded.config.migrations.dir)
+    const files = yield* readMigrationFilesEffect(migrationsDir)
+    const appliedRows = yield* providePostgresUrl(
+      databaseUrl,
+      withMigrationLock(
+        loaded.config.migrations.table,
+        loadAppliedMigrationRows(loaded.config.migrations.table, files)
+      )
     )
-  )
-  const appliedNames = new Set(appliedRows.map((row) => row.name))
-  const pending = files.filter((file) => !appliedNames.has(file.name))
-  return {
-    files,
-    appliedRows,
-    appliedNames,
-    pending
-  }
-}
+    const appliedNames = new Set(appliedRows.map((row) => row.name))
+    const pending = files.filter((file) => !appliedNames.has(file.name))
+    return {
+      files,
+      appliedRows,
+      appliedNames,
+      pending
+    }
+  })
+
+export const loadPostgresMigrationState = (
+  loaded: LoadedPostgresConfig,
+  databaseUrl: string
+): Promise<{
+  readonly files: ReadonlyArray<MigrationFile>
+  readonly appliedRows: ReadonlyArray<AppliedMigrationRow>
+  readonly appliedNames: ReadonlySet<string>
+  readonly pending: ReadonlyArray<MigrationFile>
+}> =>
+  runNodePlatform(loadPostgresMigrationStateEffect(loaded, databaseUrl))

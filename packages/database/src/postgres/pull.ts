@@ -1,12 +1,13 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import { dirname, extname, relative, resolve } from "node:path"
-
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 import { Datatypes } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, DdlExpressionLike, IndexKeySpec, TableOptionSpec } from "effect-qb/postgres/metadata"
 import { defaultConstraintName } from "../internal/postgres-schema-sql.js"
 import { enumKey, tableKey, renderDdlExpressionSql, normalizeDdlExpressionSql, toEnumModel, toTableModel } from "effect-qb/postgres/metadata"
 import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "../internal/postgres-source-discovery.js"
 import { canonicalizePostgresTypeName, inferPostgresTypeKind } from "../internal/postgres-type-utils.js"
+import { runNodePath, runNodePlatform } from "../internal/node-platform.js"
 import { parse, type Expr as PgSqlExpr } from "pgsql-ast-parser"
 
 const TABLE_ALIAS = "Table"
@@ -2761,7 +2762,8 @@ const renderCanonicalNewModule = (
 
 const inferSourceRoot = (
   cwd: string,
-  includes: readonly string[]
+  includes: readonly string[],
+  paths: Path.Path
 ): string => {
   const first = includes[0] ?? "src/**/*.ts"
   const wildcard = first.search(/[*?{\[]/)
@@ -2770,12 +2772,12 @@ const inferSourceRoot = (
     return cwd
   }
   if (prefix.endsWith("/")) {
-    return resolve(cwd, prefix)
+    return paths.resolve(cwd, prefix)
   }
-  if (extname(prefix).length > 0) {
-    return resolve(cwd, dirname(prefix))
+  if (paths.extname(prefix).length > 0) {
+    return paths.resolve(cwd, paths.dirname(prefix))
   }
-  return resolve(cwd, prefix)
+  return paths.resolve(cwd, prefix)
 }
 
 const renderDeclaredModule = (
@@ -2813,7 +2815,7 @@ const renderDeclaredModule = (
   return ensureImports(body)
 }
 
-export const planPostgresPull = async (
+export const planPostgresPullEffect = (
   cwd: string,
   source: {
     readonly include: readonly string[]
@@ -2821,7 +2823,10 @@ export const planPostgresPull = async (
   },
   discovered: DiscoveredSourceSchema,
   database: SchemaModel
-): Promise<PullPlan> => {
+): Effect.Effect<PullPlan, unknown, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+  const fs = yield* FileSystem.FileSystem
+  const paths = yield* Path.Path
   const bindingByKey = new Map(discovered.bindings.map((binding) => [binding.key, binding]))
   const databaseTablesByKey = new Map(database.tables.map((table) => [schemaObjectKey(table.schemaName, table.name), table]))
   const databaseEnumsByKey = new Map(database.enums.map((enumType) => [schemaObjectKey(enumType.schemaName, enumType.name), enumType]))
@@ -2829,7 +2834,7 @@ export const planPostgresPull = async (
     bindingByKey,
     enumKeys: new Set(databaseEnumsByKey.keys())
   }
-  const sourceRoot = inferSourceRoot(cwd, source.include)
+  const sourceRoot = inferSourceRoot(cwd, source.include, paths)
 
   const schemaFilePathByName = new Map<string, string>()
   for (const binding of discovered.bindings) {
@@ -2853,24 +2858,24 @@ export const planPostgresPull = async (
     }>
   }>()
 
-  const ensureFilePlan = async (filePath: string): Promise<{
+  const ensureFilePlan = (filePath: string): Effect.Effect<{
     readonly original: string
     readonly replacements: SourceBinding[]
     readonly additions: Array<{
       readonly binding: SourceBinding
       readonly model: TableModel | EnumModel
     }>
-  }> => {
+  }, unknown> => Effect.gen(function*() {
     const existing = filePlans.get(filePath)
     if (existing !== undefined) {
       return existing
     }
-    const original = await readFile(filePath, "utf8").catch((cause: unknown) => {
-      if (typeof cause === "object" && cause !== null && "code" in cause && cause.code === "ENOENT") {
-        return ""
-      }
-      throw cause
-    })
+    const original = yield* fs.readFileString(filePath).pipe(
+      Effect.catchIf(
+        (cause) => cause.reason._tag === "NotFound",
+        () => Effect.succeed("")
+      )
+    )
     const created = {
       original,
       replacements: [] as SourceBinding[],
@@ -2881,24 +2886,24 @@ export const planPostgresPull = async (
     }
     filePlans.set(filePath, created)
     return created
-  }
+  })
 
-  const scheduleReplacement = async (
+  const scheduleReplacement = (
     binding: SourceBinding,
     model: TableModel | EnumModel
-  ): Promise<void> => {
-    const plan = await ensureFilePlan(binding.declaration.filePath)
+  ): Effect.Effect<void, unknown> => Effect.gen(function*() {
+    const plan = yield* ensureFilePlan(binding.declaration.filePath)
     plan.replacements.push(binding)
     bindingByKey.set(binding.key, binding)
     void model
-  }
+  })
 
   for (const [key, table] of databaseTablesByKey) {
     const binding = bindingByKey.get(key)
     if (binding !== undefined && binding.kind === "table") {
       matchedSourceBindings.add(binding)
       matchedDbTableKeys.add(key)
-      await scheduleReplacement(binding, table)
+      yield* scheduleReplacement(binding, table)
     }
   }
 
@@ -2907,7 +2912,7 @@ export const planPostgresPull = async (
     if (binding !== undefined && binding.kind === "enum") {
       matchedSourceBindings.add(binding)
       matchedDbEnumKeys.add(key)
-      await scheduleReplacement(binding, enumType)
+      yield* scheduleReplacement(binding, enumType)
     }
   }
 
@@ -2920,7 +2925,7 @@ export const planPostgresPull = async (
   for (const { source: binding, db: table } of renameTablePairs) {
     matchedSourceBindings.add(binding)
     matchedDbTableKeys.add(schemaObjectKey(table.schemaName, table.name))
-    await scheduleReplacement(binding, table)
+    yield* scheduleReplacement(binding, table)
   }
 
   const renameEnumPairs = pairUniqueBySignature(
@@ -2932,7 +2937,7 @@ export const planPostgresPull = async (
   for (const { source: binding, db: enumType } of renameEnumPairs) {
     matchedSourceBindings.add(binding)
     matchedDbEnumKeys.add(schemaObjectKey(enumType.schemaName, enumType.name))
-    await scheduleReplacement(binding, enumType)
+    yield* scheduleReplacement(binding, enumType)
   }
 
   const newBindingsByFile = new Map<string, Array<{
@@ -2953,11 +2958,11 @@ export const planPostgresPull = async (
     if (sourceBinding !== undefined) {
       matchedSourceBindings.add(sourceBinding)
       matchedDbTableKeys.add(key)
-      await scheduleReplacement(sourceBinding, table)
+      yield* scheduleReplacement(sourceBinding, table)
       continue
     }
     const schemaName = schemaNameOfTable(table)
-    const filePath = schemaFilePathByName.get(schemaName) ?? resolve(sourceRoot, `${schemaName}.schema.ts`)
+    const filePath = schemaFilePathByName.get(schemaName) ?? paths.resolve(sourceRoot, `${schemaName}.schema.ts`)
     const list = newBindingsByFile.get(filePath) ?? []
     const declaration: SourceDeclaration = schemaName === "public"
       ? {
@@ -3000,11 +3005,11 @@ export const planPostgresPull = async (
     if (sourceBinding !== undefined) {
       matchedSourceBindings.add(sourceBinding)
       matchedDbEnumKeys.add(key)
-      await scheduleReplacement(sourceBinding, enumType)
+      yield* scheduleReplacement(sourceBinding, enumType)
       continue
     }
     const schemaName = schemaNameOfEnum(enumType)
-    const filePath = schemaFilePathByName.get(schemaName) ?? resolve(sourceRoot, `${schemaName}.schema.ts`)
+    const filePath = schemaFilePathByName.get(schemaName) ?? paths.resolve(sourceRoot, `${schemaName}.schema.ts`)
     const list = newBindingsByFile.get(filePath) ?? []
     const declaration: SourceDeclaration = schemaName === "public"
       ? {
@@ -3035,7 +3040,7 @@ export const planPostgresPull = async (
   }
 
   for (const [filePath, additions] of newBindingsByFile) {
-    const plan = await ensureFilePlan(filePath)
+    const plan = yield* ensureFilePlan(filePath)
     plan.additions.push(...additions)
   }
 
@@ -3206,14 +3211,42 @@ export const planPostgresPull = async (
   return {
     updates
   }
-}
+})
 
-export const applyPullPlan = async (plan: PullPlan): Promise<void> => {
-  for (const update of plan.updates) {
-    await mkdir(dirname(update.filePath), { recursive: true })
-    await writeFile(update.filePath, update.after)
-  }
-}
+export const planPostgresPull = (
+  cwd: string,
+  source: {
+    readonly include: readonly string[]
+    readonly exclude?: readonly string[]
+  },
+  discovered: DiscoveredSourceSchema,
+  database: SchemaModel
+): Promise<PullPlan> =>
+  runNodePlatform(planPostgresPullEffect(cwd, source, discovered, database))
+
+export const applyPullPlanEffect = (
+  plan: PullPlan
+): Effect.Effect<void, unknown, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    for (const update of plan.updates) {
+      yield* fs.makeDirectory(paths.dirname(update.filePath), { recursive: true })
+      yield* fs.writeFileString(update.filePath, update.after)
+    }
+  })
+
+export const applyPullPlan = (plan: PullPlan): Promise<void> =>
+  runNodePlatform(applyPullPlanEffect(plan))
+
+export const summarizePullPlanEffect = (
+  cwd: string,
+  plan: PullPlan
+): Effect.Effect<readonly string[], never, Path.Path> =>
+  Effect.map(Path.Path, (paths) =>
+    plan.updates.map((update) =>
+      `${update.before.length === 0 ? "create" : "update"} ${paths.relative(cwd, update.filePath)}`
+    ))
 
 export const summarizePullPlan = (cwd: string, plan: PullPlan): readonly string[] =>
-  plan.updates.map((update) => `${update.before.length === 0 ? "create" : "update"} ${relative(cwd, update.filePath)}`)
+  runNodePath(summarizePullPlanEffect(cwd, plan))
