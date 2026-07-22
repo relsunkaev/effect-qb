@@ -471,7 +471,7 @@ const renderQueryColumnReference = (
   if (context.tableColumnsAlias !== undefined) {
     return renderColumnAccess(context.tableColumnsAlias, name)
   }
-  return `${PG_ALIAS}.Query.column(${renderStringLiteral(name)}, ${renderQueryTypeExpression(column, context)}${column.nullable ? ", true" : ""})`
+  return `${STD_ROOT_ALIAS}.Query.column(${renderStringLiteral(name)}, ${renderQueryTypeExpression(column, context)}${column.nullable ? ", true" : ""})`
 }
 
 type PipeRender = {
@@ -691,7 +691,7 @@ const renderSqlExpressionCode = (
   ): string => {
     const operands = collectBooleanOperands(value, operator.toUpperCase() as "AND" | "OR")
       .map((item) => renderSqlExpressionCode(item, context))
-    const base = `${PG_ALIAS}.Query.${operator}(${operands.slice(0, 2).join(", ")})`
+    const base = `${STD_ROOT_ALIAS}.Query.${operator}(${operands.slice(0, 2).join(", ")})`
     return operands.length > 2
       ? `${base}.pipe(${operands.slice(2).join(", ")})`
       : base
@@ -746,39 +746,39 @@ const renderSqlExpressionCode = (
     case "ref":
       return renderQueryColumnReference(expression.name, context)
     case "string":
-      return `${PG_ALIAS}.Query.literal(${renderStringLiteral(expression.value)})`
+      return `${STD_ROOT_ALIAS}.Query.literal(${renderStringLiteral(expression.value)})`
     case "integer":
-      return `${PG_ALIAS}.Query.literal(${String(expression.value)})`
+      return `${STD_ROOT_ALIAS}.Query.literal(${String(expression.value)})`
     case "numeric":
-      return `${PG_ALIAS}.Query.literal(${String(expression.value)})`
+      return `${STD_ROOT_ALIAS}.Query.literal(${String(expression.value)})`
     case "boolean":
-      return `${PG_ALIAS}.Query.literal(${String(expression.value)})`
+      return `${STD_ROOT_ALIAS}.Query.literal(${String(expression.value)})`
     case "null":
-      return `${PG_ALIAS}.Query.literal(null)`
+      return `${STD_ROOT_ALIAS}.Query.literal(null)`
     case "keyword": {
       const keyword = (expression.keyword as string).toLowerCase()
       switch (keyword) {
         case "current_date":
-          return `${PG_ALIAS}.Function.currentDate()`
+          return `${STD_ROOT_ALIAS}.Function.currentDate()`
         case "current_time":
-          return `${PG_ALIAS}.Function.currentTime()`
+          return `${STD_ROOT_ALIAS}.Function.currentTime()`
         case "current_timestamp":
-          return `${PG_ALIAS}.Function.currentTimestamp()`
+          return `${STD_ROOT_ALIAS}.Function.currentTimestamp()`
         case "localtime":
-          return `${PG_ALIAS}.Function.localTime()`
+          return `${STD_ROOT_ALIAS}.Function.localTime()`
         case "localtimestamp":
-          return `${PG_ALIAS}.Function.localTimestamp()`
+          return `${STD_ROOT_ALIAS}.Function.localTimestamp()`
         case "current_schema":
         case "current_catalog":
         case "current_role":
         case "current_user":
         case "session_user":
         case "user":
-          return `${PG_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
+          return `${STD_ROOT_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
         case "distinct":
           throw new Error("Unsupported PostgreSQL keyword in pulled schema: distinct")
       }
-      return `${PG_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
+      return `${STD_ROOT_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
     }
     case "cast":
       return `${CAST_ALIAS}.to(${renderSqlExpressionCode(expression.operand, context, false)}, ${renderCastTarget(expression.to, context)})`
@@ -799,23 +799,23 @@ const renderSqlExpressionCode = (
       const args = Array.isArray(expression.args) ? expression.args : []
       switch (name) {
         case "lower":
-          return `${PG_ALIAS}.Function.lower(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${STD_ROOT_ALIAS}.Function.lower(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "upper":
-          return `${PG_ALIAS}.Function.upper(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${STD_ROOT_ALIAS}.Function.upper(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "coalesce":
-          return `${PG_ALIAS}.Function.coalesce(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${STD_ROOT_ALIAS}.Function.coalesce(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "now":
-          return `${PG_ALIAS}.Function.now()`
+          return `${STD_ROOT_ALIAS}.Function.now()`
         case "current_timestamp":
-          return `${PG_ALIAS}.Function.currentTimestamp()`
+          return `${STD_ROOT_ALIAS}.Function.currentTimestamp()`
         case "current_date":
-          return `${PG_ALIAS}.Function.currentDate()`
+          return `${STD_ROOT_ALIAS}.Function.currentDate()`
         case "current_time":
-          return `${PG_ALIAS}.Function.currentTime()`
+          return `${STD_ROOT_ALIAS}.Function.currentTime()`
         case "localtime":
-          return `${PG_ALIAS}.Function.localTime()`
+          return `${STD_ROOT_ALIAS}.Function.localTime()`
         case "localtimestamp":
-          return `${PG_ALIAS}.Function.localTimestamp()`
+          return `${STD_ROOT_ALIAS}.Function.localTimestamp()`
         case "uuid_generate_v4":
         case "gen_random_uuid":
           return `${PG_ALIAS}.Function.uuidGenerateV4()`
@@ -857,7 +857,7 @@ const renderSqlExpressionCode = (
         case "jsonb_typeof":
           return `${PG_ALIAS}.Jsonb.typeOf(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
       }
-      return `${PG_ALIAS}.Function.call(${renderStringLiteral(name)}${args.length === 0 ? "" : `, ${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")}`})`
+      return `${STD_ROOT_ALIAS}.Function.call(${renderStringLiteral(name)}${args.length === 0 ? "" : `, ${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")}`})`
     }
     case "binary": {
       const op = expression.op as string
@@ -865,7 +865,7 @@ const renderSqlExpressionCode = (
         const anyArgs = Array.isArray(expression.right.args) ? expression.right.args : []
         if (anyArgs.length === 1 && anyArgs[0]?.type === "array") {
           const arrayValues = anyArgs[0].expressions.map((item: PgSqlExpr) => renderSqlExpressionCode(item, context))
-          return `${PG_ALIAS}.Query.in(${renderSqlExpressionCode(expression.left, context)}, ${arrayValues.join(", ")})`
+          return `${STD_ROOT_ALIAS}.Query.in(${renderSqlExpressionCode(expression.left, context)}, ${arrayValues.join(", ")})`
         }
       }
       if (op === "#>" || op === "#>>") {
@@ -884,18 +884,18 @@ const renderSqlExpressionCode = (
       const right = renderSqlExpressionCode(expression.right, context)
       switch (op) {
         case "=":
-          return `${PG_ALIAS}.Query.eq(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.eq(${left}, ${right})`
         case "!=":
         case "<>":
-          return `${PG_ALIAS}.Query.neq(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.neq(${left}, ${right})`
         case "<":
-          return `${PG_ALIAS}.Query.lt(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.lt(${left}, ${right})`
         case "<=":
-          return `${PG_ALIAS}.Query.lte(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.lte(${left}, ${right})`
         case ">":
-          return `${PG_ALIAS}.Query.gt(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.gt(${left}, ${right})`
         case ">=":
-          return `${PG_ALIAS}.Query.gte(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.gte(${left}, ${right})`
         case "AND":
         case "and":
           return renderBooleanChain("and", expression)
@@ -904,18 +904,18 @@ const renderSqlExpressionCode = (
           return renderBooleanChain("or", expression)
         case "LIKE":
         case "like":
-          return `${PG_ALIAS}.Query.like(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.like(${left}, ${right})`
         case "ILIKE":
         case "ilike":
-          return `${PG_ALIAS}.Query.ilike(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.ilike(${left}, ${right})`
         case "~":
-          return `${PG_ALIAS}.Query.regexMatch(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.regexMatch(${left}, ${right})`
         case "~*":
-          return `${PG_ALIAS}.Query.regexIMatch(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.regexIMatch(${left}, ${right})`
         case "!~":
-          return `${PG_ALIAS}.Query.regexNotMatch(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.regexNotMatch(${left}, ${right})`
         case "!~*":
-          return `${PG_ALIAS}.Query.regexNotIMatch(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.regexNotIMatch(${left}, ${right})`
         case "?": {
           const key = extractStringLiteral(expression.right)
           if (key === undefined) {
@@ -942,15 +942,15 @@ const renderSqlExpressionCode = (
         case "@@":
           return `${PG_ALIAS}.Jsonb.pathMatch(${left}, ${right})`
         case "IS DISTINCT FROM":
-          return `${PG_ALIAS}.Query.isDistinctFrom(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.isDistinctFrom(${left}, ${right})`
         case "IS NOT DISTINCT FROM":
-          return `${PG_ALIAS}.Query.isNotDistinctFrom(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.isNotDistinctFrom(${left}, ${right})`
         case "@>":
-          return `${PG_ALIAS}.Query.contains(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.contains(${left}, ${right})`
         case "<@":
-          return `${PG_ALIAS}.Query.containedBy(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.containedBy(${left}, ${right})`
         case "&&":
-          return `${PG_ALIAS}.Query.overlaps(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.overlaps(${left}, ${right})`
       }
       throw new Error(`Unsupported PostgreSQL binary operator in pulled schema: ${expression.op}`)
     }
@@ -958,23 +958,23 @@ const renderSqlExpressionCode = (
       const operand = renderSqlExpressionCode(expression.operand, context)
       switch (expression.op.toUpperCase()) {
         case "IS NULL":
-          return `${PG_ALIAS}.Query.isNull(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.isNull(${operand})`
         case "IS NOT NULL":
-          return `${PG_ALIAS}.Query.isNotNull(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.isNotNull(${operand})`
         case "IS TRUE":
-          return `${PG_ALIAS}.Query.and(${PG_ALIAS}.Query.isNotNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(true)))`
+          return `${STD_ROOT_ALIAS}.Query.and(${STD_ROOT_ALIAS}.Query.isNotNull(${operand}), ${STD_ROOT_ALIAS}.Query.eq(${operand}, ${STD_ROOT_ALIAS}.Query.literal(true)))`
         case "IS FALSE":
-          return `${PG_ALIAS}.Query.and(${PG_ALIAS}.Query.isNotNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(false)))`
+          return `${STD_ROOT_ALIAS}.Query.and(${STD_ROOT_ALIAS}.Query.isNotNull(${operand}), ${STD_ROOT_ALIAS}.Query.eq(${operand}, ${STD_ROOT_ALIAS}.Query.literal(false)))`
         case "IS NOT TRUE":
-          return `${PG_ALIAS}.Query.or(${PG_ALIAS}.Query.isNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(false)))`
+          return `${STD_ROOT_ALIAS}.Query.or(${STD_ROOT_ALIAS}.Query.isNull(${operand}), ${STD_ROOT_ALIAS}.Query.eq(${operand}, ${STD_ROOT_ALIAS}.Query.literal(false)))`
         case "IS NOT FALSE":
-          return `${PG_ALIAS}.Query.or(${PG_ALIAS}.Query.isNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(true)))`
+          return `${STD_ROOT_ALIAS}.Query.or(${STD_ROOT_ALIAS}.Query.isNull(${operand}), ${STD_ROOT_ALIAS}.Query.eq(${operand}, ${STD_ROOT_ALIAS}.Query.literal(true)))`
         case "IS UNKNOWN":
-          return `${PG_ALIAS}.Query.isNull(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.isNull(${operand})`
         case "IS NOT UNKNOWN":
-          return `${PG_ALIAS}.Query.isNotNull(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.isNotNull(${operand})`
         case "NOT":
-          return `${PG_ALIAS}.Query.not(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.not(${operand})`
       }
       throw new Error(`Unsupported PostgreSQL unary operator in pulled schema: ${expression.op}`)
     }
@@ -982,8 +982,8 @@ const renderSqlExpressionCode = (
       {
         const values = Array.isArray(expression.expressions) ? expression.expressions : []
         return values.length === 0
-          ? `${PG_ALIAS}.Function.call("array")`
-          : `${PG_ALIAS}.Function.call("array", ${values.map((item: PgSqlExpr) => renderSqlExpressionCode(item, context)).join(", ")})`
+          ? `${STD_ROOT_ALIAS}.Function.call("array")`
+          : `${STD_ROOT_ALIAS}.Function.call("array", ${values.map((item: PgSqlExpr) => renderSqlExpressionCode(item, context)).join(", ")})`
       }
     case "case": {
       const whens = Array.isArray(expression.whens) ? expression.whens : []
@@ -991,20 +991,20 @@ const renderSqlExpressionCode = (
         throw new Error("Unsupported PostgreSQL case expression in pulled schema")
       }
       const base = expression.value === null
-        ? `${PG_ALIAS}.Query.case()`
+        ? `${STD_ROOT_ALIAS}.Query.case()`
         : expression.value === undefined
-          ? `${PG_ALIAS}.Query.case()`
-          : `${PG_ALIAS}.Query.match(${renderSqlExpressionCode(expression.value, context)})`
+          ? `${STD_ROOT_ALIAS}.Query.case()`
+          : `${STD_ROOT_ALIAS}.Query.match(${renderSqlExpressionCode(expression.value, context)})`
       const chained = whens.reduce(
         (acc, branch) => `${acc}.when(${renderSqlExpressionCode(branch.when, context)}, ${renderSqlExpressionCode(branch.value, context)})`,
         base
       )
       return expression.else == null
-        ? `${chained}.else(${PG_ALIAS}.Query.literal(null))`
+        ? `${chained}.else(${STD_ROOT_ALIAS}.Query.literal(null))`
         : `${chained}.else(${renderSqlExpressionCode(expression.else, context)})`
     }
     case "extract":
-      return `${PG_ALIAS}.Function.call("extract", ${renderStringLiteral((expression.field as { readonly name: string }).name)}, ${renderSqlExpressionCode(expression.from, context)})`
+      return `${STD_ROOT_ALIAS}.Function.call("extract", ${renderStringLiteral((expression.field as { readonly name: string }).name)}, ${renderSqlExpressionCode(expression.from, context)})`
     default:
       throw new Error(`Unsupported PostgreSQL expression in pulled schema: ${expression.type}`)
   }
@@ -1202,7 +1202,7 @@ const tryRenderCollateExpressionCode = (
             : operator === ">"
               ? "gt"
               : "gte"
-    return `${PG_ALIAS}.Query.${method}(${renderDdlExpressionCode(left, context)}, ${renderDdlExpressionCode(right, context)})`
+    return `${STD_ROOT_ALIAS}.Query.${method}(${renderDdlExpressionCode(left, context)}, ${renderDdlExpressionCode(right, context)})`
   })
   if (binary !== undefined) {
     return binary
@@ -1225,7 +1225,7 @@ const tryRenderCollateExpressionCode = (
     const renderedCollation = collationParts.length === 1
       ? renderStringLiteral(collationParts[0]!)
       : `[${collationParts.map((part) => renderStringLiteral(part)).join(", ")}]`
-    return `${PG_ALIAS}.Query.collate(${renderDdlExpressionCode(expressionSql, context)}, ${renderedCollation})`
+    return `${STD_ROOT_ALIAS}.Query.collate(${renderDdlExpressionCode(expressionSql, context)}, ${renderedCollation})`
   })
   if (collate !== undefined) {
     return collate

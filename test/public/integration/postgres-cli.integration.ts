@@ -59,7 +59,7 @@ const renderTableSource = (
 ) => `
 import * as Pg from "effect-qb/postgres"
 import { Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make(${JSON.stringify(schemaName)})
 
@@ -384,12 +384,12 @@ test("postgres cli safe mode applies additive changes and skips destructive drif
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "effect-qb/postgres"
 import { Cast, Check, Function as F, Index, PrimaryKey, Query as Q, Table, Unique } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 
 export const users = db.table("users", {
-  id: C.int().pipe(C.identityByDefault),
+  id: C.int().pipe(Pg.Column.identityByDefault),
   email: C.text(),
   nickname: C.text().pipe(C.nullable),
   displayName: C.text().pipe(C.default(Cast.to(Q.literal("guest"), Q.type.text()))),
@@ -412,13 +412,13 @@ export const users = db.table("users", {
     await writeFile(schemaFile(workspace), `
 import * as Pg from "effect-qb/postgres"
 import { Cast, Function as F, PrimaryKey, Query as Q, Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make(${JSON.stringify(schemaName)})
 
 export const users = db.table("users", {
-  id: C.int().pipe(C.identityByDefault),
-  email: C.text().pipe(C.ddlType("character varying(255)")),
+  id: C.int().pipe(Pg.Column.identityByDefault),
+  email: C.text().pipe(Pg.Column.ddlType("character varying(255)")),
   nickname: C.text(),
   displayName: C.text().pipe(C.default(Cast.to(Q.literal("member"), Q.type.text()))),
   emailLower: C.text().pipe(C.generated(F.upper(Q.column("email", Q.type.text())))),
@@ -777,7 +777,7 @@ test("postgres cli surfaces manual enum changes during push and migrate generate
 import * as Schema from "effect/Schema"
 import * as Pg from "effect-qb/postgres"
 import { Query as Q, Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 const types = Pg.Schema.make("__SCHEMA__")
@@ -786,7 +786,7 @@ const status = types.enum("status", ["pending", "active"])
 
 export const users = db.table("users", {
   id: C.text(),
-  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\""))
+  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(Pg.Column.ddlType("\\"__SCHEMA__\\".\\"status\\""))
 }).pipe(
   Table.primaryKey((table) => table.id)
 )
@@ -805,7 +805,7 @@ export { status }
 import * as Schema from "effect/Schema"
 import * as Pg from "effect-qb/postgres"
 import { Query as Q, Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make(${JSON.stringify(schemaName)})
 const types = Pg.Schema.make(${JSON.stringify(schemaName)})
@@ -814,7 +814,7 @@ const status = types.enum("status", ["pending"])
 
 export const users = db.table("users", {
   id: C.text(),
-  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
+  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(Pg.Column.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
 }).pipe(
   Table.primaryKey((table) => table.id)
 )
@@ -837,7 +837,7 @@ export { status }
 import * as Schema from "effect/Schema"
 import * as Pg from "effect-qb/postgres"
 import { Query as Q, Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make(${JSON.stringify(schemaName)})
 const types = Pg.Schema.make(${JSON.stringify(schemaName)})
@@ -846,7 +846,7 @@ const status = types.enum("status", ["active", "pending"])
 
 export const users = db.table("users", {
   id: C.text(),
-  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
+  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(Pg.Column.ddlType(${JSON.stringify(`"${schemaName}"."status"`)}))
 }).pipe(
   Table.primaryKey((table) => table.id)
 )
@@ -904,7 +904,7 @@ test("postgres cli pull fails when filtered tables reference missing source targ
     "schema.ts": `
 import * as Pg from "effect-qb/postgres"
 import { Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 
@@ -1017,7 +1017,7 @@ test("postgres cli honors source include exclude and table filters across multip
     "tables/users.ts": `
 import * as Pg from "effect-qb/postgres"
 import { Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 
@@ -1031,7 +1031,7 @@ export const users = db.table("users", {
     "tables/orgs.ts": `
 import * as Pg from "effect-qb/postgres"
 import { Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 
@@ -1045,7 +1045,7 @@ export const orgs = db.table("orgs", {
     "tables/ignored.ts": `
 import * as Pg from "effect-qb/postgres"
 import { Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 
@@ -1118,7 +1118,7 @@ test("postgres cli round-trips enum, foreign-key, generated, identity, and rich 
 import * as Schema from "effect/Schema"
 import * as Pg from "effect-qb/postgres"
 import { Cast, ForeignKey, Function as F, Index, PrimaryKey, Query as Q, Table, Unique } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const tables = Pg.Schema.make("__SCHEMA__")
 const types = Pg.Schema.make("__SCHEMA__")
@@ -1134,9 +1134,9 @@ const orgs = tables.table("orgs", {
 )
 
 const users = tables.table("users", {
-  id: C.int().pipe(C.identityByDefault),
+  id: C.int().pipe(Pg.Column.identityByDefault),
   orgId: C.uuid(),
-  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(C.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
+  status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(Pg.Column.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
   email: C.text(),
   alias: C.text().pipe(C.nullable),
   displayName: C.text().pipe(C.default(Cast.to(Q.literal("guest"), Q.type.text()))),
@@ -1221,7 +1221,7 @@ export { status, orgs, users }
     expect(pulledSchema).toContain(`deferrable: true`)
     expect(pulledSchema).toContain(`initiallyDeferred: true`)
     expect(pulledSchema).toContain(`users_email_lookup_idx`)
-    expect(pulledSchema).toContain(`include: ["displayName"]`)
+    expect(pulledSchema).toContain(`Pg.Index.include((table) => table.displayName)`)
     expect(pulledSchema).toContain(`order: "desc"`)
     expect(pulledSchema).toContain(`nulls: "last"`)
     expect(pulledSchema).toContain(`users_note_idx`)
@@ -1230,7 +1230,7 @@ export { status, orgs, users }
     expect(pulledSchema).toContain(`Column.generated(`)
 
     const secondPullDryRun = await runCli("pull", "--config", config, "--dry-run")
-    expect(secondPullDryRun.exitCode).toBe(0)
+    expect(secondPullDryRun).toMatchObject({ exitCode: 0 })
     expect(secondPullDryRun.stdout).toContain("schema definitions are already up to date")
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
@@ -1242,7 +1242,7 @@ test("postgres cli pulls supported checks and deferrable constraints into canoni
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "effect-qb/postgres"
 import { PrimaryKey, Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 
@@ -1280,7 +1280,7 @@ export const users = db.table("users", {
     expect(pulledSchema).toContain(`initiallyDeferred: true`)
     expect(pulledSchema).toContain(`users_email_key`)
     expect(pulledSchema).toContain(`users_email_check`)
-    expect(pulledSchema).toContain(`noInherit: true`)
+    expect(pulledSchema).toContain(`Pg.Check.noInherit`)
 
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
@@ -1387,8 +1387,8 @@ test("postgres cli pull preserves non-default index collations", async () => {
 test("postgres cli pulls composite foreign keys into canonical source definitions", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "effect-qb/postgres"
-import { Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { PrimaryKey, Table } from "effect-qb"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 
@@ -1436,13 +1436,11 @@ export { orgs, memberships }
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`memberships_org_fkey`)
-    expect(pulledSchema).toContain(`columns: ["tenantId", "orgSlug"]`)
-    expect(pulledSchema).toContain(`target: () => orgs`)
-    expect(pulledSchema).toContain(`referencedColumns: ["tenantId", "slug"]`)
-    expect(pulledSchema).toContain(`onDelete: "cascade"`)
-    expect(pulledSchema).toContain(`onUpdate: "noAction"`)
-    expect(pulledSchema).toContain(`deferrable: true`)
-    expect(pulledSchema).toContain(`initiallyDeferred: true`)
+    expect(pulledSchema).toContain(`ForeignKey.make((table) => [table.tenantId, table.orgSlug], () => [orgs.tenantId, orgs.slug])`)
+    expect(pulledSchema).toContain(`ForeignKey.onDelete("cascade")`)
+    expect(pulledSchema).toContain(`ForeignKey.onUpdate("noAction")`)
+    expect(pulledSchema).toContain(`Pg.ForeignKey.deferrable`)
+    expect(pulledSchema).toContain(`Pg.ForeignKey.initiallyDeferred`)
 
   } finally {
     await dropSchema(schemaName).catch(() => undefined)
@@ -1454,7 +1452,7 @@ test("postgres cli pulls schema-builder table declarations into canonical source
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "effect-qb/postgres"
 import { Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
 
@@ -1484,7 +1482,7 @@ export const audits = db.table("audits", {
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`const audits = db.table(`)
-    expect(pulledSchema).toContain(`actorName: Column.text().pipe(Column.nullable, Column.index({ name: "audits_actor_name_idx"`)
+    expect(pulledSchema).toContain(`actorName: Column.text().pipe(Column.nullable, Pg.Column.index({ name: "audits_actor_name_idx"`)
     expect(pulledSchema).toContain(`audits_actor_name_idx`)
 
     await assertIdempotentPullPush(config)
@@ -1525,10 +1523,10 @@ test("postgres cli pulls builtin postgres columns with dedicated constructors", 
     expect(pull.stdout).toContain("updated 1 file(s)")
 
     const pulledSchema = await readSchema(workspace)
-    expect(pulledSchema).toContain(`payload: Column.jsonb(Schema.Unknown).pipe(Column.nullable)`)
+    expect(pulledSchema).toContain(`payload: Pg.Column.jsonb(Schema.Unknown).pipe(Column.nullable)`)
     expect(pulledSchema).toContain(`Column.varchar(32)`)
     expect(pulledSchema).toContain(`Column.char(1)`)
-    expect(pulledSchema).toContain(`Column.text().pipe(Column.array(), Column.nullable)`)
+    expect(pulledSchema).toContain(`Column.text().pipe(Pg.Column.array(), Column.nullable)`)
     expect(pulledSchema).toContain(`Column.number({ precision: 10, scale: 4 }).pipe(Column.nullable)`)
     expect(pulledSchema).toContain(`Column.int8()`)
     expect(pulledSchema).toContain(`Column.timestamptz()`)
@@ -1551,7 +1549,7 @@ test("postgres cli pulls class table declarations into canonical source definiti
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "effect-qb/postgres"
 import { Table } from "effect-qb"
-import { Column as C } from "effect-qb/postgres"
+import { Column as C } from "effect-qb"
 
 export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
   id: C.uuid().pipe(C.primaryKey),
@@ -1581,7 +1579,7 @@ export class Sessions extends Table.Class<Sessions>("sessions", "__SCHEMA__")({
     expect(pulledSchema).toContain(`class Sessions extends Table.Class<Sessions>("sessions", "${schemaName}")({`)
     expect(pulledSchema).toContain(`lastSeenAt: Column.timestamp().pipe(`)
     expect(pulledSchema).toContain(`Column.timestamp().pipe(Column.nullable)`)
-    expect(pulledSchema).toContain(`email: Column.text().pipe(Column.index({ name: "sessions_email_idx"`)
+    expect(pulledSchema).toContain(`email: Column.text().pipe(Pg.Column.index({ name: "sessions_email_idx"`)
     expect(pulledSchema).toContain(`sessions_email_idx`)
 
   } finally {
