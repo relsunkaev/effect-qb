@@ -2,12 +2,40 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 
 import { describe, expect, test } from "bun:test"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 
 import { loadPostgresConfig, resolveDatabaseUrl } from "effect-db"
+import { loadPostgresConfigEffect } from "../../../packages/database/src/internal/postgres-config.js"
 
 const repoRoot = process.cwd()
 
 describe("postgres config", () => {
+  test("loads defaults through provided platform services", async () => {
+    const checkedPaths: string[] = []
+    const loaded = await Effect.runPromise(
+      loadPostgresConfigEffect("/workspace").pipe(
+        Effect.provide(FileSystem.layerNoop({
+          exists: (path) => {
+            checkedPaths.push(path)
+            return Effect.succeed(false)
+          }
+        })),
+        Effect.provide(Path.layer)
+      )
+    )
+
+    expect(loaded.cwd).toBe("/workspace")
+    expect(loaded.path).toBeUndefined()
+    expect(checkedPaths).toEqual([
+      "/workspace/effectdb.config.ts",
+      "/workspace/effectdb.config.mts",
+      "/workspace/effectdb.config.js",
+      "/workspace/effectdb.config.mjs"
+    ])
+  })
+
   test("rejects invalid dialects", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-config-"))
     try {

@@ -3,15 +3,42 @@ import { join } from "node:path"
 
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, test } from "bun:test"
+import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 
-import { readMigrationFiles, ensureMigrationTable, readAppliedMigrationRows } from "../../../packages/database/src/postgres/migrate.js"
+import { readMigrationFiles, readMigrationFilesEffect, ensureMigrationTable, readAppliedMigrationRows } from "../../../packages/database/src/postgres/migrate.js"
 import { withoutManagedMigrationTable } from "../../../packages/database/src/postgres/push.js"
 import type { SchemaModel } from "effect-qb/postgres/metadata"
 
 const repoRoot = process.cwd()
 
 describe("postgres migrations", () => {
+  test("reads migrations through provided platform services", async () => {
+    const files = await Effect.runPromise(
+      readMigrationFilesEffect("/migrations").pipe(
+        Effect.provide(FileSystem.layerNoop({
+          makeDirectory: () => Effect.void,
+          readDirectory: () => Effect.succeed(["0001_init.sql"]),
+          readFileString: () => Effect.succeed("create table users (id integer);\n")
+        })),
+        Effect.provide(Path.layer),
+        Effect.provideService(Crypto.Crypto, Crypto.make({
+          randomBytes: (size) => new Uint8Array(size),
+          digest: () => Effect.succeed(Uint8Array.from([1, 2, 255]))
+        }))
+      )
+    )
+
+    expect(files).toEqual([{
+      name: "0001_init.sql",
+      path: "/migrations/0001_init.sql",
+      sql: "create table users (id integer);",
+      checksum: "sha256:0102ff"
+    }])
+  })
+
   test("parses up and down sections and normalizes checksum line endings", async () => {
     const tempDir = await mkdtemp(join(repoRoot, "test/.tmp-postgres-migrate-"))
     try {
