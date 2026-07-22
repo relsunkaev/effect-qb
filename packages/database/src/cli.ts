@@ -2,6 +2,7 @@
 import { NodeRuntime, NodeServices } from "@effect/platform-node"
 import { Command, Flag } from "effect/unstable/cli"
 import * as Effect from "effect/Effect"
+import * as Logger from "effect/Logger"
 import * as Option from "effect/Option"
 import * as Terminal from "effect/Terminal"
 
@@ -32,13 +33,16 @@ import { introspectPostgresSchema } from "./internal/postgres-introspector.js"
 import { filterDiscoveredSourceSchema } from "./internal/postgres-source-filter.js"
 import { discoverSourceSchemaEffect } from "./internal/postgres-source-discovery.js"
 
-const log = (line: string) =>
-  Effect.flatMap(Terminal.Terminal, (terminal) => terminal.display(`${line}\n`))
-
-const logLines = (lines: readonly string[]) =>
+const outputLines = (lines: readonly string[]) =>
   lines.length === 0
     ? Effect.void
     : Effect.flatMap(Terminal.Terminal, (terminal) => terminal.display(`${lines.join("\n")}\n`))
+
+const logInfoLines = (lines: readonly string[]) =>
+  Effect.forEach(lines, (line) => Effect.logInfo(line), { discard: true })
+
+const logWarningLines = (lines: readonly string[]) =>
+  Effect.forEach(lines, (line) => Effect.logWarning(line), { discard: true })
 
 const configOption = Flag.string("config").pipe(
   Flag.optional,
@@ -69,6 +73,14 @@ const stepsOption = Flag.integer("steps").pipe(
   Flag.withDescription("Number of applied migrations to roll back")
 )
 
+const loadConfig = (explicitConfigPath: Option.Option<string>) =>
+  loadPostgresConfigEffect(process.cwd(), Option.getOrUndefined(explicitConfigPath)).pipe(
+    Effect.tap((loaded) => Effect.logDebug("loaded database config", {
+      cwd: loaded.cwd,
+      path: loaded.path
+    }))
+  )
+
 const withLoadedConfig = <A, E, R>(
   explicitConfigPath: Option.Option<string>,
   explicitUrl: Option.Option<string>,
@@ -80,7 +92,7 @@ const withLoadedConfig = <A, E, R>(
   }) => Effect.Effect<A, E, R>
 ) =>
   Effect.gen(function*() {
-    const loaded = yield* loadPostgresConfigEffect(process.cwd(), Option.getOrUndefined(explicitConfigPath))
+    const loaded = yield* loadConfig(explicitConfigPath)
     return yield* f({
       cwd: loaded.cwd,
       configPath: loaded.path,
@@ -104,12 +116,12 @@ const push = Command.make(
       )
       const selected = selectedPostgresSchemaChanges(plan, allowDestructive)
       const skipped = skippedPostgresSchemaChanges(plan, allowDestructive)
-      yield* logLines([
+      yield* outputLines([
         `discovered ${discovered.model.tables.length} table(s) and ${discovered.model.enums.length} enum(s)`,
         ...summarizeSelectedPostgresPlan("planned changes", plan.changes)
       ])
       if (dryRun) {
-        return yield* logLines(skipped.length === 0
+        return yield* outputLines(skipped.length === 0
           ? []
           : summarizeSelectedPostgresPlan("skipped changes", skipped))
       }
@@ -120,12 +132,12 @@ const push = Command.make(
             applyStatements(selected.map((change) => change.sql!).filter((sql): sql is string => sql !== undefined))
           )
         )
-        yield* log(`applied ${selected.length} statement(s)`)
+        yield* Effect.logInfo(`applied ${selected.length} statement(s)`)
       } else {
-        yield* log("no executable statements selected")
+        yield* Effect.logInfo("no executable statements selected")
       }
       if (skipped.length > 0) {
-        yield* logLines(summarizeSelectedPostgresPlan("skipped changes", skipped))
+        yield* logWarningLines(summarizeSelectedPostgresPlan("skipped changes", skipped))
       }
     })
 )
@@ -140,7 +152,7 @@ const pull = Command.make(
   ({ config, url, dryRun }) =>
     Effect.gen(function*() {
       const { loaded, database, discovered, plan } = yield* Effect.gen(function*() {
-        const loaded = yield* loadPostgresConfigEffect(process.cwd(), Option.getOrUndefined(config))
+        const loaded = yield* loadConfig(config)
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
         const discovered = filterDiscoveredSourceSchema(
           yield* discoverSourceSchemaEffect(loaded.cwd, loaded.config.source),
@@ -156,12 +168,12 @@ const pull = Command.make(
       void database
       void discovered
       if (plan.updates.length === 0) {
-        return yield* log("schema definitions are already up to date")
+        return yield* Effect.logInfo("schema definitions are already up to date")
       }
-      yield* logLines(yield* summarizePullPlanEffect(loaded.cwd, plan))
+      yield* outputLines(yield* summarizePullPlanEffect(loaded.cwd, plan))
       if (!dryRun) {
         yield* applyPullPlanEffect(plan)
-        yield* log(`updated ${plan.updates.length} file(s)`)
+        yield* Effect.logInfo(`updated ${plan.updates.length} file(s)`)
       }
     })
 )
@@ -177,7 +189,7 @@ const migrateGenerate = Command.make(
   ({ config, url, allowDestructive, name }) =>
     Effect.gen(function*() {
       const { loaded, plan } = yield* Effect.gen(function*() {
-        const loaded = yield* loadPostgresConfigEffect(process.cwd(), Option.getOrUndefined(config))
+        const loaded = yield* loadConfig(config)
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
         const { plan } = yield* loadPostgresSchemaPlanEffect(loaded.cwd, loaded.config, databaseUrl)
         return { loaded, plan }
@@ -185,7 +197,7 @@ const migrateGenerate = Command.make(
       const selected = selectedPostgresSchemaChanges(plan, allowDestructive)
       const skipped = skippedPostgresSchemaChanges(plan, allowDestructive)
       if (selected.length === 0) {
-        yield* log("no executable migration changes selected")
+        yield* Effect.logInfo("no executable migration changes selected")
       } else {
         const migrationsDir = yield* migrationDirFromConfigEffect(loaded.cwd, loaded.config.migrations.dir)
         const filePath = yield* writeMigrationFileEffect(
@@ -193,10 +205,10 @@ const migrateGenerate = Command.make(
           Option.getOrElse(name, () => allowDestructive ? "schema_destructive" : "schema_safe"),
           selected
         )
-        yield* log(`wrote ${migrationFileLabel(filePath)}`)
+        yield* Effect.logInfo(`wrote ${migrationFileLabel(filePath)}`)
       }
       if (skipped.length > 0) {
-        yield* logLines(summarizeSelectedPostgresPlan("skipped changes", skipped))
+        yield* logWarningLines(summarizeSelectedPostgresPlan("skipped changes", skipped))
       }
     })
 )
@@ -210,7 +222,7 @@ const migrateUp = Command.make(
   ({ config, url }) =>
     Effect.gen(function*() {
       const { loaded, databaseUrl } = yield* Effect.gen(function*() {
-        const loaded = yield* loadPostgresConfigEffect(process.cwd(), Option.getOrUndefined(config))
+        const loaded = yield* loadConfig(config)
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
         return { loaded, databaseUrl }
       })
@@ -229,9 +241,9 @@ const migrateUp = Command.make(
         }))
       )
       if (applied.length === 0) {
-        return yield* log("no pending migrations")
+        return yield* Effect.logInfo("no pending migrations")
       }
-      yield* logLines([
+      yield* logInfoLines([
         `applied ${applied.length} migration(s)`,
         ...applied.map((file) => `  - ${file.name}`)
       ])
@@ -247,7 +259,7 @@ const migrateStatus = Command.make(
   ({ config, url }) =>
     Effect.gen(function*() {
       const { loaded, databaseUrl, appliedRows, pending } = yield* Effect.gen(function*() {
-        const loaded = yield* loadPostgresConfigEffect(process.cwd(), Option.getOrUndefined(config))
+        const loaded = yield* loadConfig(config)
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
         const state = yield* loadPostgresMigrationStateEffect(loaded, databaseUrl)
         return {
@@ -259,7 +271,7 @@ const migrateStatus = Command.make(
       })
       void loaded
       void databaseUrl
-      yield* logLines([
+      yield* outputLines([
         `applied migrations (${appliedRows.length}):`,
         ...appliedRows.map((row) => `  - ${row.name}`),
         `pending migrations (${pending.length}):`,
@@ -279,7 +291,7 @@ const migrateDown = Command.make(
   ({ config, url, dryRun, steps }) =>
     Effect.gen(function*() {
       const { loaded, databaseUrl, selected } = yield* Effect.gen(function*() {
-        const loaded = yield* loadPostgresConfigEffect(process.cwd(), Option.getOrUndefined(config))
+        const loaded = yield* loadConfig(config)
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
         const state = yield* loadPostgresMigrationStateEffect(loaded, databaseUrl)
         const stepCount = Math.max(1, Option.getOrElse(steps, () => 1))
@@ -302,9 +314,9 @@ const migrateDown = Command.make(
         }
       })
       if (selected.length === 0) {
-        return yield* log("no applied migrations")
+        return yield* Effect.logInfo("no applied migrations")
       }
-      yield* logLines([
+      yield* outputLines([
         `rollback migrations (${selected.length}):`,
         ...selected.map((file) => `  - ${file.name}`)
       ])
@@ -316,7 +328,7 @@ const migrateDown = Command.make(
             rollbackMigrationFiles(loaded.config.migrations.table, selected)
           )
         )
-        yield* log(`rolled back ${selected.length} migration(s)`)
+        yield* Effect.logInfo(`rolled back ${selected.length} migration(s)`)
       }
     })
 )
@@ -331,7 +343,7 @@ const migrateRepair = Command.make(
   ({ config, url, dryRun }) =>
     Effect.gen(function*() {
       const { loaded, databaseUrl, orphanNames } = yield* Effect.gen(function*() {
-        const loaded = yield* loadPostgresConfigEffect(process.cwd(), Option.getOrUndefined(config))
+        const loaded = yield* loadConfig(config)
         const databaseUrl = resolveDatabaseUrl(loaded.config, Option.getOrUndefined(url))
         const state = yield* loadPostgresMigrationStateEffect(loaded, databaseUrl)
         const fileNames = new Set(state.files.map((file) => file.name))
@@ -345,9 +357,9 @@ const migrateRepair = Command.make(
         }
       })
       if (orphanNames.length === 0) {
-        return yield* log("migration ledger is already aligned")
+        return yield* Effect.logInfo("migration ledger is already aligned")
       }
-      yield* logLines([
+      yield* outputLines([
         `repairing ${orphanNames.length} orphaned migration record(s):`,
         ...orphanNames.map((name) => `  - ${name}`)
       ])
@@ -359,7 +371,7 @@ const migrateRepair = Command.make(
             deleteAppliedMigrationNames(loaded.config.migrations.table, orphanNames)
           )
         )
-        yield* log(`repaired ${orphanNames.length} migration record(s)`)
+        yield* Effect.logInfo(`repaired ${orphanNames.length} migration record(s)`)
       }
     })
 )
@@ -377,6 +389,7 @@ const cli = Command.run(root, {
 })
 
 cli.pipe(
+  Effect.provideService(Logger.LogToStderr, true),
   Effect.provide(NodeServices.layer),
   NodeRuntime.runMain
 )
