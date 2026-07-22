@@ -44,6 +44,11 @@ effectdb migrate generate
 effectdb migrate up
 ```
 
+`effectdb` uses Effect CLI's global `--log-level` flag. Operational logs are
+written to stderr and default to `info`; use `--log-level debug` for config
+diagnostics or `--log-level none` to suppress logs. Plans and status
+output remain on stdout.
+
 ## Runtime services
 
 The CLI obtains file-system, path, crypto, and terminal capabilities from
