@@ -123,6 +123,13 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 - Do not prefix branch names with `codex/`.
 
+## Runtime and build boundaries
+
+- Keep Bun as the workspace package manager and tooling runtime.
+- Keep published `effect-qb` and `effect-db` runtime behavior Node.js-native.
+- Assume consumer code is bundled or built with esbuild. Do not add a runtime
+  TypeScript loader solely to support unbuilt TypeScript syntax.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
 
