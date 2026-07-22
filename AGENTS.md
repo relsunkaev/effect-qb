@@ -127,6 +127,9 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 - Keep Bun as the workspace package manager and tooling runtime.
 - Keep published `effect-qb` and `effect-db` runtime behavior Node.js-native.
+- Prefer Effect Platform services for filesystem, path, terminal, process, and
+  other host capabilities. Keep Node-specific implementations at the runtime
+  assembly boundary with `NodeServices` and `NodeRuntime`.
 - Assume consumer code is bundled or built with esbuild. Do not add a runtime
   TypeScript loader solely to support unbuilt TypeScript syntax.
 
