@@ -56,7 +56,7 @@ const main = async () => {
     "--skipLibCheck",
     "--allowImportingTsExtensions",
     "--types",
-    "bun",
+    "node",
     "src/index.ts",
     "src/postgres/pull.ts",
     "src/postgres/push.ts",

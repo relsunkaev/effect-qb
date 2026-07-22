@@ -27,7 +27,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.5
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -46,12 +46,13 @@ jobs:
           bunx npm pack --dry-run ./packages/querybuilder
           bunx npm pack --dry-run ./packages/database
 
-      - name: Smoke test packed querybuilder package
-        run: bun run test:pack
-
   verify-node:
-    name: Verify Node 22
+    name: Verify packed artifacts (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,7 +60,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.5
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -67,30 +73,11 @@ jobs:
       - name: Build package
         run: bun run build
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.0.0
+      - name: Typecheck production sources without Bun globals
+        run: bun run test:types:node
 
-      - name: Smoke test published entrypoints
-        run: |
-          node --input-type=module <<'EOF'
-          import * as Root from "./packages/querybuilder/dist/index.js"
-          import * as Postgres from "./packages/querybuilder/dist/postgres.js"
-          import * as Database from "./packages/database/dist/index.js"
-
-          if (typeof Root.Query?.select !== "function") {
-            throw new Error("querybuilder root entrypoint did not load")
-          }
-
-          if (typeof Postgres.Renderer?.make !== "function" || typeof Postgres.Executor?.make !== "function") {
-            throw new Error("querybuilder postgres entrypoint did not load")
-          }
-
-          if (typeof Database.defineConfig !== "function") {
-            throw new Error("database entrypoint did not load")
-          }
-          EOF
+      - name: Smoke test packed packages
+        run: bun run test:pack
 
   integration:
     name: Integration
@@ -103,13 +90,10 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.5
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      - name: Build package
-        run: bun run build
 
       - name: Run integration tests
         run: bun run test:integration
