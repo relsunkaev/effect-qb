@@ -6,7 +6,11 @@ import { dirname, join } from "node:path"
 import { execPostgres, withPostgresLock } from "./helpers.ts"
 
 const repoRoot = process.cwd()
-const cliEntry = join(repoRoot, "packages", "database", "src", "cli.ts")
+const cliEntry = join(repoRoot, "packages", "database", "dist", "cli.js")
+const nodePath = Bun.which("node")
+if (nodePath === null) {
+  throw new Error("Node.js is required for effect-db CLI integration tests")
+}
 const postgresUrl = "postgres://effect_qb:effect_qb@127.0.0.1:55432/effect_qb_test"
 
 const randomId = () => Math.random().toString(36).slice(2, 10)
@@ -145,7 +149,7 @@ const runCli = async (...args: readonly string[]): Promise<{
 }> => {
   return withPostgresLock(async () => {
     const proc = Bun.spawn([
-      process.execPath,
+      nodePath,
       cliEntry,
       ...args
     ], {
@@ -173,7 +177,7 @@ const runCliUnlocked = async (...args: readonly string[]): Promise<{
   readonly stderr: string
 }> => {
   const proc = Bun.spawn([
-    process.execPath,
+    nodePath,
     cliEntry,
     ...args
   ], {

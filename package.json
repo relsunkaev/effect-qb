@@ -20,9 +20,9 @@
     "generate:readme-types": "bun scripts/generate-readme-type-tests.ts",
     "release": "bun scripts/release.ts",
     "test:pack": "bun scripts/check-packed-querybuilder.ts",
-    "test": "bun --config ./bunfig.test.toml test",
+    "test": "bun test",
     "test:types": "bun run generate:readme-types && bunx tsgo -p tsconfig.type-tests.json",
-    "test:integration": "bun scripts/test-integration.ts",
+    "test:integration": "bun run build && bun scripts/test-integration.ts",
     "test:integration:datatypes": "bun scripts/test-datatype-matrix-integration.ts"
   },
   "devDependencies": {
