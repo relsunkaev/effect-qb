@@ -44,6 +44,14 @@ effectdb migrate generate
 effectdb migrate up
 ```
 
+## Runtime services
+
+The CLI obtains file-system, path, crypto, and terminal capabilities from
+`@effect/platform-node`. The core workflows also export `*Effect` variants that
+accept the corresponding Effect Platform services, so another runtime can
+provide its own implementations. Existing Promise APIs remain Node-backed for
+compatibility.
+
 ## Operational Notes
 
 `effectdb` manages canonical table and enum declarations, not the entire Postgres catalog.
