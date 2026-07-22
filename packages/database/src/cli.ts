@@ -1,5 +1,5 @@
-#!/usr/bin/env bun
-import { BunRuntime, BunServices } from "@effect/platform-bun"
+#!/usr/bin/env node
+import { NodeRuntime, NodeServices } from "@effect/platform-node"
 import { Command, Flag } from "effect/unstable/cli"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -402,6 +402,6 @@ const cli = Command.run(root, {
 })
 
 cli.pipe(
-  Effect.provide(BunServices.layer),
-  BunRuntime.runMain
+  Effect.provide(NodeServices.layer),
+  NodeRuntime.runMain
 )

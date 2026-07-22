@@ -1,8 +1,9 @@
 import * as Std from "effect-qb"
 import { randomUUID } from "node:crypto"
-import { rm } from "node:fs/promises"
+import { readFile, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, extname, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
+import { glob } from "tinyglobby"
 import ts from "typescript"
 
 import {
@@ -548,8 +549,8 @@ const createTemporaryExportModule = async (
 ): Promise<string> => {
   const extension = extname(filePath) || ".ts"
   const tempPath = join(dirname(filePath), `.__effect_qb_discovery_${basename(filePath, extension)}_${randomUUID()}${extension}`)
-  const contents = await Bun.file(filePath).text()
-  await Bun.write(
+  const contents = await readFile(filePath, "utf8")
+  await writeFile(
     tempPath,
     `${contents}\nconst __effect_qb_discovery_exports = { ${names.join(", ")} }\nexport default __effect_qb_discovery_exports\n`
   )
@@ -586,7 +587,12 @@ const scanPattern = async (
   pattern: string
 ): Promise<ReadonlyArray<string>> => {
   const matches: string[] = []
-  for await (const match of new Bun.Glob(pattern).scan({ cwd, absolute: true, dot: true, followSymlinks: true })) {
+  for (const match of await glob(pattern, {
+    cwd,
+    absolute: true,
+    dot: true,
+    followSymbolicLinks: true
+  })) {
     if (DEFAULT_SOURCE_EXTENSIONS.has(extname(match))) {
       matches.push(resolve(match))
     }
@@ -615,7 +621,7 @@ export const discoverSourceSchema = async (
   }
   const declarations: SourceDeclaration[] = []
   for (const filePath of [...included].filter((file) => !excluded.has(file)).sort()) {
-    const contents = await Bun.file(filePath).text()
+    const contents = await readFile(filePath, "utf8")
     declarations.push(...discoverInFile(filePath, contents))
   }
   const duplicateKeys = new Map<string, string>()

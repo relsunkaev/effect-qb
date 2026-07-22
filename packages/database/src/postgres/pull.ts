@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, extname, relative, resolve } from "node:path"
 
 import { Datatypes } from "effect-qb/postgres"
@@ -2865,9 +2865,12 @@ export const planPostgresPull = async (
     if (existing !== undefined) {
       return existing
     }
-    const original = await Bun.file(filePath).exists()
-      ? await Bun.file(filePath).text()
-      : ""
+    const original = await readFile(filePath, "utf8").catch((cause: unknown) => {
+      if (typeof cause === "object" && cause !== null && "code" in cause && cause.code === "ENOENT") {
+        return ""
+      }
+      throw cause
+    })
     const created = {
       original,
       replacements: [] as SourceBinding[],
@@ -3208,7 +3211,7 @@ export const planPostgresPull = async (
 export const applyPullPlan = async (plan: PullPlan): Promise<void> => {
   for (const update of plan.updates) {
     await mkdir(dirname(update.filePath), { recursive: true })
-    await Bun.write(update.filePath, update.after)
+    await writeFile(update.filePath, update.after)
   }
 }
 

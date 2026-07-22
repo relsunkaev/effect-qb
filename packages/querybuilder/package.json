@@ -12,8 +12,7 @@
   },
   "homepage": "https://github.com/relsunkaev/effect-qb#readme",
   "engines": {
-    "node": ">=22",
-    "bun": ">=1.3.5"
+    "node": ">=22"
   },
   "files": [
     "dist",

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
-import { mkdir } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
+import { basename, join, resolve } from "node:path"
 
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlSchema from "effect/unstable/sql/SqlSchema"
@@ -202,10 +202,7 @@ export const writeMigrationFile = async (
 ): Promise<string> => {
   const directory = resolve(migrationsDir)
   await mkdir(directory, { recursive: true })
-  const files = await Array.fromAsync(new Bun.Glob("*.sql").scan({
-    cwd: directory,
-    absolute: false
-  }))
+  const files = (await readdir(directory)).filter((file) => file.endsWith(".sql"))
   const nextNumber = files
     .map((file) => /^(\d+)_/.exec(file)?.[1])
     .filter((value): value is string => value !== undefined)
@@ -213,7 +210,7 @@ export const writeMigrationFile = async (
     .reduce((max, current) => Math.max(max, current), 0) + 1
   const fileName = `${String(nextNumber).padStart(4, "0")}_${sanitizeName(name)}.sql`
   const filePath = join(directory, fileName)
-  await Bun.write(filePath, `${renderMigrationFile(changes)}\n`)
+  await writeFile(filePath, `${renderMigrationFile(changes)}\n`)
   return filePath
 }
 
@@ -239,17 +236,17 @@ export const readPendingMigrationFiles = async (
 ): Promise<ReadonlyArray<MigrationFile>> => {
   await ensureDirectory(migrationsDir)
   const directory = resolve(migrationsDir)
-  const files = (await Array.fromAsync(new Bun.Glob("*.sql").scan({
-    cwd: directory,
-    absolute: true
-  }))).sort()
+  const files = (await readdir(directory))
+    .filter((file) => file.endsWith(".sql"))
+    .map((file) => join(directory, file))
+    .sort()
   const pending: MigrationFile[] = []
   for (const path of files) {
-    const name = path.slice(path.lastIndexOf("/") + 1)
+    const name = basename(path)
     if (appliedNames.has(name)) {
       continue
     }
-    const contents = await Bun.file(path).text()
+    const contents = await readFile(path, "utf8")
     const parsed = parseMigrationSections(contents)
     pending.push({
       name,
@@ -267,14 +264,14 @@ export const readMigrationFiles = async (
 ): Promise<ReadonlyArray<MigrationFile>> => {
   await ensureDirectory(migrationsDir)
   const directory = resolve(migrationsDir)
-  const files = (await Array.fromAsync(new Bun.Glob("*.sql").scan({
-    cwd: directory,
-    absolute: true
-  }))).sort()
+  const files = (await readdir(directory))
+    .filter((file) => file.endsWith(".sql"))
+    .map((file) => join(directory, file))
+    .sort()
   const parsed: MigrationFile[] = []
   for (const path of files) {
-    const name = path.slice(path.lastIndexOf("/") + 1)
-    const contents = await Bun.file(path).text()
+    const name = basename(path)
+    const contents = await readFile(path, "utf8")
     const sections = parseMigrationSections(contents)
     parsed.push({
       name,

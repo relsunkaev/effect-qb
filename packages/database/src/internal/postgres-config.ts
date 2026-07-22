@@ -1,3 +1,4 @@
+import { access } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
@@ -244,8 +245,14 @@ const defaultConfig = (): EffectDbConfig => ({
   }
 })
 
-const fileExists = async (path: string): Promise<boolean> =>
-  await Bun.file(path).exists()
+const fileExists = async (path: string): Promise<boolean> => {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
+}
 
 const loadModuleConfig = async (path: string): Promise<unknown> => {
   const imported = await import(pathToFileURL(path).href)
