@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
@@ -73,6 +73,7 @@ const main = async () => {
   const packedTarball = await querybuilderTarballPath()
   const packedDatabaseTarball = await databaseTarballPath()
   const consumerDir = await mkdtemp(join(tmpdir(), "effect-qb-pack-smoke-"))
+  const nodeOnlyBinDir = await mkdtemp(join(tmpdir(), "effect-db-node-bin-"))
 
   try {
     await Bun.write(join(consumerDir, "package.json"), `${JSON.stringify({
@@ -241,8 +242,68 @@ const main = async () => {
 
     await run(["bun", "install", "--no-save"], consumerDir)
     await run([join(cwd, "node_modules", ".bin", "tsgo"), "-p", "tsconfig.json"], consumerDir)
+
+    const nodePath = Bun.which("node")
+    if (nodePath === null) {
+      throw new Error("Node.js is required for the packed effect-db smoke test")
+    }
+    await symlink(nodePath, join(nodeOnlyBinDir, "node"))
+    await Bun.write(join(consumerDir, "node-smoke.mjs"), `
+import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { join } from "node:path"
+import { loadPostgresConfig } from "effect-db"
+import { readMigrationFiles, writeMigrationFile } from "effect-db/postgres/migrate"
+import { applyPullPlan } from "effect-db/postgres/pull"
+
+const workspace = join(process.cwd(), "node-runtime-workspace")
+await mkdir(workspace)
+await writeFile(join(workspace, "effectdb.config.ts"), \`import { defineConfig } from "effect-db"
+
+const config = {
+  dialect: "postgres",
+  db: { url: "postgres://localhost/effect_db" },
+  source: { include: ["src/**/*.ts"] },
+  migrations: { dir: "migrations", table: "effect_qb_migrations" },
+  safety: { nonDestructiveDefault: true }
+} satisfies Parameters<typeof defineConfig>[0]
+
+export default defineConfig(config)\n\`)
+const loaded = await loadPostgresConfig(workspace)
+if (loaded.config.dialect !== "postgres") throw new Error("failed to load config under Node.js")
+
+const migrationsDir = join(workspace, "migrations")
+await writeMigrationFile(migrationsDir, "node runtime", [])
+const migrations = await readMigrationFiles(migrationsDir)
+if (migrations.length !== 1) throw new Error("failed to read migrations under Node.js")
+
+const pulledPath = join(workspace, "src", "schema.ts")
+await applyPullPlan({ updates: [{ filePath: pulledPath, before: "", after: "export {}\\n" }] })
+if (await readFile(pulledPath, "utf8") !== "export {}\\n") throw new Error("failed to apply pull plan under Node.js")
+`)
+    await run([nodePath, "node-smoke.mjs"], consumerDir)
+    const cli = Bun.spawn([
+      join(consumerDir, "node_modules", ".bin", "effectdb"),
+      "--help"
+    ], {
+      cwd: consumerDir,
+      env: {
+        ...process.env,
+        PATH: nodeOnlyBinDir
+      },
+      stdout: "pipe",
+      stderr: "pipe"
+    })
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(cli.stdout).text(),
+      new Response(cli.stderr).text(),
+      cli.exited
+    ])
+    if (exitCode !== 0 || !stdout.includes("effectdb")) {
+      throw new Error(`Packed effect-db CLI failed under Node.js:\n${stdout}${stderr}`)
+    }
   } finally {
     await rm(consumerDir, { recursive: true, force: true })
+    await rm(nodeOnlyBinDir, { recursive: true, force: true })
     await rm(packedTarball, { force: true })
     await rm(packedDatabaseTarball, { force: true })
     await rm(dirname(packedDatabaseTarball), { recursive: true, force: true })
