@@ -118,7 +118,10 @@ export interface AppliedMigrationRow {
 const EmptyRequest = Schema.Struct({})
 
 const AppliedMigrationRowSchema = Schema.Struct({
-  id: Schema.Number,
+  id: Schema.Union([
+    Schema.Number.check(Schema.isFinite()),
+    Schema.NumberFromString.check(Schema.isFinite())
+  ]),
   name: Schema.String,
   checksum: Schema.NullOr(Schema.String)
 })

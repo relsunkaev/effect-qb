@@ -101,7 +101,7 @@ describe("postgres migrations", () => {
         if (statement.includes("select id, name, checksum")) {
           return Effect.succeed([
             {
-              id: "1",
+              id: "not-a-number",
               name: "0001_init.sql",
               checksum: null
             }
