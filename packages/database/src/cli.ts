@@ -3,6 +3,7 @@ import { NodeRuntime, NodeServices } from "@effect/platform-node"
 import { Command, Flag } from "effect/unstable/cli"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
+import * as Terminal from "effect/Terminal"
 
 import { loadPostgresConfig, resolveDatabaseUrl } from "./internal/postgres-config.js"
 import {
@@ -42,17 +43,13 @@ const effectFromPromise = <A>(evaluate: () => Promise<A>): Effect.Effect<A, Erro
     catch: toError
   })
 
-const log = (line: string): Effect.Effect<void> =>
-  Effect.sync(() => {
-    console.log(line)
-  })
+const log = (line: string) =>
+  Effect.flatMap(Terminal.Terminal, (terminal) => terminal.display(`${line}\n`))
 
-const logLines = (lines: readonly string[]): Effect.Effect<void> =>
-  Effect.sync(() => {
-    if (lines.length > 0) {
-      console.log(lines.join("\n"))
-    }
-  })
+const logLines = (lines: readonly string[]) =>
+  lines.length === 0
+    ? Effect.void
+    : Effect.flatMap(Terminal.Terminal, (terminal) => terminal.display(`${lines.join("\n")}\n`))
 
 const configOption = Flag.string("config").pipe(
   Flag.optional,
