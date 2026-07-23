@@ -4,6 +4,60 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.21.0 - 2026-07-23
+
+### Features
+
+- feat(database): add level-aware CLI logging
+
+### Fixes
+
+- fix(database): run effectdb CLI on Node.js
+- fix(database): generate valid extension-only pull sources
+- fix(database): decode Postgres migration identifiers
+- fix(database): report CLI failures on stderr
+- fix(ci): preserve required check names
+
+### Refactors
+
+- refactor(database): route CLI output through Effect Terminal
+- refactor(database): route I/O through Effect Platform services
+
+### Docs
+
+- docs(repo): prefer Effect Platform runtime services
+- docs(database): explain portable runtime services
+- docs(database): document CLI log levels
+
+### Tests
+
+- test(pack): verify effect-db runs without Bun
+- test(database): exercise built CLI with Node
+- test(database): cover injected platform services
+- test(database): cover portable write services
+- test(pack): exercise installed CLI against Postgres
+
+### Build
+
+- build(repo): add Node-native package verification
+
+### CI
+
+- ci: run Node integration across supported versions
+
+### Chores
+
+- chore(beads): close v0.20.0 release
+- chore(beads): close Node CLI runtime fix
+- chore(repo): document branch naming convention
+- chore(repo): record esbuild runtime boundary
+- chore(beads): close Node-native verification
+- chore(beads): claim Effect Platform migration
+- chore(beads): close Effect Platform migration
+- chore(beads): claim CLI logging migration
+- chore(beads): close CLI logging migration
+- chore(beads): track Node release hardening
+
 ## 0.20.0 - 2026-07-13
 
 ### Breaking Changes
