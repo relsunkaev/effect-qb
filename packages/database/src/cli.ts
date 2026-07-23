@@ -385,7 +385,7 @@ const root = Command.make("effectdb", {}, () => Effect.void).pipe(
 )
 
 const cli = Command.run(root, {
-  version: "0.20.0"
+  version: "0.21.0"
 })
 
 cli.pipe(
