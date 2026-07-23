@@ -3,6 +3,9 @@ import { join, relative } from "node:path"
 
 // @ts-nocheck
 import { describe, expect, test } from "bun:test"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 import * as Schema from "effect/Schema"
 
 import * as Pg from "#postgres"
@@ -16,12 +19,44 @@ import {
   discoverSourceSchema,
   type DiscoveredSourceSchema
 } from "../../../packages/database/src/internal/postgres-source-discovery.js"
-import { planPostgresPull } from "../../../packages/database/src/postgres/pull.js"
+import { applyPullPlanEffect, planPostgresPull } from "../../../packages/database/src/postgres/pull.js"
 import * as StdRoot from "#standard"
 
 const repoRoot = process.cwd()
 
 describe("postgres schema management", () => {
+  test("applies pull plans through provided platform services", async () => {
+    const directories: string[] = []
+    const writes: Array<{ readonly path: string; readonly contents: string }> = []
+    await Effect.runPromise(
+      applyPullPlanEffect({
+        updates: [{
+          filePath: "/workspace/src/schema.ts",
+          before: "",
+          after: "export {}\n"
+        }]
+      }).pipe(
+        Effect.provide(FileSystem.layerNoop({
+          makeDirectory: (path) => {
+            directories.push(path)
+            return Effect.void
+          },
+          writeFileString: (path, contents) => {
+            writes.push({ path, contents })
+            return Effect.void
+          }
+        })),
+        Effect.provide(Path.layer)
+      )
+    )
+
+    expect(directories).toEqual(["/workspace/src"])
+    expect(writes).toEqual([{
+      path: "/workspace/src/schema.ts",
+      contents: "export {}\n"
+    }])
+  })
+
   test("source table models use casing metadata as physical identifiers", () => {
     const organizations = StdRoot.Table.make("OrganizationAccounts", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),

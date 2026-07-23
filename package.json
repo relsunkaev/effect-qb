@@ -1,7 +1,12 @@
 {
   "name": "effect-qb-workspace",
   "version": "0.20.0",
+  "private": true,
   "type": "module",
+  "packageManager": "bun@1.3.5",
+  "engines": {
+    "bun": ">=1.3.5"
+  },
   "workspaces": [
     "packages/*"
   ],
@@ -20,9 +25,10 @@
     "generate:readme-types": "bun scripts/generate-readme-type-tests.ts",
     "release": "bun scripts/release.ts",
     "test:pack": "bun scripts/check-packed-querybuilder.ts",
-    "test": "bun --config ./bunfig.test.toml test",
-    "test:types": "bun run generate:readme-types && bunx tsgo -p tsconfig.type-tests.json",
-    "test:integration": "bun scripts/test-integration.ts",
+    "test": "bun test",
+    "test:types": "bun run generate:readme-types && bunx tsgo -p tsconfig.type-tests.json && bun run test:types:node",
+    "test:types:node": "bunx tsgo -p tsconfig.node.json",
+    "test:integration": "bun run build && bun scripts/test-integration.ts",
     "test:integration:datatypes": "bun scripts/test-datatype-matrix-integration.ts"
   },
   "devDependencies": {
@@ -31,6 +37,7 @@
     "@effect/sql-pg": "4.0.0-beta.98",
     "@effect/sql-sqlite-bun": "4.0.0-beta.98",
     "@types/bun": "latest",
+    "@types/node": "^22.0.0",
     "@typescript/native-preview": "beta",
     "effect": "4.0.0-beta.98",
     "effect-db": "workspace:*",

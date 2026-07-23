@@ -1,12 +1,13 @@
-import { mkdir } from "node:fs/promises"
-import { dirname, extname, relative, resolve } from "node:path"
-
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 import { Datatypes } from "effect-qb/postgres"
 import type { ColumnModel, EnumModel, SchemaModel, TableModel, DdlExpressionLike, IndexKeySpec, TableOptionSpec } from "effect-qb/postgres/metadata"
 import { defaultConstraintName } from "../internal/postgres-schema-sql.js"
 import { enumKey, tableKey, renderDdlExpressionSql, normalizeDdlExpressionSql, toEnumModel, toTableModel } from "effect-qb/postgres/metadata"
 import type { DiscoveredSourceSchema, SourceBinding, SourceDeclaration } from "../internal/postgres-source-discovery.js"
 import { canonicalizePostgresTypeName, inferPostgresTypeKind } from "../internal/postgres-type-utils.js"
+import { runNodePath, runNodePlatform } from "../internal/node-platform.js"
 import { parse, type Expr as PgSqlExpr } from "pgsql-ast-parser"
 
 const TABLE_ALIAS = "Table"
@@ -471,7 +472,7 @@ const renderQueryColumnReference = (
   if (context.tableColumnsAlias !== undefined) {
     return renderColumnAccess(context.tableColumnsAlias, name)
   }
-  return `${PG_ALIAS}.Query.column(${renderStringLiteral(name)}, ${renderQueryTypeExpression(column, context)}${column.nullable ? ", true" : ""})`
+  return `${STD_ROOT_ALIAS}.Query.column(${renderStringLiteral(name)}, ${renderQueryTypeExpression(column, context)}${column.nullable ? ", true" : ""})`
 }
 
 type PipeRender = {
@@ -691,7 +692,7 @@ const renderSqlExpressionCode = (
   ): string => {
     const operands = collectBooleanOperands(value, operator.toUpperCase() as "AND" | "OR")
       .map((item) => renderSqlExpressionCode(item, context))
-    const base = `${PG_ALIAS}.Query.${operator}(${operands.slice(0, 2).join(", ")})`
+    const base = `${STD_ROOT_ALIAS}.Query.${operator}(${operands.slice(0, 2).join(", ")})`
     return operands.length > 2
       ? `${base}.pipe(${operands.slice(2).join(", ")})`
       : base
@@ -746,39 +747,39 @@ const renderSqlExpressionCode = (
     case "ref":
       return renderQueryColumnReference(expression.name, context)
     case "string":
-      return `${PG_ALIAS}.Query.literal(${renderStringLiteral(expression.value)})`
+      return `${STD_ROOT_ALIAS}.Query.literal(${renderStringLiteral(expression.value)})`
     case "integer":
-      return `${PG_ALIAS}.Query.literal(${String(expression.value)})`
+      return `${STD_ROOT_ALIAS}.Query.literal(${String(expression.value)})`
     case "numeric":
-      return `${PG_ALIAS}.Query.literal(${String(expression.value)})`
+      return `${STD_ROOT_ALIAS}.Query.literal(${String(expression.value)})`
     case "boolean":
-      return `${PG_ALIAS}.Query.literal(${String(expression.value)})`
+      return `${STD_ROOT_ALIAS}.Query.literal(${String(expression.value)})`
     case "null":
-      return `${PG_ALIAS}.Query.literal(null)`
+      return `${STD_ROOT_ALIAS}.Query.literal(null)`
     case "keyword": {
       const keyword = (expression.keyword as string).toLowerCase()
       switch (keyword) {
         case "current_date":
-          return `${PG_ALIAS}.Function.currentDate()`
+          return `${STD_ROOT_ALIAS}.Function.currentDate()`
         case "current_time":
-          return `${PG_ALIAS}.Function.currentTime()`
+          return `${STD_ROOT_ALIAS}.Function.currentTime()`
         case "current_timestamp":
-          return `${PG_ALIAS}.Function.currentTimestamp()`
+          return `${STD_ROOT_ALIAS}.Function.currentTimestamp()`
         case "localtime":
-          return `${PG_ALIAS}.Function.localTime()`
+          return `${STD_ROOT_ALIAS}.Function.localTime()`
         case "localtimestamp":
-          return `${PG_ALIAS}.Function.localTimestamp()`
+          return `${STD_ROOT_ALIAS}.Function.localTimestamp()`
         case "current_schema":
         case "current_catalog":
         case "current_role":
         case "current_user":
         case "session_user":
         case "user":
-          return `${PG_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
+          return `${STD_ROOT_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
         case "distinct":
           throw new Error("Unsupported PostgreSQL keyword in pulled schema: distinct")
       }
-      return `${PG_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
+      return `${STD_ROOT_ALIAS}.Function.call(${renderStringLiteral(keyword)})`
     }
     case "cast":
       return `${CAST_ALIAS}.to(${renderSqlExpressionCode(expression.operand, context, false)}, ${renderCastTarget(expression.to, context)})`
@@ -799,23 +800,23 @@ const renderSqlExpressionCode = (
       const args = Array.isArray(expression.args) ? expression.args : []
       switch (name) {
         case "lower":
-          return `${PG_ALIAS}.Function.lower(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${STD_ROOT_ALIAS}.Function.lower(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "upper":
-          return `${PG_ALIAS}.Function.upper(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${STD_ROOT_ALIAS}.Function.upper(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "coalesce":
-          return `${PG_ALIAS}.Function.coalesce(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${STD_ROOT_ALIAS}.Function.coalesce(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "now":
-          return `${PG_ALIAS}.Function.now()`
+          return `${STD_ROOT_ALIAS}.Function.now()`
         case "current_timestamp":
-          return `${PG_ALIAS}.Function.currentTimestamp()`
+          return `${STD_ROOT_ALIAS}.Function.currentTimestamp()`
         case "current_date":
-          return `${PG_ALIAS}.Function.currentDate()`
+          return `${STD_ROOT_ALIAS}.Function.currentDate()`
         case "current_time":
-          return `${PG_ALIAS}.Function.currentTime()`
+          return `${STD_ROOT_ALIAS}.Function.currentTime()`
         case "localtime":
-          return `${PG_ALIAS}.Function.localTime()`
+          return `${STD_ROOT_ALIAS}.Function.localTime()`
         case "localtimestamp":
-          return `${PG_ALIAS}.Function.localTimestamp()`
+          return `${STD_ROOT_ALIAS}.Function.localTimestamp()`
         case "uuid_generate_v4":
         case "gen_random_uuid":
           return `${PG_ALIAS}.Function.uuidGenerateV4()`
@@ -857,7 +858,7 @@ const renderSqlExpressionCode = (
         case "jsonb_typeof":
           return `${PG_ALIAS}.Jsonb.typeOf(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
       }
-      return `${PG_ALIAS}.Function.call(${renderStringLiteral(name)}${args.length === 0 ? "" : `, ${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")}`})`
+      return `${STD_ROOT_ALIAS}.Function.call(${renderStringLiteral(name)}${args.length === 0 ? "" : `, ${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")}`})`
     }
     case "binary": {
       const op = expression.op as string
@@ -865,7 +866,7 @@ const renderSqlExpressionCode = (
         const anyArgs = Array.isArray(expression.right.args) ? expression.right.args : []
         if (anyArgs.length === 1 && anyArgs[0]?.type === "array") {
           const arrayValues = anyArgs[0].expressions.map((item: PgSqlExpr) => renderSqlExpressionCode(item, context))
-          return `${PG_ALIAS}.Query.in(${renderSqlExpressionCode(expression.left, context)}, ${arrayValues.join(", ")})`
+          return `${STD_ROOT_ALIAS}.Query.in(${renderSqlExpressionCode(expression.left, context)}, ${arrayValues.join(", ")})`
         }
       }
       if (op === "#>" || op === "#>>") {
@@ -884,18 +885,18 @@ const renderSqlExpressionCode = (
       const right = renderSqlExpressionCode(expression.right, context)
       switch (op) {
         case "=":
-          return `${PG_ALIAS}.Query.eq(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.eq(${left}, ${right})`
         case "!=":
         case "<>":
-          return `${PG_ALIAS}.Query.neq(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.neq(${left}, ${right})`
         case "<":
-          return `${PG_ALIAS}.Query.lt(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.lt(${left}, ${right})`
         case "<=":
-          return `${PG_ALIAS}.Query.lte(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.lte(${left}, ${right})`
         case ">":
-          return `${PG_ALIAS}.Query.gt(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.gt(${left}, ${right})`
         case ">=":
-          return `${PG_ALIAS}.Query.gte(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.gte(${left}, ${right})`
         case "AND":
         case "and":
           return renderBooleanChain("and", expression)
@@ -904,18 +905,18 @@ const renderSqlExpressionCode = (
           return renderBooleanChain("or", expression)
         case "LIKE":
         case "like":
-          return `${PG_ALIAS}.Query.like(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.like(${left}, ${right})`
         case "ILIKE":
         case "ilike":
-          return `${PG_ALIAS}.Query.ilike(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.ilike(${left}, ${right})`
         case "~":
-          return `${PG_ALIAS}.Query.regexMatch(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.regexMatch(${left}, ${right})`
         case "~*":
-          return `${PG_ALIAS}.Query.regexIMatch(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.regexIMatch(${left}, ${right})`
         case "!~":
-          return `${PG_ALIAS}.Query.regexNotMatch(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.regexNotMatch(${left}, ${right})`
         case "!~*":
-          return `${PG_ALIAS}.Query.regexNotIMatch(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.regexNotIMatch(${left}, ${right})`
         case "?": {
           const key = extractStringLiteral(expression.right)
           if (key === undefined) {
@@ -942,15 +943,15 @@ const renderSqlExpressionCode = (
         case "@@":
           return `${PG_ALIAS}.Jsonb.pathMatch(${left}, ${right})`
         case "IS DISTINCT FROM":
-          return `${PG_ALIAS}.Query.isDistinctFrom(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.isDistinctFrom(${left}, ${right})`
         case "IS NOT DISTINCT FROM":
-          return `${PG_ALIAS}.Query.isNotDistinctFrom(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.isNotDistinctFrom(${left}, ${right})`
         case "@>":
-          return `${PG_ALIAS}.Query.contains(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.contains(${left}, ${right})`
         case "<@":
-          return `${PG_ALIAS}.Query.containedBy(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.containedBy(${left}, ${right})`
         case "&&":
-          return `${PG_ALIAS}.Query.overlaps(${left}, ${right})`
+          return `${STD_ROOT_ALIAS}.Query.overlaps(${left}, ${right})`
       }
       throw new Error(`Unsupported PostgreSQL binary operator in pulled schema: ${expression.op}`)
     }
@@ -958,23 +959,23 @@ const renderSqlExpressionCode = (
       const operand = renderSqlExpressionCode(expression.operand, context)
       switch (expression.op.toUpperCase()) {
         case "IS NULL":
-          return `${PG_ALIAS}.Query.isNull(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.isNull(${operand})`
         case "IS NOT NULL":
-          return `${PG_ALIAS}.Query.isNotNull(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.isNotNull(${operand})`
         case "IS TRUE":
-          return `${PG_ALIAS}.Query.and(${PG_ALIAS}.Query.isNotNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(true)))`
+          return `${STD_ROOT_ALIAS}.Query.and(${STD_ROOT_ALIAS}.Query.isNotNull(${operand}), ${STD_ROOT_ALIAS}.Query.eq(${operand}, ${STD_ROOT_ALIAS}.Query.literal(true)))`
         case "IS FALSE":
-          return `${PG_ALIAS}.Query.and(${PG_ALIAS}.Query.isNotNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(false)))`
+          return `${STD_ROOT_ALIAS}.Query.and(${STD_ROOT_ALIAS}.Query.isNotNull(${operand}), ${STD_ROOT_ALIAS}.Query.eq(${operand}, ${STD_ROOT_ALIAS}.Query.literal(false)))`
         case "IS NOT TRUE":
-          return `${PG_ALIAS}.Query.or(${PG_ALIAS}.Query.isNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(false)))`
+          return `${STD_ROOT_ALIAS}.Query.or(${STD_ROOT_ALIAS}.Query.isNull(${operand}), ${STD_ROOT_ALIAS}.Query.eq(${operand}, ${STD_ROOT_ALIAS}.Query.literal(false)))`
         case "IS NOT FALSE":
-          return `${PG_ALIAS}.Query.or(${PG_ALIAS}.Query.isNull(${operand}), ${PG_ALIAS}.Query.eq(${operand}, ${PG_ALIAS}.Query.literal(true)))`
+          return `${STD_ROOT_ALIAS}.Query.or(${STD_ROOT_ALIAS}.Query.isNull(${operand}), ${STD_ROOT_ALIAS}.Query.eq(${operand}, ${STD_ROOT_ALIAS}.Query.literal(true)))`
         case "IS UNKNOWN":
-          return `${PG_ALIAS}.Query.isNull(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.isNull(${operand})`
         case "IS NOT UNKNOWN":
-          return `${PG_ALIAS}.Query.isNotNull(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.isNotNull(${operand})`
         case "NOT":
-          return `${PG_ALIAS}.Query.not(${operand})`
+          return `${STD_ROOT_ALIAS}.Query.not(${operand})`
       }
       throw new Error(`Unsupported PostgreSQL unary operator in pulled schema: ${expression.op}`)
     }
@@ -982,8 +983,8 @@ const renderSqlExpressionCode = (
       {
         const values = Array.isArray(expression.expressions) ? expression.expressions : []
         return values.length === 0
-          ? `${PG_ALIAS}.Function.call("array")`
-          : `${PG_ALIAS}.Function.call("array", ${values.map((item: PgSqlExpr) => renderSqlExpressionCode(item, context)).join(", ")})`
+          ? `${STD_ROOT_ALIAS}.Function.call("array")`
+          : `${STD_ROOT_ALIAS}.Function.call("array", ${values.map((item: PgSqlExpr) => renderSqlExpressionCode(item, context)).join(", ")})`
       }
     case "case": {
       const whens = Array.isArray(expression.whens) ? expression.whens : []
@@ -991,20 +992,20 @@ const renderSqlExpressionCode = (
         throw new Error("Unsupported PostgreSQL case expression in pulled schema")
       }
       const base = expression.value === null
-        ? `${PG_ALIAS}.Query.case()`
+        ? `${STD_ROOT_ALIAS}.Query.case()`
         : expression.value === undefined
-          ? `${PG_ALIAS}.Query.case()`
-          : `${PG_ALIAS}.Query.match(${renderSqlExpressionCode(expression.value, context)})`
+          ? `${STD_ROOT_ALIAS}.Query.case()`
+          : `${STD_ROOT_ALIAS}.Query.match(${renderSqlExpressionCode(expression.value, context)})`
       const chained = whens.reduce(
         (acc, branch) => `${acc}.when(${renderSqlExpressionCode(branch.when, context)}, ${renderSqlExpressionCode(branch.value, context)})`,
         base
       )
       return expression.else == null
-        ? `${chained}.else(${PG_ALIAS}.Query.literal(null))`
+        ? `${chained}.else(${STD_ROOT_ALIAS}.Query.literal(null))`
         : `${chained}.else(${renderSqlExpressionCode(expression.else, context)})`
     }
     case "extract":
-      return `${PG_ALIAS}.Function.call("extract", ${renderStringLiteral((expression.field as { readonly name: string }).name)}, ${renderSqlExpressionCode(expression.from, context)})`
+      return `${STD_ROOT_ALIAS}.Function.call("extract", ${renderStringLiteral((expression.field as { readonly name: string }).name)}, ${renderSqlExpressionCode(expression.from, context)})`
     default:
       throw new Error(`Unsupported PostgreSQL expression in pulled schema: ${expression.type}`)
   }
@@ -1202,7 +1203,7 @@ const tryRenderCollateExpressionCode = (
             : operator === ">"
               ? "gt"
               : "gte"
-    return `${PG_ALIAS}.Query.${method}(${renderDdlExpressionCode(left, context)}, ${renderDdlExpressionCode(right, context)})`
+    return `${STD_ROOT_ALIAS}.Query.${method}(${renderDdlExpressionCode(left, context)}, ${renderDdlExpressionCode(right, context)})`
   })
   if (binary !== undefined) {
     return binary
@@ -1225,7 +1226,7 @@ const tryRenderCollateExpressionCode = (
     const renderedCollation = collationParts.length === 1
       ? renderStringLiteral(collationParts[0]!)
       : `[${collationParts.map((part) => renderStringLiteral(part)).join(", ")}]`
-    return `${PG_ALIAS}.Query.collate(${renderDdlExpressionCode(expressionSql, context)}, ${renderedCollation})`
+    return `${STD_ROOT_ALIAS}.Query.collate(${renderDdlExpressionCode(expressionSql, context)}, ${renderedCollation})`
   })
   if (collate !== undefined) {
     return collate
@@ -2761,7 +2762,8 @@ const renderCanonicalNewModule = (
 
 const inferSourceRoot = (
   cwd: string,
-  includes: readonly string[]
+  includes: readonly string[],
+  paths: Path.Path
 ): string => {
   const first = includes[0] ?? "src/**/*.ts"
   const wildcard = first.search(/[*?{\[]/)
@@ -2770,12 +2772,12 @@ const inferSourceRoot = (
     return cwd
   }
   if (prefix.endsWith("/")) {
-    return resolve(cwd, prefix)
+    return paths.resolve(cwd, prefix)
   }
-  if (extname(prefix).length > 0) {
-    return resolve(cwd, dirname(prefix))
+  if (paths.extname(prefix).length > 0) {
+    return paths.resolve(cwd, paths.dirname(prefix))
   }
-  return resolve(cwd, prefix)
+  return paths.resolve(cwd, prefix)
 }
 
 const renderDeclaredModule = (
@@ -2813,7 +2815,7 @@ const renderDeclaredModule = (
   return ensureImports(body)
 }
 
-export const planPostgresPull = async (
+export const planPostgresPullEffect = (
   cwd: string,
   source: {
     readonly include: readonly string[]
@@ -2821,7 +2823,10 @@ export const planPostgresPull = async (
   },
   discovered: DiscoveredSourceSchema,
   database: SchemaModel
-): Promise<PullPlan> => {
+): Effect.Effect<PullPlan, unknown, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+  const fs = yield* FileSystem.FileSystem
+  const paths = yield* Path.Path
   const bindingByKey = new Map(discovered.bindings.map((binding) => [binding.key, binding]))
   const databaseTablesByKey = new Map(database.tables.map((table) => [schemaObjectKey(table.schemaName, table.name), table]))
   const databaseEnumsByKey = new Map(database.enums.map((enumType) => [schemaObjectKey(enumType.schemaName, enumType.name), enumType]))
@@ -2829,7 +2834,7 @@ export const planPostgresPull = async (
     bindingByKey,
     enumKeys: new Set(databaseEnumsByKey.keys())
   }
-  const sourceRoot = inferSourceRoot(cwd, source.include)
+  const sourceRoot = inferSourceRoot(cwd, source.include, paths)
 
   const schemaFilePathByName = new Map<string, string>()
   for (const binding of discovered.bindings) {
@@ -2853,21 +2858,24 @@ export const planPostgresPull = async (
     }>
   }>()
 
-  const ensureFilePlan = async (filePath: string): Promise<{
+  const ensureFilePlan = (filePath: string): Effect.Effect<{
     readonly original: string
     readonly replacements: SourceBinding[]
     readonly additions: Array<{
       readonly binding: SourceBinding
       readonly model: TableModel | EnumModel
     }>
-  }> => {
+  }, unknown> => Effect.gen(function*() {
     const existing = filePlans.get(filePath)
     if (existing !== undefined) {
       return existing
     }
-    const original = await Bun.file(filePath).exists()
-      ? await Bun.file(filePath).text()
-      : ""
+    const original = yield* fs.readFileString(filePath).pipe(
+      Effect.catchIf(
+        (cause) => cause.reason._tag === "NotFound",
+        () => Effect.succeed("")
+      )
+    )
     const created = {
       original,
       replacements: [] as SourceBinding[],
@@ -2878,24 +2886,24 @@ export const planPostgresPull = async (
     }
     filePlans.set(filePath, created)
     return created
-  }
+  })
 
-  const scheduleReplacement = async (
+  const scheduleReplacement = (
     binding: SourceBinding,
     model: TableModel | EnumModel
-  ): Promise<void> => {
-    const plan = await ensureFilePlan(binding.declaration.filePath)
+  ): Effect.Effect<void, unknown> => Effect.gen(function*() {
+    const plan = yield* ensureFilePlan(binding.declaration.filePath)
     plan.replacements.push(binding)
     bindingByKey.set(binding.key, binding)
     void model
-  }
+  })
 
   for (const [key, table] of databaseTablesByKey) {
     const binding = bindingByKey.get(key)
     if (binding !== undefined && binding.kind === "table") {
       matchedSourceBindings.add(binding)
       matchedDbTableKeys.add(key)
-      await scheduleReplacement(binding, table)
+      yield* scheduleReplacement(binding, table)
     }
   }
 
@@ -2904,7 +2912,7 @@ export const planPostgresPull = async (
     if (binding !== undefined && binding.kind === "enum") {
       matchedSourceBindings.add(binding)
       matchedDbEnumKeys.add(key)
-      await scheduleReplacement(binding, enumType)
+      yield* scheduleReplacement(binding, enumType)
     }
   }
 
@@ -2917,7 +2925,7 @@ export const planPostgresPull = async (
   for (const { source: binding, db: table } of renameTablePairs) {
     matchedSourceBindings.add(binding)
     matchedDbTableKeys.add(schemaObjectKey(table.schemaName, table.name))
-    await scheduleReplacement(binding, table)
+    yield* scheduleReplacement(binding, table)
   }
 
   const renameEnumPairs = pairUniqueBySignature(
@@ -2929,7 +2937,7 @@ export const planPostgresPull = async (
   for (const { source: binding, db: enumType } of renameEnumPairs) {
     matchedSourceBindings.add(binding)
     matchedDbEnumKeys.add(schemaObjectKey(enumType.schemaName, enumType.name))
-    await scheduleReplacement(binding, enumType)
+    yield* scheduleReplacement(binding, enumType)
   }
 
   const newBindingsByFile = new Map<string, Array<{
@@ -2950,11 +2958,11 @@ export const planPostgresPull = async (
     if (sourceBinding !== undefined) {
       matchedSourceBindings.add(sourceBinding)
       matchedDbTableKeys.add(key)
-      await scheduleReplacement(sourceBinding, table)
+      yield* scheduleReplacement(sourceBinding, table)
       continue
     }
     const schemaName = schemaNameOfTable(table)
-    const filePath = schemaFilePathByName.get(schemaName) ?? resolve(sourceRoot, `${schemaName}.schema.ts`)
+    const filePath = schemaFilePathByName.get(schemaName) ?? paths.resolve(sourceRoot, `${schemaName}.schema.ts`)
     const list = newBindingsByFile.get(filePath) ?? []
     const declaration: SourceDeclaration = schemaName === "public"
       ? {
@@ -2997,11 +3005,11 @@ export const planPostgresPull = async (
     if (sourceBinding !== undefined) {
       matchedSourceBindings.add(sourceBinding)
       matchedDbEnumKeys.add(key)
-      await scheduleReplacement(sourceBinding, enumType)
+      yield* scheduleReplacement(sourceBinding, enumType)
       continue
     }
     const schemaName = schemaNameOfEnum(enumType)
-    const filePath = schemaFilePathByName.get(schemaName) ?? resolve(sourceRoot, `${schemaName}.schema.ts`)
+    const filePath = schemaFilePathByName.get(schemaName) ?? paths.resolve(sourceRoot, `${schemaName}.schema.ts`)
     const list = newBindingsByFile.get(filePath) ?? []
     const declaration: SourceDeclaration = schemaName === "public"
       ? {
@@ -3032,7 +3040,7 @@ export const planPostgresPull = async (
   }
 
   for (const [filePath, additions] of newBindingsByFile) {
-    const plan = await ensureFilePlan(filePath)
+    const plan = yield* ensureFilePlan(filePath)
     plan.additions.push(...additions)
   }
 
@@ -3203,14 +3211,42 @@ export const planPostgresPull = async (
   return {
     updates
   }
-}
+})
 
-export const applyPullPlan = async (plan: PullPlan): Promise<void> => {
-  for (const update of plan.updates) {
-    await mkdir(dirname(update.filePath), { recursive: true })
-    await Bun.write(update.filePath, update.after)
-  }
-}
+export const planPostgresPull = (
+  cwd: string,
+  source: {
+    readonly include: readonly string[]
+    readonly exclude?: readonly string[]
+  },
+  discovered: DiscoveredSourceSchema,
+  database: SchemaModel
+): Promise<PullPlan> =>
+  runNodePlatform(planPostgresPullEffect(cwd, source, discovered, database))
+
+export const applyPullPlanEffect = (
+  plan: PullPlan
+): Effect.Effect<void, unknown, FileSystem.FileSystem | Path.Path> =>
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const paths = yield* Path.Path
+    for (const update of plan.updates) {
+      yield* fs.makeDirectory(paths.dirname(update.filePath), { recursive: true })
+      yield* fs.writeFileString(update.filePath, update.after)
+    }
+  })
+
+export const applyPullPlan = (plan: PullPlan): Promise<void> =>
+  runNodePlatform(applyPullPlanEffect(plan))
+
+export const summarizePullPlanEffect = (
+  cwd: string,
+  plan: PullPlan
+): Effect.Effect<readonly string[], never, Path.Path> =>
+  Effect.map(Path.Path, (paths) =>
+    plan.updates.map((update) =>
+      `${update.before.length === 0 ? "create" : "update"} ${paths.relative(cwd, update.filePath)}`
+    ))
 
 export const summarizePullPlan = (cwd: string, plan: PullPlan): readonly string[] =>
-  plan.updates.map((update) => `${update.before.length === 0 ? "create" : "update"} ${relative(cwd, update.filePath)}`)
+  runNodePath(summarizePullPlanEffect(cwd, plan))

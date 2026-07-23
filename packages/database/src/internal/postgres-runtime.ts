@@ -3,10 +3,10 @@ import { PgClient } from "@effect/sql-pg"
 import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
 
-export const providePostgresUrl = <A, E>(
+export const providePostgresUrl = <A, E, R>(
   url: string,
-  effect: Effect.Effect<A, E, SqlClient.SqlClient>
-): Effect.Effect<A, E | unknown, never> =>
+  effect: Effect.Effect<A, E, R>
+) =>
   Effect.provide(effect, PgClient.layer({
     url: Redacted.make(url)
   }))
