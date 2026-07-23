@@ -252,6 +252,16 @@ const assertIdempotentPullPush = async (config: string) => {
   expect(pushDryRun.stdout).toContain("planned changes: none")
 }
 
+test("postgres cli reports fatal failures on stderr", async () => {
+  const missingConfig = join(repoRoot, "test", `missing-effectdb-${randomId()}.config.mjs`)
+  const result = await runCliUnlocked("pull", "--config", missingConfig, "--dry-run")
+
+  expect(result.exitCode).toBe(1)
+  expect(result.stdout).toBe("")
+  expect(result.stderr).toContain("ERROR")
+  expect(result.stderr).toContain("missing-effectdb-")
+})
+
 test("postgres cli supports push pull and migrations against a live database", async () => {
   const { workspace, schemaName } = await makeWorkspace()
   try {

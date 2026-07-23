@@ -389,7 +389,8 @@ const cli = Command.run(root, {
 })
 
 cli.pipe(
+  Effect.tapCause((cause) => Effect.logError(cause)),
   Effect.provideService(Logger.LogToStderr, true),
   Effect.provide(NodeServices.layer),
-  NodeRuntime.runMain
+  NodeRuntime.runMain({ disableErrorReporting: true })
 )
