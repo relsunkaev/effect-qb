@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
 
-import { readMigrationFiles, readMigrationFilesEffect, ensureMigrationTable, readAppliedMigrationRows } from "../../../packages/database/src/postgres/migrate.js"
+import { readMigrationFiles, readMigrationFilesEffect, writeMigrationFileEffect, ensureMigrationTable, readAppliedMigrationRows } from "../../../packages/database/src/postgres/migrate.js"
 import { withoutManagedMigrationTable } from "../../../packages/database/src/postgres/push.js"
 import type { SchemaModel } from "effect-qb/postgres/metadata"
 
@@ -36,6 +36,34 @@ describe("postgres migrations", () => {
       path: "/migrations/0001_init.sql",
       sql: "create table users (id integer);",
       checksum: "sha256:0102ff"
+    }])
+  })
+
+  test("writes migrations through provided platform services", async () => {
+    const directories: string[] = []
+    const writes: Array<{ readonly path: string; readonly contents: string }> = []
+    const filePath = await Effect.runPromise(
+      writeMigrationFileEffect("/migrations", "add users", []).pipe(
+        Effect.provide(FileSystem.layerNoop({
+          makeDirectory: (path) => {
+            directories.push(path)
+            return Effect.void
+          },
+          readDirectory: () => Effect.succeed(["0002_previous.sql", "README.md"]),
+          writeFileString: (path, contents) => {
+            writes.push({ path, contents })
+            return Effect.void
+          }
+        })),
+        Effect.provide(Path.layer)
+      )
+    )
+
+    expect(filePath).toBe("/migrations/0003_add_users.sql")
+    expect(directories).toEqual(["/migrations"])
+    expect(writes).toEqual([{
+      path: "/migrations/0003_add_users.sql",
+      contents: "-- effect-db:up\n\n"
     }])
   })
 
