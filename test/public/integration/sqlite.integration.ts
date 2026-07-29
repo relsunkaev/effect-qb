@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
-import { Column as C, Json as J, Table } from "#standard"
+import { Column as C, Fragment, Json as J, Table } from "#standard"
 import { Function as F, Query as Q } from "#standard"
 import { Executor } from "#sqlite"
 
@@ -14,6 +14,68 @@ const runSqlite = <A, E>(effect: Effect.Effect<A, E, never>) =>
     filename: ":memory:",
     disableWAL: true
   })))
+
+test("sqlite executes expression, analytics, keyset, cardinality, prepared, and explain capabilities", async () => {
+  const metrics = Table.make("capability_metrics", {
+    id: C.int().pipe(C.primaryKey),
+    groupName: C.text(),
+    score: C.int()
+  })
+
+  const result = await runSqlite(Effect.gen(function*() {
+    const executor = Executor.make()
+    yield* executor.execute(Q.createTable(metrics))
+    yield* executor.execute(Q.insert(metrics, { id: 1, groupName: "a", score: 10 }))
+    yield* executor.execute(Q.insert(metrics, { id: 2, groupName: "a", score: 20 }))
+    yield* executor.execute(Q.insert(metrics, { id: 3, groupName: "a", score: 30 }))
+
+    const spec = {
+      partitionBy: [metrics.groupName],
+      orderBy: [{ value: metrics.id, direction: "asc" as const }],
+      frame: {
+        unit: "rows" as const,
+        start: "unboundedPreceding" as const,
+        end: "currentRow" as const
+      }
+    }
+    const doubled = Fragment.expression({
+      dbType: Q.type.real(),
+      schema: Schema.Number,
+      nullability: "never"
+    })`${metrics.score} * ${Q.literal(2)}`
+    const page = Q.select({
+      id: metrics.id,
+      doubled,
+      previous: F.lag(metrics.score, { spec, default: 0 }),
+      runningTotal: F.over(F.sum(metrics.score), spec)
+    }).pipe(
+      Q.from(metrics),
+      Q.keyset({
+        by: [{ expression: metrics.id, cursor: 1 }],
+        pageSize: 2
+      })
+    )
+    const prepared = executor.prepare(page)
+    const rows = yield* prepared.execute
+    const repeated = yield* prepared.execute
+    const one = yield* executor.executeExactlyOne(
+      Q.select({ id: metrics.id }).pipe(
+        Q.from(metrics),
+        Q.where(Q.eq(metrics.id, 2))
+      )
+    )
+    const explain = yield* executor.explain(page)
+    return { rows, repeated, one, explain }
+  }))
+
+  expect(result.rows).toEqual([
+    { id: 2, doubled: 40, previous: 0, runningTotal: 20 },
+    { id: 3, doubled: 60, previous: 20, runningTotal: 50 }
+  ])
+  expect(result.repeated).toEqual(result.rows)
+  expect(result.one).toEqual({ id: 2 })
+  expect(result.explain.length).toBeGreaterThan(0)
+})
 
 test("sqlite executor runs DDL, mutations, reads, and streams through the ambient Effect SQL client", async () => {
   const events = Table.make("events", {

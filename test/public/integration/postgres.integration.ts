@@ -77,6 +77,36 @@ const makeLatestPostPlan = () => {
   )
 }
 
+test("postgres exposes live mutation metadata, prepared cardinality, and explain", async () => {
+  const result = await runPostgres(Effect.gen(function*() {
+    const executor = Executor.make()
+    const inserted = yield* executor.executeResult(Q.insert(auditLogs, {
+      id: "metadata-row",
+      note: "metadata"
+    }))
+    const read = Q.select({
+      id: auditLogs.id,
+      note: auditLogs.note
+    }).pipe(
+      Q.from(auditLogs),
+      Q.where(Q.eq(auditLogs.id, "metadata-row"))
+    )
+    const one = yield* executor.prepare(read).executeExactlyOne
+    const explain = yield* executor.explain(read, { format: "json" })
+    return { inserted, one, explain }
+  }))
+
+  expect(result.inserted).toEqual({
+    rows: [],
+    affectedRows: 1
+  })
+  expect(result.one).toEqual({
+    id: "metadata-row",
+    note: "metadata"
+  })
+  expect(result.explain.length).toBe(1)
+})
+
 beforeAll(async () => {
   await execPostgres(`drop table if exists "${eventsTableName}"`)
   await execPostgres(`drop table if exists "${postsTableName}"`)
