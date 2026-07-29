@@ -72,35 +72,33 @@ Q.concat(users.email)
 Q.orderBy(users.email, "sideways")
 
 declare const dynamicFunctionName: string
-// @ts-expect-error standard function names must be literal strings
-Std.Function.call(dynamicFunctionName, users.email)
 // @ts-expect-error postgres function names must be literal strings
-StdRoot.Function.call(dynamicFunctionName, users.email)
+Postgres.Function.call(dynamicFunctionName, users.email)
 // @ts-expect-error mysql function names must be literal strings
-StdRoot.Function.call(dynamicFunctionName, users.email)
+Mysql.Function.call(dynamicFunctionName, users.email)
 // @ts-expect-error sqlite function names must be literal strings
-StdRoot.Function.call(dynamicFunctionName, users.email)
+Sqlite.Function.call(dynamicFunctionName, users.email)
+// @ts-expect-error arbitrary function calls are dialect-specific
+StdRoot.Function.call("lower", users.email)
 // @ts-expect-error function names must be non-empty
-F.call("", users.email)
+Postgres.Function.call("", users.email)
 // @ts-expect-error function names must be safe SQL identifiers
-F.call("lower); drop table users; --", users.email)
+Postgres.Function.call("lower); drop table users; --", users.email)
 // dotted function names are supported when every segment is safe
-F.call("pg_catalog.lower", users.email)
-// @ts-expect-error standard current_date calls do not accept arguments
-Std.Function.call("current_date", users.email)
+Postgres.Function.call("pg_catalog.lower", users.email)
 // @ts-expect-error postgres current_date calls do not accept arguments
-StdRoot.Function.call("current_date", users.email)
+Postgres.Function.call("current_date", users.email)
 // @ts-expect-error mysql current_date calls do not accept arguments
-StdRoot.Function.call("current_date", users.email)
+Mysql.Function.call("current_date", users.email)
 // @ts-expect-error sqlite current_date calls do not accept arguments
-StdRoot.Function.call("current_date", users.email)
+Sqlite.Function.call("current_date", users.email)
 // @ts-expect-error extract calls require field and source arguments
-F.call("extract", Q.literal("year"))
+Postgres.Function.call("extract", Q.literal("year"))
 // @ts-expect-error extract calls require exactly field and source arguments
-F.call("extract", Q.literal("year"), Q.literal(new Date("2024-01-02T03:04:05.000Z")), Q.literal(1))
+Postgres.Function.call("extract", Q.literal("year"), Q.literal(new Date("2024-01-02T03:04:05.000Z")), Q.literal(1))
 // @ts-expect-error extract fields must be safe SQL identifiers
-F.call("extract", Q.literal("year from now()); drop table users; --"), Q.literal(new Date("2024-01-02T03:04:05.000Z")))
-F.call("extract", Q.literal("year"), Q.literal(new Date("2024-01-02T03:04:05.000Z")))
+Postgres.Function.call("extract", Q.literal("year from now()); drop table users; --"), Q.literal(new Date("2024-01-02T03:04:05.000Z")))
+Postgres.Function.call("extract", Q.literal("year"), Q.literal(new Date("2024-01-02T03:04:05.000Z")))
 
 declare const dynamicCollation: string
 // @ts-expect-error standard collation identifiers must be literal strings

@@ -8,6 +8,12 @@ import * as Stream from "effect/Stream"
 import { Column as C, Fragment, Json as J, Table } from "#standard"
 import { Function as F, Query as Q } from "#standard"
 import { Executor } from "#sqlite"
+import {
+  portableAggregateFunctions,
+  portableFunctionResults,
+  portableScalarFunctions,
+  portableWindowFunctions
+} from "./portable-functions.ts"
 
 const runSqlite = <A, E>(effect: Effect.Effect<A, E, never>) =>
   Effect.runPromise(Effect.provide(effect, SqliteClient.layer({
@@ -15,7 +21,19 @@ const runSqlite = <A, E>(effect: Effect.Effect<A, E, never>) =>
     disableWAL: true
   })))
 
-test("sqlite executes expression, analytics, keyset, cardinality, prepared, and explain capabilities", async () => {
+test("sqlite executes the portable standard function matrix", async () => {
+  const result = await runSqlite(Effect.gen(function*() {
+    const executor = Executor.make()
+    const scalars = yield* executor.execute(portableScalarFunctions).pipe(Executor.exactlyOne)
+    const aggregates = yield* executor.execute(portableAggregateFunctions).pipe(Executor.exactlyOne)
+    const windows = yield* executor.execute(portableWindowFunctions).pipe(Executor.exactlyOne)
+    return { scalars, aggregates, windows }
+  }))
+
+  expect(result).toEqual(portableFunctionResults)
+})
+
+test("sqlite executes expression, analytics, cardinality, prepared, and explain capabilities", async () => {
   const metrics = Table.make("capability_metrics", {
     id: C.int().pipe(C.primaryKey),
     groupName: C.text(),
@@ -50,20 +68,19 @@ test("sqlite executes expression, analytics, keyset, cardinality, prepared, and 
       runningTotal: F.over(F.sum(metrics.score), spec)
     }).pipe(
       Q.from(metrics),
-      Q.keyset({
-        by: [{ expression: metrics.id, cursor: 1 }],
-        pageSize: 2
-      })
+      Q.where(Q.gt(metrics.id, 1)),
+      Q.orderBy(metrics.id),
+      Q.limit(2)
     )
     const prepared = executor.prepare(page)
     const rows = yield* prepared.execute
     const repeated = yield* prepared.execute
-    const one = yield* executor.executeExactlyOne(
+    const one = yield* executor.execute(
       Q.select({ id: metrics.id }).pipe(
         Q.from(metrics),
         Q.where(Q.eq(metrics.id, 2))
       )
-    )
+    ).pipe(Executor.exactlyOne)
     const explain = yield* executor.explain(page)
     return { rows, repeated, one, explain }
   }))

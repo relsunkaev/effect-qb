@@ -2045,43 +2045,56 @@ export const renderExpression = (
         readonly value: Expression.Any
         readonly direction: string
       }[]
-      const clauses: string[] = []
-      if (partitionBy.length > 0) {
-        clauses.push(`partition by ${partitionBy.map((value) => renderExpression(value, state, dialect)).join(", ")}`)
+      const renderSpecification = (): string => {
+        const clauses: string[] = []
+        if (partitionBy.length > 0) {
+          clauses.push(`partition by ${partitionBy.map((value) => renderExpression(value, state, dialect)).join(", ")}`)
+        }
+        if (orderBy.length > 0) {
+          clauses.push(`order by ${orderBy.map((entry) =>
+            `${renderExpression(entry.value, state, dialect)} ${entry.direction}`
+          ).join(", ")}`)
+        }
+        if (ast.frame !== undefined) {
+          clauses.push(renderWindowFrame(ast.frame))
+        }
+        return clauses.join(" ")
       }
-      if (orderBy.length > 0) {
-        clauses.push(`order by ${orderBy.map((entry) =>
-          `${renderExpression(entry.value, state, dialect)} ${entry.direction}`
-        ).join(", ")}`)
-      }
-      if (ast.frame !== undefined) {
-        clauses.push(renderWindowFrame(ast.frame))
-      }
-      const specification = clauses.join(" ")
       switch (ast.function) {
         case "rowNumber":
-          return `row_number() over (${specification})`
+          return `row_number() over (${renderSpecification()})`
         case "rank":
-          return `rank() over (${specification})`
+          return `rank() over (${renderSpecification()})`
         case "denseRank":
-          return `dense_rank() over (${specification})`
+          return `dense_rank() over (${renderSpecification()})`
         case "over":
-          return `${renderExpression(ast.value as Expression.Any, state, dialect)} over (${specification})`
+          return `${renderExpression(ast.value as Expression.Any, state, dialect)} over (${renderSpecification()})`
         case "lag":
         case "lead": {
           const args = [renderExpression(ast.value as Expression.Any, state, dialect)]
           if (ast.offset !== undefined) {
-            args.push(renderExpression(ast.offset, state, dialect))
+            const offsetAst = (ast.offset as Expression.Any & {
+              readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+            })[ExpressionAst.TypeId]
+            if (
+              offsetAst.kind !== "literal" ||
+              typeof offsetAst.value !== "number" ||
+              !Number.isSafeInteger(offsetAst.value) ||
+              offsetAst.value < 0
+            ) {
+              throw new Error(`${ast.function} offset must be a non-negative integer literal in MySQL`)
+            }
+            args.push(String(offsetAst.value))
           }
           if (ast.defaultValue !== undefined) {
             args.push(renderExpression(ast.defaultValue, state, dialect))
           }
-          return `${ast.function}(${args.join(", ")}) over (${specification})`
+          return `${ast.function}(${args.join(", ")}) over (${renderSpecification()})`
         }
         case "firstValue":
-          return `first_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${specification})`
+          return `first_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${renderSpecification()})`
         case "lastValue":
-          return `last_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${specification})`
+          return `last_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${renderSpecification()})`
       }
       break
     }

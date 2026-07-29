@@ -5,7 +5,7 @@ import * as Sqlite from "#sqlite"
 import * as Standard from "#standard"
 import { Column as C, Table } from "#standard"
 import { Query as Q, Function as F } from "#standard"
-import { Jsonb as PgJsonb, Renderer, Type as PgType } from "#postgres"
+import { Function as PgFunction, Jsonb as PgJsonb, Renderer, Type as PgType } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
 import * as StdRoot from "#standard"
 import { unsafeAny } from "../../helpers/unsafe.ts"
@@ -554,28 +554,38 @@ describe("rendering behavior", () => {
 
   test("renders safe extract fields as SQL field syntax", () => {
     const timestamp = new Date("2024-01-02T03:04:05.000Z")
-    const extracted = Standard.Function.call(
+    const postgresExtracted = PgFunction.call(
       "extract",
       Standard.Query.literal("year"),
       Standard.Query.literal(timestamp)
     )
-    const plan = Standard.Query.select({
-      extracted
-    })
-
-    expect(Standard.Renderer.make().render(plan)).toMatchObject({
-      sql: 'select extract(year from ?) as "extracted"',
-      params: [timestamp]
-    })
-    expect(Renderer.make().render(plan)).toMatchObject({
+    expect(Renderer.make().render(Standard.Query.select({
+      extracted: postgresExtracted
+    }))).toMatchObject({
       sql: 'select extract(year from $1) as "extracted"',
       params: [timestamp]
     })
-    expect(Mysql.Renderer.make().render(plan)).toMatchObject({
+
+    const mysqlExtracted = Mysql.Function.call(
+      "extract",
+      Standard.Query.literal("year"),
+      Standard.Query.literal(timestamp)
+    )
+    expect(Mysql.Renderer.make().render(Standard.Query.select({
+      extracted: mysqlExtracted
+    }))).toMatchObject({
       sql: "select extract(year from ?) as `extracted`",
       params: [timestamp]
     })
-    expect(Sqlite.Renderer.make().render(plan)).toMatchObject({
+
+    const sqliteExtracted = Sqlite.Function.call(
+      "extract",
+      Standard.Query.literal("year"),
+      Standard.Query.literal(timestamp)
+    )
+    expect(Sqlite.Renderer.make().render(Standard.Query.select({
+      extracted: sqliteExtracted
+    }))).toMatchObject({
       sql: 'select extract(year from ?) as "extracted"',
       params: [timestamp]
     })

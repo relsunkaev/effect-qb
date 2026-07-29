@@ -3,7 +3,10 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
 import { Column, Fragment, Function, Query, Scalar, Table } from "effect-qb"
+import * as My from "effect-qb/mysql"
+import * as Pg from "effect-qb/postgres"
 import { Executor as PgExecutor } from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
 
 const users = Table.make("users", {
   id: Column.int().pipe(Column.primaryKey),
@@ -28,6 +31,13 @@ void sumRuntime
 // @ts-expect-error arithmetic inputs must decode to numbers
 Function.add(users.email, 1)
 
+// @ts-expect-error division is not portable across the supported dialects
+Function.divide(users.score, 2)
+// @ts-expect-error modulo is deferred until per-dialect result semantics are modeled
+Function.modulo(users.score, 2)
+// @ts-expect-error rounding is deferred until per-dialect result semantics are modeled
+Function.round(users.score)
+
 const include = true as boolean
 const selection = {
   id: users.id,
@@ -39,28 +49,6 @@ const dynamicPlan = Query.select(selection).pipe(Query.from(users))
 const dynamicRow: Query.ResultRow<typeof dynamicPlan> = { id: 1 }
 void dynamicRow
 
-Query.select({ id: users.id }).pipe(
-  Query.from(users),
-  Query.keyset({
-    by: [
-      { expression: users.score, cursor: 10 },
-      { expression: users.id, cursor: 1 }
-    ],
-    pageSize: 25
-  })
-)
-
-Query.keyset({ by: [{ expression: users.id, cursor: 1 }], pageSize: 25 })(
-  // @ts-expect-error keyset keys must already be available from the plan
-  Query.select({ id: Query.literal(1) })
-)
-
-// @ts-expect-error cursor type must match the key expression runtime
-Query.keyset({ by: [{ expression: users.score, cursor: "10" }], pageSize: 25 })
-
-// @ts-expect-error nullable keys need an explicit non-null expression before keyset pagination
-Query.keyset({ by: [{ expression: users.nullableScore, cursor: 10 }], pageSize: 25 })
-
 const plan = Query.select({ id: users.id }).pipe(Query.from(users))
 const executor = PgExecutor.make()
 
@@ -68,13 +56,63 @@ const optionEffect: Effect.Effect<
   Option.Option<Query.ResultRow<typeof plan>>,
   unknown,
   unknown
-> = executor.executeOption(plan)
+> = executor.execute(plan).pipe(PgExecutor.atMostOne)
 void optionEffect
 
 const prepared = executor.prepare(plan)
 const rowEffect: Effect.Effect<Query.ResultRow<typeof plan>, unknown, unknown> =
-  prepared.executeExactlyOne
+  prepared.execute.pipe(PgExecutor.exactlyOne)
 void rowEffect
+
+Function.over(Function.sum(users.score), {
+  orderBy: [{ value: users.id }],
+  frame: {
+    // @ts-expect-error GROUPS frames are not portable to MySQL
+    unit: "groups",
+    start: "unboundedPreceding",
+    end: "currentRow"
+  }
+})
+
+Function.lag(users.score, {
+  spec: {
+    orderBy: [{ value: users.id }],
+    // @ts-expect-error lag uses ordering, not a window frame
+    frame: {
+      unit: "rows",
+      start: "unboundedPreceding",
+      end: "currentRow"
+    }
+  }
+})
+
+Pg.Function.over(Function.sum(users.score), {
+  orderBy: [{ value: users.id }],
+  frame: {
+    unit: "groups",
+    start: "unboundedPreceding",
+    end: "currentRow"
+  }
+})
+
+Sq.Function.over(Function.sum(users.score), {
+  orderBy: [{ value: users.id }],
+  frame: {
+    unit: "groups",
+    start: "unboundedPreceding",
+    end: "currentRow"
+  }
+})
+
+My.Function.over(Function.sum(users.score), {
+  orderBy: [{ value: users.id }],
+  frame: {
+    // @ts-expect-error MySQL does not support GROUPS frames
+    unit: "groups",
+    start: "unboundedPreceding",
+    end: "currentRow"
+  }
+})
 
 const insert = Query.insert(users, {
   id: 1,
@@ -85,3 +123,11 @@ const insert = Query.insert(users, {
 
 // @ts-expect-error EXPLAIN is limited to read plans
 executor.explain(insert)
+
+const sqliteExecutor = Sq.Executor.make()
+// @ts-expect-error SQLite has no EXPLAIN ANALYZE option
+sqliteExecutor.explain(plan, { analyze: true })
+
+const mysqlExecutor = My.Executor.make()
+// @ts-expect-error MySQL EXPLAIN ANALYZE always uses TREE output
+mysqlExecutor.explain(plan, { analyze: true, format: "json" })

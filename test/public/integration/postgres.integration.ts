@@ -9,6 +9,12 @@ import { Function as F, Query as Q } from "#standard"
 import { Executor, Type } from "#postgres"
 import * as Postgres from "#postgres"
 import { createDeferred, execPostgres, runPostgres } from "./helpers.ts"
+import {
+  portableAggregateFunctions,
+  portableFunctionResults,
+  portableScalarFunctions,
+  portableWindowFunctions
+} from "./portable-functions.ts"
 
 const eventsTableName = "integration_pg_events"
 const usersTableName = "integration_pg_users"
@@ -91,7 +97,7 @@ test("postgres exposes live mutation metadata, prepared cardinality, and explain
       Q.from(auditLogs),
       Q.where(Q.eq(auditLogs.id, "metadata-row"))
     )
-    const one = yield* executor.prepare(read).executeExactlyOne
+    const one = yield* executor.prepare(read).execute.pipe(Executor.exactlyOne)
     const explain = yield* executor.explain(read, { format: "json" })
     return { inserted, one, explain }
   }))
@@ -105,6 +111,18 @@ test("postgres exposes live mutation metadata, prepared cardinality, and explain
     note: "metadata"
   })
   expect(result.explain.length).toBe(1)
+})
+
+test("postgres executes the portable standard function matrix", async () => {
+  const result = await runPostgres(Effect.gen(function*() {
+    const executor = Executor.make()
+    const scalars = yield* executor.execute(portableScalarFunctions).pipe(Executor.exactlyOne)
+    const aggregates = yield* executor.execute(portableAggregateFunctions).pipe(Executor.exactlyOne)
+    const windows = yield* executor.execute(portableWindowFunctions).pipe(Executor.exactlyOne)
+    return { scalars, aggregates, windows }
+  }))
+
+  expect(result).toEqual(portableFunctionResults)
 })
 
 beforeAll(async () => {

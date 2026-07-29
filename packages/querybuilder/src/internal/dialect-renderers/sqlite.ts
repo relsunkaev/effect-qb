@@ -1976,28 +1976,30 @@ export const renderExpression = (
         readonly value: Expression.Any
         readonly direction: string
       }[]
-      const clauses: string[] = []
-      if (partitionBy.length > 0) {
-        clauses.push(`partition by ${partitionBy.map((value) => renderExpression(value, state, dialect)).join(", ")}`)
+      const renderSpecification = (): string => {
+        const clauses: string[] = []
+        if (partitionBy.length > 0) {
+          clauses.push(`partition by ${partitionBy.map((value) => renderExpression(value, state, dialect)).join(", ")}`)
+        }
+        if (orderBy.length > 0) {
+          clauses.push(`order by ${orderBy.map((entry) =>
+            `${renderExpression(entry.value, state, dialect)} ${entry.direction}`
+          ).join(", ")}`)
+        }
+        if (ast.frame !== undefined) {
+          clauses.push(renderWindowFrame(ast.frame))
+        }
+        return clauses.join(" ")
       }
-      if (orderBy.length > 0) {
-        clauses.push(`order by ${orderBy.map((entry) =>
-          `${renderExpression(entry.value, state, dialect)} ${entry.direction}`
-        ).join(", ")}`)
-      }
-      if (ast.frame !== undefined) {
-        clauses.push(renderWindowFrame(ast.frame))
-      }
-      const specification = clauses.join(" ")
       switch (ast.function) {
         case "rowNumber":
-          return `row_number() over (${specification})`
+          return `row_number() over (${renderSpecification()})`
         case "rank":
-          return `rank() over (${specification})`
+          return `rank() over (${renderSpecification()})`
         case "denseRank":
-          return `dense_rank() over (${specification})`
+          return `dense_rank() over (${renderSpecification()})`
         case "over":
-          return `${renderExpression(ast.value as Expression.Any, state, dialect)} over (${specification})`
+          return `${renderExpression(ast.value as Expression.Any, state, dialect)} over (${renderSpecification()})`
         case "lag":
         case "lead": {
           const args = [renderExpression(ast.value as Expression.Any, state, dialect)]
@@ -2007,12 +2009,12 @@ export const renderExpression = (
           if (ast.defaultValue !== undefined) {
             args.push(renderExpression(ast.defaultValue, state, dialect))
           }
-          return `${ast.function}(${args.join(", ")}) over (${specification})`
+          return `${ast.function}(${args.join(", ")}) over (${renderSpecification()})`
         }
         case "firstValue":
-          return `first_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${specification})`
+          return `first_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${renderSpecification()})`
         case "lastValue":
-          return `last_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${specification})`
+          return `last_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${renderSpecification()})`
       }
       break
     }

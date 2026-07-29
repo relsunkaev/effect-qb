@@ -5,9 +5,9 @@ import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
 import { Column, Fragment, Function, Query, Table } from "#standard"
-import { Executor as PgExecutor, Renderer as PgRenderer } from "#postgres"
+import { Executor as PgExecutor, Function as PgFunction, Renderer as PgRenderer } from "#postgres"
 import { Renderer as MysqlRenderer } from "#mysql"
-import { Renderer as SqliteRenderer } from "#sqlite"
+import { Function as SqliteFunction, Renderer as SqliteRenderer } from "#sqlite"
 
 const users = Table.make("users", {
   id: Column.int().pipe(Column.primaryKey),
@@ -36,14 +36,16 @@ describe("querybuilder capability extensions", () => {
 
   test("arithmetic and numeric functions render through the shared AST", () => {
     const plan = Query.select({
-      adjusted: Function.round(Function.divide(Function.add(users.score, 5), 2)),
+      adjusted: Function.abs(Function.negate(Function.add(users.score, 5))),
+      scaled: Function.multiply(users.score, 2),
+      difference: Function.subtract(users.score, 3),
       total: Function.sum(users.score),
       average: Function.avg(users.score)
     }).pipe(Query.from(users))
 
     expect(PgRenderer.make().render(plan)).toMatchObject({
-      sql: 'select round((("users"."score" + $1) / $2)) as "adjusted", sum("users"."score") as "total", avg("users"."score") as "average" from "users"',
-      params: [5, 2]
+      sql: 'select abs((-("users"."score" + cast($1 as int)))) as "adjusted", ("users"."score" * cast($2 as int)) as "scaled", ("users"."score" - cast($3 as int)) as "difference", sum("users"."score") as "total", avg("users"."score") as "average" from "users"',
+      params: [5, 2, 3]
     })
   })
 
@@ -96,7 +98,7 @@ describe("querybuilder capability extensions", () => {
       'lag("users"."score", $1, $2) over (partition by "users"."email" order by "users"."id" asc rows between unbounded preceding and current row)'
     )
     expect(MysqlRenderer.make().render(plan).sql).toContain(
-      "lag(`users`.`score`, ?, ?) over (partition by `users`.`email` order by `users`.`id` asc rows between unbounded preceding and current row)"
+      "lag(`users`.`score`, 1, ?) over (partition by `users`.`email` order by `users`.`id` asc rows between unbounded preceding and current row)"
     )
     expect(SqliteRenderer.make().render(plan).sql).toContain(
       'last_value("users"."score") over (partition by "users"."email" order by "users"."id" asc rows between unbounded preceding and current row)'
@@ -104,24 +106,25 @@ describe("querybuilder capability extensions", () => {
     expect(PgRenderer.make().render(plan).sql).toContain(
       'sum("users"."score") over (partition by "users"."email" order by "users"."id" asc rows between unbounded preceding and current row)'
     )
-  })
 
-  test("keyset pagination emits lexicographic cursor predicates and stable ordering", () => {
-    const plan = Query.select({ id: users.id, score: users.score }).pipe(
-      Query.from(users),
-      Query.keyset({
-        by: [
-          { expression: users.score, cursor: 50, direction: "desc" },
-          { expression: users.id, cursor: 10, direction: "asc" }
-        ],
-        pageSize: 25
-      })
-    )
-
-    expect(PgRenderer.make().render(plan)).toMatchObject({
-      sql: 'select "users"."id" as "id", "users"."score" as "score" from "users" where ((("users"."score" < $1)) or (("users"."score" = $2) and ("users"."id" > $3))) order by "users"."score" desc, "users"."id" asc limit $4',
-      params: [50, 50, 10, 25]
-    })
+    const groupsFrame = {
+      orderBy: [{ value: users.id, direction: "asc" as const }],
+      frame: {
+        unit: "groups" as const,
+        start: "unboundedPreceding" as const,
+        end: "currentRow" as const
+      }
+    }
+    expect(PgRenderer.make().render(
+      Query.select({
+        total: PgFunction.over(Function.sum(users.score), groupsFrame)
+      }).pipe(Query.from(users))
+    ).sql).toContain("groups between unbounded preceding and current row")
+    expect(SqliteRenderer.make().render(
+      Query.select({
+        total: SqliteFunction.over(Function.sum(users.score), groupsFrame)
+      }).pipe(Query.from(users))
+    ).sql).toContain("groups between unbounded preceding and current row")
   })
 
   test("executors expose exact cardinality, metadata, prepared reuse, and explain", () => {
@@ -151,9 +154,9 @@ describe("querybuilder capability extensions", () => {
     const executor = PgExecutor.make({ renderer: renderer as never, driver })
     const prepared = executor.prepare(plan)
 
-    expect(Effect.runSync(prepared.executeExactlyOne)).toEqual({ id: 1 })
-    expect(Effect.runSync(prepared.executeOption)).toEqual(Option.some({ id: 1 }))
-    expect(Effect.runSync(prepared.executeNonEmpty)).toEqual([{ id: 1 }])
+    expect(Effect.runSync(prepared.execute.pipe(PgExecutor.exactlyOne))).toEqual({ id: 1 })
+    expect(Effect.runSync(prepared.execute.pipe(PgExecutor.atMostOne))).toEqual(Option.some({ id: 1 }))
+    expect(Effect.runSync(prepared.execute.pipe(PgExecutor.nonEmpty))).toEqual([{ id: 1 }])
     expect(Effect.runSync(prepared.executeResult)).toEqual({
       rows: [{ id: 1 }],
       affectedRows: 1,
@@ -173,7 +176,9 @@ describe("querybuilder capability extensions", () => {
       driver: PgExecutor.driver(() => Effect.succeed([{ id: 1 }, { id: 2 }]))
     })
 
-    expect(Effect.runSync(Effect.result(executor.executeOption(plan)))).toMatchObject({
+    expect(Effect.runSync(Effect.result(
+      executor.execute(plan).pipe(PgExecutor.atMostOne)
+    ))).toMatchObject({
       _tag: "Failure",
       failure: {
         _tag: "ResultCardinalityError",
