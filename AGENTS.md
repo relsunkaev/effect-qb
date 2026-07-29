@@ -133,6 +133,18 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Assume consumer code is bundled or built with esbuild. Do not add a runtime
   TypeScript loader solely to support unbuilt TypeScript syntax.
 
+## Querybuilder public API boundaries
+
+- Prefer pipeable Effect transforms for result cardinality instead of adding
+  convenience methods to executors. Keep result metadata on executors because
+  the driver owns that contract.
+- Standard query and function exports must have supported syntax and compatible
+  runtime semantics across PostgreSQL, MySQL, and SQLite. Otherwise expose the
+  capability only from the applicable dialect module.
+- Keep pagination ordering, seek predicates, limits, and cursor policy explicit
+  and composable. Do not add a compound keyset modifier without a reviewed
+  pagination contract.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
 

@@ -16,7 +16,7 @@ const onlyActive = true as boolean
 
 const report = Query.select({
   id: accounts.id,
-  adjustedBalance: Function.round(Function.add(accounts.balance, 2.5)),
+  adjustedBalance: Function.abs(Function.add(accounts.balance, 2.5)),
   ...Query.includeIf(onlyActive, { active: accounts.active })
 }).pipe(
   Query.from(accounts),

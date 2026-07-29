@@ -1083,7 +1083,7 @@ const onlyActive = true as boolean
 
 const report = Query.select({
   id: accounts.id,
-  adjustedBalance: Function.round(Function.add(accounts.balance, 2.5)),
+  adjustedBalance: Function.abs(Function.add(accounts.balance, 2.5)),
   ...Query.includeIf(onlyActive, { active: accounts.active })
 }).pipe(
   Query.from(accounts),
@@ -1238,9 +1238,10 @@ const allEmails = Query.unionAll(activeEmails, inactiveEmails)
 <summary>Window functions</summary>
 
 `Function.rowNumber`, `rank`, and `denseRank` take a window spec;
-`Function.over` wraps an aggregate in a window. `lag`, `lead`, `firstValue`,
-and `lastValue` support ordered windows and explicit `rows`, `range`, or
-`groups` frames.
+`Function.over` wraps an aggregate in a window. `lag` and `lead` read another
+row in an ordered partition. `firstValue` and `lastValue` support explicit
+portable `rows` or `range` frames. PostgreSQL and SQLite expose `groups`
+frames from their dialect `Function.over` helpers.
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
@@ -1275,38 +1276,6 @@ const ranked = Query.select({
     }
   })
 }).pipe(Query.from(posts))
-```
-
-</details>
-
-<details>
-<summary>Keyset pagination</summary>
-
-`Query.keyset` adds the lexicographic cursor predicate, matching order terms,
-and page limit together. Keys must be non-null. The final key should be unique
-so equal values cannot skip or duplicate rows between pages.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const events = Table.make("events", {
-  id: Column.int().pipe(Column.primaryKey),
-  createdAt: Column.text()
-})
-
-const page = Query.select({
-  id: events.id,
-  createdAt: events.createdAt
-}).pipe(
-  Query.from(events),
-  Query.keyset({
-    by: [
-      { expression: events.createdAt, cursor: "2026-07-29T12:00:00", direction: "desc" },
-      { expression: events.id, cursor: 481, direction: "desc" }
-    ],
-    pageSize: 50
-  })
-)
 ```
 
 </details>
@@ -1552,32 +1521,25 @@ const executor = Pg.Executor.make()
 const rowsEffect = executor.execute(readUsers)
 const rowStream = executor.stream(readUsers)
 
-```
-
-Use the narrowest result contract the caller expects:
-
-```ts
-const executor = Pg.Executor.make()
-
-const maybeUser = executor.executeOption(readUsers)
-const oneUser = executor.executeExactlyOne(readUsers)
-const atLeastOneUser = executor.executeNonEmpty(readUsers)
-const ignoredRows = executor.executeVoid(readUsers)
+const rows = executor.execute(readUsers)
+const maybeUser = rows.pipe(Pg.Executor.atMostOne)
+const oneUser = rows.pipe(Pg.Executor.exactlyOne)
+const atLeastOneUser = rows.pipe(Pg.Executor.nonEmpty)
 const result = executor.executeResult(readUsers)
 // result.rows plus affectedRows / insertId when the driver provides them
-```
 
-`prepare(plan)` returns a reusable handle and caches the rendered query for that
-executor. The SQL driver still owns its native prepared-statement behavior.
-`explain` runs a dialect-correct EXPLAIN for read plans.
-
-```ts
 const prepared = executor.prepare(readUsers)
 const firstRun = prepared.execute
-const nextRun = prepared.execute
+const preparedOne = prepared.execute.pipe(Pg.Executor.exactlyOne)
 
 const queryPlan = executor.explain(readUsers, { format: "json" })
 ```
+
+Use the narrowest pipeable cardinality helper the caller expects. `prepare(plan)`
+returns a reusable handle and caches the rendered query for that executor. The
+SQL driver still owns native prepared-statement behavior. `explain` runs a
+dialect-correct EXPLAIN for read plans. Use Effect's `asVoid` when a caller
+intentionally ignores the returned rows.
 
 Executors also accept custom renderers, custom drivers, driver modes, and value
 mappings.
@@ -1618,9 +1580,9 @@ Dialect modules expose:
 
 | Module | Adds |
 | --- | --- |
-| `effect-qb/postgres` | Postgres column extensions, option modifiers, Postgres-only JSON/jsonb helpers, Postgres-only type witnesses for casts/references, schemas, enums, sequences, renderer, executor |
-| `effect-qb/mysql` | MySQL column extensions, MySQL-only JSON helpers, MySQL-only type witnesses, renderer, executor |
-| `effect-qb/sqlite` | SQLite column extensions, SQLite-only JSON helpers, SQLite-only type witnesses, renderer, executor |
+| `effect-qb/postgres` | Postgres function calls and `groups` frames, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
+| `effect-qb/mysql` | MySQL function calls, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/sqlite` | SQLite function calls and `groups` frames, column extensions, JSON helpers, type witnesses, renderer, executor |
 
 Portable columns and tables are created from `effect-qb`, not from dialect
 modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.
