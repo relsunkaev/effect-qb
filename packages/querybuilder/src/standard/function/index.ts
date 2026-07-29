@@ -4,10 +4,30 @@ export * as aggregate from "./aggregate.js"
 export * as window from "./window.js"
 export * as temporal from "./temporal.js"
 
-export { coalesce, call } from "./core.js"
+export {
+  abs,
+  add,
+  call,
+  coalesce,
+  divide,
+  modulo,
+  multiply,
+  negate,
+  round,
+  subtract,
+} from "./core.js"
 export { lower, upper, concat } from "./string.js"
-export { count, max, min } from "./aggregate.js"
-export { over, rowNumber, rank, denseRank } from "./window.js"
+export { avg, count, max, min, sum } from "./aggregate.js"
+export {
+  denseRank,
+  firstValue,
+  lag,
+  lastValue,
+  lead,
+  over,
+  rank,
+  rowNumber
+} from "./window.js"
 export {
   currentDate,
   currentTime,

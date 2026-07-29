@@ -135,6 +135,7 @@ import type { FormulaOfPredicate } from "./predicate/normalize.js"
 import type { TrueFormula } from "./predicate/formula.js"
 import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "./predicate/runtime.js"
 import { dedupeGroupedExpressions } from "./grouping-key.js"
+import { validateWindowFrame } from "./window-frame.js"
 import { makeDslMutationRuntime } from "./dsl-mutation-runtime.js"
 import { makeDslPlanRuntime } from "./dsl-plan-runtime.js"
 import { makeDslQueryRuntime } from "./dsl-query-runtime.js"
@@ -1426,6 +1427,7 @@ type WindowSpecInput<
 > = {
   readonly partitionBy?: PartitionBy
   readonly orderBy?: OrderBy
+  readonly frame?: ExpressionAst.WindowFrameNode
 }
 
 type OrderedWindowSpecInput<
@@ -1434,6 +1436,7 @@ type OrderedWindowSpecInput<
 > = {
   readonly partitionBy?: PartitionBy
   readonly orderBy: OrderBy
+  readonly frame?: ExpressionAst.WindowFrameNode
 }
 
 type WindowOrderExpressionTuple<
@@ -1798,6 +1801,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
   >(
     spec: WindowSpecInput<PartitionBy, OrderBy> | OrderedWindowSpecInput<PartitionBy, Extract<OrderBy, NonEmptyWindowOrderTerms>> | undefined
   ) => {
+    validateWindowFrame(spec?.frame)
     const partitionBy = [...(spec?.partitionBy ?? [])] as unknown as PartitionBy
     const orderBy = (spec?.orderBy ?? []).map((term) => {
       const direction = term.direction ?? "asc"
@@ -1812,7 +1816,8 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     } & readonly { readonly value: WindowOrderInput; readonly direction: OrderDirection }[]
     return {
       partitionBy,
-      orderBy
+      orderBy,
+      frame: spec?.frame
     }
   }
 
@@ -3717,7 +3722,8 @@ type BinaryPredicateExpression<
       function: "over",
       value,
       partitionBy: normalized.partitionBy,
-      orderBy: normalized.orderBy
+      orderBy: normalized.orderBy,
+      frame: normalized.frame
     })
   }
 
@@ -3743,7 +3749,8 @@ type BinaryPredicateExpression<
       kind: "window",
       function: kind,
       partitionBy: normalized.partitionBy,
-      orderBy: normalized.orderBy
+      orderBy: normalized.orderBy,
+      frame: normalized.frame
     })
   }
 

@@ -1,2 +1,13 @@
 /** Standard scalar core functions. */
-export { coalesce, call } from "../query.js"
+export {
+  abs,
+  add,
+  call,
+  coalesce,
+  divide,
+  modulo,
+  multiply,
+  negate,
+  round,
+  subtract,
+} from "../query.js"

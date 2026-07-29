@@ -81,6 +81,20 @@ const escapeGroupingText = (value: string): string =>
 const functionCallNameGroupingKey = (name: unknown): string =>
   escapeGroupingText(name as string)
 
+const customSqlGroupingKey = (
+  strings: readonly string[],
+  values: readonly (Expression.Any | ExpressionAst.SqlIdentifierNode)[]
+): string => strings.map((part, index) => {
+  const value = values[index]
+  if (value === undefined) {
+    return escapeGroupingText(part)
+  }
+  const rendered = isExpression(value)
+    ? groupingKeyOfExpression(value)
+    : `identifier:${value.parts.map(escapeGroupingText).join(".")}`
+  return `${escapeGroupingText(part)}${rendered}`
+}).join("|")
+
 const quantifiedComparisonGroupingName = (
   kind: "comparisonAny" | "comparisonAll"
 ): "compareAny" | "compareAll" =>
@@ -184,12 +198,19 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
       return `collate(${requiredExpressionGroupingKey("collate", ast.value)},${collationGroupingKey(ast.collation)})`
     case "function":
       return `function(${functionCallNameGroupingKey(ast.name)},${functionCallArgsGroupingKey(ast.args)})`
+    case "customSql":
+      return `customSql(${customSqlGroupingKey(ast.strings, ast.values)})`
     case "isNull":
     case "isNotNull":
     case "not":
     case "upper":
     case "lower":
     case "count":
+    case "sum":
+    case "avg":
+    case "abs":
+    case "round":
+    case "negate":
     case "max":
     case "min":
       return `${ast.kind}(${requiredExpressionGroupingKey(ast.kind, ast.value)})`
@@ -210,6 +231,11 @@ export const groupingKeyOfExpression = (expression: Expression.Any): string => {
     case "contains":
     case "containedBy":
     case "overlaps":
+    case "add":
+    case "subtract":
+    case "multiply":
+    case "divide":
+    case "modulo":
       return `${ast.kind}(${requiredBinaryExpressionGroupingKey(ast.kind, ast.left, ast.right)})`
     case "and":
     case "or":

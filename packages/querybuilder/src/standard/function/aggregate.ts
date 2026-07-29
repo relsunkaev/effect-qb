@@ -1,2 +1,2 @@
 /** Standard aggregate functions. */
-export { count, max, min } from "../query.js"
+export { avg, count, max, min, sum } from "../query.js"
