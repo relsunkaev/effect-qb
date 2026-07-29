@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect"
+import type * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Stream from "effect/Stream"
 
@@ -43,16 +44,40 @@ export type MysqlQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any,
 export const withTransaction = CoreExecutor.withTransaction
 
 /** MySQL executor whose error channel narrows based on the query plan. */
-export interface QueryExecutor<Context = never> {
+export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"mysql", MysqlQueryError<any>, Context> {
   readonly dialect: "mysql"
   execute<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
   ): Effect.Effect<CoreQuery.ResultRows<PlanValue>, MysqlQueryError<PlanValue>, Context>
+  executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+  ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, MysqlQueryError<PlanValue>, Context>
+  executeOption<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+  ): Effect.Effect<Option.Option<CoreQuery.ResultRow<PlanValue>>, MysqlQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
+  executeExactlyOne<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+  ): Effect.Effect<CoreQuery.ResultRow<PlanValue>, MysqlQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
+  executeNonEmpty<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+  ): Effect.Effect<readonly [CoreQuery.ResultRow<PlanValue>, ...CoreQuery.ResultRow<PlanValue>[]], MysqlQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
+  executeVoid<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+  ): Effect.Effect<void, MysqlQueryError<PlanValue>, Context>
+  prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+  ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, MysqlQueryError<PlanValue>, Context>
   stream<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
       : never
   ): Stream.Stream<CoreQuery.ResultRow<PlanValue>, MysqlQueryError<PlanValue>, Context>
+  explain<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
+      ? CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
+      : never,
+    options?: CoreExecutor.ExplainOptions
+  ): Effect.Effect<ReadonlyArray<FlatRow>, MysqlQueryError<PlanValue>, Context>
 }
 
 /** Constructs a MySQL-specialized SQL driver. */
@@ -72,6 +97,9 @@ export function driver<
     readonly execute: <Row>(
       query: CoreRenderer.RenderedQuery<Row, "mysql">
     ) => Effect.Effect<ReadonlyArray<FlatRow>, Error, Context>
+    readonly executeResult?: <Row>(
+      query: CoreRenderer.RenderedQuery<Row, "mysql">
+    ) => Effect.Effect<CoreExecutor.DriverResult, Error, Context>
     readonly stream: <Row>(
       query: CoreRenderer.RenderedQuery<Row, "mysql">
     ) => Stream.Stream<FlatRow, Error, Context>
@@ -89,6 +117,9 @@ export function driver<
       readonly execute: <Row>(
         query: CoreRenderer.RenderedQuery<Row, "mysql">
       ) => Effect.Effect<ReadonlyArray<FlatRow>, Error, Context>
+      readonly executeResult?: <Row>(
+        query: CoreRenderer.RenderedQuery<Row, "mysql">
+      ) => Effect.Effect<CoreExecutor.DriverResult, Error, Context>
       readonly stream: <Row>(
         query: CoreRenderer.RenderedQuery<Row, "mysql">
       ) => Stream.Stream<FlatRow, Error, Context>
@@ -105,57 +136,105 @@ const fromDriver = <
   sqlDriver: Driver<Error, Context>,
   driverMode: CoreExecutor.DriverMode = "raw",
   valueMappings?: Expression.DriverValueMappings
-): QueryExecutor<Context> => ({
-  dialect: "mysql",
-  execute(plan) {
-    const rendered = renderer.render(plan)
-    return Effect.mapError(
-      Effect.flatMap(
-        sqlDriver.execute(rendered),
-        (rows) => Effect.try({
-          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }),
-          catch: (error) => error as RowDecodeError
-        })
-      ),
-      (error) => {
-        if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
-          return error as RowDecodeError
-        }
-        const normalized = normalizeMysqlDriverError(error, rendered)
-        return CoreExecutor.hasWriteCapability(plan)
-          ? normalized
-          : narrowMysqlDriverErrorForReadQuery(normalized)
-      }
-    ) as Effect.Effect<any, any, Context>
-  },
-  stream(plan) {
-    const rendered = renderer.render(plan)
-    return Stream.mapError(
-      Stream.mapArrayEffect(
-        sqlDriver.stream(rendered),
-        (rows) => Effect.try({
-          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }) as never,
-          catch: (error) => error as RowDecodeError
-        })
-      ),
-      (error) => {
-        if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
-          return error as RowDecodeError
-        }
-        const normalized = normalizeMysqlDriverError(error, rendered)
-        return CoreExecutor.hasWriteCapability(plan)
-          ? normalized
-          : narrowMysqlDriverErrorForReadQuery(normalized)
-      }
-    ) as Stream.Stream<any, any, Context>
+): QueryExecutor<Context> => {
+  const renderedCache = new WeakMap<object, CoreRenderer.RenderedQuery<any, "mysql">>()
+  const render = (plan: CoreQuery.Plan.Any) => {
+    const cached = renderedCache.get(plan)
+    if (cached !== undefined) {
+      return cached
+    }
+    const rendered = renderer.render(plan as any)
+    renderedCache.set(plan, rendered)
+    return rendered
   }
-})
+  const mapExecutionError = (
+    error: unknown,
+    rendered: CoreRenderer.RenderedQuery<any, "mysql">,
+    plan: CoreQuery.Plan.Any
+  ) => {
+    if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
+      return error as RowDecodeError
+    }
+    const normalized = normalizeMysqlDriverError(error, rendered)
+    return CoreExecutor.hasWriteCapability(plan)
+      ? normalized
+      : narrowMysqlDriverErrorForReadQuery(normalized)
+  }
+  return CoreExecutor.withResultContracts({
+    dialect: "mysql",
+    execute(plan) {
+      const rendered = render(plan)
+      return Effect.mapError(
+        Effect.flatMap(
+          sqlDriver.execute(rendered),
+          (rows) => Effect.try({
+            try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }),
+            catch: (error) => error as RowDecodeError
+          })
+        ),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    },
+    executeResult(plan) {
+      const rendered = render(plan)
+      const result = sqlDriver.executeResult
+        ? sqlDriver.executeResult(rendered)
+        : Effect.map(sqlDriver.execute(rendered), (rows) => ({ rows }))
+      return Effect.mapError(
+        Effect.flatMap(result, ({ rows, ...metadata }) => Effect.try({
+          try: () => ({
+            ...metadata,
+            rows: CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings })
+          }),
+          catch: (error) => error as RowDecodeError
+        })),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    },
+    stream(plan) {
+      const rendered = render(plan)
+      return Stream.mapError(
+        Stream.mapArrayEffect(
+          sqlDriver.stream(rendered),
+          (rows) => Effect.try({
+            try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }) as never,
+            catch: (error) => error as RowDecodeError
+          })
+        ),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Stream.Stream<any, any, Context>
+    },
+    explain(plan, options) {
+      const rendered = CoreExecutor.explainQuery(render(plan), options)
+      return Effect.mapError(
+        sqlDriver.execute(rendered),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    }
+  }) as QueryExecutor<Context>
+}
 
 const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
   driver({
     execute: (query) =>
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         sql.unsafe<FlatRow>(query.sql, [...query.params])),
+    executeResult: (query) =>
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        Effect.map(sql.unsafe<FlatRow>(query.sql, [...query.params]).raw, (raw) => {
+          if (Array.isArray(raw)) {
+            return { rows: raw as ReadonlyArray<FlatRow> }
+          }
+          const header = raw as {
+            readonly affectedRows?: number
+            readonly insertId?: number | string
+          } | null
+          return {
+            rows: [],
+            ...(typeof header?.affectedRows === "number" ? { affectedRows: header.affectedRows } : {}),
+            ...(header?.insertId === undefined ? {} : { insertId: header.insertId })
+          }
+        })),
     stream: (query) =>
       CoreExecutor.streamFromSqlClient(query)
   })

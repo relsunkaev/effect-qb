@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect"
+import type * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Stream from "effect/Stream"
 
@@ -43,16 +44,40 @@ export type PostgresQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, a
 export const withTransaction = CoreExecutor.withTransaction
 
 /** Postgres executor whose error channel narrows based on the query plan. */
-export interface QueryExecutor<Context = never> {
+export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"postgres", PostgresQueryError<any>, Context> {
   readonly dialect: "postgres"
   execute<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
   ): Effect.Effect<CoreQuery.ResultRows<PlanValue>, PostgresQueryError<PlanValue>, Context>
+  executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
+  ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, PostgresQueryError<PlanValue>, Context>
+  executeOption<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
+  ): Effect.Effect<Option.Option<CoreQuery.ResultRow<PlanValue>>, PostgresQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
+  executeExactlyOne<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
+  ): Effect.Effect<CoreQuery.ResultRow<PlanValue>, PostgresQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
+  executeNonEmpty<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
+  ): Effect.Effect<readonly [CoreQuery.ResultRow<PlanValue>, ...CoreQuery.ResultRow<PlanValue>[]], PostgresQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
+  executeVoid<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
+  ): Effect.Effect<void, PostgresQueryError<PlanValue>, Context>
+  prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
+  ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, PostgresQueryError<PlanValue>, Context>
   stream<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
       : never
   ): Stream.Stream<CoreQuery.ResultRow<PlanValue>, PostgresQueryError<PlanValue>, Context>
+  explain<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
+      ? CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
+      : never,
+    options?: CoreExecutor.ExplainOptions
+  ): Effect.Effect<ReadonlyArray<FlatRow>, PostgresQueryError<PlanValue>, Context>
 }
 
 type DriverExecute<Error, Context> = <Row>(
@@ -61,6 +86,9 @@ type DriverExecute<Error, Context> = <Row>(
 
 type DriverHandlers<Error, Context> = {
   readonly execute: DriverExecute<Error, Context>
+  readonly executeResult?: <Row>(
+    query: CoreRenderer.RenderedQuery<Row, "postgres">
+  ) => Effect.Effect<CoreExecutor.DriverResult, Error, Context>
   readonly stream: <Row>(
     query: CoreRenderer.RenderedQuery<Row, "postgres">
   ) => Stream.Stream<FlatRow, Error, Context>
@@ -114,57 +142,101 @@ const fromDriver = <
   sqlDriver: Driver<Error, Context>,
   driverMode: CoreExecutor.DriverMode = "raw",
   valueMappings?: Expression.DriverValueMappings
-): QueryExecutor<Context> => ({
-  dialect: "postgres",
-  execute(plan) {
-    const rendered = renderer.render(plan)
-    return Effect.mapError(
-      Effect.flatMap(
-        sqlDriver.execute(rendered),
-        (rows) => Effect.try({
-          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }),
-          catch: (error) => error as RowDecodeError
-        })
-      ),
-      (error) => {
-        if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
-          return error as RowDecodeError
-        }
-        const normalized = normalizePostgresDriverError(error, rendered)
-        return CoreExecutor.hasWriteCapability(plan)
-          ? normalized
-          : narrowPostgresDriverErrorForReadQuery(normalized)
-      }
-    ) as Effect.Effect<any, any, Context>
-  },
-  stream(plan) {
-    const rendered = renderer.render(plan)
-    return Stream.mapError(
-      Stream.mapArrayEffect(
-        sqlDriver.stream(rendered),
-        (rows) => Effect.try({
-          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }) as never,
-          catch: (error) => error as RowDecodeError
-        })
-      ),
-      (error) => {
-        if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
-          return error as RowDecodeError
-        }
-        const normalized = normalizePostgresDriverError(error, rendered)
-        return CoreExecutor.hasWriteCapability(plan)
-          ? normalized
-          : narrowPostgresDriverErrorForReadQuery(normalized)
-      }
-    ) as Stream.Stream<any, any, Context>
+): QueryExecutor<Context> => {
+  const renderedCache = new WeakMap<object, CoreRenderer.RenderedQuery<any, "postgres">>()
+  const render = (plan: CoreQuery.Plan.Any) => {
+    const cached = renderedCache.get(plan)
+    if (cached !== undefined) {
+      return cached
+    }
+    const rendered = renderer.render(plan as any)
+    renderedCache.set(plan, rendered)
+    return rendered
   }
-})
+  const mapExecutionError = (
+    error: unknown,
+    rendered: CoreRenderer.RenderedQuery<any, "postgres">,
+    plan: CoreQuery.Plan.Any
+  ) => {
+    if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
+      return error as RowDecodeError
+    }
+    const normalized = normalizePostgresDriverError(error, rendered)
+    return CoreExecutor.hasWriteCapability(plan)
+      ? normalized
+      : narrowPostgresDriverErrorForReadQuery(normalized)
+  }
+  return CoreExecutor.withResultContracts({
+    dialect: "postgres",
+    execute(plan) {
+      const rendered = render(plan)
+      return Effect.mapError(
+        Effect.flatMap(
+          sqlDriver.execute(rendered),
+          (rows) => Effect.try({
+            try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }),
+            catch: (error) => error as RowDecodeError
+          })
+        ),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    },
+    executeResult(plan) {
+      const rendered = render(plan)
+      const result = sqlDriver.executeResult
+        ? sqlDriver.executeResult(rendered)
+        : Effect.map(sqlDriver.execute(rendered), (rows) => ({ rows }))
+      return Effect.mapError(
+        Effect.flatMap(result, ({ rows, ...metadata }) => Effect.try({
+          try: () => ({
+            ...metadata,
+            rows: CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings })
+          }),
+          catch: (error) => error as RowDecodeError
+        })),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    },
+    stream(plan) {
+      const rendered = render(plan)
+      return Stream.mapError(
+        Stream.mapArrayEffect(
+          sqlDriver.stream(rendered),
+          (rows) => Effect.try({
+            try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }) as never,
+            catch: (error) => error as RowDecodeError
+          })
+        ),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Stream.Stream<any, any, Context>
+    },
+    explain(plan, options) {
+      const rendered = CoreExecutor.explainQuery(render(plan), options)
+      return Effect.mapError(
+        sqlDriver.execute(rendered),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    }
+  }) as QueryExecutor<Context>
+}
 
 const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
   driver({
     execute: (query: CoreRenderer.RenderedQuery<any, "postgres">) =>
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         sql.unsafe<FlatRow>(query.sql, [...query.params])),
+    executeResult: (query: CoreRenderer.RenderedQuery<any, "postgres">) =>
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        Effect.map(sql.unsafe<FlatRow>(query.sql, [...query.params]).raw, (raw) => {
+          const result = raw as {
+            readonly rows?: ReadonlyArray<FlatRow>
+            readonly rowCount?: number | null
+          }
+          return {
+            rows: result.rows ?? [],
+            ...(typeof result.rowCount === "number" ? { affectedRows: result.rowCount } : {})
+          }
+        })),
     stream: (query: CoreRenderer.RenderedQuery<any, "postgres">) =>
       CoreExecutor.streamFromSqlClient(query)
   })
