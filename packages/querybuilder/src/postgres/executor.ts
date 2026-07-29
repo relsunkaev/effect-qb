@@ -1,5 +1,4 @@
 import * as Effect from "effect/Effect"
-import type * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Stream from "effect/Stream"
 
@@ -27,6 +26,8 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"po
 /** Postgres-specialized renderer contract. */
 export type Renderer = CoreRenderer.Renderer<"postgres">
 export type ValueMappings = Expression.DriverValueMappingsFor<PostgresDatatypeKind, PostgresDatatypeFamily>
+/** PostgreSQL EXPLAIN options. ANALYZE executes the read query. */
+export type ExplainOptions = CoreExecutor.ExplainOptions
 /** Optional renderer / driver overrides for the standard Postgres executor pipeline. */
 export interface MakeOptions<Error = never, Context = never> {
   readonly renderer?: Renderer
@@ -40,6 +41,11 @@ export type PostgresExecutorError = PostgresDriverError | RowDecodeError
 export type PostgresQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? PostgresReadQueryError : PostgresExecutorError
 
+/** Pipeable execution cardinality helpers. */
+export const atMostOne = CoreExecutor.atMostOne
+export const exactlyOne = CoreExecutor.exactlyOne
+export const nonEmpty = CoreExecutor.nonEmpty
+
 /** Runs an effect within the ambient Postgres SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction
 
@@ -52,18 +58,6 @@ export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"p
   executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
   ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, PostgresQueryError<PlanValue>, Context>
-  executeOption<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
-  ): Effect.Effect<Option.Option<CoreQuery.ResultRow<PlanValue>>, PostgresQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeExactlyOne<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
-  ): Effect.Effect<CoreQuery.ResultRow<PlanValue>, PostgresQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeNonEmpty<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
-  ): Effect.Effect<readonly [CoreQuery.ResultRow<PlanValue>, ...CoreQuery.ResultRow<PlanValue>[]], PostgresQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeVoid<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
-  ): Effect.Effect<void, PostgresQueryError<PlanValue>, Context>
   prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
   ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, PostgresQueryError<PlanValue>, Context>
@@ -76,7 +70,7 @@ export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"p
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
       : never,
-    options?: CoreExecutor.ExplainOptions
+    options?: ExplainOptions
   ): Effect.Effect<ReadonlyArray<FlatRow>, PostgresQueryError<PlanValue>, Context>
 }
 

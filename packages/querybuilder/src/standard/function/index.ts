@@ -7,13 +7,9 @@ export * as temporal from "./temporal.js"
 export {
   abs,
   add,
-  call,
   coalesce,
-  divide,
-  modulo,
   multiply,
   negate,
-  round,
   subtract,
 } from "./core.js"
 export { lower, upper, concat } from "./string.js"

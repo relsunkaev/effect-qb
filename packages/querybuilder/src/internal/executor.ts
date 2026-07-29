@@ -49,10 +49,6 @@ export interface ResultCardinalityError {
 export interface PreparedQuery<Row, Error = never, Context = never> {
   readonly execute: Effect.Effect<ReadonlyArray<Row>, Error, Context>
   readonly executeResult: Effect.Effect<ExecutionResult<Row>, Error, Context>
-  readonly executeOption: Effect.Effect<Option.Option<Row>, Error | ResultCardinalityError, Context>
-  readonly executeExactlyOne: Effect.Effect<Row, Error | ResultCardinalityError, Context>
-  readonly executeNonEmpty: Effect.Effect<readonly [Row, ...Row[]], Error | ResultCardinalityError, Context>
-  readonly executeVoid: Effect.Effect<void, Error, Context>
   readonly stream: Stream.Stream<Row, Error, Context>
 }
 
@@ -132,18 +128,6 @@ export interface Executor<
   executeResult<PlanValue extends Query.Plan.Any>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): Effect.Effect<ExecutionResult<Query.ResultRow<PlanValue>>, Error, Context>
-  executeOption<PlanValue extends Query.Plan.Any>(
-    plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
-  ): Effect.Effect<Option.Option<Query.ResultRow<PlanValue>>, Error | ResultCardinalityError, Context>
-  executeExactlyOne<PlanValue extends Query.Plan.Any>(
-    plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
-  ): Effect.Effect<Query.ResultRow<PlanValue>, Error | ResultCardinalityError, Context>
-  executeNonEmpty<PlanValue extends Query.Plan.Any>(
-    plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
-  ): Effect.Effect<readonly [Query.ResultRow<PlanValue>, ...Query.ResultRow<PlanValue>[]], Error | ResultCardinalityError, Context>
-  executeVoid<PlanValue extends Query.Plan.Any>(
-    plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
-  ): Effect.Effect<void, Error, Context>
   prepare<PlanValue extends Query.Plan.Any>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): PreparedQuery<Query.ResultRow<PlanValue>, Error, Context>
@@ -164,6 +148,45 @@ type ExecutorBase<
   ) => Effect.Effect<ReadonlyArray<FlatRow>, Error, Context>
 }
 
+/** Requires an execution effect to contain at most one row. */
+export const atMostOne = <Row, Error, Context>(
+  self: Effect.Effect<ReadonlyArray<Row>, Error, Context>
+): Effect.Effect<Option.Option<Row>, Error | ResultCardinalityError, Context> =>
+  Effect.flatMap(self, (rows) =>
+    rows.length <= 1
+      ? Effect.succeed(rows.length === 0 ? Option.none() : Option.some(rows[0]!))
+      : Effect.fail({
+          _tag: "ResultCardinalityError",
+          expected: "zeroOrOne",
+          actual: rows.length
+        } satisfies ResultCardinalityError))
+
+/** Requires an execution effect to contain exactly one row. */
+export const exactlyOne = <Row, Error, Context>(
+  self: Effect.Effect<ReadonlyArray<Row>, Error, Context>
+): Effect.Effect<Row, Error | ResultCardinalityError, Context> =>
+  Effect.flatMap(self, (rows) =>
+    rows.length === 1
+      ? Effect.succeed(rows[0]!)
+      : Effect.fail({
+          _tag: "ResultCardinalityError",
+          expected: "exactlyOne",
+          actual: rows.length
+        } satisfies ResultCardinalityError))
+
+/** Requires an execution effect to contain at least one row. */
+export const nonEmpty = <Row, Error, Context>(
+  self: Effect.Effect<ReadonlyArray<Row>, Error, Context>
+): Effect.Effect<readonly [Row, ...Row[]], Error | ResultCardinalityError, Context> =>
+  Effect.flatMap(self, (rows) =>
+    rows.length > 0
+      ? Effect.succeed(rows as readonly [Row, ...Row[]])
+      : Effect.fail({
+          _tag: "ResultCardinalityError",
+          expected: "nonEmpty",
+          actual: 0
+        } satisfies ResultCardinalityError))
+
 /** Adds the standard result/cardinality contract to an executor implementation. */
 export const withResultContracts = <
   Dialect extends string,
@@ -177,47 +200,10 @@ export const withResultContracts = <
   return {
     ...base,
     executeResult,
-    executeOption(plan) {
-      return Effect.flatMap(base.execute(plan), (rows) =>
-        rows.length <= 1
-          ? Effect.succeed(rows.length === 0 ? Option.none() : Option.some(rows[0]!))
-          : Effect.fail({
-              _tag: "ResultCardinalityError",
-              expected: "zeroOrOne",
-              actual: rows.length
-            } satisfies ResultCardinalityError))
-    },
-    executeExactlyOne(plan) {
-      return Effect.flatMap(base.execute(plan), (rows) =>
-        rows.length === 1
-          ? Effect.succeed(rows[0]!)
-          : Effect.fail({
-              _tag: "ResultCardinalityError",
-              expected: "exactlyOne",
-              actual: rows.length
-            } satisfies ResultCardinalityError))
-    },
-    executeNonEmpty(plan) {
-      return Effect.flatMap(base.execute(plan), (rows) =>
-        rows.length > 0
-          ? Effect.succeed(rows as readonly [Query.ResultRow<typeof plan>, ...Query.ResultRow<typeof plan>[]])
-          : Effect.fail({
-              _tag: "ResultCardinalityError",
-              expected: "nonEmpty",
-              actual: 0
-            } satisfies ResultCardinalityError))
-    },
-    executeVoid(plan) {
-      return Effect.as(base.execute(plan), undefined)
-    },
     prepare(plan) {
       return {
         execute: base.execute(plan),
         executeResult: executeResult(plan),
-        executeOption: this.executeOption(plan),
-        executeExactlyOne: this.executeExactlyOne(plan),
-        executeNonEmpty: this.executeNonEmpty(plan),
-        executeVoid: this.executeVoid(plan),
         stream: base.stream(plan)
       }
     }

@@ -92,7 +92,6 @@ export {
   upper,
   concat,
   coalesce,
-  call,
   count,
   max,
   min,
@@ -106,23 +105,20 @@ export {
   abs,
   add,
   avg,
-  divide,
-  modulo,
   multiply,
   negate,
-  round,
   subtract,
   sum
 } from "../internal/numeric.js"
 
 export { andAll, includeIf, orAll, when } from "../internal/dynamic.js"
-export { keyset, type KeysetOptions, type KeysetTerm } from "../internal/keyset.js"
 export {
   firstValue,
   lag,
   lastValue,
   lead,
   type OffsetOptions,
+  type WindowOrderSpec,
   type WindowOrderTerm,
   type WindowSpec
 } from "../internal/analytics.js"

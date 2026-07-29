@@ -241,8 +241,12 @@ export type WindowFrameBoundary =
       readonly following: number
     }
 
-export interface WindowFrameNode {
-  readonly unit: "rows" | "range" | "groups"
+export type WindowFrameUnit = "rows" | "range" | "groups"
+
+export interface WindowFrameNode<
+  Unit extends WindowFrameUnit = WindowFrameUnit
+> {
+  readonly unit: Unit
   readonly start: WindowFrameBoundary
   readonly end?: WindowFrameBoundary
 }

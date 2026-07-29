@@ -17,6 +17,16 @@ export interface WindowOrderTerm<
   readonly direction?: "asc" | "desc"
 }
 
+export interface WindowOrderSpec<
+  PartitionBy extends readonly Expression.Any[] = readonly Expression.Any[],
+  OrderBy extends readonly [WindowOrderTerm, ...WindowOrderTerm[]] =
+    readonly [WindowOrderTerm, ...WindowOrderTerm[]]
+> {
+  readonly partitionBy?: PartitionBy
+  readonly orderBy: OrderBy
+  readonly frame?: never
+}
+
 export interface WindowSpec<
   PartitionBy extends readonly Expression.Any[] = readonly Expression.Any[],
   OrderBy extends readonly [WindowOrderTerm, ...WindowOrderTerm[]] =
@@ -24,7 +34,7 @@ export interface WindowSpec<
 > {
   readonly partitionBy?: PartitionBy
   readonly orderBy: OrderBy
-  readonly frame?: ExpressionAst.WindowFrameNode
+  readonly frame?: ExpressionAst.WindowFrameNode<"rows" | "range">
 }
 
 type PartitionExpressions<Spec extends WindowSpec> =
@@ -116,7 +126,7 @@ const windowExpression = <
 
 export interface OffsetOptions<
   Value extends Expression.Any,
-  Spec extends WindowSpec
+  Spec extends WindowOrderSpec
 > {
   readonly spec: Spec
   readonly offset?: number
@@ -126,7 +136,7 @@ export interface OffsetOptions<
 /** Value from a preceding row in the ordered window. */
 export const lag = <
   Value extends Expression.Any,
-  Spec extends WindowSpec
+  Spec extends WindowOrderSpec
 >(
   value: Value,
   options: OffsetOptions<Value, Spec>
@@ -145,7 +155,7 @@ export const lag = <
 /** Value from a following row in the ordered window. */
 export const lead = <
   Value extends Expression.Any,
-  Spec extends WindowSpec
+  Spec extends WindowOrderSpec
 >(
   value: Value,
   options: OffsetOptions<Value, Spec>

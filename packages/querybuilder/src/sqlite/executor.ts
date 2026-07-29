@@ -1,5 +1,4 @@
 import * as Effect from "effect/Effect"
-import type * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Stream from "effect/Stream"
 
@@ -40,6 +39,11 @@ export type SqliteExecutorError = SqliteDriverError | RowDecodeError
 export type SqliteQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? SqliteReadQueryError : SqliteExecutorError
 
+/** Pipeable execution cardinality helpers. */
+export const atMostOne = CoreExecutor.atMostOne
+export const exactlyOne = CoreExecutor.exactlyOne
+export const nonEmpty = CoreExecutor.nonEmpty
+
 /** Runs an effect within the ambient SQLite SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction
 
@@ -52,18 +56,6 @@ export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"s
   executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, SqliteQueryError<PlanValue>, Context>
-  executeOption<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
-  ): Effect.Effect<Option.Option<CoreQuery.ResultRow<PlanValue>>, SqliteQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeExactlyOne<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
-  ): Effect.Effect<CoreQuery.ResultRow<PlanValue>, SqliteQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeNonEmpty<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
-  ): Effect.Effect<readonly [CoreQuery.ResultRow<PlanValue>, ...CoreQuery.ResultRow<PlanValue>[]], SqliteQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeVoid<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
-  ): Effect.Effect<void, SqliteQueryError<PlanValue>, Context>
   prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, SqliteQueryError<PlanValue>, Context>
@@ -75,8 +67,7 @@ export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"s
   explain<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
-      : never,
-    options?: CoreExecutor.ExplainOptions
+      : never
   ): Effect.Effect<ReadonlyArray<FlatRow>, SqliteQueryError<PlanValue>, Context>
 }
 

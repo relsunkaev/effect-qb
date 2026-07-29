@@ -1441,7 +1441,7 @@ type WindowSpecInput<
 > = {
   readonly partitionBy?: PartitionBy
   readonly orderBy?: OrderBy
-  readonly frame?: ExpressionAst.WindowFrameNode
+  readonly frame?: ExpressionAst.WindowFrameNode<"rows" | "range">
 }
 
 type OrderedWindowSpecInput<
@@ -1450,7 +1450,7 @@ type OrderedWindowSpecInput<
 > = {
   readonly partitionBy?: PartitionBy
   readonly orderBy: OrderBy
-  readonly frame?: ExpressionAst.WindowFrameNode
+  readonly frame?: never
 }
 
 type WindowOrderExpressionTuple<

@@ -1,5 +1,4 @@
 import * as Effect from "effect/Effect"
-import type * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Stream from "effect/Stream"
 
@@ -27,6 +26,16 @@ export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"my
 /** MySQL-specialized renderer contract. */
 export type Renderer = CoreRenderer.Renderer<"mysql">
 export type ValueMappings = Expression.DriverValueMappingsFor<MysqlDatatypeKind | "uuid", MysqlDatatypeFamily | "uuid">
+/** MySQL EXPLAIN options. ANALYZE always uses TREE output. */
+export type ExplainOptions =
+  | {
+      readonly analyze?: false
+      readonly format?: "text" | "json"
+    }
+  | {
+      readonly analyze: true
+      readonly format?: "text"
+    }
 /** Optional renderer / driver overrides for the standard MySQL executor pipeline. */
 export interface MakeOptions<Error = never, Context = never> {
   readonly renderer?: Renderer
@@ -40,6 +49,11 @@ export type MysqlExecutorError = MysqlDriverError | RowDecodeError
 export type MysqlQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError : MysqlExecutorError
 
+/** Pipeable execution cardinality helpers. */
+export const atMostOne = CoreExecutor.atMostOne
+export const exactlyOne = CoreExecutor.exactlyOne
+export const nonEmpty = CoreExecutor.nonEmpty
+
 /** Runs an effect within the ambient MySQL SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction
 
@@ -52,18 +66,6 @@ export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"m
   executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
   ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, MysqlQueryError<PlanValue>, Context>
-  executeOption<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
-  ): Effect.Effect<Option.Option<CoreQuery.ResultRow<PlanValue>>, MysqlQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeExactlyOne<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
-  ): Effect.Effect<CoreQuery.ResultRow<PlanValue>, MysqlQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeNonEmpty<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
-  ): Effect.Effect<readonly [CoreQuery.ResultRow<PlanValue>, ...CoreQuery.ResultRow<PlanValue>[]], MysqlQueryError<PlanValue> | CoreExecutor.ResultCardinalityError, Context>
-  executeVoid<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
-  ): Effect.Effect<void, MysqlQueryError<PlanValue>, Context>
   prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
   ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, MysqlQueryError<PlanValue>, Context>
@@ -76,7 +78,7 @@ export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"m
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
       : never,
-    options?: CoreExecutor.ExplainOptions
+    options?: ExplainOptions
   ): Effect.Effect<ReadonlyArray<FlatRow>, MysqlQueryError<PlanValue>, Context>
 }
 
