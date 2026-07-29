@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Features
+
+- feat(querybuilder): add typed SQL fragments, numeric expressions, and dynamic composition
+- feat(querybuilder): add analytic windows and keyset pagination
+- feat(executor): add result contracts, prepared reuse, and dialect-aware explain
+
 ## 0.21.0 - 2026-07-23
 
 ### Features

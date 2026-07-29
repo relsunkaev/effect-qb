@@ -1062,6 +1062,72 @@ const report = Query.select({
 </details>
 
 <details>
+<summary>Arithmetic and runtime composition</summary>
+
+Arithmetic expressions keep the input column's numeric contract. `andAll` and
+`orAll` accept arrays assembled at runtime; their empty-list identities are
+`true` and `false`. `when` conditionally applies a pipe modifier, while
+`includeIf` builds an optional selection fragment.
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+
+const accounts = Table.make("accounts", {
+  id: Column.int().pipe(Column.primaryKey),
+  balance: Column.real(),
+  active: Column.boolean()
+})
+
+const minimum = 100
+const onlyActive = true as boolean
+
+const report = Query.select({
+  id: accounts.id,
+  adjustedBalance: Function.round(Function.add(accounts.balance, 2.5)),
+  ...Query.includeIf(onlyActive, { active: accounts.active })
+}).pipe(
+  Query.from(accounts),
+  Query.where(Query.andAll([
+    Query.gte(accounts.balance, minimum),
+    ...(onlyActive ? [Query.eq(accounts.active, true)] : [])
+  ]))
+)
+```
+
+</details>
+
+<details>
+<summary>Typed custom SQL expressions</summary>
+
+`Fragment.expression` is the escape hatch for a database feature that does not
+yet have a first-class helper. Static template text is trusted source text.
+Interpolations accept typed expressions or `Fragment.identifier(...)`;
+runtime values must go through `Query.literal(...)`, so they remain bound
+parameters.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Fragment, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.int().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const normalizedEmail = Fragment.expression({
+  dbType: Query.type.text(),
+  schema: Schema.String,
+  nullability: "never"
+})`coalesce(${users.email}, ${Query.literal("missing")})`
+
+const plan = Query.select({
+  normalizedEmail
+}).pipe(Query.from(users))
+```
+
+</details>
+
+<details>
 <summary>Common table expressions</summary>
 
 Pipe `Query.with(name)` onto a complete plan to name it, then reference it like
@@ -1172,7 +1238,9 @@ const allEmails = Query.unionAll(activeEmails, inactiveEmails)
 <summary>Window functions</summary>
 
 `Function.rowNumber`, `rank`, and `denseRank` take a window spec;
-`Function.over` wraps an aggregate in a window.
+`Function.over` wraps an aggregate in a window. `lag`, `lead`, `firstValue`,
+and `lastValue` support ordered windows and explicit `rows`, `range`, or
+`groups` frames.
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
@@ -1190,8 +1258,55 @@ const ranked = Query.select({
   }),
   perUser: Function.over(Function.count(posts.id), {
     partitionBy: [posts.userId]
+  }),
+  previousPost: Function.lag(posts.id, {
+    spec: {
+      partitionBy: [posts.userId],
+      orderBy: [{ value: posts.id, direction: "asc" }]
+    }
+  }),
+  firstPost: Function.firstValue(posts.id, {
+    partitionBy: [posts.userId],
+    orderBy: [{ value: posts.id, direction: "asc" }],
+    frame: {
+      unit: "rows",
+      start: "unboundedPreceding",
+      end: "currentRow"
+    }
   })
 }).pipe(Query.from(posts))
+```
+
+</details>
+
+<details>
+<summary>Keyset pagination</summary>
+
+`Query.keyset` adds the lexicographic cursor predicate, matching order terms,
+and page limit together. Keys must be non-null. The final key should be unique
+so equal values cannot skip or duplicate rows between pages.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const events = Table.make("events", {
+  id: Column.int().pipe(Column.primaryKey),
+  createdAt: Column.text()
+})
+
+const page = Query.select({
+  id: events.id,
+  createdAt: events.createdAt
+}).pipe(
+  Query.from(events),
+  Query.keyset({
+    by: [
+      { expression: events.createdAt, cursor: "2026-07-29T12:00:00", direction: "desc" },
+      { expression: events.id, cursor: 481, direction: "desc" }
+    ],
+    pageSize: 50
+  })
+)
 ```
 
 </details>
@@ -1433,9 +1548,35 @@ const readUsers = Query.select({
   email: users.email
 }).pipe(Query.from(users))
 
-const rowsEffect = Pg.Executor.make().execute(readUsers)
-const rowStream = Pg.Executor.make().stream(readUsers)
+const executor = Pg.Executor.make()
+const rowsEffect = executor.execute(readUsers)
+const rowStream = executor.stream(readUsers)
 
+```
+
+Use the narrowest result contract the caller expects:
+
+```ts
+const executor = Pg.Executor.make()
+
+const maybeUser = executor.executeOption(readUsers)
+const oneUser = executor.executeExactlyOne(readUsers)
+const atLeastOneUser = executor.executeNonEmpty(readUsers)
+const ignoredRows = executor.executeVoid(readUsers)
+const result = executor.executeResult(readUsers)
+// result.rows plus affectedRows / insertId when the driver provides them
+```
+
+`prepare(plan)` returns a reusable handle and caches the rendered query for that
+executor. The SQL driver still owns its native prepared-statement behavior.
+`explain` runs a dialect-correct EXPLAIN for read plans.
+
+```ts
+const prepared = executor.prepare(readUsers)
+const firstRun = prepared.execute
+const nextRun = prepared.execute
+
+const queryPlan = executor.explain(readUsers, { format: "json" })
 ```
 
 Executors also accept custom renderers, custom drivers, driver modes, and value
@@ -1451,6 +1592,10 @@ import * as Pg from "effect-qb/postgres"
 
 const driver = Pg.Executor.driver({
   execute: () => Effect.succeed([]),
+  executeResult: () => Effect.succeed({
+    rows: [],
+    affectedRows: 1
+  }),
   stream: () => Stream.empty
 })
 
@@ -1762,7 +1907,9 @@ Root modules:
 | `PrimaryKey`, `Unique`, `Index`, `ForeignKey`, `Check` | portable table-level options |
 | `Query` | portable query construction DSL |
 | `Function` | portable SQL function expressions |
+| `Fragment` | typed custom SQL expressions and safely quoted identifiers |
 | `Renderer` | standard renderer |
+| `Executor` | portable executor contracts and result metadata |
 | `Datatypes` | portable datatype witnesses |
 | `Casing` | composable physical identifier casing |
 
