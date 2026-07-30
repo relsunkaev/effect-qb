@@ -1,6 +1,3 @@
-import {
-  type as standardType
-} from "../internal/standard-dsl.js"
 import type * as Expression from "../internal/scalar.js"
 
 export {
@@ -123,7 +120,6 @@ export {
   type WindowSpec
 } from "../internal/analytics.js"
 
-export { standardType as type }
 export { union_query_capabilities } from "../internal/query.js"
 
 export type MutationInputOf<Shape> = {

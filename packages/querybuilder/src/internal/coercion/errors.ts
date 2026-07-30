@@ -25,5 +25,5 @@ export type CastTargetError<
   readonly __effect_qb_source_db_type__: Source
   readonly __effect_qb_target_db_type__: Target
   readonly __effect_qb_dialect__: Dialect
-  readonly __effect_qb_hint__: "Use one of the supported Q.type.<kind>() witnesses"
+  readonly __effect_qb_hint__: "Use one of the supported Type.<kind>() witnesses"
 }

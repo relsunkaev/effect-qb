@@ -340,7 +340,7 @@ const renderQueryTypeName = (
     case "bool":
       return `${PG_ALIAS}.Type.bool()`
     case "date":
-      return `${STD_ROOT_ALIAS}.Query.type.date()`
+      return `${STD_ROOT_ALIAS}.Type.date()`
     case "int2":
       return `${PG_ALIAS}.Type.int2()`
     case "int4":
@@ -348,28 +348,28 @@ const renderQueryTypeName = (
     case "int8":
       return `${PG_ALIAS}.Type.int8()`
     case "numeric":
-      return `${STD_ROOT_ALIAS}.Query.type.numeric()`
+      return `${STD_ROOT_ALIAS}.Type.numeric()`
     case "float4":
       return `${PG_ALIAS}.Type.float4()`
     case "float8":
       return `${PG_ALIAS}.Type.float8()`
     case "time":
-      return `${STD_ROOT_ALIAS}.Query.type.time()`
+      return `${STD_ROOT_ALIAS}.Type.time()`
     case "timetz":
       return `${PG_ALIAS}.Type.timetz()`
     case "timestamp":
-      return `${STD_ROOT_ALIAS}.Query.type.timestamp()`
+      return `${STD_ROOT_ALIAS}.Type.timestamp()`
     case "timestamptz":
       return `${PG_ALIAS}.Type.timestamptz()`
     case "uuid":
-      return `${STD_ROOT_ALIAS}.Query.type.uuid()`
+      return `${STD_ROOT_ALIAS}.Type.uuid()`
     case "text":
-      return `${STD_ROOT_ALIAS}.Query.type.text()`
+      return `${STD_ROOT_ALIAS}.Type.text()`
     case "varchar":
-      return `${STD_ROOT_ALIAS}.Query.type.varchar()`
+      return `${STD_ROOT_ALIAS}.Type.varchar()`
     case "char":
     case "bpchar":
-      return `${STD_ROOT_ALIAS}.Query.type.char()`
+      return `${STD_ROOT_ALIAS}.Type.char()`
     case "name":
       return `${PG_ALIAS}.Type.name()`
     case "interval":
@@ -377,7 +377,7 @@ const renderQueryTypeName = (
     case "bytea":
       return `${PG_ALIAS}.Type.bytea()`
     case "json":
-      return `${STD_ROOT_ALIAS}.Query.type.json()`
+      return `${STD_ROOT_ALIAS}.Type.json()`
     case "jsonb":
       return `${PG_ALIAS}.Type.jsonb()`
     case "regclass":
