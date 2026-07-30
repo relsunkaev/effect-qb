@@ -4,11 +4,40 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.22.0 - 2026-07-30
+
+### Breaking Changes
+
+- refactor(querybuilder)!: tighten capability APIs
+- refactor(querybuilder)!: move portable type witnesses to root
+- refactor(querybuilder)!: enforce portable function boundaries
+
 ### Features
 
-- feat(querybuilder): add typed SQL fragments, portable numeric expressions, and dynamic composition
-- feat(querybuilder): add portable analytic windows
-- feat(executor): add result metadata, pipeable cardinality, prepared reuse, and dialect-aware explain
+- feat(querybuilder): add typed composition and analytics
+- feat(executor): add result contracts and query inspection
+- feat(querybuilder): add dialect numeric functions
+
+### Fixes
+
+- fix(querybuilder): execute portable functions consistently
+
+### Docs
+
+- docs(querybuilder): document advanced composition and execution
+- docs(querybuilder): clarify capability boundaries
+
+### Tests
+
+- test(querybuilder): cover advanced capabilities across dialects
+
+### Chores
+
+- chore(beads): close v0.21.0 release
+- chore(beads): close querybuilder capability roadmap
+- chore(beads): use HTTPS for Dolt sync
+- chore(beads): record querybuilder API refinement
+- chore(beads): track v0.22.0 release
 
 ## 0.21.0 - 2026-07-23
 
