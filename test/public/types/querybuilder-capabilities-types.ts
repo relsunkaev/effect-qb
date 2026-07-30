@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
-import { Column, Fragment, Function, Query, Scalar, Table } from "effect-qb"
+import { Column, Fragment, Function, Query, Scalar, Table, Type } from "effect-qb"
 import * as My from "effect-qb/mysql"
 import * as Pg from "effect-qb/postgres"
 import { Executor as PgExecutor } from "effect-qb/postgres"
@@ -16,7 +16,7 @@ const users = Table.make("users", {
 })
 
 const custom = Fragment.expression({
-  dbType: Query.type.text(),
+  dbType: Type.text(),
   schema: Schema.String,
   nullability: "never"
 })`lower(${users.email})`
@@ -33,9 +33,9 @@ Function.add(users.email, 1)
 
 // @ts-expect-error division is not portable across the supported dialects
 Function.divide(users.score, 2)
-// @ts-expect-error modulo is deferred until per-dialect result semantics are modeled
+// @ts-expect-error modulo has dialect-specific result and zero semantics
 Function.modulo(users.score, 2)
-// @ts-expect-error rounding is deferred until per-dialect result semantics are modeled
+// @ts-expect-error rounding has dialect-specific type and tie semantics
 Function.round(users.score)
 
 const include = true as boolean

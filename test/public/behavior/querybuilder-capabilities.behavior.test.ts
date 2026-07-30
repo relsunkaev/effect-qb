@@ -4,7 +4,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
-import { Column, Fragment, Function, Query, Table } from "#standard"
+import { Column, Fragment, Function, Query, Table, Type } from "#standard"
 import { Executor as PgExecutor, Function as PgFunction, Renderer as PgRenderer } from "#postgres"
 import { Renderer as MysqlRenderer } from "#mysql"
 import { Function as SqliteFunction, Renderer as SqliteRenderer } from "#sqlite"
@@ -19,7 +19,7 @@ describe("querybuilder capability extensions", () => {
   test("typed SQL templates retain bound values and quote identifier paths", () => {
     const fallback = Query.literal("missing")
     const normalizedEmail = Fragment.expression({
-      dbType: Query.type.text(),
+      dbType: Type.text(),
       schema: Schema.String,
       nullability: "never"
     })`coalesce(${users.email}, ${fallback}) || ${Fragment.identifier("app", "suffix")}`

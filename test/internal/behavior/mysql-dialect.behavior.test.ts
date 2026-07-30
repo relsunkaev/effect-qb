@@ -111,7 +111,7 @@ describe("mysql dialect behavior", () => {
     const { users } = makeMysqlSocialGraph()
 
     const plan = StdRoot.Query.select({
-      idAsText: StdRoot.Query.cast(users.id, StdRoot.Query.type.text())
+      idAsText: StdRoot.Query.cast(users.id, StdRoot.Type.text())
     }).pipe(StdRoot.Query.from(users))
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -124,7 +124,7 @@ describe("mysql dialect behavior", () => {
     const plan = StdRoot.Query.select({
       scaledValue: StdRoot.Query.cast(
         StdRoot.Query.literal(1),
-        StdRoot.Query.type.custom("decimal(10,2)")
+        StdRoot.Type.custom("decimal(10,2)")
       )
     })
 

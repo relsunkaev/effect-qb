@@ -29,7 +29,7 @@ const invalidPgMapping: StdRoot.Scalar.DriverValueMapping = {
 
 void invalidPgMapping
 
-const mappedTextType = Pg.Type.driverValueMapping(StdRoot.Query.type.text(), pgMapping)
+const mappedTextType = Pg.Type.driverValueMapping(StdRoot.Type.text(), pgMapping)
 type _AssertMappedTextKind = Assert<IsEqual<typeof mappedTextType.kind, "text">>
 type _AssertMappedTextDialect = Assert<IsEqual<typeof mappedTextType.dialect, "standard">>
 

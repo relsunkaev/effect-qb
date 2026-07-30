@@ -396,7 +396,7 @@ describe("rendering behavior", () => {
 
   test("cast expressions trust typed target db types without renderer-time validation", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const value = Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.text())
+    const value = Standard.Query.cast(Standard.Query.literal(1), Standard.Type.text())
     ;(value as any)[expressionAst].target = undefined
     const plan = Standard.Query.select({
       value
@@ -410,16 +410,16 @@ describe("rendering behavior", () => {
 
   test("custom db type casts trust typed db type names without renderer-time validation", () => {
     const standardPlan = Standard.Query.select({
-      value: Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.custom("") as any)
+      value: Standard.Query.cast(Standard.Query.literal(1), Standard.Type.custom("") as any)
     })
     const postgresPlan = Q.select({
       value: StdRoot.Cast.to(Q.literal(1), PgType.custom("") as any)
     })
     const mysqlPlan = StdRoot.Query.select({
-      value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Query.type.custom("") as any)
+      value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Type.custom("") as any)
     })
     const sqlitePlan = StdRoot.Query.select({
-      value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Query.type.custom("") as any)
+      value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Type.custom("") as any)
     })
 
     expect(Standard.Renderer.make().render(standardPlan).sql).toContain(" as )")
@@ -433,7 +433,7 @@ describe("rendering behavior", () => {
     const users = Standard.Table.make("users", {
       email: Standard.Column.text()
     })
-    const value = Standard.Query.cast(users.email, Standard.Query.type.text())
+    const value = Standard.Query.cast(users.email, Standard.Type.text())
     const plan = Standard.Query.select({
       value
     }).pipe(
@@ -453,7 +453,7 @@ describe("rendering behavior", () => {
     const users = Standard.Table.make("users", {
       email: Standard.Column.text()
     })
-    const value = Standard.Query.cast(users.email, Standard.Query.type.text())
+    const value = Standard.Query.cast(users.email, Standard.Type.text())
     ;(value as any)[expressionAst].target = undefined
 
     const plan = Standard.Query.select({

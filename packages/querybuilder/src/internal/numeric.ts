@@ -30,7 +30,7 @@ type AsExpression<Value extends NumericExpressionInput> =
   Value extends Expression.Any ? Value : NumberLiteral<Extract<Value, number>>
 
 type BinaryResult<
-  Kind extends Extract<ExpressionAst.BinaryKind, "add" | "subtract" | "multiply" | "divide" | "modulo">,
+  Kind extends Extract<ExpressionAst.BinaryKind, "add" | "subtract" | "multiply" | "divide">,
   Left extends NumericExpressionInput,
   Right extends NumericExpressionInput
 > = Expression.Scalar<
@@ -87,7 +87,7 @@ const retargetLiteral = (
 }
 
 const binary = <
-  Kind extends Extract<ExpressionAst.BinaryKind, "add" | "subtract" | "multiply" | "divide" | "modulo">,
+  Kind extends Extract<ExpressionAst.BinaryKind, "add" | "subtract" | "multiply" | "divide">,
   Left extends NumericExpressionInput,
   Right extends NumericExpressionInput
 >(
@@ -146,13 +146,8 @@ export const divide = <Left extends NumericExpressionInput, Right extends Numeri
   right: Right
 ): BinaryResult<"divide", Left, Right> => binary("divide", left, right)
 
-export const modulo = <Left extends NumericExpressionInput, Right extends NumericExpressionInput>(
-  left: Left,
-  right: Right
-): BinaryResult<"modulo", Left, Right> => binary("modulo", left, right)
-
 type UnaryResult<
-  Kind extends Extract<ExpressionAst.UnaryKind, "sum" | "avg" | "abs" | "round" | "negate">,
+  Kind extends Extract<ExpressionAst.UnaryKind, "sum" | "avg" | "abs" | "negate">,
   Value extends NumericExpressionInput,
   Nullable extends Expression.Nullability,
   ResultKind extends Expression.ScalarKind
@@ -168,7 +163,7 @@ type UnaryResult<
 }
 
 const unary = <
-  Kind extends Extract<ExpressionAst.UnaryKind, "sum" | "avg" | "abs" | "round" | "negate">,
+  Kind extends Extract<ExpressionAst.UnaryKind, "sum" | "avg" | "abs" | "negate">,
   Value extends NumericExpressionInput,
   Nullable extends Expression.Nullability,
   ResultKind extends Expression.ScalarKind
@@ -209,13 +204,6 @@ export const abs = <Value extends NumericExpressionInput>(
 ): UnaryResult<"abs", Value, Expression.NullabilityOf<AsExpression<Value>>, Expression.KindOf<AsExpression<Value>>> => {
   const expression = toExpression(value)
   return unary("abs", value, expression[Expression.TypeId].nullability, expression[Expression.TypeId].kind) as never
-}
-
-export const round = <Value extends NumericExpressionInput>(
-  value: Value
-): UnaryResult<"round", Value, Expression.NullabilityOf<AsExpression<Value>>, Expression.KindOf<AsExpression<Value>>> => {
-  const expression = toExpression(value)
-  return unary("round", value, expression[Expression.TypeId].nullability, expression[Expression.TypeId].kind) as never
 }
 
 export const negate = <Value extends NumericExpressionInput>(

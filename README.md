@@ -755,7 +755,7 @@ compile time. Comparisons read the same type-family metadata, so a cast is also
 how you bridge two values that belong to different families.
 
 ```ts
-import { Cast, Column, Query, Table } from "effect-qb"
+import { Cast, Column, Query, Table, Type } from "effect-qb"
 
 const events = Table.make("events", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -764,16 +764,16 @@ const events = Table.make("events", {
 
 // id (uuid) and externalRef (text) are different comparison families, so cast
 // one side to compare them.
-const idAsText = Cast.to(events.id, Query.type.text())
+const idAsText = Cast.to(events.id, Type.text())
 const sameRef = Query.eq(idAsText, events.externalRef)
 
 // @ts-expect-error uuid and text are different comparison families
 Query.eq(events.id, events.externalRef)
 ```
 
-Portable target types come from `Query.type` (such as `Query.type.text()`);
+Portable target types come from `Type` (such as `Type.text()`);
 dialect-specific targets come from the dialect module (such as
-`Pg.Type.float8()`). `Query.type` does not expose dialect types, and dialect
+`Pg.Type.float8()`). `Type` does not expose dialect types, and dialect
 modules do not re-expose portable ones, so each rejects the other's witnesses.
 A compatible cast or comparison resolves before any SQL is rendered; an
 incompatible one fails at compile time.
@@ -1097,6 +1097,57 @@ const report = Query.select({
 </details>
 
 <details>
+<summary>Dialect-specific modulo and rounding</summary>
+
+`round` and `modulo` live on each dialect's `Function` module because their
+accepted database types, result types, and runtime behavior are not portable.
+`Cast.to(...)` can deliberately select an overload; the operation still belongs
+to the dialect that defines its semantics.
+
+```ts
+import { Cast, Column, Query, Table, Type } from "effect-qb"
+import * as My from "effect-qb/mysql"
+import * as Pg from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
+
+const amounts = Table.make("amounts", {
+  count: Column.int(),
+  exact: Column.number({ precision: 12, scale: 2 }),
+  value: Column.real()
+})
+
+const postgresExact = Cast.to(amounts.value, Type.numeric())
+
+const postgresPlan = Query.select({
+  remainder: Pg.Function.modulo(amounts.count, 2),
+  rounded: Pg.Function.round(postgresExact, 2)
+}).pipe(Query.from(amounts))
+
+const mysqlPlan = Query.select({
+  remainder: My.Function.modulo(amounts.exact, amounts.count),
+  rounded: My.Function.round(amounts.exact, 2)
+}).pipe(Query.from(amounts))
+
+const sqlitePlan = Query.select({
+  remainder: Sq.Function.modulo(amounts.value, amounts.count),
+  rounded: Sq.Function.round(amounts.exact, 2)
+}).pipe(Query.from(amounts))
+```
+
+| Dialect | `modulo` | `round` |
+| --- | --- | --- |
+| PostgreSQL | integer and `numeric`; floating operands are rejected; zero divisors fail the statement | `numeric` is exact and rounds ties away from zero; integer/float one-argument forms return `float8` with platform-dependent floating-point ties |
+| MySQL | integer → `BIGINT`, exact → `DECIMAL`, approximate → `DOUBLE`; zero divisors return `NULL` | preserves the input category; exact ties round away from zero while approximate rounding follows floating-point semantics |
+| SQLite | operands are integer-coerced; a potentially REAL result is typed as `double`; zero divisors return `NULL` | always returns floating-point `double`; negative scales behave as zero and binary representation can affect decimal ties |
+
+All three dialects give a nonzero remainder the dividend's sign. Scale-sensitive
+exact casts are still dialect-specific: in particular, MySQL's bare
+`CAST(... AS DECIMAL)` defaults to scale zero, so prefer a typed decimal column
+or expression when fractional precision must survive before `round`.
+
+</details>
+
+<details>
 <summary>Typed custom SQL expressions</summary>
 
 `Fragment.expression` is the escape hatch for a database feature that does not
@@ -1107,7 +1158,7 @@ parameters.
 
 ```ts
 import * as Schema from "effect/Schema"
-import { Column, Fragment, Query, Table } from "effect-qb"
+import { Column, Fragment, Query, Table, Type } from "effect-qb"
 
 const users = Table.make("users", {
   id: Column.int().pipe(Column.primaryKey),
@@ -1115,7 +1166,7 @@ const users = Table.make("users", {
 })
 
 const normalizedEmail = Fragment.expression({
-  dbType: Query.type.text(),
+  dbType: Type.text(),
   schema: Schema.String,
   nullability: "never"
 })`coalesce(${users.email}, ${Query.literal("missing")})`
@@ -1580,9 +1631,9 @@ Dialect modules expose:
 
 | Module | Adds |
 | --- | --- |
-| `effect-qb/postgres` | Postgres function calls and `groups` frames, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
-| `effect-qb/mysql` | MySQL function calls, column extensions, JSON helpers, type witnesses, renderer, executor |
-| `effect-qb/sqlite` | SQLite function calls and `groups` frames, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/postgres` | Postgres `round`/`modulo`, function calls and `groups` frames, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
+| `effect-qb/mysql` | MySQL `round`/`modulo` and function calls, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/sqlite` | SQLite `round`/`modulo`, function calls and `groups` frames, column extensions, JSON helpers, type witnesses, renderer, executor |
 
 Portable columns and tables are created from `effect-qb`, not from dialect
 modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.
@@ -1868,6 +1919,8 @@ Root modules:
 | `Table` | portable table definitions, aliases, derived schemas |
 | `PrimaryKey`, `Unique`, `Index`, `ForeignKey`, `Check` | portable table-level options |
 | `Query` | portable query construction DSL |
+| `Type` | portable database-type witnesses for casts and typed references |
+| `Cast` | checked explicit database-type conversion |
 | `Function` | portable SQL function expressions |
 | `Fragment` | typed custom SQL expressions and safely quoted identifiers |
 | `Renderer` | standard renderer |

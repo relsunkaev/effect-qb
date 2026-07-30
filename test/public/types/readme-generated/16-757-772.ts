@@ -3,7 +3,7 @@
 // Code fences: 757-772
 
 // README.md:757-772
-import { Cast, Column, Query, Table } from "effect-qb"
+import { Cast, Column, Query, Table, Type } from "effect-qb"
 
 const events = Table.make("events", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -12,7 +12,7 @@ const events = Table.make("events", {
 
 // id (uuid) and externalRef (text) are different comparison families, so cast
 // one side to compare them.
-const idAsText = Cast.to(events.id, Query.type.text())
+const idAsText = Cast.to(events.id, Type.text())
 const sameRef = Query.eq(idAsText, events.externalRef)
 
 // @ts-expect-error uuid and text are different comparison families

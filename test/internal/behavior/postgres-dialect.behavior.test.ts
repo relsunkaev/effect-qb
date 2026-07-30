@@ -199,7 +199,7 @@ describe("postgres dialect behavior", () => {
     const { users } = makePostgresSocialGraph()
 
     const plan = StdRoot.Query.select({
-      idAsText: StdRoot.Cast.to(users.id, StdRoot.Query.type.text())
+      idAsText: StdRoot.Cast.to(users.id, StdRoot.Type.text())
     }).pipe(StdRoot.Query.from(users))
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -240,7 +240,7 @@ describe("postgres dialect behavior", () => {
     const plan = StdRoot.Query.select({
       arrayValue: StdRoot.Cast.to(
         StdRoot.Query.literal("{}"),
-        Postgres.Type.array(StdRoot.Query.type.text())
+        Postgres.Type.array(StdRoot.Type.text())
       ),
       rangeValue: StdRoot.Cast.to(
         StdRoot.Query.literal("int4range(1,10)"),
@@ -249,13 +249,13 @@ describe("postgres dialect behavior", () => {
       recordValue: StdRoot.Cast.to(
         StdRoot.Query.literal("{}"),
         Postgres.Type.record("user_profile", {
-          displayName: StdRoot.Query.type.text(),
+          displayName: StdRoot.Type.text(),
           age: Postgres.Type.int4()
         })
       ),
       domainValue: StdRoot.Cast.to(
         StdRoot.Query.literal("alice@example.com"),
-        Postgres.Type.domain("email_domain", StdRoot.Query.type.text())
+        Postgres.Type.domain("email_domain", StdRoot.Type.text())
       ),
       enumValue: StdRoot.Cast.to(
         StdRoot.Query.literal("status_enum"),
@@ -274,12 +274,12 @@ describe("postgres dialect behavior", () => {
   test("renders array and range container operators with postgres syntax", () => {
     const plan = StdRoot.Query.select({
       arrayContains: StdRoot.Query.contains(
-        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(StdRoot.Query.type.text())),
-        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(StdRoot.Query.type.text()))
+        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(StdRoot.Type.text())),
+        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(StdRoot.Type.text()))
       ),
       arrayContainedBy: StdRoot.Query.containedBy(
-        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(StdRoot.Query.type.text())),
-        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(StdRoot.Query.type.text()))
+        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(StdRoot.Type.text())),
+        StdRoot.Cast.to(StdRoot.Query.literal("{}"), Postgres.Type.array(StdRoot.Type.text()))
       ),
       rangeOverlap: StdRoot.Query.overlaps(
         StdRoot.Cast.to(StdRoot.Query.literal("int4range(1,10)"), Postgres.Type.range("int4range", Postgres.Type.int4())),

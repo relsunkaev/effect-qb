@@ -96,10 +96,10 @@ describe("sqlite behavior", () => {
 
   test("rejects sqlite-unsupported set operator all variants before emitting invalid SQL", () => {
     const left = StdRoot.Query.select({
-      id: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Query.type.int())
+      id: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Type.int())
     })
     const right = StdRoot.Query.select({
-      id: StdRoot.Query.cast(StdRoot.Query.literal(2), StdRoot.Query.type.int())
+      id: StdRoot.Query.cast(StdRoot.Query.literal(2), StdRoot.Type.int())
     })
 
     expect(() => render(StdRoot.Query.intersectAll(left, right))).toThrow(

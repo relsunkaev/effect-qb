@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
-import { Column as C, Fragment, Json as J, Table } from "#standard"
+import { Column as C, Fragment, Json as J, Table, Type } from "#standard"
 import { Function as F, Query as Q } from "#standard"
 import { Executor } from "#sqlite"
 import {
@@ -57,7 +57,7 @@ test("sqlite executes expression, analytics, cardinality, prepared, and explain 
       }
     }
     const doubled = Fragment.expression({
-      dbType: Q.type.real(),
+      dbType: Type.real(),
       schema: Schema.Number,
       nullability: "never"
     })`${metrics.score} * ${Q.literal(2)}`
@@ -328,12 +328,12 @@ test("sqlite values and unnest sources execute as derived rows", async () => {
   const result = await runSqlite(Effect.gen(function*() {
     const executor = Executor.make()
     const valuesSource = Q.values([
-      { id: Q.cast(Q.literal(1), Q.type.int()), label: Q.cast(Q.literal("one"), Q.type.text()) },
-      { id: Q.cast(Q.literal(2), Q.type.int()), label: Q.cast(Q.literal("two"), Q.type.text()) }
+      { id: Q.cast(Q.literal(1), Type.int()), label: Q.cast(Q.literal("one"), Type.text()) },
+      { id: Q.cast(Q.literal(2), Type.int()), label: Q.cast(Q.literal("two"), Type.text()) }
     ] as const).pipe(Q.as("seed"))
     const unnestSource = Q.unnest({
-      id: [Q.cast(Q.literal(3), Q.type.int()), Q.cast(Q.literal(4), Q.type.int())] as const,
-      label: [Q.cast(Q.literal("three"), Q.type.text()), Q.cast(Q.literal("four"), Q.type.text())] as const
+      id: [Q.cast(Q.literal(3), Type.int()), Q.cast(Q.literal(4), Type.int())] as const,
+      label: [Q.cast(Q.literal("three"), Type.text()), Q.cast(Q.literal("four"), Type.text())] as const
     }, "seed_rows")
 
     const valuesRows = yield* executor.execute(Q.select({
@@ -365,10 +365,10 @@ test("sqlite set operations execute as compound selects", async () => {
   const result = await runSqlite(Effect.gen(function*() {
     const executor = Executor.make()
     const left = Q.select({
-      id: Q.cast(Q.literal(1), Q.type.int())
+      id: Q.cast(Q.literal(1), Type.int())
     })
     const right = Q.select({
-      id: Q.cast(Q.literal(2), Q.type.int())
+      id: Q.cast(Q.literal(2), Type.int())
     })
 
     return yield* executor.execute(Q.unionAll(left, right))
@@ -728,11 +728,11 @@ test("sqlite DDL constraints, generated columns, indexes, and drops execute", as
     id: C.text().pipe(C.primaryKey),
     orgId: C.text(),
     role: C.text(),
-    normalizedRole: C.text().pipe(C.generated(F.lower(Q.column("role", Q.type.text()))))
+    normalizedRole: C.text().pipe(C.generated(F.lower(Q.column("role", Type.text()))))
   }).pipe(
     Table.foreignKey((table) => table.orgId, () => orgs.id),
     Table.unique((table) => [table.orgId, table.role]),
-    Table.check("ddl_memberships_role_not_empty", Q.neq(Q.column("role", Q.type.text()), "")),
+    Table.check("ddl_memberships_role_not_empty", Q.neq(Q.column("role", Type.text()), "")),
     Table.index((table) => [table.role, table.orgId])
   )
 

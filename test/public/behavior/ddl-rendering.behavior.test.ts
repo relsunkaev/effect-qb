@@ -157,7 +157,7 @@ describe("ddl rendering behavior", () => {
       displayName: StdRoot.Column.text(),
       normalizedName: StdRoot.Column.text().pipe(
         StdRoot.Column.generated(
-          StdRoot.Function.lower(StdRoot.Query.column("displayName", StdRoot.Query.type.text()))
+          StdRoot.Function.lower(StdRoot.Query.column("displayName", StdRoot.Type.text()))
         )
       )
     }).pipe(

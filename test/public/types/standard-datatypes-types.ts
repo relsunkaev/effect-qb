@@ -1,4 +1,4 @@
-import { Query as Q, Table, Column as C, Scalar as E } from "effect-qb"
+import { Query as Q, Table, Column as C, Scalar as E, Type } from "effect-qb"
 
 const assets = Table.make("assets", {
   id: C.uuid().pipe(C.primaryKey),
@@ -34,25 +34,28 @@ void size
 void ratio
 void payload
 
-const blobValue = Q.cast("deadbeef", Q.type.blob())
+const blobValue = Q.cast("deadbeef", Type.blob())
 const blobRuntime: E.RuntimeOf<typeof blobValue> = new Uint8Array()
 void blobRuntime
 
+// @ts-expect-error portable type witnesses moved to the root Type module
+Q.type.text()
+
 // @ts-expect-error float8 is postgres-specific
-Q.type.float8()
+Type.float8()
 // @ts-expect-error clob is not portable across supported dialect renderers
-Q.type.clob()
+Type.clob()
 // @ts-expect-error double is not portable across supported dialect renderers
-Q.type.double()
+Type.double()
 // @ts-expect-error arrays are dialect-specific
-Q.type.array(Q.type.text())
+Type.array(Type.text())
 // @ts-expect-error enum types are dialect-specific
-Q.type.enum("status")
+Type.enum("status")
 // @ts-expect-error set types are dialect-specific
-Q.type.set("set('admin')")
+Type.set("set('admin')")
 
 // @ts-expect-error custom db type names must be non-empty
-Q.type.custom("")
+Type.custom("")
 
 // @ts-expect-error bigint columns expose canonical bigint strings, not numbers
 const invalidSize: Row["size"] = 1024

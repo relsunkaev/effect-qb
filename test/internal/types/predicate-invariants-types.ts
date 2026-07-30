@@ -14,8 +14,8 @@ import type { AssumptionsOfPlan, AvailableOfPlan, ExpressionOutput, FactsOfPlan,
 const posts = Std.Table.make("predicate_invariant_posts", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
   title: Std.Column.text().pipe(Std.Column.nullable),
-  status: PgColumn.custom(Schema.Literals(["draft", "published", "archived"]), Q.type.text()),
-  category: PgColumn.custom(Schema.Literals(["news", "ops", "meta"]), Q.type.text())
+  status: PgColumn.custom(Schema.Literals(["draft", "published", "archived"]), Std.Type.text()),
+  category: PgColumn.custom(Schema.Literals(["news", "ops", "meta"]), Std.Type.text())
 })
 
 type BaseStatusRuntime = RuntimeOf<typeof posts.status>

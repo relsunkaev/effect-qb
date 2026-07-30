@@ -41,12 +41,12 @@ const badInsertUnknownColumn = Q.insert(users, {
 void badInsertUnknownColumn
 const seedRows = [
   {
-    id: Cast.to(Q.literal("user-id"), Q.type.uuid()),
+    id: Cast.to(Q.literal("user-id"), Std.Type.uuid()),
     email: "alice@example.com",
     bio: null
   },
   {
-    id: Cast.to(Q.literal("user-id-2"), Q.type.uuid()),
+    id: Cast.to(Q.literal("user-id-2"), Std.Type.uuid()),
     email: "bob@example.com",
     bio: "writer"
   }
@@ -152,11 +152,11 @@ const updatePlan = Q.update(users, {
 })
 const updateSeedRows = [
   {
-    id: Cast.to(Q.literal("user-id"), Q.type.uuid()),
+    id: Cast.to(Q.literal("user-id"), Std.Type.uuid()),
     email: Q.literal("updated@example.com")
   },
   {
-    id: Cast.to(Q.literal("user-id-2"), Q.type.uuid()),
+    id: Cast.to(Q.literal("user-id-2"), Std.Type.uuid()),
     email: Q.literal("bob@example.com")
   }
 ] as any

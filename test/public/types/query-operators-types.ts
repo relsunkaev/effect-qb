@@ -152,14 +152,14 @@ void predicateHelpersLabel
 Q.eq(users.id, users.email)
 
 // @ts-expect-error incompatible membership family should be rejected
-Q.in(users.id, users.email, StdRoot.Cast.to("00000000-0000-0000-0000-000000000010", StdRoot.Query.type.uuid()))
+Q.in(users.id, users.email, StdRoot.Cast.to("00000000-0000-0000-0000-000000000010", StdRoot.Type.uuid()))
 
 Q.like(users.id, "%@example.com")
 
 // @ts-expect-error incompatible simple-case comparison should be rejected
 Q.match(users.id).when(users.email, "bad").else("ok")
 
-const idAsText = StdRoot.Cast.to(users.id, StdRoot.Query.type.text())
+const idAsText = StdRoot.Cast.to(users.id, StdRoot.Type.text())
 type IdAsText = StdRoot.Scalar.RuntimeOf<typeof idAsText>
 const castRowId: IdAsText = "user-1"
 void castRowId
