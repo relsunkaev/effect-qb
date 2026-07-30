@@ -1,4 +1,4 @@
-import { Column as PgColumn } from "effect-qb/postgres"
+import { Column as PgColumn, Function as PgFunction } from "effect-qb/postgres"
 import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
@@ -18,23 +18,23 @@ const posts = Std.Table.make("posts", {
 
 const articles = Std.Table.make("articles", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
-  status: PgColumn.custom(Schema.Literals(["draft", "published", "archived"]), Q.type.text()),
-  previousStatus: PgColumn.custom(Schema.Literals(["draft", "published", "archived"]), Q.type.text())
+  status: PgColumn.custom(Schema.Literals(["draft", "published", "archived"]), Std.Type.text()),
+  previousStatus: PgColumn.custom(Schema.Literals(["draft", "published", "archived"]), Std.Type.text())
 })
 
-const articleStatusText = Cast.to(articles.status, Q.type.text())
+const articleStatusText = Cast.to(articles.status, Std.Type.text())
 
 const dottedPredicateTable = Std.Table.make("a.b", {
-  status: PgColumn.custom(Schema.Literals(["left", "right"]), Q.type.text())
+  status: PgColumn.custom(Schema.Literals(["left", "right"]), Std.Type.text())
 })
 
 const splitPredicateTable = Std.Table.make("a", {
-  "b.status": PgColumn.custom(Schema.Literals(["left", "right"]), Q.type.text())
+  "b.status": PgColumn.custom(Schema.Literals(["left", "right"]), Std.Type.text())
 })
 
 const nullFiltered = Q.select({
   title: posts.title,
-  upperTitle: F.upper(posts.title)
+  upperTitle: PgFunction.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.isNull(posts.title))
@@ -59,7 +59,7 @@ void runtimeNullFilteredNullTitle
 
 const conservativeNotNull = Q.select({
   title: posts.title,
-  upperTitle: F.upper(posts.title)
+  upperTitle: PgFunction.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.not(Q.isNull(posts.title)))
@@ -118,7 +118,7 @@ void promotedNullableNullPostTitle
 const promotedByEquality = Q.select({
   userId: users.id,
   postTitle: posts.title,
-  upperPostTitle: F.upper(posts.title)
+  upperPostTitle: PgFunction.upper(posts.title)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -135,7 +135,7 @@ void promotedByEqualityUpperPostTitle
 
 const promotedByIn = Q.select({
   title: posts.title,
-  upperTitle: F.upper(posts.title)
+  upperTitle: PgFunction.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.in(posts.title, "draft", "published"))
@@ -155,7 +155,7 @@ void promotedInNullUpperTitle
 
 const promotedByNotIn = Q.select({
   title: posts.title,
-  upperTitle: F.upper(posts.title)
+  upperTitle: PgFunction.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.notIn(posts.title, "archived", "deleted"))

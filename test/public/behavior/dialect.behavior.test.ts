@@ -23,13 +23,13 @@ describe("dialect behavior", () => {
     const pgPlan = StdRoot.Query.select({
       profile: {
         id: pgUsers.id,
-        email: StdRoot.Function.lower(pgUsers.email),
+        email: Postgres.Function.lower(pgUsers.email),
       },
     }).pipe(StdRoot.Query.from(pgUsers));
     const myPlan = StdRoot.Query.select({
       profile: {
         id: myUsers.id,
-        email: StdRoot.Function.lower(myUsers.email),
+        email: Mysql.Function.lower(myUsers.email),
       },
     }).pipe(StdRoot.Query.from(myUsers));
 
@@ -88,8 +88,8 @@ describe("dialect behavior", () => {
     const { users: pgUsers } = makePostgresSocialGraph();
     const { users: myUsers } = makeMysqlSocialGraph();
 
-    const pgExpr = StdRoot.Function.concat(StdRoot.Function.lower(pgUsers.email), "-user");
-    const myExpr = StdRoot.Function.concat(StdRoot.Function.lower(myUsers.email), "-user");
+    const pgExpr = StdRoot.Function.concat(Postgres.Function.lower(pgUsers.email), "-user");
+    const myExpr = StdRoot.Function.concat(Mysql.Function.lower(myUsers.email), "-user");
 
     expect(pgExpr[StdRoot.Scalar.TypeId].dbType.dialect).toBe("standard");
     expect(myExpr[StdRoot.Scalar.TypeId].dbType.dialect).toBe("standard");

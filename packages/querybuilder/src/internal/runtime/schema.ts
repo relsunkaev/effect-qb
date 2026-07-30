@@ -379,6 +379,7 @@ const deriveRuntimeSchema = (
     case "jsonTypeOf":
       return Schema.String
     case "count":
+      return runtimeSchemaForDbType(state.dbType)
     case "jsonLength":
       return FiniteNumberSchema
     case "max":
@@ -396,7 +397,7 @@ const deriveRuntimeSchema = (
     case "window":
       return ast.function === "over" && ast.value !== undefined
         ? expressionRuntimeSchema(ast.value, context)
-        : FiniteNumberSchema
+        : runtimeSchemaForDbType(state.dbType)
     case "jsonGet":
     case "jsonPath":
     case "jsonAccess":

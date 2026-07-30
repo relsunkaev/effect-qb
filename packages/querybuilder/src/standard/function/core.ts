@@ -1,2 +1,9 @@
 /** Standard scalar core functions. */
-export { coalesce, call } from "../query.js"
+export {
+  abs,
+  add,
+  coalesce,
+  multiply,
+  negate,
+  subtract,
+} from "../query.js"

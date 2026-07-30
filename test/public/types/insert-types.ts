@@ -272,7 +272,7 @@ void insertConflictPlan
 void insertStringConflictPlan
 
 // @ts-expect-error excluded(...) only accepts bound table columns
-const invalidExcludedExpression = Q.excluded(F.lower(users.bio))
+const invalidExcludedExpression = Q.excluded(Pg.Function.lower(users.bio))
 void invalidExcludedExpression
 
 const invalidDefaultInsertPlan = Q.insert(users)
@@ -362,5 +362,5 @@ StdRoot.Query.insert(mysqlUsers, {
 )
 
 // @ts-expect-error mysql excluded(...) only accepts bound table columns
-const invalidMysqlExcludedExpression = StdRoot.Query.excluded(StdRoot.Function.lower(mysqlUsers.bio))
+const invalidMysqlExcludedExpression = StdRoot.Query.excluded(Mysql.Function.lower(mysqlUsers.bio))
 void invalidMysqlExcludedExpression

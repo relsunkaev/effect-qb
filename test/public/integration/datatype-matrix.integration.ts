@@ -6,7 +6,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { rm } from "node:fs/promises"
 import { join } from "node:path"
 
-import { Column, Query, Renderer, Table } from "#standard"
+import { Column, Query, Renderer, Table, Type } from "#standard"
 import * as My from "#mysql"
 import * as Pg from "#postgres"
 import * as Sq from "#sqlite"
@@ -71,7 +71,7 @@ const quote = (dialect: LiveDialect, value: string) => {
 }
 
 const column = (kind: PortableDatatypeKind) =>
-  Column.custom(Schema.Unknown, Query.type[kind]())
+  Column.custom(Schema.Unknown, Type[kind]())
 
 test("portable datatype DDL renders executable SQL for every live dialect", async () => {
   expect.assertions(portableDatatypeKeys.length * 3)
@@ -103,7 +103,7 @@ test("portable datatype casts render executable SQL for every live dialect", asy
     for (const kind of portableDatatypeKeys) {
       const rendered = liveDialects[dialect].renderer.render(
         Query.select({
-          value: Query.cast(null, Query.type[kind]())
+          value: Query.cast(null, Type[kind]())
         })
       )
 

@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
-import { Column, Query, Renderer, Table } from "#standard"
+import { Column, Query, Renderer, Table, Type } from "#standard"
 import * as My from "#mysql"
 import * as Pg from "#postgres"
 import * as Sq from "#sqlite"
@@ -30,7 +30,7 @@ describe("datatype matrix coverage", () => {
       for (const kind of portableDatatypeKeys) {
         const tableName = `matrix_${kind}`
         const table = Table.make(tableName, {
-          value: Column.custom(Schema.Unknown, Query.type[kind]())
+          value: Column.custom(Schema.Unknown, Type[kind]())
         })
         const rendered = renderers[dialect].renderer.render(Query.createTable(table))
         const expectedType = portableDatatypeDdlTypeByDialect[dialect][kind]
@@ -47,7 +47,7 @@ describe("datatype matrix coverage", () => {
       for (const kind of portableDatatypeKeys) {
         const rendered = renderers[dialect].renderer.render(
           Query.select({
-            value: Query.cast(null, Query.type[kind]())
+            value: Query.cast(null, Type[kind]())
           })
         )
         const expectedType = portableDatatypeCastTypeByDialect[dialect][kind]

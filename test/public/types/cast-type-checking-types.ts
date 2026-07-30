@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { Cast, Column, Query, Scalar, Table } from "effect-qb"
+import { Cast, Column, Query, Scalar, Table, Type } from "effect-qb"
 import * as Pg from "effect-qb/postgres"
 
 // `Cast.to` checks a source expression against a target type witness and reports
@@ -26,10 +26,10 @@ const docs = Table.make("docs", {
 
 // Data-first across portable source/target families.
 {
-  const idText = Cast.to(ids.id, Query.type.text())
-  const seqText = Cast.to(ids.sequence, Query.type.text())
-  const amountInt = Cast.to(ids.amount, Query.type.int())
-  const refInt = Cast.to(ids.externalRef, Query.type.int())
+  const idText = Cast.to(ids.id, Type.text())
+  const seqText = Cast.to(ids.sequence, Type.text())
+  const amountInt = Cast.to(ids.amount, Type.int())
+  const refInt = Cast.to(ids.externalRef, Type.int())
 
   const a: Scalar.RuntimeOf<typeof idText> = "x"
   const b: Scalar.RuntimeOf<typeof seqText> = "x"
@@ -50,7 +50,7 @@ const docs = Table.make("docs", {
 
 // Curried form applied directly to the value.
 {
-  const toText = Cast.to(Query.type.text())
+  const toText = Cast.to(Type.text())
   const idText = toText(ids.id)
   const value: Scalar.RuntimeOf<typeof idText> = "x"
   void value
@@ -58,7 +58,7 @@ const docs = Table.make("docs", {
 
 // A cast bridges two different comparison families.
 {
-  const idText = Cast.to(ids.id, Query.type.text())
+  const idText = Cast.to(ids.id, Type.text())
   void Query.eq(idText, ids.externalRef)
 
   // @ts-expect-error uuid and text are different comparison families
@@ -73,8 +73,8 @@ const docs = Table.make("docs", {
   // @ts-expect-error a JSONB string cannot be cast to a numeric type
   Cast.to(docs.payload.address.city, Pg.Type.float8())
 
-  // @ts-expect-error float8 is dialect-specific and is not on Query.type
-  Query.type.float8()
+  // @ts-expect-error float8 is dialect-specific and is not on Type
+  Type.float8()
 }
 
 export {}

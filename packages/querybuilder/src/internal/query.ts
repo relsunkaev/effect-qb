@@ -203,10 +203,20 @@ type LiteralExpression<Value extends LiteralValue> = Expression.Scalar<
  */
 export type ExpressionInput = Expression.Any | LiteralValue
 
+type NumericBaseDbType = Expression.DbType.Base<string, string> & {
+  readonly family: "numeric" | "integer" | "real"
+}
+
+type NumericDbType =
+  | NumericBaseDbType
+  | (Expression.DbType.Domain<string, any, string> & {
+      readonly base: NumericDbType
+    })
+
 /** Input accepted by numeric clauses such as `limit(...)` and `offset(...)`. */
 export type NumericExpressionInput = Expression.Scalar<
   number,
-  Expression.DbType.Any,
+  NumericDbType,
   Expression.Nullability,
   string,
   "scalar",
@@ -429,6 +439,8 @@ type GroupingKeyOfAst<Ast extends ExpressionAst.Any> =
       ? `function(${EscapeGroupingText<Name>},${JoinGroupingKeys<{
           readonly [K in keyof Args]: Args[K] extends Expression.Any ? GroupingKeyOfExpression<Args[K]> : never
         } & readonly string[]>})`
+    : Ast extends ExpressionAst.CustomSqlNode
+      ? string
     : Ast extends ExpressionAst.UnaryNode<infer Kind extends ExpressionAst.UnaryKind, infer Value extends Expression.Any>
       ? `${Kind}(${GroupingKeyOfExpression<Value>})`
     : Ast extends ExpressionAst.BinaryNode<infer Kind extends ExpressionAst.BinaryKind, infer Left extends Expression.Any, infer Right extends Expression.Any>

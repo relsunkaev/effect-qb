@@ -19,7 +19,7 @@ const users = Table.make("users", {
 
 const activeUsers = Query.select({
   id: users.id,
-  email: Function.lower(users.email)
+  email: Pg.Function.lower(users.email)
 }).pipe(
   Query.from(users),
   Query.where(Query.eq(users.active, true)),
@@ -29,7 +29,7 @@ const activeUsers = Query.select({
 type ActiveUser = Query.ResultRow<typeof activeUsers>
 // { readonly id: string; readonly email: string }
 
-// The plan is portable. Here it is rendered for Postgres.
+// Pg.Function.lower makes this a Postgres plan.
 const rendered = Pg.Renderer.make().render(activeUsers)
 // rendered.sql:
 // select "users"."id" as "id", lower("users"."email") as "email" from "users" where ("users"."active" = $1) order by "users"."email" asc
@@ -116,7 +116,7 @@ const users = Table.make("users", {
 
 const activeUsers = Query.select({
   id: users.id,
-  email: Function.lower(users.email),
+  email: Function.concat(users.email, ""),
   displayName: users.displayName
 }).pipe(
   Query.from(users),
@@ -132,13 +132,13 @@ type ActiveUserRow = Query.ResultRow<typeof activeUsers>
 // }
 
 const postgres = Pg.Renderer.make().render(activeUsers)
-// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $1) order by "users"."email" asc
+// select "users"."id" as "id", ("users"."email" || $1) as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $2) order by "users"."email" asc
 
 const mysql = My.Renderer.make().render(activeUsers)
-// select `users`.`id` as `id`, lower(`users`.`email`) as `email`, `users`.`displayName` as `displayName` from `users` where (`users`.`active` = ?) order by `users`.`email` asc
+// select `users`.`id` as `id`, concat(`users`.`email`, ?) as `email`, `users`.`displayName` as `displayName` from `users` where (`users`.`active` = ?) order by `users`.`email` asc
 
 const sqlite = Sq.Renderer.make().render(activeUsers)
-// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = ?) order by "users"."email" asc
+// select "users"."id" as "id", ("users"."email" || ?) as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = ?) order by "users"."email" asc
 ```
 
 This plan is portable because it only uses root `effect-qb` modules. Reach for a
@@ -580,6 +580,7 @@ source is present, and predicates such as `isNotNull`, `eq`, `in`, and
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -597,7 +598,7 @@ const visiblePosts = Query.select({
   userId: users.id,
   postId: posts.id,
   title: posts.title,
-  upperTitle: Function.upper(posts.title)
+  upperTitle: Pg.Function.upper(posts.title)
 }).pipe(
   Query.from(users),
   Query.leftJoin(posts, Query.eq(users.id, posts.userId)),
@@ -755,7 +756,7 @@ compile time. Comparisons read the same type-family metadata, so a cast is also
 how you bridge two values that belong to different families.
 
 ```ts
-import { Cast, Column, Query, Table } from "effect-qb"
+import { Cast, Column, Query, Table, Type } from "effect-qb"
 
 const events = Table.make("events", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -764,16 +765,16 @@ const events = Table.make("events", {
 
 // id (uuid) and externalRef (text) are different comparison families, so cast
 // one side to compare them.
-const idAsText = Cast.to(events.id, Query.type.text())
+const idAsText = Cast.to(events.id, Type.text())
 const sameRef = Query.eq(idAsText, events.externalRef)
 
 // @ts-expect-error uuid and text are different comparison families
 Query.eq(events.id, events.externalRef)
 ```
 
-Portable target types come from `Query.type` (such as `Query.type.text()`);
+Portable target types come from `Type` (such as `Type.text()`);
 dialect-specific targets come from the dialect module (such as
-`Pg.Type.float8()`). `Query.type` does not expose dialect types, and dialect
+`Pg.Type.float8()`). `Type` does not expose dialect types, and dialect
 modules do not re-expose portable ones, so each rejects the other's witnesses.
 A compatible cast or comparison resolves before any SQL is rendered; an
 incompatible one fails at compile time.
@@ -926,6 +927,7 @@ Queries are ordinary values. Compose them with `.pipe(...)`.
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -955,7 +957,7 @@ type PostsByUserRow = Query.ResultRow<typeof postsByUser>
 // {
 //   readonly userId: string
 //   readonly email: string
-//   readonly postCount: number
+//   readonly postCount: Scalar.BigIntString
 // }
 
 ```
@@ -1030,8 +1032,16 @@ const labelled = Query.select({
 <details>
 <summary>Functions and aggregates</summary>
 
+Root `Function` contains the portable subset: arithmetic, `concat`, `coalesce`,
+`count`, `min`/`max`, and portable windows. Each dialect owns native
+`lower`/`upper`, `sum`/`avg`, clock functions, `round`, `modulo`, and explicitly
+framed window value functions.
+`count`, `rowNumber`, `rank`, and `denseRank` decode to
+`Scalar.BigIntString` so 64-bit results have one portable runtime contract.
+
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -1047,7 +1057,7 @@ const posts = Table.make("posts", {
 const postCount = Function.count(posts.id)
 
 const report = Query.select({
-  label: Function.concat(Function.lower(users.email), "-user"),
+  label: Function.concat(Pg.Function.lower(users.email), "-user"),
   postCount,
   latestTitle: Function.max(posts.title)
 }).pipe(
@@ -1057,6 +1067,123 @@ const report = Query.select({
   Query.having(Query.gt(postCount, 0))
 )
 // select (lower("users"."email") || $1) as "label", count("posts"."id") as "postCount", max("posts"."title") as "latestTitle" from "users" left join "posts" on ("users"."id" = "posts"."userId") group by "users"."email" having (count("posts"."id") > $2)
+```
+
+</details>
+
+<details>
+<summary>Arithmetic and runtime composition</summary>
+
+Arithmetic expressions keep the input column's numeric contract. `andAll` and
+`orAll` accept arrays assembled at runtime; their empty-list identities are
+`true` and `false`. `when` conditionally applies a pipe modifier, while
+`includeIf` builds an optional selection fragment.
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+
+const accounts = Table.make("accounts", {
+  id: Column.int().pipe(Column.primaryKey),
+  balance: Column.real(),
+  active: Column.boolean()
+})
+
+const minimum = 100
+const onlyActive = true as boolean
+
+const report = Query.select({
+  id: accounts.id,
+  adjustedBalance: Function.abs(Function.add(accounts.balance, 2.5)),
+  ...Query.includeIf(onlyActive, { active: accounts.active })
+}).pipe(
+  Query.from(accounts),
+  Query.where(Query.andAll([
+    Query.gte(accounts.balance, minimum),
+    ...(onlyActive ? [Query.eq(accounts.active, true)] : [])
+  ]))
+)
+```
+
+</details>
+
+<details>
+<summary>Dialect-specific modulo and rounding</summary>
+
+`round` and `modulo` live on each dialect's `Function` module because their
+accepted database types, result types, and runtime behavior are not portable.
+`Cast.to(...)` can deliberately select an overload; the operation still belongs
+to the dialect that defines its semantics.
+
+```ts
+import { Cast, Column, Query, Table, Type } from "effect-qb"
+import * as My from "effect-qb/mysql"
+import * as Pg from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
+
+const amounts = Table.make("amounts", {
+  count: Column.int(),
+  exact: Column.number({ precision: 12, scale: 2 }),
+  value: Column.real()
+})
+
+const postgresExact = Cast.to(amounts.value, Type.numeric())
+
+const postgresPlan = Query.select({
+  remainder: Pg.Function.modulo(amounts.count, 2),
+  rounded: Pg.Function.round(postgresExact, 2)
+}).pipe(Query.from(amounts))
+
+const mysqlPlan = Query.select({
+  remainder: My.Function.modulo(amounts.exact, amounts.count),
+  rounded: My.Function.round(amounts.exact, 2)
+}).pipe(Query.from(amounts))
+
+const sqlitePlan = Query.select({
+  remainder: Sq.Function.modulo(amounts.value, amounts.count),
+  rounded: Sq.Function.round(amounts.exact, 2)
+}).pipe(Query.from(amounts))
+```
+
+| Dialect | `modulo` | `round` |
+| --- | --- | --- |
+| PostgreSQL | integer and `numeric`; floating operands are rejected; zero divisors fail the statement | `numeric` is exact and rounds ties away from zero; integer/float one-argument forms return `float8` with platform-dependent floating-point ties |
+| MySQL | integer → `BIGINT`, exact → `DECIMAL`, approximate → `DOUBLE`; zero divisors return `NULL` | preserves the input category; exact ties round away from zero while approximate rounding follows floating-point semantics |
+| SQLite | operands are integer-coerced; a potentially REAL result is typed as `double`; zero divisors return `NULL` | always returns floating-point `double`; negative scales behave as zero and binary representation can affect decimal ties |
+
+All three dialects give a nonzero remainder the dividend's sign. Scale-sensitive
+exact casts are still dialect-specific: in particular, MySQL's bare
+`CAST(... AS DECIMAL)` defaults to scale zero, so prefer a typed decimal column
+or expression when fractional precision must survive before `round`.
+
+</details>
+
+<details>
+<summary>Typed custom SQL expressions</summary>
+
+`Fragment.expression` is the escape hatch for a database feature that does not
+yet have a first-class helper. Static template text is trusted source text.
+Interpolations accept typed expressions or `Fragment.identifier(...)`;
+runtime values must go through `Query.literal(...)`, so they remain bound
+parameters.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Fragment, Query, Table, Type } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.int().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const normalizedEmail = Fragment.expression({
+  dbType: Type.text(),
+  schema: Schema.String,
+  nullability: "never"
+})`coalesce(${users.email}, ${Query.literal("missing")})`
+
+const plan = Query.select({
+  normalizedEmail
+}).pipe(Query.from(users))
 ```
 
 </details>
@@ -1172,7 +1299,11 @@ const allEmails = Query.unionAll(activeEmails, inactiveEmails)
 <summary>Window functions</summary>
 
 `Function.rowNumber`, `rank`, and `denseRank` take a window spec;
-`Function.over` wraps an aggregate in a window.
+`Function.over` wraps an aggregate in a window without an explicit frame.
+`lag` and `lead` read another row in an ordered partition. Root `firstValue`
+and `lastValue` use the portable default frame. Explicit frames belong to each
+dialect's `Function.over`, `firstValue`, and `lastValue` helpers because frame
+boundary clipping differs across engines.
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
@@ -1190,6 +1321,16 @@ const ranked = Query.select({
   }),
   perUser: Function.over(Function.count(posts.id), {
     partitionBy: [posts.userId]
+  }),
+  previousPost: Function.lag(posts.id, {
+    spec: {
+      partitionBy: [posts.userId],
+      orderBy: [{ value: posts.id, direction: "asc" }]
+    }
+  }),
+  firstPost: Function.firstValue(posts.id, {
+    partitionBy: [posts.userId],
+    orderBy: [{ value: posts.id, direction: "asc" }]
   })
 }).pipe(Query.from(posts))
 ```
@@ -1433,10 +1574,29 @@ const readUsers = Query.select({
   email: users.email
 }).pipe(Query.from(users))
 
-const rowsEffect = Pg.Executor.make().execute(readUsers)
-const rowStream = Pg.Executor.make().stream(readUsers)
+const executor = Pg.Executor.make()
+const rowsEffect = executor.execute(readUsers)
+const rowStream = executor.stream(readUsers)
 
+const rows = executor.execute(readUsers)
+const maybeUser = rows.pipe(Pg.Executor.atMostOne)
+const oneUser = rows.pipe(Pg.Executor.exactlyOne)
+const atLeastOneUser = rows.pipe(Pg.Executor.nonEmpty)
+const result = executor.executeResult(readUsers)
+// result.rows plus affectedRows / insertId when the driver provides them
+
+const prepared = executor.prepare(readUsers)
+const firstRun = prepared.execute
+const preparedOne = prepared.execute.pipe(Pg.Executor.exactlyOne)
+
+const queryPlan = executor.explain(readUsers, { format: "json" })
 ```
+
+Use the narrowest pipeable cardinality helper the caller expects. `prepare(plan)`
+returns a reusable handle and caches the rendered query for that executor. The
+SQL driver still owns native prepared-statement behavior. `explain` runs a
+dialect-correct EXPLAIN for read plans. Use Effect's `asVoid` when a caller
+intentionally ignores the returned rows.
 
 Executors also accept custom renderers, custom drivers, driver modes, and value
 mappings.
@@ -1451,6 +1611,10 @@ import * as Pg from "effect-qb/postgres"
 
 const driver = Pg.Executor.driver({
   execute: () => Effect.succeed([]),
+  executeResult: () => Effect.succeed({
+    rows: [],
+    affectedRows: 1
+  }),
   stream: () => Stream.empty
 })
 
@@ -1469,13 +1633,21 @@ behavior. Any plan built entirely from root modules renders through every
 dialect renderer — see [Quick Start](#quick-start) for one plan rendered as
 Postgres, MySQL, and SQLite.
 
+Native aggregate results follow each database:
+
+| Input | PostgreSQL `sum` / `avg` | MySQL `sum` / `avg` | SQLite `sum` / `avg` |
+| --- | --- | --- | --- |
+| integer | `BigIntString` or `DecimalString` / `DecimalString` | `DecimalString` / `DecimalString` | `number` or `BigIntString` / `number` |
+| exact decimal | `DecimalString` / `DecimalString` | `DecimalString` / `DecimalString` | `number` / `number` |
+| approximate | `number` / `number` | `number` / `number` | `number` / `number` |
+
 Dialect modules expose:
 
 | Module | Adds |
 | --- | --- |
-| `effect-qb/postgres` | Postgres column extensions, option modifiers, Postgres-only JSON/jsonb helpers, Postgres-only type witnesses for casts/references, schemas, enums, sequences, renderer, executor |
-| `effect-qb/mysql` | MySQL column extensions, MySQL-only JSON helpers, MySQL-only type witnesses, renderer, executor |
-| `effect-qb/sqlite` | SQLite column extensions, SQLite-only JSON helpers, SQLite-only type witnesses, renderer, executor |
+| `effect-qb/postgres` | Postgres aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
+| `effect-qb/mysql` | MySQL aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit `rows`/`range` window frames, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/sqlite` | SQLite aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, JSON helpers, type witnesses, renderer, executor |
 
 Portable columns and tables are created from `effect-qb`, not from dialect
 modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.
@@ -1761,8 +1933,12 @@ Root modules:
 | `Table` | portable table definitions, aliases, derived schemas |
 | `PrimaryKey`, `Unique`, `Index`, `ForeignKey`, `Check` | portable table-level options |
 | `Query` | portable query construction DSL |
+| `Type` | portable database-type witnesses for casts and typed references |
+| `Cast` | checked explicit database-type conversion |
 | `Function` | portable SQL function expressions |
+| `Fragment` | typed custom SQL expressions and safely quoted identifiers |
 | `Renderer` | standard renderer |
+| `Executor` | portable executor contracts and result metadata |
 | `Datatypes` | portable datatype witnesses |
 | `Casing` | composable physical identifier casing |
 

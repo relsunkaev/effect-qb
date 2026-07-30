@@ -12,12 +12,12 @@ type IsExact<A, B> =
 
 type Assert<T extends true> = T
 
-const currentDate = StdRoot.Function.currentDate()
-const currentTime = StdRoot.Function.currentTime()
-const currentTimestamp = StdRoot.Function.currentTimestamp()
-const localTime = StdRoot.Function.localTime()
-const localTimestamp = StdRoot.Function.localTimestamp()
-const now = StdRoot.Function.now()
+const currentDate = Postgres.Function.currentDate()
+const currentTime = Postgres.Function.currentTime()
+const currentTimestamp = Postgres.Function.currentTimestamp()
+const localTime = Postgres.Function.localTime()
+const localTimestamp = Postgres.Function.localTimestamp()
+const now = Postgres.Function.now()
 
 const currentDateGrouped = StdRoot.Query.select({
   today: currentDate,
@@ -34,8 +34,8 @@ type LocalTimestampRuntime = StdRoot.Scalar.RuntimeOf<typeof localTimestamp>
 type NowRuntime = StdRoot.Scalar.RuntimeOf<typeof now>
 
 type _AssertCurrentDate = Assert<IsExact<CurrentDateRuntime, StdRoot.Scalar.LocalDateString>>
-type _AssertCurrentTime = Assert<IsExact<CurrentTimeRuntime, StdRoot.Scalar.LocalTimeString>>
-type _AssertCurrentTimestamp = Assert<IsExact<CurrentTimestampRuntime, StdRoot.Scalar.LocalDateTimeString>>
+type _AssertCurrentTime = Assert<IsExact<CurrentTimeRuntime, StdRoot.Scalar.OffsetTimeString>>
+type _AssertCurrentTimestamp = Assert<IsExact<CurrentTimestampRuntime, StdRoot.Scalar.InstantString>>
 type _AssertLocalTime = Assert<IsExact<LocalTimeRuntime, StdRoot.Scalar.LocalTimeString>>
 type _AssertLocalTimestamp = Assert<IsExact<LocalTimestampRuntime, StdRoot.Scalar.LocalDateTimeString>>
 type _AssertNow = Assert<IsExact<NowRuntime, StdRoot.Scalar.InstantString>>

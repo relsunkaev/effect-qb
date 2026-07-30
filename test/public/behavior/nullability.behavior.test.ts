@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 
 import { Query as Q, Function as F, Table } from "#standard"
-import { Executor, Renderer } from "#postgres"
+import { Executor, Function as PgFunction, Renderer } from "#postgres"
 import { makeRootSocialGraph } from "../../fixtures/schema.ts"
 import { unsafeAny } from "../../helpers/unsafe.ts"
 
@@ -97,7 +97,7 @@ describe("nullability behavior", () => {
       userId: users.id,
       postId: posts.id,
       postTitle: posts.title,
-      upperPostTitle: F.upper(posts.title)
+      upperPostTitle: PgFunction.upper(posts.title)
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -138,7 +138,7 @@ describe("nullability behavior", () => {
 
     const plan = Q.select({
       normalizedTitle: Q.case()
-        .when(Q.isNotNull(posts.title), F.upper(posts.title))
+        .when(Q.isNotNull(posts.title), PgFunction.upper(posts.title))
         .else("missing")
     }).pipe(
       Q.from(users),
@@ -165,7 +165,7 @@ describe("nullability behavior", () => {
 
     const plan = Q.select({
       normalizedTitle: Q.case()
-        .when(Q.isNotNull(posts.title), F.upper(posts.title))
+        .when(Q.isNotNull(posts.title), PgFunction.upper(posts.title))
         .when(Q.isNotNull(posts.id), "UNTITLED")
         .else("missing")
     }).pipe(

@@ -30,13 +30,13 @@ const posts = Std.Table.make("posts", {
 })
 
 // @ts-expect-error sqlite custom db type names must be non-empty
-Q.type.custom("")
+Std.Type.custom("")
 
-// @ts-expect-error portable text types come from the standard Query.type namespace
+// @ts-expect-error portable text types come from the root Type namespace
 SqliteType.text()
-// @ts-expect-error portable json types come from the standard Query.type namespace
+// @ts-expect-error portable json types come from the root Type namespace
 SqliteType.json()
-// @ts-expect-error portable datetime types come from the standard Query.type namespace
+// @ts-expect-error portable datetime types come from the root Type namespace
 SqliteType.datetime()
 
 SqliteType.clob()

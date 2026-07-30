@@ -404,7 +404,7 @@ test("postgres cli blocks destructive push changes unless explicitly allowed", a
 test("postgres cli safe mode applies additive changes and skips destructive drift", async () => {
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Pg from "effect-qb/postgres"
-import { Cast, Check, Function as F, Index, PrimaryKey, Query as Q, Table, Unique } from "effect-qb"
+import { Cast, Check, Index, PrimaryKey, Query as Q, Table, Type, Unique } from "effect-qb"
 import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make("__SCHEMA__")
@@ -413,13 +413,13 @@ export const users = db.table("users", {
   id: C.int().pipe(Pg.Column.identityByDefault),
   email: C.text(),
   nickname: C.text().pipe(C.nullable),
-  displayName: C.text().pipe(C.default(Cast.to(Q.literal("guest"), Q.type.text()))),
-  emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Q.type.text()))))
+  displayName: C.text().pipe(C.default(Cast.to(Q.literal("guest"), Type.text()))),
+  emailLower: C.text().pipe(C.generated(Pg.Function.lower(Q.column("email", Type.text()))))
 }).pipe(
   PrimaryKey.make((table) => table.id).pipe(PrimaryKey.named("users_pkey")),
   Unique.make((table) => table.email).pipe(Unique.named("users_email_key")),
   Index.make((table) => table.email).pipe(Index.named("users_email_idx")),
-  Check.make("users_email_check", Q.neq(Q.column("email", Q.type.text()), Q.literal("blocked")))
+  Check.make("users_email_check", Q.neq(Q.column("email", Type.text()), Q.literal("blocked")))
 )
 `)
   try {
@@ -432,7 +432,7 @@ export const users = db.table("users", {
 
     await writeFile(schemaFile(workspace), `
 import * as Pg from "effect-qb/postgres"
-import { Cast, Function as F, PrimaryKey, Query as Q, Table } from "effect-qb"
+import { Cast, PrimaryKey, Query as Q, Table, Type } from "effect-qb"
 import { Column as C } from "effect-qb"
 
 const db = Pg.Schema.make(${JSON.stringify(schemaName)})
@@ -441,8 +441,8 @@ export const users = db.table("users", {
   id: C.int().pipe(Pg.Column.identityByDefault),
   email: C.text().pipe(Pg.Column.ddlType("character varying(255)")),
   nickname: C.text(),
-  displayName: C.text().pipe(C.default(Cast.to(Q.literal("member"), Q.type.text()))),
-  emailLower: C.text().pipe(C.generated(F.upper(Q.column("email", Q.type.text())))),
+  displayName: C.text().pipe(C.default(Cast.to(Q.literal("member"), Type.text()))),
+  emailLower: C.text().pipe(C.generated(Pg.Function.upper(Q.column("email", Type.text())))),
   notes: C.text().pipe(C.nullable)
 }).pipe(
   PrimaryKey.make((table) => table.id).pipe(PrimaryKey.named("users_pkey"))
@@ -1138,7 +1138,7 @@ test("postgres cli round-trips enum, foreign-key, generated, identity, and rich 
   const { workspace, schemaName } = await makeSourceWorkspace(`
 import * as Schema from "effect/Schema"
 import * as Pg from "effect-qb/postgres"
-import { Cast, ForeignKey, Function as F, Index, PrimaryKey, Query as Q, Table, Unique } from "effect-qb"
+import { Cast, ForeignKey, Index, PrimaryKey, Query as Q, Table, Type, Unique } from "effect-qb"
 import { Column as C } from "effect-qb"
 
 const tables = Pg.Schema.make("__SCHEMA__")
@@ -1160,8 +1160,8 @@ const users = tables.table("users", {
   status: C.custom(Schema.String, Pg.Type.enum("status")).pipe(Pg.Column.ddlType("\\"__SCHEMA__\\".\\"status\\"")),
   email: C.text(),
   alias: C.text().pipe(C.nullable),
-  displayName: C.text().pipe(C.default(Cast.to(Q.literal("guest"), Q.type.text()))),
-  emailLower: C.text().pipe(C.generated(F.lower(Q.column("email", Q.type.text())))),
+  displayName: C.text().pipe(C.default(Cast.to(Q.literal("guest"), Type.text()))),
+  emailLower: C.text().pipe(C.generated(Pg.Function.lower(Q.column("email", Type.text())))),
   note: C.text().pipe(C.nullable)
 }).pipe(
   PrimaryKey.make((table) => table.id).pipe(PrimaryKey.named("users_pkey")),
@@ -1177,17 +1177,17 @@ const users = tables.table("users", {
     Index.named("users_email_lookup_idx"),
     Pg.Index.using("btree"),
     Pg.Index.keys(() => [{
-      expression: F.lower(Q.column("email", Q.type.text())),
+      expression: Pg.Function.lower(Q.column("email", Type.text())),
       order: "desc",
       nulls: "last"
     }]),
     Pg.Index.include((table) => table.displayName),
-    Pg.Index.where(Q.isNotNull(Q.column("email", Q.type.text())))
+    Pg.Index.where(Q.isNotNull(Q.column("email", Type.text())))
   ),
   Index.make((table) => table.note).pipe(
     Index.named("users_note_idx"),
     Pg.Index.key((table) => table.note, { order: "asc", nulls: "first" }),
-    Pg.Index.where(Q.isNotNull(Q.column("note", Q.type.text())))
+    Pg.Index.where(Q.isNotNull(Q.column("note", Type.text())))
   )
   )
 
@@ -1658,7 +1658,7 @@ test("postgres cli pull renders collated check constraint expressions with the q
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`users_email_c_check`)
-    expect(pulledSchema).toContain(`StdRoot.Query.neq(StdRoot.Query.collate(t.email, "C"), StdRoot.Query.literal("").pipe(Cast.to(StdRoot.Query.type.text())))`)
+    expect(pulledSchema).toContain(`StdRoot.Query.neq(StdRoot.Query.collate(t.email, "C"), StdRoot.Query.literal("").pipe(Cast.to(StdRoot.Type.text())))`)
 
     await assertIdempotentPullPush(config)
   } finally {
@@ -1687,7 +1687,7 @@ test("postgres cli pull renders collated default expressions with the query DSL"
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`nickname: Column.text().pipe(`)
-    expect(pulledSchema).toContain(`Column.default(StdRoot.Query.collate(StdRoot.Query.literal("foo").pipe(Cast.to(StdRoot.Query.type.text())), "C"))`)
+    expect(pulledSchema).toContain(`Column.default(StdRoot.Query.collate(StdRoot.Query.literal("foo").pipe(Cast.to(StdRoot.Type.text())), "C"))`)
 
     await assertIdempotentPullPush(config)
   } finally {
@@ -1716,7 +1716,7 @@ test("postgres cli pull renders collated generated expressions with the query DS
 
     const pulledSchema = await readSchema(workspace)
     expect(pulledSchema).toContain(`email_c: Column.text().pipe(`)
-    expect(pulledSchema).toContain(`Column.generated(StdRoot.Query.collate(StdRoot.Query.column("email", StdRoot.Query.type.text()), "C"))`)
+    expect(pulledSchema).toContain(`Column.generated(StdRoot.Query.collate(StdRoot.Query.column("email", StdRoot.Type.text()), "C"))`)
 
     await assertIdempotentPullPush(config)
   } finally {

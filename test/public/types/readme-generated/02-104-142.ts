@@ -17,7 +17,7 @@ const users = Table.make("users", {
 
 const activeUsers = Query.select({
   id: users.id,
-  email: Function.lower(users.email),
+  email: Function.concat(users.email, ""),
   displayName: users.displayName
 }).pipe(
   Query.from(users),
@@ -33,12 +33,12 @@ type ActiveUserRow = Query.ResultRow<typeof activeUsers>
 // }
 
 const postgres = Pg.Renderer.make().render(activeUsers)
-// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $1) order by "users"."email" asc
+// select "users"."id" as "id", ("users"."email" || $1) as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $2) order by "users"."email" asc
 
 const mysql = My.Renderer.make().render(activeUsers)
-// select `users`.`id` as `id`, lower(`users`.`email`) as `email`, `users`.`displayName` as `displayName` from `users` where (`users`.`active` = ?) order by `users`.`email` asc
+// select `users`.`id` as `id`, concat(`users`.`email`, ?) as `email`, `users`.`displayName` as `displayName` from `users` where (`users`.`active` = ?) order by `users`.`email` asc
 
 const sqlite = Sq.Renderer.make().render(activeUsers)
-// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = ?) order by "users"."email" asc
+// select "users"."id" as "id", ("users"."email" || ?) as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = ?) order by "users"."email" asc
 
 export {};

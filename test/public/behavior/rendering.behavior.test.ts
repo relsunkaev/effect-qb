@@ -5,7 +5,7 @@ import * as Sqlite from "#sqlite"
 import * as Standard from "#standard"
 import { Column as C, Table } from "#standard"
 import { Query as Q, Function as F } from "#standard"
-import { Jsonb as PgJsonb, Renderer, Type as PgType } from "#postgres"
+import { Function as PgFunction, Jsonb as PgJsonb, Renderer, Type as PgType } from "#postgres"
 import { makeMysqlEmployees, makeMysqlSocialGraph, makeRootSocialGraph } from "../../fixtures/schema.ts"
 import * as StdRoot from "#standard"
 import { unsafeAny } from "../../helpers/unsafe.ts"
@@ -18,16 +18,16 @@ describe("rendering behavior", () => {
     })
 
     const plan = Standard.Query.select({
-      label: Standard.Function.concat(Standard.Function.lower(users.email), "-user")
+      label: Standard.Function.concat(Standard.Function.coalesce(users.email, ""), "-user")
     }).pipe(
       Standard.Query.from(users),
       Standard.Query.where(Standard.Query.eq(users.email, "alice@example.com"))
     )
 
-    expect(Standard.Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || ?) as "label" from "users" where ("users"."email" = ?)')
-    expect(Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || $1) as "label" from "users" where ("users"."email" = $2)')
-    expect(Mysql.Renderer.make().render(plan).sql).toBe("select concat(lower(`users`.`email`), ?) as `label` from `users` where (`users`.`email` = ?)")
-    expect(Sqlite.Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || ?) as "label" from "users" where ("users"."email" = ?)')
+    expect(Standard.Renderer.make().render(plan).sql).toBe('select (coalesce("users"."email", ?) || ?) as "label" from "users" where ("users"."email" = ?)')
+    expect(Renderer.make().render(plan).sql).toBe('select (coalesce("users"."email", $1) || $2) as "label" from "users" where ("users"."email" = $3)')
+    expect(Mysql.Renderer.make().render(plan).sql).toBe("select concat(coalesce(`users`.`email`, ?), ?) as `label` from `users` where (`users`.`email` = ?)")
+    expect(Sqlite.Renderer.make().render(plan).sql).toBe('select (coalesce("users"."email", ?) || ?) as "label" from "users" where ("users"."email" = ?)')
   })
 
   test("standard ctes, joins, grouping, ordering, and pagination render across built-in SQL renderers", () => {
@@ -396,7 +396,7 @@ describe("rendering behavior", () => {
 
   test("cast expressions trust typed target db types without renderer-time validation", () => {
     const expressionAst = Symbol.for("effect-qb/ExpressionAst")
-    const value = Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.text())
+    const value = Standard.Query.cast(Standard.Query.literal(1), Standard.Type.text())
     ;(value as any)[expressionAst].target = undefined
     const plan = Standard.Query.select({
       value
@@ -410,16 +410,16 @@ describe("rendering behavior", () => {
 
   test("custom db type casts trust typed db type names without renderer-time validation", () => {
     const standardPlan = Standard.Query.select({
-      value: Standard.Query.cast(Standard.Query.literal(1), Standard.Query.type.custom("") as any)
+      value: Standard.Query.cast(Standard.Query.literal(1), Standard.Type.custom("") as any)
     })
     const postgresPlan = Q.select({
       value: StdRoot.Cast.to(Q.literal(1), PgType.custom("") as any)
     })
     const mysqlPlan = StdRoot.Query.select({
-      value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Query.type.custom("") as any)
+      value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Type.custom("") as any)
     })
     const sqlitePlan = StdRoot.Query.select({
-      value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Query.type.custom("") as any)
+      value: StdRoot.Query.cast(StdRoot.Query.literal(1), StdRoot.Type.custom("") as any)
     })
 
     expect(Standard.Renderer.make().render(standardPlan).sql).toContain(" as )")
@@ -433,7 +433,7 @@ describe("rendering behavior", () => {
     const users = Standard.Table.make("users", {
       email: Standard.Column.text()
     })
-    const value = Standard.Query.cast(users.email, Standard.Query.type.text())
+    const value = Standard.Query.cast(users.email, Standard.Type.text())
     const plan = Standard.Query.select({
       value
     }).pipe(
@@ -453,7 +453,7 @@ describe("rendering behavior", () => {
     const users = Standard.Table.make("users", {
       email: Standard.Column.text()
     })
-    const value = Standard.Query.cast(users.email, Standard.Query.type.text())
+    const value = Standard.Query.cast(users.email, Standard.Type.text())
     ;(value as any)[expressionAst].target = undefined
 
     const plan = Standard.Query.select({
@@ -554,28 +554,38 @@ describe("rendering behavior", () => {
 
   test("renders safe extract fields as SQL field syntax", () => {
     const timestamp = new Date("2024-01-02T03:04:05.000Z")
-    const extracted = Standard.Function.call(
+    const postgresExtracted = PgFunction.call(
       "extract",
       Standard.Query.literal("year"),
       Standard.Query.literal(timestamp)
     )
-    const plan = Standard.Query.select({
-      extracted
-    })
-
-    expect(Standard.Renderer.make().render(plan)).toMatchObject({
-      sql: 'select extract(year from ?) as "extracted"',
-      params: [timestamp]
-    })
-    expect(Renderer.make().render(plan)).toMatchObject({
+    expect(Renderer.make().render(Standard.Query.select({
+      extracted: postgresExtracted
+    }))).toMatchObject({
       sql: 'select extract(year from $1) as "extracted"',
       params: [timestamp]
     })
-    expect(Mysql.Renderer.make().render(plan)).toMatchObject({
+
+    const mysqlExtracted = Mysql.Function.call(
+      "extract",
+      Standard.Query.literal("year"),
+      Standard.Query.literal(timestamp)
+    )
+    expect(Mysql.Renderer.make().render(Standard.Query.select({
+      extracted: mysqlExtracted
+    }))).toMatchObject({
       sql: "select extract(year from ?) as `extracted`",
       params: [timestamp]
     })
-    expect(Sqlite.Renderer.make().render(plan)).toMatchObject({
+
+    const sqliteExtracted = Sqlite.Function.call(
+      "extract",
+      Standard.Query.literal("year"),
+      Standard.Query.literal(timestamp)
+    )
+    expect(Sqlite.Renderer.make().render(Standard.Query.select({
+      extracted: sqliteExtracted
+    }))).toMatchObject({
       sql: 'select extract(year from ?) as "extracted"',
       params: [timestamp]
     })
@@ -750,14 +760,14 @@ describe("rendering behavior", () => {
     const { users, posts } = makeRootSocialGraph()
 
     const plan = Q.select({
-      label: F.concat(F.lower(users.email), "::"),
+      label: F.concat(PgFunction.lower(users.email), "::"),
       fallbackTitle: F.coalesce(posts.title, Q.literal("missing")),
       ok: Q.not(Q.or(Q.eq(users.email, "a"), Q.isNull(posts.title)))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
       Q.where(Q.and(Q.eq(users.email, "alice@example.com"), Q.isNotNull(posts.title))),
-      Q.orderBy(F.lower(users.email), "desc")
+      Q.orderBy(PgFunction.lower(users.email), "desc")
     )
 
     const rendered = Renderer.make().render(plan)
@@ -775,14 +785,14 @@ describe("rendering behavior", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
     const plan = StdRoot.Query.select({
-      label: StdRoot.Function.concat(StdRoot.Function.lower(users.email), "::"),
+      label: StdRoot.Function.concat(Mysql.Function.lower(users.email), "::"),
       fallbackTitle: StdRoot.Function.coalesce(posts.title, StdRoot.Query.literal("missing")),
       ok: StdRoot.Query.not(StdRoot.Query.or(StdRoot.Query.eq(users.email, "a"), StdRoot.Query.isNull(posts.title)))
     }).pipe(
       StdRoot.Query.from(users),
       StdRoot.Query.leftJoin(posts, StdRoot.Query.eq(users.id, posts.userId)),
       StdRoot.Query.where(StdRoot.Query.and(StdRoot.Query.eq(users.email, "alice@example.com"), StdRoot.Query.isNotNull(posts.title))),
-      StdRoot.Query.orderBy(StdRoot.Function.lower(users.email), "desc")
+      StdRoot.Query.orderBy(Mysql.Function.lower(users.email), "desc")
     )
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -853,7 +863,7 @@ describe("rendering behavior", () => {
     const plan = Q.select({
       profile: {
         id: users.id,
-        lowerEmail: Q.as(F.lower(users.email), "email_lower")
+        lowerEmail: Q.as(PgFunction.lower(users.email), "email_lower")
       },
       kind: Q.literal("user")
     }).pipe(

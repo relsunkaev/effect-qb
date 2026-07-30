@@ -4,11 +4,16 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
-import { Column as C, Table } from "#standard"
+import { Cast, Column as C, Table, Type as StdType } from "#standard"
 import { Function as F, Query as Q } from "#standard"
 import { Executor, Type } from "#postgres"
 import * as Postgres from "#postgres"
 import { createDeferred, execPostgres, runPostgres } from "./helpers.ts"
+import {
+  portableFunctionResults,
+  portableScalarFunctions,
+  portableWindowFunctions
+} from "./portable-functions.ts"
 
 const eventsTableName = "integration_pg_events"
 const usersTableName = "integration_pg_users"
@@ -76,6 +81,95 @@ const makeLatestPostPlan = () => {
     Q.orderBy(publishedPosts.publishedAt, "desc")
   )
 }
+
+test("postgres exposes live mutation metadata, prepared cardinality, and explain", async () => {
+  const result = await runPostgres(Effect.gen(function*() {
+    const executor = Executor.make()
+    const inserted = yield* executor.executeResult(Q.insert(auditLogs, {
+      id: "metadata-row",
+      note: "metadata"
+    }))
+    const read = Q.select({
+      id: auditLogs.id,
+      note: auditLogs.note
+    }).pipe(
+      Q.from(auditLogs),
+      Q.where(Q.eq(auditLogs.id, "metadata-row"))
+    )
+    const one = yield* executor.prepare(read).execute.pipe(Executor.exactlyOne)
+    const explain = yield* executor.explain(read, { format: "json" })
+    return { inserted, one, explain }
+  }))
+
+  expect(result.inserted).toEqual({
+    rows: [],
+    affectedRows: 1
+  })
+  expect(result.one).toEqual({
+    id: "metadata-row",
+    note: "metadata"
+  })
+  expect(result.explain.length).toBe(1)
+})
+
+test("postgres executes the portable standard function matrix", async () => {
+  const result = await runPostgres(Effect.gen(function*() {
+    const executor = Executor.make()
+    const scalars = yield* executor.execute(portableScalarFunctions).pipe(Executor.exactlyOne)
+    const aggregates = yield* executor.execute(Q.select({
+      total: Postgres.Function.sum(F.add(2, 2)),
+      average: Postgres.Function.avg(F.add(2, 2)),
+      integerTotal: Postgres.Function.sum(Cast.to(4, StdType.int()))
+    })).pipe(Executor.exactlyOne)
+    const windows = yield* executor.execute(portableWindowFunctions).pipe(Executor.exactlyOne)
+    return { scalars, aggregates, windows }
+  }))
+
+  expect(result).toEqual({
+    ...portableFunctionResults,
+    aggregates: { total: 4, average: 4, integerTotal: "4" }
+  })
+})
+
+test("postgres keeps its native empty-boundary window-frame semantics", async () => {
+  const row = await runPostgres(Executor.make().execute(Q.select({
+    first: Postgres.Function.firstValue(Cast.to(2, StdType.int()), {
+      orderBy: [{ value: Cast.to(1, StdType.int()) }],
+      frame: {
+        unit: "rows",
+        start: { preceding: 1 },
+        end: { preceding: 1 }
+      }
+    })
+  })).pipe(Executor.exactlyOne))
+
+  expect(row.first).toBeNull()
+})
+
+test("postgres dialect functions execute with postgres temporal semantics", async () => {
+  const row = await runPostgres(Effect.gen(function*() {
+    const executor = Executor.make()
+    return yield* executor.execute(Q.select({
+      lower: Postgres.Function.lower("MIX"),
+      upper: Postgres.Function.upper("mix"),
+      currentDate: Postgres.Function.currentDate(),
+      currentTime: Postgres.Function.currentTime(),
+      currentTimestamp: Postgres.Function.currentTimestamp(),
+      localTime: Postgres.Function.localTime(),
+      localTimestamp: Postgres.Function.localTimestamp(),
+      now: Postgres.Function.now()
+    })).pipe(Executor.exactlyOne)
+  }))
+
+  expect(row.lower).toBe("mix")
+  expect(row.upper).toBe("MIX")
+  expect(row.currentDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  expect(row.currentTime).toMatch(/^\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/)
+  expect(row.currentTimestamp).toMatch(/Z$/)
+  expect(row.localTime).toMatch(/^\d{2}:\d{2}:\d{2}(?:\.\d+)?$/)
+  expect(row.localTimestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  expect(row.now).toMatch(/Z$/)
+})
 
 beforeAll(async () => {
   await execPostgres(`drop table if exists "${eventsTableName}"`)

@@ -24,6 +24,39 @@ import { isJsonValue } from "./runtime/normalize.js"
 export type FlatRow = Readonly<Record<string, unknown>>
 export type DriverMode = "raw" | "normalized"
 
+/** Driver-level result metadata retained alongside returned rows. */
+export interface DriverResult {
+  readonly rows: ReadonlyArray<FlatRow>
+  readonly affectedRows?: number
+  readonly insertId?: string | number | bigint
+}
+
+/** Decoded execution result plus portable mutation metadata when available. */
+export interface ExecutionResult<Row> {
+  readonly rows: ReadonlyArray<Row>
+  readonly affectedRows?: number
+  readonly insertId?: string | number | bigint
+}
+
+/** Failure raised when an execution result violates a requested cardinality. */
+export interface ResultCardinalityError {
+  readonly _tag: "ResultCardinalityError"
+  readonly expected: "zeroOrOne" | "exactlyOne" | "nonEmpty"
+  readonly actual: number
+}
+
+/** Reusable execution handle for one immutable query plan. */
+export interface PreparedQuery<Row, Error = never, Context = never> {
+  readonly execute: Effect.Effect<ReadonlyArray<Row>, Error, Context>
+  readonly executeResult: Effect.Effect<ExecutionResult<Row>, Error, Context>
+  readonly stream: Stream.Stream<Row, Error, Context>
+}
+
+export interface ExplainOptions {
+  readonly analyze?: boolean
+  readonly format?: "text" | "json"
+}
+
 type AstBackedExpression = Expression.Any & {
   readonly [ExpressionAst.TypeId]: ExpressionAst.Any
 }
@@ -68,6 +101,9 @@ export interface Driver<
   execute<Row>(
     query: Renderer.RenderedQuery<Row, Dialect>
   ): Effect.Effect<ReadonlyArray<FlatRow>, Error, Context>
+  executeResult?<Row>(
+    query: Renderer.RenderedQuery<Row, Dialect>
+  ): Effect.Effect<DriverResult, Error, Context>
   stream<Row>(
     query: Renderer.RenderedQuery<Row, Dialect>
   ): Stream.Stream<FlatRow, Error, Context>
@@ -89,9 +125,89 @@ export interface Executor<
   execute<PlanValue extends Query.Plan.Any>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
+  executeResult<PlanValue extends Query.Plan.Any>(
+    plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
+  ): Effect.Effect<ExecutionResult<Query.ResultRow<PlanValue>>, Error, Context>
+  prepare<PlanValue extends Query.Plan.Any>(
+    plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
+  ): PreparedQuery<Query.ResultRow<PlanValue>, Error, Context>
   stream<PlanValue extends Query.Plan.Any>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ): Stream.Stream<Query.ResultRow<PlanValue>, Error, Context>
+}
+
+type ExecutorBase<
+  Dialect extends string,
+  Error,
+  Context
+> = Pick<Executor<Dialect, Error, Context>, "dialect" | "execute" | "stream"> & {
+  readonly executeResult?: Executor<Dialect, Error, Context>["executeResult"]
+  readonly explain?: (
+    plan: Query.Plan.Any,
+    options?: ExplainOptions
+  ) => Effect.Effect<ReadonlyArray<FlatRow>, Error, Context>
+}
+
+/** Requires an execution effect to contain at most one row. */
+export const atMostOne = <Row, Error, Context>(
+  self: Effect.Effect<ReadonlyArray<Row>, Error, Context>
+): Effect.Effect<Option.Option<Row>, Error | ResultCardinalityError, Context> =>
+  Effect.flatMap(self, (rows) =>
+    rows.length <= 1
+      ? Effect.succeed(rows.length === 0 ? Option.none() : Option.some(rows[0]!))
+      : Effect.fail({
+          _tag: "ResultCardinalityError",
+          expected: "zeroOrOne",
+          actual: rows.length
+        } satisfies ResultCardinalityError))
+
+/** Requires an execution effect to contain exactly one row. */
+export const exactlyOne = <Row, Error, Context>(
+  self: Effect.Effect<ReadonlyArray<Row>, Error, Context>
+): Effect.Effect<Row, Error | ResultCardinalityError, Context> =>
+  Effect.flatMap(self, (rows) =>
+    rows.length === 1
+      ? Effect.succeed(rows[0]!)
+      : Effect.fail({
+          _tag: "ResultCardinalityError",
+          expected: "exactlyOne",
+          actual: rows.length
+        } satisfies ResultCardinalityError))
+
+/** Requires an execution effect to contain at least one row. */
+export const nonEmpty = <Row, Error, Context>(
+  self: Effect.Effect<ReadonlyArray<Row>, Error, Context>
+): Effect.Effect<readonly [Row, ...Row[]], Error | ResultCardinalityError, Context> =>
+  Effect.flatMap(self, (rows) =>
+    rows.length > 0
+      ? Effect.succeed(rows as readonly [Row, ...Row[]])
+      : Effect.fail({
+          _tag: "ResultCardinalityError",
+          expected: "nonEmpty",
+          actual: 0
+        } satisfies ResultCardinalityError))
+
+/** Adds the standard result/cardinality contract to an executor implementation. */
+export const withResultContracts = <
+  Dialect extends string,
+  Error,
+  Context
+>(
+  base: ExecutorBase<Dialect, Error, Context>
+): Executor<Dialect, Error, Context> => {
+  const executeResult = base.executeResult ?? ((plan) =>
+    Effect.map(base.execute(plan), (rows) => ({ rows })))
+  return {
+    ...base,
+    executeResult,
+    prepare(plan) {
+      return {
+        execute: base.execute(plan),
+        executeResult: executeResult(plan),
+        stream: base.stream(plan)
+      }
+    }
+  } as Executor<Dialect, Error, Context>
 }
 
 const setPath = (
@@ -437,7 +553,7 @@ export const make = <
   execute: <PlanValue extends Query.Plan.Any>(
     plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
   ) => Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
-): Executor<Dialect, Error, Context> => ({
+): Executor<Dialect, Error, Context> => withResultContracts({
   dialect,
   execute(plan) {
     return (execute as any)(plan)
@@ -445,7 +561,7 @@ export const make = <
   stream(plan) {
     return Stream.unwrap(Effect.map((execute as any)(plan), (rows: ReadonlyArray<any>) => Stream.fromIterable(rows)))
   }
-}) as Executor<Dialect, Error, Context>
+})
 
 /**
  * Constructs a driver from a dialect and execution callback.
@@ -473,6 +589,9 @@ export function driver<
     readonly stream: <Row>(
       query: Renderer.RenderedQuery<Row, Dialect>
     ) => Stream.Stream<FlatRow, Error, Context>
+    readonly executeResult?: <Row>(
+      query: Renderer.RenderedQuery<Row, Dialect>
+    ) => Effect.Effect<DriverResult, Error, Context>
   }
 ): Driver<Dialect, Error, Context>
 export function driver<
@@ -492,6 +611,9 @@ export function driver<
       readonly stream: <Row>(
         query: Renderer.RenderedQuery<Row, Dialect>
       ) => Stream.Stream<FlatRow, Error, Context>
+      readonly executeResult?: <Row>(
+        query: Renderer.RenderedQuery<Row, Dialect>
+      ) => Effect.Effect<DriverResult, Error, Context>
     }
 ): Driver<Dialect, Error, Context> {
   return {
@@ -508,7 +630,10 @@ export function driver<
       )
     }
     return executeOrHandlers.stream(query)
-  }
+  },
+  ...(typeof executeOrHandlers === "function" || executeOrHandlers.executeResult === undefined
+    ? {}
+    : { executeResult: executeOrHandlers.executeResult })
   }
 }
 
@@ -528,28 +653,94 @@ export const fromDriver = <
   renderer: Renderer.Renderer<Dialect>,
   sqlDriver: Driver<Dialect, Error, Context>
 ): Executor<Dialect, Error, Context> => {
-  const executor: Executor<Dialect, Error, Context> = {
+  const renderedCache = new WeakMap<object, Renderer.RenderedQuery<any, Dialect>>()
+  const render = (plan: Query.Plan.Any): Renderer.RenderedQuery<any, Dialect> => {
+    const cached = renderedCache.get(plan)
+    if (cached !== undefined) {
+      return cached
+    }
+    const rendered = renderer.render(plan as any) as Renderer.RenderedQuery<any, Dialect>
+    renderedCache.set(plan, rendered)
+    return rendered
+  }
+  const executor = withResultContracts<Dialect, Error, Context>({
     dialect: renderer.dialect,
     execute<PlanValue extends Query.Plan.Any>(
       plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
     ) {
-      const rendered = renderer.render(plan) as Renderer.RenderedQuery<any, Dialect>
+      const rendered = render(plan as Query.Plan.Any)
       return Effect.map(
         sqlDriver.execute(rendered),
         (rows) => remapRows<any>(rendered, rows)
       ) as Effect.Effect<Query.ResultRows<PlanValue>, Error, Context>
     },
+    executeResult<PlanValue extends Query.Plan.Any>(
+      plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
+    ) {
+      const rendered = render(plan as Query.Plan.Any)
+      const result = sqlDriver.executeResult
+        ? sqlDriver.executeResult(rendered)
+        : Effect.map(sqlDriver.execute(rendered), (rows) => ({ rows }))
+      return Effect.map(result, ({ rows, ...metadata }) => ({
+        ...metadata,
+        rows: remapRows<any>(rendered, rows)
+      })) as Effect.Effect<ExecutionResult<Query.ResultRow<PlanValue>>, Error, Context>
+    },
     stream<PlanValue extends Query.Plan.Any>(
       plan: Query.DialectCompatiblePlan<PlanValue, Dialect>
     ) {
-      const rendered = renderer.render(plan) as Renderer.RenderedQuery<any, Dialect>
+      const rendered = render(plan as Query.Plan.Any)
       return Stream.mapArray(
         sqlDriver.stream(rendered),
         (rows) => remapRows<any>(rendered, rows) as never
       ) as Stream.Stream<Query.ResultRow<PlanValue>, Error, Context>
     }
-  }
+  })
   return executor
+}
+
+/** Builds a dialect-specific EXPLAIN statement around an already rendered query. */
+export const explainQuery = <Dialect extends string>(
+  query: Renderer.RenderedQuery<any, Dialect>,
+  options: ExplainOptions = {}
+): Renderer.RenderedQuery<FlatRow, Dialect> => {
+  const analyze = options.analyze ?? false
+  const format = options.format ?? "text"
+  let prefix: string
+  switch (query.dialect) {
+    case "postgres":
+      prefix = `explain (${[
+        ...(analyze ? ["analyze true"] : []),
+        `format ${format}`
+      ].join(", ")}) `
+      break
+    case "mysql":
+      if (analyze && format === "json") {
+        throw new Error("MySQL EXPLAIN ANALYZE cannot be combined with JSON format")
+      }
+      prefix = analyze ? "explain analyze " : format === "json" ? "explain format=json " : "explain "
+      break
+    case "sqlite":
+      if (analyze || format === "json") {
+        throw new Error("SQLite EXPLAIN QUERY PLAN does not support analyze or JSON format")
+      }
+      prefix = "explain query plan "
+      break
+    default:
+      if (analyze || format === "json") {
+        throw new Error("Portable EXPLAIN only supports text plans without analyze")
+      }
+      prefix = "explain "
+  }
+  return {
+    ...query,
+    sql: prefix + query.sql,
+    projections: [],
+    [Renderer.TypeId]: {
+      row: undefined as unknown as FlatRow,
+      dialect: query.dialect
+    }
+  }
 }
 
 export const streamFromSqlClient = <Dialect extends string>(

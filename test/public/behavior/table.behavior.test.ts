@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 
 import * as Mysql from "#mysql"
+import * as Postgres from "#postgres"
 import * as Sqlite from "#sqlite"
 import { Scalar as Expression, Function as F, Query as Q, Table } from "#standard"
 import { Column as C } from "#postgres"
@@ -117,7 +118,7 @@ describe("table behavior", () => {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.generated(Q.literal("generated-user-id"))),
       email: StdRoot.Column.text().pipe(C.unique),
       bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable),
-      createdAt: StdRoot.Column.timestamp().pipe(StdRoot.Column.default(F.localTimestamp()))
+      createdAt: StdRoot.Column.timestamp().pipe(StdRoot.Column.default(Postgres.Function.localTimestamp()))
     }).pipe(
       Table.index((table) => table.email)
     )
@@ -126,7 +127,7 @@ describe("table behavior", () => {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.generated(Q.literal("generated-user-id"))),
       email: StdRoot.Column.text().pipe(C.unique),
       bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable),
-      createdAt: StdRoot.Column.timestamp().pipe(StdRoot.Column.default(F.localTimestamp()))
+      createdAt: StdRoot.Column.timestamp().pipe(StdRoot.Column.default(Postgres.Function.localTimestamp()))
     }) {
       static readonly [StdRoot.Table.options] = [Table.index((table) => table.email)]
     }

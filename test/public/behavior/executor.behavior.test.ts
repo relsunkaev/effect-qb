@@ -7,7 +7,7 @@ import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
 import { Cast, Query as Q, Function as F, Table } from "#standard"
-import { Column as C, Executor, Renderer, Type } from "#postgres"
+import { Column as C, Executor, Function as PgFunction, Renderer, Type } from "#postgres"
 import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-4111-8111-111111111111"
@@ -177,7 +177,7 @@ describe("executor behavior", () => {
     const plan = Q.select({
       profile: {
         id: Q.as(users.id, "user_identifier"),
-        email: Q.as(F.lower(users.email), "email_lower")
+        email: Q.as(PgFunction.lower(users.email), "email_lower")
       }
     }).pipe(
       Q.from(users)
@@ -597,6 +597,23 @@ describe("executor behavior", () => {
     ])
   })
 
+  test("fromDriver canonicalizes PostgreSQL short offset-time suffixes", () => {
+    const plan = Q.select({
+      currentTime: PgFunction.currentTime()
+    })
+    const rows = Effect.runSync(Executor.make({
+      driver: Executor.driver("postgres", () => Effect.succeed([
+        { currentTime: "12:34:56.123456+00" },
+        { currentTime: "12:34:56-0700" }
+      ]))
+    }).execute(plan))
+
+    expect(rows).toEqual([
+      { currentTime: "12:34:56.123456+00:00" },
+      { currentTime: "12:34:56-07:00" }
+    ])
+  })
+
   test("fromDriver normalizes byte and array outputs", () => {
     const files = StdRoot.Table.make("files", {
       payload: C.bytea(),
@@ -765,8 +782,8 @@ describe("executor behavior", () => {
     const plan = Q.select({
       titleState: Q.case()
         .when(Q.isNull(posts.title), "missing")
-        .when(Q.eq(F.lower(posts.title), "draft"), "draft")
-        .else(F.upper(F.coalesce(posts.title, "published")))
+        .when(Q.eq(PgFunction.lower(posts.title), "draft"), "draft")
+        .else(PgFunction.upper(F.coalesce(posts.title, "published")))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId))
@@ -800,8 +817,8 @@ describe("executor behavior", () => {
     const plan = Q.select({
       titleState: Q.case()
         .when(Q.isNull(posts.title), "missing")
-        .when(Q.eq(F.lower(posts.title), "draft"), "draft")
-        .else(F.upper(F.coalesce(posts.title, "published")))
+        .when(Q.eq(PgFunction.lower(posts.title), "draft"), "draft")
+        .else(PgFunction.upper(F.coalesce(posts.title, "published")))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -1308,7 +1325,7 @@ describe("executor behavior", () => {
   test("fromDriver enforces structured record cast fields", () => {
     const plan = Q.select({
       profile: Cast.to("{}", Type.record("user_profile", {
-        displayName: StdRoot.Query.type.text(),
+        displayName: StdRoot.Type.text(),
         age: Type.int4()
       }))
     })

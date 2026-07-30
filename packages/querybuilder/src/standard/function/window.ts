@@ -1,2 +1,11 @@
 /** Standard window functions. */
-export { over, rowNumber, rank, denseRank } from "../query.js"
+export {
+  denseRank,
+  firstValue,
+  lag,
+  lastValue,
+  lead,
+  over,
+  rank,
+  rowNumber
+} from "../query.js"

@@ -27,16 +27,18 @@ type PgScalar = Pg.Scalar.Any
 // @ts-expect-error standard row-set APIs are exported from effect-qb
 type PgRowSet = Pg.RowSet.Any
 
-// @ts-expect-error standard function APIs are exported from effect-qb
+// @ts-expect-error PostgreSQL lower does not implicitly cast uuid to text
 Pg.Function.lower(events.id)
 
+// @ts-expect-error nonportable case conversion is dialect-specific
 Function.lower(events.id)
 
-// @ts-expect-error MySQL has no dialect-specific function namespace
+Pg.Function.call("lower", events.id)
 My.Function.call("lower", events.id)
-
-// @ts-expect-error SQLite has no dialect-specific function namespace
 Sq.Function.call("lower", events.id)
+
+// @ts-expect-error arbitrary function calls are dialect-specific
+Function.call("lower", events.id)
 
 // @ts-expect-error standard query APIs are exported from effect-qb
 Pg.Query.select({ id: events.id })

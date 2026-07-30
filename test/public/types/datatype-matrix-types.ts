@@ -1,4 +1,4 @@
-import { Query } from "effect-qb"
+import { Type } from "effect-qb"
 import * as My from "effect-qb/mysql"
 import * as Pg from "effect-qb/postgres"
 import * as Sq from "effect-qb/sqlite"
@@ -24,7 +24,7 @@ type FunctionKeys<T> = {
   readonly [K in keyof T]: T[K] extends (...args: readonly any[]) => any ? K : never
 }[keyof T] & string
 
-type StandardTypeKeys = FunctionKeys<typeof Query.type>
+type StandardTypeKeys = FunctionKeys<typeof Type>
 type PostgresTypeKeys = FunctionKeys<typeof Pg.Type>
 type MysqlTypeKeys = FunctionKeys<typeof My.Type>
 type SqliteTypeKeys = FunctionKeys<typeof Sq.Type>

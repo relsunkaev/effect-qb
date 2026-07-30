@@ -54,6 +54,24 @@ export interface FunctionCallNode<
   readonly args: Args
 }
 
+/** Safely quoted identifier interpolation inside a custom SQL expression. */
+export interface SqlIdentifierNode<
+  Parts extends readonly [string, ...string[]] = readonly [string, ...string[]]
+> {
+  readonly kind: "sqlIdentifier"
+  readonly parts: Parts
+}
+
+/** Typed custom SQL expression assembled from static text and safe values. */
+export interface CustomSqlNode<
+  Values extends readonly (Expression.Any | SqlIdentifierNode)[] =
+    readonly (Expression.Any | SqlIdentifierNode)[]
+> {
+  readonly kind: "customSql"
+  readonly strings: readonly string[]
+  readonly values: Values
+}
+
 /** `excluded.column` reference used inside insert conflict handlers. */
 export interface ExcludedNode<
   ColumnName extends string = string
@@ -70,6 +88,11 @@ export type UnaryKind =
   | "upper"
   | "lower"
   | "count"
+  | "sum"
+  | "avg"
+  | "abs"
+  | "round"
+  | "negate"
   | "max"
   | "min"
 
@@ -101,6 +124,11 @@ export type BinaryKind =
   | "contains"
   | "containedBy"
   | "overlaps"
+  | "add"
+  | "subtract"
+  | "multiply"
+  | "divide"
+  | "modulo"
 
 /** Binary expression node. */
 export interface BinaryNode<
@@ -192,7 +220,36 @@ export interface WindowOrderByNode<
 }
 
 /** Window function kinds supported by the query layer. */
-export type WindowKind = "rowNumber" | "rank" | "denseRank" | "over"
+export type WindowKind =
+  | "rowNumber"
+  | "rank"
+  | "denseRank"
+  | "over"
+  | "lag"
+  | "lead"
+  | "firstValue"
+  | "lastValue"
+
+export type WindowFrameBoundary =
+  | "unboundedPreceding"
+  | "currentRow"
+  | "unboundedFollowing"
+  | {
+      readonly preceding: number
+    }
+  | {
+      readonly following: number
+    }
+
+export type WindowFrameUnit = "rows" | "range" | "groups"
+
+export interface WindowFrameNode<
+  Unit extends WindowFrameUnit = WindowFrameUnit
+> {
+  readonly unit: Unit
+  readonly start: WindowFrameBoundary
+  readonly end?: WindowFrameBoundary
+}
 
 /** Window function expression node. */
 export interface WindowNode<
@@ -204,8 +261,11 @@ export interface WindowNode<
   readonly kind: "window"
   readonly function: Kind
   readonly value?: Value
+  readonly offset?: Expression.Any
+  readonly defaultValue?: Expression.Any
   readonly partitionBy: PartitionBy
   readonly orderBy: OrderBy
+  readonly frame?: WindowFrameNode
 }
 
 export type JsonSegmentTuple = readonly any[]
@@ -351,6 +411,7 @@ export type Any =
   | CastNode
   | CollateNode
   | FunctionCallNode
+  | CustomSqlNode
   | ExcludedNode
   | UnaryNode
   | BinaryNode

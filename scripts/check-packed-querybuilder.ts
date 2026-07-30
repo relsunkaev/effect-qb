@@ -120,7 +120,7 @@ const main = async () => {
       "",
       "const standardPlan = Query.select({",
       "  id: standardUsers.id,",
-      "  email: Function.lower(standardUsers.email)",
+      '  email: Function.concat(standardUsers.email, "")',
       "}).pipe(Query.from(standardUsers))",
       "",
       'const users = Table.make("users", {',

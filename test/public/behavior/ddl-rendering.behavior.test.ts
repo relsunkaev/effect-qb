@@ -157,7 +157,7 @@ describe("ddl rendering behavior", () => {
       displayName: StdRoot.Column.text(),
       normalizedName: StdRoot.Column.text().pipe(
         StdRoot.Column.generated(
-          StdRoot.Function.lower(StdRoot.Query.column("displayName", StdRoot.Query.type.text()))
+          StdRoot.Function.coalesce(StdRoot.Query.column("displayName", StdRoot.Type.text()), "")
         )
       )
     }).pipe(
@@ -168,13 +168,13 @@ describe("ddl rendering behavior", () => {
     )
 
     expect(Postgres.Renderer.make().render(StdRoot.Query.createTable(users)).sql).toContain(
-      'generated always as (lower("display_name")) stored'
+      'generated always as (coalesce("display_name", \'\')) stored'
     )
     expect(Mysql.Renderer.make().render(StdRoot.Query.createTable(users)).sql).toContain(
-      "generated always as (lower(`display_name`)) stored"
+      "generated always as (coalesce(`display_name`, '')) stored"
     )
     expect(Sqlite.Renderer.make().render(StdRoot.Query.createTable(users)).sql).toContain(
-      'generated always as (lower("display_name")) stored'
+      'generated always as (coalesce("display_name", \'\')) stored'
     )
   })
 

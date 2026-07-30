@@ -72,18 +72,18 @@ void tags
 void nullableTags
 void builtinColumns
 
-// @ts-expect-error portable text types come from the standard Query.type namespace
+// @ts-expect-error portable text types come from the root Type namespace
 Pg.Type.text()
-// @ts-expect-error portable uuid types come from the standard Query.type namespace
+// @ts-expect-error portable uuid types come from the root Type namespace
 Pg.Type.uuid()
-// @ts-expect-error portable varchar types come from the standard Query.type namespace
+// @ts-expect-error portable varchar types come from the root Type namespace
 Pg.Type.varchar()
-// @ts-expect-error portable json types come from the standard Query.type namespace
+// @ts-expect-error portable json types come from the root Type namespace
 Pg.Type.json()
 
-const varcharEmailExpr = Std.Cast.to(users.email, Q.type.varchar())
+const varcharEmailExpr = Std.Cast.to(users.email, Std.Type.varchar())
 const citextEmailExpr = Std.Cast.to(users.email, Pg.Type.citext())
-const dateValueExpr = Std.Cast.to("2026-03-18", Q.type.date())
+const dateValueExpr = Std.Cast.to("2026-03-18", Std.Type.date())
 const binaryValueExpr = Std.Cast.to("deadbeef", Pg.Type.bytea())
 const jsonbValueExpr = Std.Cast.to("{}", Pg.Type.jsonb())
 
@@ -135,18 +135,18 @@ const sizedMatch: E.RuntimeOf<typeof sizedMatchExpr> = true
 void sizedEmail
 void sizedMatch
 
-const textArrayExpr = Std.Cast.to("{}", Pg.Type.array(Q.type.text()))
+const textArrayExpr = Std.Cast.to("{}", Pg.Type.array(Std.Type.text()))
 const textArray: E.RuntimeOf<typeof textArrayExpr> = [] as readonly string[]
 void textArray
 
-const nestedTextArrayExpr = Std.Cast.to("{}", Pg.Type.array(Pg.Type.array(Q.type.text())))
+const nestedTextArrayExpr = Std.Cast.to("{}", Pg.Type.array(Pg.Type.array(Std.Type.text())))
 const intRangeExpr = Std.Cast.to("empty", Pg.Type.range("int4range", Pg.Type.int4()))
 const intMultiRangeExpr = Std.Cast.to("empty", Pg.Type.multirange("int4multirange", Pg.Type.range("int4range", Pg.Type.int4())))
 const profileExpr = Std.Cast.to("{}", Pg.Type.record("user_profile", {
-  displayName: Q.type.text(),
+  displayName: Std.Type.text(),
   age: Pg.Type.int4()
 }))
-const domainEmailExpr = Std.Cast.to(users.email, Pg.Type.domain("email_domain", Q.type.text()))
+const domainEmailExpr = Std.Cast.to(users.email, Pg.Type.domain("email_domain", Std.Type.text()))
 const enumStatusExpr = Std.Cast.to("status_enum", Pg.Type.enum("status_enum"))
 
 // @ts-expect-error range db type names must be non-empty
@@ -155,10 +155,10 @@ Pg.Type.range("", Pg.Type.int4())
 Pg.Type.multirange("", Pg.Type.range("int4range", Pg.Type.int4()))
 // @ts-expect-error record db type names must be non-empty
 Pg.Type.record("", {
-  displayName: Q.type.text()
+  displayName: Std.Type.text()
 })
 // @ts-expect-error domain db type names must be non-empty
-Pg.Type.domain("", Q.type.text())
+Pg.Type.domain("", Std.Type.text())
 // @ts-expect-error enum db type names must be non-empty
 Pg.Type.enum("")
 // @ts-expect-error postgres does not expose mysql set types
@@ -177,7 +177,7 @@ void profile
 void domainEmail
 void enumStatus
 
-const comparableTextArrayExpr = Std.Cast.to("{}", Pg.Type.array(Q.type.text()))
+const comparableTextArrayExpr = Std.Cast.to("{}", Pg.Type.array(Std.Type.text()))
 const comparableIntRangeExpr = Std.Cast.to("int4range(1,10)", Pg.Type.range("int4range", Pg.Type.int4()))
 const otherComparableIntRangeExpr = Std.Cast.to("int4range(5,15)", Pg.Type.range("int4range", Pg.Type.int4()))
 const arrayContainsExpr = Q.contains(comparableTextArrayExpr, comparableTextArrayExpr)
@@ -189,4 +189,4 @@ void arrayContains
 void rangeOverlap
 
 // @ts-expect-error incompatible container kinds should be rejected
-Q.contains(comparableTextArrayExpr, Std.Cast.to("{}", Pg.Type.array(Q.type.uuid())))
+Q.contains(comparableTextArrayExpr, Std.Cast.to("{}", Pg.Type.array(Std.Type.uuid())))

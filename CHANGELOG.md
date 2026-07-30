@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Features
+
+- feat(querybuilder): add typed SQL fragments, portable numeric expressions, and dynamic composition
+- feat(querybuilder): add portable analytic windows
+- feat(executor): add result metadata, pipeable cardinality, prepared reuse, and dialect-aware explain
+
 ## 0.21.0 - 2026-07-23
 
 ### Features

@@ -19,7 +19,7 @@ const users = Std.Table.make("users", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey, Std.Column.generated(Q.literal("generated-user-id"))),
   email: Std.Column.text().pipe(Std.Column.unique),
   bio: Std.Column.text().pipe(Std.Column.nullable),
-  createdAt: Std.Column.timestamp().pipe(Std.Column.default(F.localTimestamp()))
+  createdAt: Std.Column.timestamp().pipe(Std.Column.default(Postgres.Function.localTimestamp()))
 }).pipe(
   Std.Table.index((table) => [table.email, table.createdAt])
 )
@@ -69,8 +69,8 @@ const badSchemaTablePrimaryKeyNullable = badSchemaTablePrimaryKeyNullableBase.pi
 void badSchemaTablePrimaryKeyNullable
 
 const auditLog = Std.Table.make("audit_log", {
-  createdAt: Std.Column.timestamp().pipe(Std.Column.default(Std.Function.localTimestamp())),
-  publishedAt: PgColumn.timestamptz().pipe(Std.Column.default(F.now()))
+  createdAt: Std.Column.timestamp().pipe(Std.Column.default(Postgres.Function.localTimestamp())),
+  publishedAt: PgColumn.timestamptz().pipe(Std.Column.default(Postgres.Function.now()))
 })
 const datedEvents = Std.Table.make("dated_events", {
   happenedOn: Std.Column.date().pipe(Std.Column.schema(Schema.DateFromString))
@@ -232,10 +232,10 @@ void coercedRightKind
 const leftJoined = Q.select({
   userId: users.id,
   postId: posts.id,
-  postTitleUpper: F.upper(posts.title),
-  loweredPostTitle: F.lower(posts.title),
-  decoratedPostTitle: F.concat(F.upper(posts.title), "-x"),
-  fallbackPostTitle: F.coalesce(F.upper(posts.title), Q.literal("NONE"))
+  postTitleUpper: Postgres.Function.upper(posts.title),
+  loweredPostTitle: Postgres.Function.lower(posts.title),
+  decoratedPostTitle: F.concat(Postgres.Function.upper(posts.title), "-x"),
+  fallbackPostTitle: F.coalesce(Postgres.Function.upper(posts.title), Q.literal("NONE"))
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, true)
@@ -332,7 +332,7 @@ void pipelineRow
 const explicitAliasPlan = Q.select({
   profile: {
     id: users.id.pipe(Q.as("user_identifier")),
-    email: F.lower(users.email).pipe(Q.as("email_lower"))
+    email: Postgres.Function.lower(users.email).pipe(Q.as("email_lower"))
   }
 }).pipe(
   Q.from(users)
@@ -367,7 +367,7 @@ void sqlClientRow
 void sqlClientContext
 
 const aggregatePlan = Q.select({
-  emailUpper: F.upper(users.email),
+  emailUpper: Postgres.Function.upper(users.email),
   postCount: F.count(posts.id),
   maxPostTitle: F.max(posts.title),
   minPostTitle: F.min(posts.title),
@@ -375,15 +375,15 @@ const aggregatePlan = Q.select({
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.and(Q.eq(users.id, posts.userId), Q.not(false))),
-  Q.groupBy(F.upper(users.email)),
+  Q.groupBy(Postgres.Function.upper(users.email)),
   Q.orderBy(F.count(posts.id), "desc"),
-  Q.orderBy(F.upper(users.email))
+  Q.orderBy(Postgres.Function.upper(users.email))
 )
 
 type AggregateRow = Q.ResultRow<typeof aggregatePlan>
 const aggregateRow: AggregateRow = {
   emailUpper: "ALICE@EXAMPLE.COM",
-  postCount: 1,
+  postCount: "1" as Expression.BigIntString,
   maxPostTitle: null,
   minPostTitle: null,
   fallbackTitle: "NONE"
@@ -419,12 +419,12 @@ void invalidAggregateHint
 const badAggregateComplete: Q.CompletePlan<typeof invalidAggregatePlan> = invalidAggregatePlan
 
 const exactGroupedDerivedPlan = Q.select({
-  loweredEmail: F.lower(users.email),
+  loweredEmail: Postgres.Function.lower(users.email),
   postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(F.lower(users.email))
+  Q.groupBy(Postgres.Function.lower(users.email))
 )
 
 const exactGroupedDerivedComplete: Q.CompletePlan<typeof exactGroupedDerivedPlan> = exactGroupedDerivedPlan
@@ -436,14 +436,14 @@ const groupedByDerivedButSelectingBase = Q.select({
 }).pipe(
   Q.from(users),
   Q.innerJoin(posts, Q.eq(users.id, posts.userId)),
-  Q.groupBy(F.lower(users.email))
+  Q.groupBy(Postgres.Function.lower(users.email))
 )
 
 // @ts-expect-error grouping a derived expression does not cover the base column
 const badDerivedGroupingComplete: Q.CompletePlan<typeof groupedByDerivedButSelectingBase> = groupedByDerivedButSelectingBase
 
 const groupedByBaseButSelectingDerived = Q.select({
-  loweredEmail: F.lower(users.email),
+  loweredEmail: Postgres.Function.lower(users.email),
   postCount: F.count(posts.id)
 }).pipe(
   Q.from(users),
@@ -866,7 +866,7 @@ const mysqlPlan = StdRoot.Query.select({
 )
 const mysqlLiteral = StdRoot.Query.literal("user")
 const mysqlEq = StdRoot.Query.eq(mysqlUsers.email, "alice@example.com")
-const mysqlConcat = StdRoot.Function.concat(StdRoot.Function.lower(mysqlUsers.email), "-user")
+const mysqlConcat = StdRoot.Function.concat(Mysql.Function.lower(mysqlUsers.email), "-user")
 const postgresPlan = StdRoot.Query.select({
   id: postgresUsers.id
 }).pipe(

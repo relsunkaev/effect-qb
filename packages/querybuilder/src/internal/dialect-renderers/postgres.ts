@@ -7,6 +7,8 @@ import * as QueryAst from "../query-ast.js"
 import { renderDbTypeName, type RenderState, type RenderValueContext, type SqlDialect } from "../dialect.js"
 import { renderPortableDatatypeCastType, renderPortableDatatypeDdlType } from "../datatypes/matrix.js"
 import * as ExpressionAst from "../expression-ast.js"
+import { renderCustomSql } from "../custom-sql-renderer.js"
+import { renderWindowFrame } from "../window-renderer.js"
 import * as JsonPath from "../json/path.js"
 import { renderSelectLockMode } from "../dsl-plan-runtime.js"
 import { expectConflictClause } from "../dsl-mutation-runtime.js"
@@ -456,6 +458,32 @@ const renderBinaryExpression = (
 ): string => {
   const [leftExpression, rightExpression] = expectBinaryExpressions(functionName, left, right)
   return `(${renderExpression(leftExpression, state, dialect)} ${operator} ${renderExpression(rightExpression, state, dialect)})`
+}
+
+const renderNumericExpression = (
+  expression: Expression.Any,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  const rendered = renderExpression(expression, state, dialect)
+  const ast = (expression as Expression.Any & {
+    readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+  })[ExpressionAst.TypeId]
+  return dialect.name === "postgres" && ast.kind === "literal"
+    ? `cast(${rendered} as ${renderCastType(dialect, expression[Expression.TypeId].dbType)})`
+    : rendered
+}
+
+const renderNumericBinaryExpression = (
+  functionName: string,
+  operator: string,
+  left: unknown,
+  right: unknown,
+  state: RenderState,
+  dialect: SqlDialect
+): string => {
+  const [leftExpression, rightExpression] = expectBinaryExpressions(functionName, left, right)
+  return `(${renderNumericExpression(leftExpression, state, dialect)} ${operator} ${renderNumericExpression(rightExpression, state, dialect)})`
 }
 
 const postgresRangeSubtypeByKind: Readonly<Record<string, string>> = {
@@ -1873,6 +1901,8 @@ export const renderExpression = (
       return `(${renderExpression(expectValueExpression("collate", ast.value), state, dialect)} collate ${renderCollation(ast.collation)})`
     case "function":
       return renderFunctionCall(ast.name, ast.args, state, dialect)
+    case "customSql":
+      return renderCustomSql(ast, state, dialect, renderExpression)
     case "eq":
       return renderBinaryExpression("eq", "=", ast.left, ast.right, state, dialect)
     case "neq":
@@ -1885,6 +1915,16 @@ export const renderExpression = (
       return renderBinaryExpression("gt", ">", ast.left, ast.right, state, dialect)
     case "gte":
       return renderBinaryExpression("gte", ">=", ast.left, ast.right, state, dialect)
+    case "add":
+      return renderNumericBinaryExpression("add", "+", ast.left, ast.right, state, dialect)
+    case "subtract":
+      return renderNumericBinaryExpression("subtract", "-", ast.left, ast.right, state, dialect)
+    case "multiply":
+      return renderNumericBinaryExpression("multiply", "*", ast.left, ast.right, state, dialect)
+    case "divide":
+      return renderNumericBinaryExpression("divide", "/", ast.left, ast.right, state, dialect)
+    case "modulo":
+      return renderNumericBinaryExpression("modulo", "%", ast.left, ast.right, state, dialect)
     case "like":
       return renderBinaryExpression("like", "like", ast.left, ast.right, state, dialect)
     case "ilike": {
@@ -2004,6 +2044,16 @@ export const renderExpression = (
       return `lower(${renderExpression(expectValueExpression("lower", ast.value), state, dialect)})`
     case "count":
       return `count(${renderExpression(expectValueExpression("count", ast.value), state, dialect)})`
+    case "sum":
+      return `sum(${renderNumericExpression(expectValueExpression("sum", ast.value), state, dialect)})`
+    case "avg":
+      return `avg(${renderNumericExpression(expectValueExpression("avg", ast.value), state, dialect)})`
+    case "abs":
+      return `abs(${renderNumericExpression(expectValueExpression("abs", ast.value), state, dialect)})`
+    case "round":
+      return `round(${renderNumericExpression(expectValueExpression("round", ast.value), state, dialect)})`
+    case "negate":
+      return `(-${renderNumericExpression(expectValueExpression("negate", ast.value), state, dialect)})`
     case "max":
       return `max(${renderExpression(expectValueExpression("max", ast.value), state, dialect)})`
     case "min":
@@ -2054,25 +2104,45 @@ export const renderExpression = (
         readonly value: Expression.Any
         readonly direction: string
       }[]
-      const clauses: string[] = []
-      if (partitionBy.length > 0) {
-        clauses.push(`partition by ${partitionBy.map((value) => renderExpression(value, state, dialect)).join(", ")}`)
+      const renderSpecification = (): string => {
+        const clauses: string[] = []
+        if (partitionBy.length > 0) {
+          clauses.push(`partition by ${partitionBy.map((value) => renderExpression(value, state, dialect)).join(", ")}`)
+        }
+        if (orderBy.length > 0) {
+          clauses.push(`order by ${orderBy.map((entry) =>
+            `${renderExpression(entry.value, state, dialect)} ${entry.direction}`
+          ).join(", ")}`)
+        }
+        if (ast.frame !== undefined) {
+          clauses.push(renderWindowFrame(ast.frame))
+        }
+        return clauses.join(" ")
       }
-      if (orderBy.length > 0) {
-        clauses.push(`order by ${orderBy.map((entry) =>
-          `${renderExpression(entry.value, state, dialect)} ${entry.direction}`
-        ).join(", ")}`)
-      }
-      const specification = clauses.join(" ")
       switch (ast.function) {
         case "rowNumber":
-          return `row_number() over (${specification})`
+          return `row_number() over (${renderSpecification()})`
         case "rank":
-          return `rank() over (${specification})`
+          return `rank() over (${renderSpecification()})`
         case "denseRank":
-          return `dense_rank() over (${specification})`
+          return `dense_rank() over (${renderSpecification()})`
         case "over":
-          return `${renderExpression(ast.value as Expression.Any, state, dialect)} over (${specification})`
+          return `${renderExpression(ast.value as Expression.Any, state, dialect)} over (${renderSpecification()})`
+        case "lag":
+        case "lead": {
+          const args = [renderExpression(ast.value as Expression.Any, state, dialect)]
+          if (ast.offset !== undefined) {
+            args.push(renderExpression(ast.offset, state, dialect))
+          }
+          if (ast.defaultValue !== undefined) {
+            args.push(renderExpression(ast.defaultValue, state, dialect))
+          }
+          return `${ast.function}(${args.join(", ")}) over (${renderSpecification()})`
+        }
+        case "firstValue":
+          return `first_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${renderSpecification()})`
+        case "lastValue":
+          return `last_value(${renderExpression(ast.value as Expression.Any, state, dialect)}) over (${renderSpecification()})`
       }
       break
     }

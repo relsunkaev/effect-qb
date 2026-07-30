@@ -7,18 +7,18 @@ const users = Std.Table.make("users", {
   email: Std.Column.text()
 })
 
-// @ts-expect-error portable text types come from the standard Query.type namespace
+// @ts-expect-error portable text types come from the root Type namespace
 My.Type.text()
-// @ts-expect-error portable json types come from the standard Query.type namespace
+// @ts-expect-error portable json types come from the root Type namespace
 My.Type.json()
-// @ts-expect-error portable datetime types come from the standard Query.type namespace
+// @ts-expect-error portable datetime types come from the root Type namespace
 My.Type.datetime()
 
 const plan = Q.select({
-  varcharEmail: Q.cast(users.email, Q.type.varchar()),
-  datetimeValue: Q.cast("2026-03-18T10:00:00Z", Q.type.datetime()),
-  blobValue: Q.cast("deadbeef", Q.type.blob()),
-  bigIntValue: Q.cast(1, Q.type.bigint())
+  varcharEmail: Q.cast(users.email, Std.Type.varchar()),
+  datetimeValue: Q.cast("2026-03-18T10:00:00Z", Std.Type.datetime()),
+  blobValue: Q.cast("deadbeef", Std.Type.blob()),
+  bigIntValue: Q.cast(1, Std.Type.bigint())
 }).pipe(
   Q.from(users)
 )
@@ -33,8 +33,8 @@ void datetimeValue
 void blobValue
 void bigIntValue
 
-const varcharEmailExpr = Q.cast(users.email, Q.type.varchar())
-const charEmailExpr = Q.cast("alice@example.com", Q.type.char())
+const varcharEmailExpr = Q.cast(users.email, Std.Type.varchar())
+const charEmailExpr = Q.cast("alice@example.com", Std.Type.char())
 
 const comparablePlan = Q.select({
   sameTextFamily: Q.eq(varcharEmailExpr, charEmailExpr)
@@ -46,8 +46,8 @@ type ComparableRow = Q.ResultRow<typeof comparablePlan>
 const sameTextFamily: ComparableRow["sameTextFamily"] = true
 void sameTextFamily
 
-const datetimeLeft = Q.cast("2026-03-18", Q.type.datetime())
-const datetimeRight = Q.cast("2026-03-18T10:00:00Z", Q.type.datetime())
+const datetimeLeft = Q.cast("2026-03-18", Std.Type.datetime())
+const datetimeRight = Q.cast("2026-03-18T10:00:00Z", Std.Type.datetime())
 
 const temporalPlan = Q.select({
   sameTemporal: Q.eq(datetimeLeft, datetimeRight)

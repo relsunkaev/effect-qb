@@ -21,7 +21,7 @@ describe("table definitions", () => {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey, StdRoot.Column.generated(Q.literal("generated-user-id"))),
       email: StdRoot.Column.text().pipe(C.unique),
       bio: StdRoot.Column.text().pipe(StdRoot.Column.nullable),
-      createdAt: StdRoot.Column.timestamp().pipe(StdRoot.Column.default(F.localTimestamp()))
+      createdAt: StdRoot.Column.timestamp().pipe(StdRoot.Column.default(Postgres.Function.localTimestamp()))
     }).pipe(Table.index((table) => table.email))
 
     expect(users.columns.id).toBe(users.id)
@@ -612,7 +612,7 @@ describe("table definitions", () => {
     const query = Q.select({
       userId: users.id,
       postId: posts.id,
-      postTitleUpper: F.upper(posts.title)
+      postTitleUpper: Postgres.Function.upper(posts.title)
     }).pipe(
       Q.where(Q.eq(users.email, "alice@example.com")),
       Q.from(users),
@@ -629,7 +629,7 @@ describe("table definitions", () => {
     const leftJoined = Q.select({
       userId: users.id,
       postId: posts.id,
-      postTitleUpper: F.upper(posts.title)
+      postTitleUpper: Postgres.Function.upper(posts.title)
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, true)
@@ -655,7 +655,7 @@ describe("table definitions", () => {
     const plan = Q.select({
       userId: users.id,
       postId: posts.id,
-      postTitleUpper: F.upper(posts.title)
+      postTitleUpper: Postgres.Function.upper(posts.title)
     }).pipe(
       Q.where(Q.eq(users.email, "alice@example.com")),
       Q.from(users),
@@ -708,7 +708,7 @@ describe("table definitions", () => {
     })
 
     const plan = Q.select({
-      emailUpper: F.upper(users.email),
+      emailUpper: Postgres.Function.upper(users.email),
       postCount: F.count(posts.id),
       maxPostTitle: F.max(posts.title),
       minPostTitle: F.min(posts.title),
@@ -716,9 +716,9 @@ describe("table definitions", () => {
     }).pipe(
       Q.from(users),
       Q.innerJoin(posts, Q.and(Q.eq(users.id, posts.userId), Q.not(false))),
-      Q.groupBy(F.upper(users.email)),
+      Q.groupBy(Postgres.Function.upper(users.email)),
       Q.orderBy(F.count(posts.id), "desc"),
-      Q.orderBy(F.upper(users.email))
+      Q.orderBy(Postgres.Function.upper(users.email))
     )
 
     const renderer = Renderer.make("postgres")
@@ -780,7 +780,7 @@ describe("table definitions", () => {
     const plan = Q.select({
       profile: {
         id: Q.as(users.id, "user_identifier"),
-        email: Q.as(F.lower(users.email), "email_lower")
+        email: Q.as(Postgres.Function.lower(users.email), "email_lower")
       },
       kind: Q.as("user", "kind_label")
     }).pipe(
@@ -1053,7 +1053,7 @@ describe("table definitions", () => {
 
     const plan = StdRoot.Query.select({
       id: users.id,
-      decoratedEmail: StdRoot.Function.concat(StdRoot.Function.lower(users.email), "-user"),
+      decoratedEmail: StdRoot.Function.concat(Mysql.Function.lower(users.email), "-user"),
       kind: StdRoot.Query.literal("user")
     }).pipe(
       StdRoot.Query.from(users),
@@ -1107,7 +1107,7 @@ describe("table definitions", () => {
 
     const plan = StdRoot.Query.select({
       matches: StdRoot.Query.eq(users.email, "alice@example.com"),
-      decorated: StdRoot.Function.concat(StdRoot.Function.lower(users.email), "-user"),
+      decorated: StdRoot.Function.concat(Mysql.Function.lower(users.email), "-user"),
       kind: StdRoot.Query.literal("user")
     }).pipe(
       StdRoot.Query.from(users)

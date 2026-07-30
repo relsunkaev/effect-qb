@@ -4,8 +4,12 @@ export * as Column from "./standard/column.js"
 export * as Cast from "./standard/cast.js"
 /** Standard SQL datatype witnesses and coercion families. */
 export * as Datatypes from "./standard/datatypes/index.js"
+/** Portable database-type constructors for casts and typed references. */
+export { type as Type } from "./standard/type.js"
 /** Shared scalar SQL interfaces and DB-type descriptors. */
 export * as Scalar from "./internal/scalar.js"
+/** Typed custom SQL expressions and safely quoted identifiers. */
+export * as Fragment from "./internal/fragment.js"
 /** Standard SQL function expressions. */
 export * as Function from "./standard/function/index.js"
 /** Standard SQL JSON expression helpers and path segments. */

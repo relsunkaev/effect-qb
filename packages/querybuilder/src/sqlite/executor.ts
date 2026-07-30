@@ -39,20 +39,36 @@ export type SqliteExecutorError = SqliteDriverError | RowDecodeError
 export type SqliteQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
   Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? SqliteReadQueryError : SqliteExecutorError
 
+/** Pipeable execution cardinality helpers. */
+export const atMostOne = CoreExecutor.atMostOne
+export const exactlyOne = CoreExecutor.exactlyOne
+export const nonEmpty = CoreExecutor.nonEmpty
+
 /** Runs an effect within the ambient SQLite SQL transaction service. */
 export const withTransaction = CoreExecutor.withTransaction
 
 /** SQLite executor whose error channel narrows based on the query plan. */
-export interface QueryExecutor<Context = never> {
+export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"sqlite", SqliteQueryError<any>, Context> {
   readonly dialect: "sqlite"
   execute<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): Effect.Effect<CoreQuery.ResultRows<PlanValue>, SqliteQueryError<PlanValue>, Context>
+  executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
+  ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, SqliteQueryError<PlanValue>, Context>
+  prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
+  ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, SqliteQueryError<PlanValue>, Context>
   stream<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
       : never
   ): Stream.Stream<CoreQuery.ResultRow<PlanValue>, SqliteQueryError<PlanValue>, Context>
+  explain<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
+      ? CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
+      : never
+  ): Effect.Effect<ReadonlyArray<FlatRow>, SqliteQueryError<PlanValue>, Context>
 }
 
 type DriverExecute<Error, Context> = <Row>(
@@ -61,6 +77,9 @@ type DriverExecute<Error, Context> = <Row>(
 
 type DriverHandlers<Error, Context> = {
   readonly execute: DriverExecute<Error, Context>
+  readonly executeResult?: <Row>(
+    query: CoreRenderer.RenderedQuery<Row, "sqlite">
+  ) => Effect.Effect<CoreExecutor.DriverResult, Error, Context>
   readonly stream: <Row>(
     query: CoreRenderer.RenderedQuery<Row, "sqlite">
   ) => Stream.Stream<FlatRow, Error, Context>
@@ -114,51 +133,83 @@ const fromDriver = <
   sqlDriver: Driver<Error, Context>,
   driverMode: CoreExecutor.DriverMode = "raw",
   valueMappings?: Expression.DriverValueMappings
-): QueryExecutor<Context> => ({
-  dialect: "sqlite",
-  execute(plan) {
-    const rendered = renderer.render(plan)
-    return Effect.mapError(
-      Effect.flatMap(
-        sqlDriver.execute(rendered),
-        (rows) => Effect.try({
-          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }),
-          catch: (error) => error as RowDecodeError
-        })
-      ),
-      (error) => {
-        if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
-          return error as RowDecodeError
-        }
-        const normalized = normalizeSqliteDriverError(error, rendered)
-        return CoreExecutor.hasWriteCapability(plan)
-          ? normalized
-          : narrowSqliteDriverErrorForReadQuery(normalized)
-      }
-    ) as Effect.Effect<any, any, Context>
-  },
-  stream(plan) {
-    const rendered = renderer.render(plan)
-    return Stream.mapError(
-      Stream.mapArrayEffect(
-        sqlDriver.stream(rendered),
-        (rows) => Effect.try({
-          try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }) as never,
-          catch: (error) => error as RowDecodeError
-        })
-      ),
-      (error) => {
-        if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
-          return error as RowDecodeError
-        }
-        const normalized = normalizeSqliteDriverError(error, rendered)
-        return CoreExecutor.hasWriteCapability(plan)
-          ? normalized
-          : narrowSqliteDriverErrorForReadQuery(normalized)
-      }
-    ) as Stream.Stream<any, any, Context>
+): QueryExecutor<Context> => {
+  const renderedCache = new WeakMap<object, CoreRenderer.RenderedQuery<any, "sqlite">>()
+  const render = (plan: CoreQuery.Plan.Any) => {
+    const cached = renderedCache.get(plan)
+    if (cached !== undefined) {
+      return cached
+    }
+    const rendered = renderer.render(plan as any)
+    renderedCache.set(plan, rendered)
+    return rendered
   }
-})
+  const mapExecutionError = (
+    error: unknown,
+    rendered: CoreRenderer.RenderedQuery<any, "sqlite">,
+    plan: CoreQuery.Plan.Any
+  ) => {
+    if (typeof error === "object" && error !== null && "_tag" in error && error._tag === "RowDecodeError") {
+      return error as RowDecodeError
+    }
+    const normalized = normalizeSqliteDriverError(error, rendered)
+    return CoreExecutor.hasWriteCapability(plan)
+      ? normalized
+      : narrowSqliteDriverErrorForReadQuery(normalized)
+  }
+  return CoreExecutor.withResultContracts({
+    dialect: "sqlite",
+    execute(plan) {
+      const rendered = render(plan)
+      return Effect.mapError(
+        Effect.flatMap(
+          sqlDriver.execute(rendered),
+          (rows) => Effect.try({
+            try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }),
+            catch: (error) => error as RowDecodeError
+          })
+        ),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    },
+    executeResult(plan) {
+      const rendered = render(plan)
+      const result = sqlDriver.executeResult
+        ? sqlDriver.executeResult(rendered)
+        : Effect.map(sqlDriver.execute(rendered), (rows) => ({ rows }))
+      return Effect.mapError(
+        Effect.flatMap(result, ({ rows, ...metadata }) => Effect.try({
+          try: () => ({
+            ...metadata,
+            rows: CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings })
+          }),
+          catch: (error) => error as RowDecodeError
+        })),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    },
+    stream(plan) {
+      const rendered = render(plan)
+      return Stream.mapError(
+        Stream.mapArrayEffect(
+          sqlDriver.stream(rendered),
+          (rows) => Effect.try({
+            try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }) as never,
+            catch: (error) => error as RowDecodeError
+          })
+        ),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Stream.Stream<any, any, Context>
+    },
+    explain(plan, options) {
+      const rendered = CoreExecutor.explainQuery(render(plan), options)
+      return Effect.mapError(
+        sqlDriver.execute(rendered),
+        (error) => mapExecutionError(error, rendered, plan)
+      ) as Effect.Effect<any, any, Context>
+    }
+  }) as QueryExecutor<Context>
+}
 
 const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
   driver({

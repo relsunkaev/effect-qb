@@ -1,4 +1,4 @@
-import { Column as PgColumn } from "effect-qb/postgres"
+import { Column as PgColumn, Function as PgFunction } from "effect-qb/postgres"
 import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
@@ -14,8 +14,8 @@ import type { AssumptionsOfPlan, AvailableOfPlan, ExpressionOutput, FactsOfPlan,
 const posts = Std.Table.make("predicate_invariant_posts", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
   title: Std.Column.text().pipe(Std.Column.nullable),
-  status: PgColumn.custom(Schema.Literals(["draft", "published", "archived"]), Q.type.text()),
-  category: PgColumn.custom(Schema.Literals(["news", "ops", "meta"]), Q.type.text())
+  status: PgColumn.custom(Schema.Literals(["draft", "published", "archived"]), Std.Type.text()),
+  category: PgColumn.custom(Schema.Literals(["news", "ops", "meta"]), Std.Type.text())
 })
 
 type BaseStatusRuntime = RuntimeOf<typeof posts.status>
@@ -43,7 +43,7 @@ void baseCategory
 
 const directLiteralPlan = Q.select({
   title: posts.title,
-  upperTitle: F.upper(posts.title)
+  upperTitle: PgFunction.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.eq(posts.title, "draft"))

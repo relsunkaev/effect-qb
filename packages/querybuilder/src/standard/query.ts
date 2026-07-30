@@ -1,6 +1,3 @@
-import {
-  type as standardType
-} from "../internal/standard-dsl.js"
 import type * as Expression from "../internal/scalar.js"
 
 export {
@@ -88,11 +85,8 @@ export {
   lock,
   orderBy,
   groupBy,
-  lower,
-  upper,
   concat,
   coalesce,
-  call,
   count,
   max,
   min,
@@ -102,7 +96,25 @@ export {
   denseRank
 } from "../internal/standard-dsl.js"
 
-export { standardType as type }
+export {
+  abs,
+  add,
+  multiply,
+  negate,
+  subtract
+} from "../internal/numeric.js"
+
+export { andAll, includeIf, orAll, when } from "../internal/dynamic.js"
+export {
+  firstValue,
+  lag,
+  lastValue,
+  lead,
+  type OffsetOptions,
+  type WindowOrderSpec,
+  type WindowOrderTerm
+} from "../internal/analytics.js"
+
 export { union_query_capabilities } from "../internal/query.js"
 
 export type MutationInputOf<Shape> = {
