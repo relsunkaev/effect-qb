@@ -4,12 +4,12 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
-import { Column as C, Table } from "#standard"
+import { Cast, Column as C, Table, Type } from "#standard"
 import { Query as Q } from "#standard"
 import { Executor } from "#mysql"
+import * as Mysql from "#mysql"
 import { createDeferred, execMysql, runMysql } from "./helpers.ts"
 import {
-  portableAggregateFunctions,
   portableFunctionResults,
   portableScalarFunctions,
   portableWindowFunctions
@@ -129,12 +129,59 @@ test("mysql executes the portable standard function matrix", async () => {
   const result = await runMysql(Effect.gen(function*() {
     const executor = Executor.make()
     const scalars = yield* executor.execute(portableScalarFunctions).pipe(Executor.exactlyOne)
-    const aggregates = yield* executor.execute(portableAggregateFunctions).pipe(Executor.exactlyOne)
+    const aggregates = yield* executor.execute(Q.select({
+      total: Mysql.Function.sum(4),
+      average: Mysql.Function.avg(4),
+      integerTotal: Mysql.Function.sum(Cast.to(4, Type.int()))
+    })).pipe(Executor.exactlyOne)
     const windows = yield* executor.execute(portableWindowFunctions).pipe(Executor.exactlyOne)
     return { scalars, aggregates, windows }
   }))
 
-  expect(result).toEqual(portableFunctionResults)
+  expect(result).toEqual({
+    ...portableFunctionResults,
+    aggregates: { total: 4, average: 4, integerTotal: "4" }
+  })
+})
+
+test("mysql keeps its native empty-boundary window-frame semantics", async () => {
+  const row = await runMysql(Executor.make().execute(Q.select({
+    first: Mysql.Function.firstValue(Q.literal(2), {
+      orderBy: [{ value: Q.literal(1) }],
+      frame: {
+        unit: "rows",
+        start: { preceding: 1 },
+        end: { preceding: 1 }
+      }
+    })
+  })).pipe(Executor.exactlyOne))
+
+  expect(row.first).toBe(2)
+})
+
+test("mysql dialect functions execute with mysql temporal semantics", async () => {
+  const row = await runMysql(Effect.gen(function*() {
+    const executor = Executor.make()
+    return yield* executor.execute(Q.select({
+      lower: Mysql.Function.lower("MIX"),
+      upper: Mysql.Function.upper("mix"),
+      currentDate: Mysql.Function.currentDate(),
+      currentTime: Mysql.Function.currentTime(),
+      currentTimestamp: Mysql.Function.currentTimestamp(),
+      localTime: Mysql.Function.localTime(),
+      localTimestamp: Mysql.Function.localTimestamp(),
+      now: Mysql.Function.now()
+    })).pipe(Executor.exactlyOne)
+  }))
+
+  expect(row.lower).toBe("mix")
+  expect(row.upper).toBe("MIX")
+  expect(row.currentDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  expect(row.currentTime).toMatch(/^\d{2}:\d{2}:\d{2}(?:\.\d+)?$/)
+  expect(row.currentTimestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  expect(row.localTime).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  expect(row.localTimestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  expect(row.now).toMatch(/^\d{4}-\d{2}-\d{2}T/)
 })
 
 beforeAll(async () => {

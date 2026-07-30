@@ -19,7 +19,7 @@ const users = Table.make("users", {
 
 const activeUsers = Query.select({
   id: users.id,
-  email: Function.lower(users.email)
+  email: Pg.Function.lower(users.email)
 }).pipe(
   Query.from(users),
   Query.where(Query.eq(users.active, true)),
@@ -29,7 +29,7 @@ const activeUsers = Query.select({
 type ActiveUser = Query.ResultRow<typeof activeUsers>
 // { readonly id: string; readonly email: string }
 
-// The plan is portable. Here it is rendered for Postgres.
+// Pg.Function.lower makes this a Postgres plan.
 const rendered = Pg.Renderer.make().render(activeUsers)
 // rendered.sql:
 // select "users"."id" as "id", lower("users"."email") as "email" from "users" where ("users"."active" = $1) order by "users"."email" asc
@@ -116,7 +116,7 @@ const users = Table.make("users", {
 
 const activeUsers = Query.select({
   id: users.id,
-  email: Function.lower(users.email),
+  email: Function.concat(users.email, ""),
   displayName: users.displayName
 }).pipe(
   Query.from(users),
@@ -132,13 +132,13 @@ type ActiveUserRow = Query.ResultRow<typeof activeUsers>
 // }
 
 const postgres = Pg.Renderer.make().render(activeUsers)
-// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $1) order by "users"."email" asc
+// select "users"."id" as "id", ("users"."email" || $1) as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $2) order by "users"."email" asc
 
 const mysql = My.Renderer.make().render(activeUsers)
-// select `users`.`id` as `id`, lower(`users`.`email`) as `email`, `users`.`displayName` as `displayName` from `users` where (`users`.`active` = ?) order by `users`.`email` asc
+// select `users`.`id` as `id`, concat(`users`.`email`, ?) as `email`, `users`.`displayName` as `displayName` from `users` where (`users`.`active` = ?) order by `users`.`email` asc
 
 const sqlite = Sq.Renderer.make().render(activeUsers)
-// select "users"."id" as "id", lower("users"."email") as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = ?) order by "users"."email" asc
+// select "users"."id" as "id", ("users"."email" || ?) as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = ?) order by "users"."email" asc
 ```
 
 This plan is portable because it only uses root `effect-qb` modules. Reach for a
@@ -580,6 +580,7 @@ source is present, and predicates such as `isNotNull`, `eq`, `in`, and
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -597,7 +598,7 @@ const visiblePosts = Query.select({
   userId: users.id,
   postId: posts.id,
   title: posts.title,
-  upperTitle: Function.upper(posts.title)
+  upperTitle: Pg.Function.upper(posts.title)
 }).pipe(
   Query.from(users),
   Query.leftJoin(posts, Query.eq(users.id, posts.userId)),
@@ -926,6 +927,7 @@ Queries are ordinary values. Compose them with `.pipe(...)`.
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -955,7 +957,7 @@ type PostsByUserRow = Query.ResultRow<typeof postsByUser>
 // {
 //   readonly userId: string
 //   readonly email: string
-//   readonly postCount: number
+//   readonly postCount: Scalar.BigIntString
 // }
 
 ```
@@ -1030,8 +1032,16 @@ const labelled = Query.select({
 <details>
 <summary>Functions and aggregates</summary>
 
+Root `Function` contains the portable subset: arithmetic, `concat`, `coalesce`,
+`count`, `min`/`max`, and portable windows. Each dialect owns native
+`lower`/`upper`, `sum`/`avg`, clock functions, `round`, `modulo`, and explicitly
+framed window value functions.
+`count`, `rowNumber`, `rank`, and `denseRank` decode to
+`Scalar.BigIntString` so 64-bit results have one portable runtime contract.
+
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
 
 const users = Table.make("users", {
   id: Column.uuid().pipe(Column.primaryKey),
@@ -1047,7 +1057,7 @@ const posts = Table.make("posts", {
 const postCount = Function.count(posts.id)
 
 const report = Query.select({
-  label: Function.concat(Function.lower(users.email), "-user"),
+  label: Function.concat(Pg.Function.lower(users.email), "-user"),
   postCount,
   latestTitle: Function.max(posts.title)
 }).pipe(
@@ -1289,10 +1299,11 @@ const allEmails = Query.unionAll(activeEmails, inactiveEmails)
 <summary>Window functions</summary>
 
 `Function.rowNumber`, `rank`, and `denseRank` take a window spec;
-`Function.over` wraps an aggregate in a window. `lag` and `lead` read another
-row in an ordered partition. `firstValue` and `lastValue` support explicit
-portable `rows` or `range` frames. PostgreSQL and SQLite expose `groups`
-frames from their dialect `Function.over` helpers.
+`Function.over` wraps an aggregate in a window without an explicit frame.
+`lag` and `lead` read another row in an ordered partition. Root `firstValue`
+and `lastValue` use the portable default frame. Explicit frames belong to each
+dialect's `Function.over`, `firstValue`, and `lastValue` helpers because frame
+boundary clipping differs across engines.
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
@@ -1319,12 +1330,7 @@ const ranked = Query.select({
   }),
   firstPost: Function.firstValue(posts.id, {
     partitionBy: [posts.userId],
-    orderBy: [{ value: posts.id, direction: "asc" }],
-    frame: {
-      unit: "rows",
-      start: "unboundedPreceding",
-      end: "currentRow"
-    }
+    orderBy: [{ value: posts.id, direction: "asc" }]
   })
 }).pipe(Query.from(posts))
 ```
@@ -1627,13 +1633,21 @@ behavior. Any plan built entirely from root modules renders through every
 dialect renderer — see [Quick Start](#quick-start) for one plan rendered as
 Postgres, MySQL, and SQLite.
 
+Native aggregate results follow each database:
+
+| Input | PostgreSQL `sum` / `avg` | MySQL `sum` / `avg` | SQLite `sum` / `avg` |
+| --- | --- | --- | --- |
+| integer | `BigIntString` or `DecimalString` / `DecimalString` | `DecimalString` / `DecimalString` | `number` or `BigIntString` / `number` |
+| exact decimal | `DecimalString` / `DecimalString` | `DecimalString` / `DecimalString` | `number` / `number` |
+| approximate | `number` / `number` | `number` / `number` | `number` / `number` |
+
 Dialect modules expose:
 
 | Module | Adds |
 | --- | --- |
-| `effect-qb/postgres` | Postgres `round`/`modulo`, function calls and `groups` frames, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
-| `effect-qb/mysql` | MySQL `round`/`modulo` and function calls, column extensions, JSON helpers, type witnesses, renderer, executor |
-| `effect-qb/sqlite` | SQLite `round`/`modulo`, function calls and `groups` frames, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/postgres` | Postgres aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
+| `effect-qb/mysql` | MySQL aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit `rows`/`range` window frames, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/sqlite` | SQLite aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, JSON helpers, type witnesses, renderer, executor |
 
 Portable columns and tables are created from `effect-qb`, not from dialect
 modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.

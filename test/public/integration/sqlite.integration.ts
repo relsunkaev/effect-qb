@@ -5,11 +5,10 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 
-import { Column as C, Fragment, Json as J, Table, Type } from "#standard"
+import { Cast, Column as C, Fragment, Json as J, Table, Type } from "#standard"
 import { Function as F, Query as Q } from "#standard"
-import { Executor } from "#sqlite"
+import { Executor, Function as SqFunction } from "#sqlite"
 import {
-  portableAggregateFunctions,
   portableFunctionResults,
   portableScalarFunctions,
   portableWindowFunctions
@@ -25,12 +24,34 @@ test("sqlite executes the portable standard function matrix", async () => {
   const result = await runSqlite(Effect.gen(function*() {
     const executor = Executor.make()
     const scalars = yield* executor.execute(portableScalarFunctions).pipe(Executor.exactlyOne)
-    const aggregates = yield* executor.execute(portableAggregateFunctions).pipe(Executor.exactlyOne)
+    const aggregates = yield* executor.execute(Q.select({
+      total: SqFunction.sum(4),
+      average: SqFunction.avg(4),
+      integerTotal: SqFunction.sum(Cast.to(4, Type.int()))
+    })).pipe(Executor.exactlyOne)
     const windows = yield* executor.execute(portableWindowFunctions).pipe(Executor.exactlyOne)
     return { scalars, aggregates, windows }
   }))
 
-  expect(result).toEqual(portableFunctionResults)
+  expect(result).toEqual({
+    ...portableFunctionResults,
+    aggregates: { total: 4, average: 4, integerTotal: 4 }
+  })
+})
+
+test("sqlite keeps its native empty-boundary window-frame semantics", async () => {
+  const row = await runSqlite(Executor.make().execute(Q.select({
+    first: SqFunction.firstValue(Q.literal(2), {
+      orderBy: [{ value: Q.literal(1) }],
+      frame: {
+        unit: "rows",
+        start: { preceding: 1 },
+        end: { preceding: 1 }
+      }
+    })
+  })).pipe(Executor.exactlyOne))
+
+  expect(row.first).toBeNull()
 })
 
 test("sqlite executes expression, analytics, cardinality, prepared, and explain capabilities", async () => {
@@ -56,6 +77,10 @@ test("sqlite executes expression, analytics, cardinality, prepared, and explain 
         end: "currentRow" as const
       }
     }
+    const offsetSpec = {
+      partitionBy: spec.partitionBy,
+      orderBy: spec.orderBy
+    }
     const doubled = Fragment.expression({
       dbType: Type.real(),
       schema: Schema.Number,
@@ -64,8 +89,8 @@ test("sqlite executes expression, analytics, cardinality, prepared, and explain 
     const page = Q.select({
       id: metrics.id,
       doubled,
-      previous: F.lag(metrics.score, { spec, default: 0 }),
-      runningTotal: F.over(F.sum(metrics.score), spec)
+      previous: F.lag(metrics.score, { spec: offsetSpec, default: 0 }),
+      runningTotal: SqFunction.over(SqFunction.sum(metrics.score), spec)
     }).pipe(
       Q.from(metrics),
       Q.where(Q.gt(metrics.id, 1)),
@@ -526,11 +551,12 @@ test("sqlite temporal helpers execute against SQLite built-ins", async () => {
     const executor = Executor.make()
 
     return yield* executor.execute(Q.select({
-      currentDate: F.currentDate(),
-      currentTime: F.currentTime(),
-      currentTimestamp: F.currentTimestamp(),
-      localTime: F.localTime(),
-      localTimestamp: F.localTimestamp()
+      currentDate: SqFunction.currentDate(),
+      currentTime: SqFunction.currentTime(),
+      currentTimestamp: SqFunction.currentTimestamp(),
+      localTime: SqFunction.localTime(),
+      localTimestamp: SqFunction.localTimestamp(),
+      now: SqFunction.now()
     }))
   }))
 
@@ -541,6 +567,7 @@ test("sqlite temporal helpers execute against SQLite built-ins", async () => {
   expect(row.currentTimestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/)
   expect(row.localTime).toMatch(/^\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/)
   expect(row.localTimestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/)
+  expect(row.now).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/)
 })
 
 test("sqlite composed reads execute CTEs, derived aggregates, subqueries, windows, and pagination", async () => {
@@ -640,7 +667,7 @@ test("sqlite composed reads execute CTEs, derived aggregates, subqueries, window
 
     return yield* executor.execute(Q.select({
       userId: users.id,
-      emailLower: F.lower(users.email),
+      emailLower: SqFunction.lower(users.email),
       label: Q.case()
         .when(Q.gt(users.visits, 3), "busy")
         .else("quiet"),
@@ -678,43 +705,43 @@ test("sqlite composed reads execute CTEs, derived aggregates, subqueries, window
       userId: "user-1",
       emailLower: "alice@example.com",
       label: "busy",
-      postCount: 2,
+      postCount: "2",
       firstTitle: "Alpha",
       activeTitle: "Alpha",
       latestTitle: "Beta",
       hasPosts: true,
       inPublishedUsers: true,
-      titleRow: 1,
-      titleRank: 1,
-      windowPostCount: 2
+      titleRow: "1",
+      titleRank: "1",
+      windowPostCount: "2"
     },
     {
       userId: "user-1",
       emailLower: "alice@example.com",
       label: "busy",
-      postCount: 2,
+      postCount: "2",
       firstTitle: "Alpha",
       activeTitle: "Beta",
       latestTitle: "Beta",
       hasPosts: true,
       inPublishedUsers: true,
-      titleRow: 2,
-      titleRank: 2,
-      windowPostCount: 2
+      titleRow: "2",
+      titleRank: "2",
+      windowPostCount: "2"
     },
     {
       userId: "user-2",
       emailLower: "bob@example.com",
       label: "quiet",
-      postCount: 1,
+      postCount: "1",
       firstTitle: "Gamma",
       activeTitle: "Gamma",
       latestTitle: "Gamma",
       hasPosts: true,
       inPublishedUsers: true,
-      titleRow: 1,
-      titleRank: 1,
-      windowPostCount: 1
+      titleRow: "1",
+      titleRank: "1",
+      windowPostCount: "1"
     }
   ])
 })
@@ -728,7 +755,7 @@ test("sqlite DDL constraints, generated columns, indexes, and drops execute", as
     id: C.text().pipe(C.primaryKey),
     orgId: C.text(),
     role: C.text(),
-    normalizedRole: C.text().pipe(C.generated(F.lower(Q.column("role", Type.text()))))
+    normalizedRole: C.text().pipe(C.generated(SqFunction.lower(Q.column("role", Type.text()))))
   }).pipe(
     Table.foreignKey((table) => table.orgId, () => orgs.id),
     Table.unique((table) => [table.orgId, table.role]),

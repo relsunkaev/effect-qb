@@ -97,13 +97,13 @@ describe("postgres dialect behavior", () => {
     const { users, posts } = makePostgresSocialGraph()
 
     const valid = StdRoot.Query.select({
-      loweredEmail: StdRoot.Function.lower(users.email),
+      loweredEmail: Postgres.Function.lower(users.email),
       postCount: StdRoot.Function.count(posts.id)
     }).pipe(
       StdRoot.Query.from(users),
       StdRoot.Query.innerJoin(posts, StdRoot.Query.eq(users.id, posts.userId)),
-      StdRoot.Query.groupBy(StdRoot.Function.lower(users.email)),
-      StdRoot.Query.groupBy(StdRoot.Function.lower(users.email))
+      StdRoot.Query.groupBy(Postgres.Function.lower(users.email)),
+      StdRoot.Query.groupBy(Postgres.Function.lower(users.email))
     )
 
     expect(Postgres.Renderer.make().render(valid).sql).toBe(
@@ -137,8 +137,8 @@ describe("postgres dialect behavior", () => {
       fallback: StdRoot.Function.coalesce(null, null, "done"),
       missing: StdRoot.Query.isNull(null),
       present: StdRoot.Query.isNotNull("x"),
-      caps: StdRoot.Function.upper("mix"),
-      lowered: StdRoot.Function.lower("MIX")
+      caps: Postgres.Function.upper("mix"),
+      lowered: Postgres.Function.lower("MIX")
     })
 
     const rendered = Postgres.Renderer.make().render(plan)
@@ -315,13 +315,13 @@ describe("postgres dialect behavior", () => {
 
     const plan = StdRoot.Query.select({
       summary: StdRoot.Function.concat(
-        StdRoot.Function.lower(users.email),
+        Postgres.Function.lower(users.email),
         "::",
-        StdRoot.Function.upper(StdRoot.Function.coalesce(posts.title, "missing"))
+        Postgres.Function.upper(StdRoot.Function.coalesce(posts.title, "missing"))
       ),
       draftOrMissing: StdRoot.Query.or(
         StdRoot.Query.isNull(posts.title),
-        unsafeAny(StdRoot.Query.eq(StdRoot.Function.lower(unsafeAny(posts.title)), "draft"))
+        unsafeAny(StdRoot.Query.eq(Postgres.Function.lower(unsafeAny(posts.title)), "draft"))
       ),
       active: StdRoot.Query.and(
         StdRoot.Query.isNotNull(posts.id),
@@ -340,7 +340,7 @@ describe("postgres dialect behavior", () => {
         )
       )),
       StdRoot.Query.orderBy(
-        StdRoot.Function.upper(StdRoot.Function.coalesce(posts.title, "missing")),
+        Postgres.Function.upper(StdRoot.Function.coalesce(posts.title, "missing")),
         "desc"
       )
     )
@@ -525,8 +525,8 @@ describe("postgres dialect behavior", () => {
     const plan = StdRoot.Query.select({
       titleState: StdRoot.Query.case()
         .when(StdRoot.Query.isNull(posts.title), "missing")
-        .when(StdRoot.Query.eq(StdRoot.Function.lower(posts.title), "draft"), "draft")
-        .else(StdRoot.Function.upper(StdRoot.Function.coalesce(posts.title, "published")))
+        .when(StdRoot.Query.eq(Postgres.Function.lower(posts.title), "draft"), "draft")
+        .else(Postgres.Function.upper(StdRoot.Function.coalesce(posts.title, "published")))
     }).pipe(
       StdRoot.Query.from(users),
       StdRoot.Query.leftJoin(posts, StdRoot.Query.eq(users.id, posts.userId))
@@ -690,7 +690,7 @@ describe("postgres dialect behavior", () => {
       }),
       rankByTitle: StdRoot.Function.rank({
         partitionBy: [users.id],
-        orderBy: [{ value: StdRoot.Function.lower(posts.title), direction: "desc" }]
+        orderBy: [{ value: Postgres.Function.lower(posts.title), direction: "desc" }]
       }),
       postCount: StdRoot.Function.over(StdRoot.Function.count(posts.id), {
         partitionBy: [users.id],
@@ -1308,11 +1308,11 @@ describe("postgres dialect behavior", () => {
     const plan = StdRoot.Query.select({
       profile: {
         id: users.id,
-        email: StdRoot.Function.lower(users.email)
+        email: Postgres.Function.lower(users.email)
       },
       post: {
         id: posts.id,
-        title: StdRoot.Function.lower(posts.title)
+        title: Postgres.Function.lower(posts.title)
       },
       hasPost: StdRoot.Query.isNotNull(posts.id)
     }).pipe(

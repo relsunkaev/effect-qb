@@ -147,7 +147,7 @@ export const divide = <Left extends NumericExpressionInput, Right extends Numeri
 ): BinaryResult<"divide", Left, Right> => binary("divide", left, right)
 
 type UnaryResult<
-  Kind extends Extract<ExpressionAst.UnaryKind, "sum" | "avg" | "abs" | "negate">,
+  Kind extends Extract<ExpressionAst.UnaryKind, "abs" | "negate">,
   Value extends NumericExpressionInput,
   Nullable extends Expression.Nullability,
   ResultKind extends Expression.ScalarKind
@@ -163,7 +163,7 @@ type UnaryResult<
 }
 
 const unary = <
-  Kind extends Extract<ExpressionAst.UnaryKind, "sum" | "avg" | "abs" | "negate">,
+  Kind extends Extract<ExpressionAst.UnaryKind, "abs" | "negate">,
   Value extends NumericExpressionInput,
   Nullable extends Expression.Nullability,
   ResultKind extends Expression.ScalarKind
@@ -188,16 +188,6 @@ const unary = <
     value: expression
   }) as UnaryResult<Kind, Value, Nullable, ResultKind>
 }
-
-export const sum = <Value extends NumericExpressionInput>(
-  value: Value
-): UnaryResult<"sum", Value, "maybe", "aggregate"> =>
-  unary("sum", value, "maybe", "aggregate")
-
-export const avg = <Value extends NumericExpressionInput>(
-  value: Value
-): UnaryResult<"avg", Value, "maybe", "aggregate"> =>
-  unary("avg", value, "maybe", "aggregate")
 
 export const abs = <Value extends NumericExpressionInput>(
   value: Value

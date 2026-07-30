@@ -435,7 +435,7 @@ declare const dottedFlatPayloadRow: DottedFlatPayloadRow
 const dottedFlatKeyKind: "flat" = dottedFlatPayloadRow.payload["a.b"].kind
 const dottedNestedKeyKind: "nested" | "other" = dottedFlatPayloadRow.payload.a.b.kind
 const groupedCityTextCity: CityText = groupedCityTextRow.city
-const groupedCityTextCount: number = groupedCityTextRow.count
+const groupedCityTextCount: E.BigIntString = groupedCityTextRow.count
 const nullableObjectPayloadNull: NullableObjectPayloadRow["payload"] = null
 const completeGroupedCityText: Q.CompletePlan<typeof groupedCityText> = groupedCityText
 type InvalidGroupedCityText = Q.CompletePlan<typeof invalidGroupedCityText>

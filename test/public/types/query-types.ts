@@ -1,5 +1,6 @@
 import * as Std from "effect-qb"
 import { Query as Q, Function as F } from "effect-qb"
+import { Function as PgFunction } from "effect-qb/postgres"
 
 const users = Std.Table.make("users", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
@@ -15,7 +16,7 @@ const posts = Std.Table.make("posts", {
 const leftJoined = Q.select({
   userId: users.id,
   postTitle: posts.title,
-  loweredTitle: F.lower(posts.title),
+  loweredTitle: PgFunction.lower(posts.title),
   fallbackTitle: F.coalesce(posts.title, Q.literal("missing"))
 }).pipe(
   Q.from(users),

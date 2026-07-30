@@ -71,23 +71,23 @@ export const currentTime = () =>
 export const currentTimestamp = () =>
   makeTemporal(
     "current_timestamp",
-    mysqlDatatypes.timestamp(),
+    mysqlDatatypes.datetime(),
     LocalDateTimeStringSchema
   )
 
-/** MySQL local time. */
+/** MySQL LOCALTIME, a synonym for NOW that returns a local date and time. */
 export const localTime = () =>
   makeTemporal(
     "localtime",
-    mysqlDatatypes.time(),
-    LocalTimeStringSchema
+    mysqlDatatypes.datetime(),
+    LocalDateTimeStringSchema
   )
 
 /** MySQL local timestamp. */
 export const localTimestamp = () =>
   makeTemporal(
     "localtimestamp",
-    mysqlDatatypes.timestamp(),
+    mysqlDatatypes.datetime(),
     LocalDateTimeStringSchema
   )
 
@@ -95,6 +95,6 @@ export const localTimestamp = () =>
 export const now = () =>
   makeTemporal(
     "now",
-    mysqlDatatypes.timestamp(),
+    mysqlDatatypes.datetime(),
     LocalDateTimeStringSchema
   )

@@ -125,6 +125,26 @@ export type RoundResult<
     : ExpressionAst.UnaryNode<"round">
 }
 
+export type AggregateResult<
+  Kind extends "sum" | "avg",
+  Value extends Input,
+  LiteralDb extends Expression.DbType.Any,
+  ResultDb extends Expression.DbType.Any,
+  Dialect extends string
+> = Expression.Scalar<
+  Expression.RuntimeOfDbType<ResultDb>,
+  ResultDb,
+  "maybe",
+  Dialect,
+  "aggregate",
+  Expression.DependenciesOf<AsExpression<Value, LiteralDb, Dialect>>
+> & {
+  readonly [ExpressionAst.TypeId]: ExpressionAst.UnaryNode<
+    Kind,
+    AsExpression<Value, LiteralDb, Dialect>
+  >
+}
+
 const literal = <
   Value extends number,
   Db extends Expression.DbType.Any,
@@ -246,6 +266,36 @@ export const round = <
     name: "round",
     args: [expression, scaleExpression]
   }) as RoundResult<Value, LiteralDb, ResultDb, Nullable, Dialect, WithScale>
+}
+
+export const aggregate = <
+  Kind extends "sum" | "avg",
+  Value extends Input,
+  LiteralDb extends Expression.DbType.Any,
+  ResultDb extends Expression.DbType.Any,
+  Dialect extends string
+>(
+  kind: Kind,
+  value: Value,
+  options: {
+    readonly dialect: Dialect
+    readonly literalDb: LiteralDb
+    readonly resultDb: ResultDb
+  }
+): AggregateResult<Kind, Value, LiteralDb, ResultDb, Dialect> => {
+  const expression = asExpression(value, options.literalDb, options.dialect)
+  return (makeExpression as any)({
+    runtime: undefined,
+    dbType: options.resultDb,
+    driverValueMapping: options.resultDb.driverValueMapping,
+    nullability: "maybe",
+    dialect: options.dialect,
+    kind: "aggregate",
+    dependencies: expression[Expression.TypeId].dependencies
+  }, {
+    kind,
+    value: expression
+  }) as AggregateResult<Kind, Value, LiteralDb, ResultDb, Dialect>
 }
 
 const inputNullability = (value: Input): Expression.Nullability =>

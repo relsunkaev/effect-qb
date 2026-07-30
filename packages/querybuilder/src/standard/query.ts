@@ -85,8 +85,6 @@ export {
   lock,
   orderBy,
   groupBy,
-  lower,
-  upper,
   concat,
   coalesce,
   count,
@@ -101,11 +99,9 @@ export {
 export {
   abs,
   add,
-  avg,
   multiply,
   negate,
-  subtract,
-  sum
+  subtract
 } from "../internal/numeric.js"
 
 export { andAll, includeIf, orAll, when } from "../internal/dynamic.js"
@@ -116,8 +112,7 @@ export {
   lead,
   type OffsetOptions,
   type WindowOrderSpec,
-  type WindowOrderTerm,
-  type WindowSpec
+  type WindowOrderTerm
 } from "../internal/analytics.js"
 
 export { union_query_capabilities } from "../internal/query.js"

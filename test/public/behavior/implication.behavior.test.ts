@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 import { Query as Q, Function as F, Table } from "#standard"
-import { Column as C, Executor, Renderer, Type } from "#postgres"
+import { Column as C, Executor, Function as PgFunction, Renderer, Type } from "#postgres"
 import * as StdRoot from "#standard"
 
 const userId = "11111111-1111-4111-8111-111111111111"
@@ -31,7 +31,7 @@ describe("implication behavior", () => {
       post: {
         id: posts.id,
         titleState: Q.case()
-          .when(Q.isNotNull(posts.title), F.upper(posts.title))
+          .when(Q.isNotNull(posts.title), PgFunction.upper(posts.title))
           .else("missing")
       }
     }).pipe(
@@ -79,7 +79,7 @@ describe("implication behavior", () => {
       userId: users.id,
       postId: posts.id,
       titleState: Q.case()
-        .when(Q.isNotNull(posts.title), F.upper(posts.title))
+        .when(Q.isNotNull(posts.title), PgFunction.upper(posts.title))
         .else("missing")
     }).pipe(
       Q.from(users),
@@ -119,7 +119,7 @@ describe("implication behavior", () => {
 
     const plan = Q.select({
       title: posts.title,
-      upperTitle: F.upper(posts.title)
+      upperTitle: PgFunction.upper(posts.title)
     }).pipe(
       Q.from(posts),
       Q.where(Q.isNull(posts.title))

@@ -13,10 +13,10 @@ describe("postgres function namespace", () => {
     })
 
     const plan = Q.select({
-      lowerEmail: StdRoot.Function.string.lower(users.email),
+      lowerEmail: Postgres.Function.string.lower(users.email),
       fallbackEmail: StdRoot.Function.core.coalesce(users.email, Q.literal("missing")),
-      today: StdRoot.Function.temporal.currentDate(),
-      instant: StdRoot.Function.currentTimestamp()
+      today: Postgres.Function.temporal.currentDate(),
+      instant: Postgres.Function.currentTimestamp()
     }).pipe(
       Q.from(users)
     )
@@ -31,7 +31,7 @@ describe("postgres function namespace", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey)
     })
-    const today = StdRoot.Function.currentDate()
+    const today = Postgres.Function.currentDate()
 
     const plan = Q.select({
       today,

@@ -1,4 +1,4 @@
-import { Column as PgColumn } from "effect-qb/postgres"
+import { Column as PgColumn, Function as PgFunction } from "effect-qb/postgres"
 import * as Std from "effect-qb"
 import * as Schema from "effect/Schema"
 
@@ -43,7 +43,7 @@ void baseCategory
 
 const directLiteralPlan = Q.select({
   title: posts.title,
-  upperTitle: F.upper(posts.title)
+  upperTitle: PgFunction.upper(posts.title)
 }).pipe(
   Q.from(posts),
   Q.where(Q.eq(posts.title, "draft"))

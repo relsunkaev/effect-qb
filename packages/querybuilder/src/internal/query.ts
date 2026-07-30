@@ -203,10 +203,20 @@ type LiteralExpression<Value extends LiteralValue> = Expression.Scalar<
  */
 export type ExpressionInput = Expression.Any | LiteralValue
 
+type NumericBaseDbType = Expression.DbType.Base<string, string> & {
+  readonly family: "numeric" | "integer" | "real"
+}
+
+type NumericDbType =
+  | NumericBaseDbType
+  | (Expression.DbType.Domain<string, any, string> & {
+      readonly base: NumericDbType
+    })
+
 /** Input accepted by numeric clauses such as `limit(...)` and `offset(...)`. */
 export type NumericExpressionInput = Expression.Scalar<
   number,
-  Expression.DbType.Any,
+  NumericDbType,
   Expression.Nullability,
   string,
   "scalar",

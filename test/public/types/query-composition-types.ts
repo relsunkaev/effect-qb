@@ -2,7 +2,7 @@ import * as Std from "effect-qb"
 import type * as Effect from "effect/Effect"
 
 import { Query as Q, Function as F } from "effect-qb"
-import { Executor, Renderer } from "effect-qb/postgres"
+import { Executor, Function as PgFunction, Renderer } from "effect-qb/postgres"
 import type {
   BrandedErrorOf,
   BrandedHintOf,
@@ -478,7 +478,7 @@ const windowPlan = Q.select({
   }),
   rankedTitle: F.rank({
     partitionBy: [users.id],
-    orderBy: [{ value: F.lower(posts.title), direction: "desc" }]
+    orderBy: [{ value: PgFunction.lower(posts.title), direction: "desc" }]
   }),
   postCount: F.over(F.count(posts.id), {
     partitionBy: [users.id],
@@ -493,9 +493,9 @@ const windowPlan = Q.select({
 )
 
 type WindowRow = Q.ResultRow<typeof windowPlan>
-const windowRowNumber: WindowRow["rowNumber"] = 1
-const windowRankedTitle: WindowRow["rankedTitle"] = 2
-const windowPostCount: WindowRow["postCount"] = 3
+const windowRowNumber: WindowRow["rowNumber"] = "1" as Std.Scalar.BigIntString
+const windowRankedTitle: WindowRow["rankedTitle"] = "2" as Std.Scalar.BigIntString
+const windowPostCount: WindowRow["postCount"] = "3" as Std.Scalar.BigIntString
 const nullableWindowTitle: WindowRow["latestTitle"] = null
 // @ts-expect-error rowNumber is non-null
 const nullWindowRowNumber: WindowRow["rowNumber"] = null
@@ -704,9 +704,9 @@ const rendered = Renderer.make().render(windowPlan)
 type RenderedRow = Renderer.RowOf<typeof rendered>
 const renderedRow: RenderedRow = {
   userId: "user-1",
-  rowNumber: 1,
-  rankedTitle: 2,
-  postCount: 3,
+  rowNumber: "1" as Std.Scalar.BigIntString,
+  rankedTitle: "2" as Std.Scalar.BigIntString,
+  postCount: "3" as Std.Scalar.BigIntString,
   latestTitle: null
 }
 void renderedRow
@@ -722,9 +722,9 @@ const executed = executor.execute(windowPlan)
 type ExecutedRows = Effect.Success<typeof executed>
 const executedRow: ExecutedRows[number] = {
   userId: "user-1",
-  rowNumber: 1,
-  rankedTitle: 2,
-  postCount: 3,
+  rowNumber: "1" as Std.Scalar.BigIntString,
+  rankedTitle: "2" as Std.Scalar.BigIntString,
+  postCount: "3" as Std.Scalar.BigIntString,
   latestTitle: null
 }
 void executedRow

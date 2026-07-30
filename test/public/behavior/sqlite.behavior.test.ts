@@ -18,7 +18,7 @@ describe("sqlite behavior", () => {
 
     const plan = StdRoot.Query.select({
       emailLabel: StdRoot.Function.concat(
-        StdRoot.Function.lower(users.email),
+        Sqlite.Function.lower(users.email),
         "-",
         StdRoot.Function.coalesce(StdRoot.Function.max(posts.title), "missing")
       ),
@@ -27,7 +27,7 @@ describe("sqlite behavior", () => {
     }).pipe(
       StdRoot.Query.from(users),
       StdRoot.Query.leftJoin(posts, StdRoot.Query.eq(users.id, posts.userId)),
-      StdRoot.Query.groupBy(StdRoot.Function.lower(users.email)),
+      StdRoot.Query.groupBy(Sqlite.Function.lower(users.email)),
       StdRoot.Query.having(StdRoot.Query.eq(StdRoot.Function.count(posts.id), 2)),
       StdRoot.Query.orderBy(StdRoot.Function.count(posts.id), "desc"),
       StdRoot.Query.limit(5),

@@ -3,6 +3,7 @@ import * as Expression from "./scalar.js"
 import {
   makeExpression,
   mergeManyDependencies,
+  type MergeDialect,
   type MergeNullabilityTuple,
   type TupleDependencies,
   type TupleDialect
@@ -48,17 +49,36 @@ type SpecExpressions<Spec extends WindowSpec> = readonly [
   ...ReadonlyArray<OrderExpression<Spec>>
 ]
 
+type WindowInputDialect<
+  Value extends Expression.Any,
+  Spec extends WindowSpec,
+  Extra extends readonly Expression.Any[] = readonly []
+> = TupleDialect<readonly [Value, ...SpecExpressions<Spec>, ...Extra]>
+
+type WindowDialectConstraint<
+  Dialect extends string,
+  Value extends Expression.Any,
+  Spec extends WindowSpec
+> = Exclude<WindowInputDialect<Value, Spec>, Dialect | "standard"> extends never
+  ? unknown
+  : {
+      readonly __effect_qb_error__: "effect-qb: window expression is incompatible with this dialect"
+      readonly __effect_qb_expression_dialect__: WindowInputDialect<Value, Spec>
+      readonly __effect_qb_target_dialect__: Dialect
+    }
+
 type WindowResult<
   Kind extends Extract<ExpressionAst.WindowKind, "lag" | "lead" | "firstValue" | "lastValue">,
   Value extends Expression.Any,
   Spec extends WindowSpec,
   Nullable extends Expression.Nullability,
-  Extra extends readonly Expression.Any[] = readonly []
+  Extra extends readonly Expression.Any[] = readonly [],
+  Dialect extends string = WindowInputDialect<Value, Spec, Extra>
 > = Expression.Scalar<
   Expression.RuntimeOf<Value>,
   Expression.DbTypeOf<Value>,
   Nullable,
-  TupleDialect<readonly [Value, ...SpecExpressions<Spec>, ...Extra]>,
+  Dialect,
   "window",
   TupleDependencies<readonly [Value, ...SpecExpressions<Spec>, ...Extra]>
 > & {
@@ -82,6 +102,17 @@ const normalizeSpec = <Spec extends WindowSpec>(spec: Spec) => {
   }
 }
 
+const rejectExplicitPortableFrame = (
+  functionName: string,
+  spec: WindowOrderSpec
+): void => {
+  if ((spec as WindowSpec).frame !== undefined) {
+    throw new Error(
+      `${functionName} does not accept an explicit frame on the portable Function API; use a dialect Function helper`
+    )
+  }
+}
+
 const windowExpression = <
   Kind extends Extract<ExpressionAst.WindowKind, "lag" | "lead" | "firstValue" | "lastValue">,
   Value extends Expression.Any,
@@ -95,9 +126,11 @@ const windowExpression = <
   options: {
     readonly offset?: Expression.Any
     readonly defaultValue?: Expression.Any
+    readonly fallbackDialect?: string
   } = {}
 ): WindowResult<Kind, Value, Spec, Nullable> => {
   const normalized = normalizeSpec(spec)
+  const { fallbackDialect, ...astOptions } = options
   const expressions = [
     value,
     ...normalized.partitionBy,
@@ -112,6 +145,7 @@ const windowExpression = <
     driverValueMapping: value[Expression.TypeId].driverValueMapping,
     nullability,
     dialect: expressions.find((entry) => entry[Expression.TypeId].dialect !== "standard")?.[Expression.TypeId].dialect ??
+      fallbackDialect ??
       value[Expression.TypeId].dialect,
     kind: "window",
     dependencies: mergeManyDependencies(expressions)
@@ -119,7 +153,7 @@ const windowExpression = <
     kind: "window",
     function: kind,
     value,
-    ...options,
+    ...astOptions,
     ...normalized
   }) as never
 }
@@ -141,6 +175,7 @@ export const lag = <
   value: Value,
   options: OffsetOptions<Value, Spec>
 ): WindowResult<"lag", Value, Spec, "maybe"> => {
+  rejectExplicitPortableFrame("lag", options.spec)
   if (options.offset !== undefined && (!Number.isSafeInteger(options.offset) || options.offset < 0)) {
     throw new Error("lag offset must be a non-negative safe integer")
   }
@@ -160,6 +195,7 @@ export const lead = <
   value: Value,
   options: OffsetOptions<Value, Spec>
 ): WindowResult<"lead", Value, Spec, "maybe"> => {
+  rejectExplicitPortableFrame("lead", options.spec)
   if (options.offset !== undefined && (!Number.isSafeInteger(options.offset) || options.offset < 0)) {
     throw new Error("lead offset must be a non-negative safe integer")
   }
@@ -171,22 +207,58 @@ export const lead = <
   })
 }
 
-/** First value in the configured window frame. */
+/** First value in the portable default window frame. */
 export const firstValue = <
   Value extends Expression.Any,
-  Spec extends WindowSpec
+  Spec extends WindowOrderSpec
 >(
   value: Value,
   spec: Spec
-): WindowResult<"firstValue", Value, Spec, Expression.NullabilityOf<Value>> =>
-  windowExpression("firstValue", value, spec, value[Expression.TypeId].nullability)
+): WindowResult<"firstValue", Value, Spec, Expression.NullabilityOf<Value>> => {
+  rejectExplicitPortableFrame("firstValue", spec)
+  return windowExpression("firstValue", value, spec, value[Expression.TypeId].nullability)
+}
 
-/** Last value in the configured window frame. */
+/** Last value in the portable default window frame. */
 export const lastValue = <
   Value extends Expression.Any,
-  Spec extends WindowSpec
+  Spec extends WindowOrderSpec
 >(
   value: Value,
   spec: Spec
-): WindowResult<"lastValue", Value, Spec, Expression.NullabilityOf<Value>> =>
-  windowExpression("lastValue", value, spec, value[Expression.TypeId].nullability)
+): WindowResult<"lastValue", Value, Spec, Expression.NullabilityOf<Value>> => {
+  rejectExplicitPortableFrame("lastValue", spec)
+  return windowExpression("lastValue", value, spec, value[Expression.TypeId].nullability)
+}
+
+export const makeDialectFirstValue = <Dialect extends string>(dialect: Dialect) =>
+  <
+    Value extends Expression.Any,
+    Spec extends WindowSpec
+  >(
+    value: Value,
+    spec: Spec & WindowDialectConstraint<Dialect, Value, Spec>
+  ): WindowResult<
+    "firstValue",
+    Value,
+    Spec,
+    "maybe",
+    readonly [],
+    MergeDialect<WindowInputDialect<Value, Spec>, Dialect>
+  > => windowExpression("firstValue", value, spec, "maybe", { fallbackDialect: dialect }) as never
+
+export const makeDialectLastValue = <Dialect extends string>(dialect: Dialect) =>
+  <
+    Value extends Expression.Any,
+    Spec extends WindowSpec
+  >(
+    value: Value,
+    spec: Spec & WindowDialectConstraint<Dialect, Value, Spec>
+  ): WindowResult<
+    "lastValue",
+    Value,
+    Spec,
+    "maybe",
+    readonly [],
+    MergeDialect<WindowInputDialect<Value, Spec>, Dialect>
+  > => windowExpression("lastValue", value, spec, "maybe", { fallbackDialect: dialect }) as never

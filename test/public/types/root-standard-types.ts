@@ -10,9 +10,12 @@ const users = Table.make("users", {
 
 const rootPlan = Query.select({
   id: users.id,
-  email: Function.lower(users.email)
+  email: Function.concat(users.email, "")
 }).pipe(
   Query.from(users)
 )
 
 Renderer.make().render(rootPlan)
+
+// @ts-expect-error nonportable case conversion is dialect-specific
+Function.lower(users.email)

@@ -760,15 +760,15 @@ const renderSqlExpressionCode = (
       const keyword = (expression.keyword as string).toLowerCase()
       switch (keyword) {
         case "current_date":
-          return `${STD_ROOT_ALIAS}.Function.currentDate()`
+          return `${PG_ALIAS}.Function.currentDate()`
         case "current_time":
-          return `${STD_ROOT_ALIAS}.Function.currentTime()`
+          return `${PG_ALIAS}.Function.currentTime()`
         case "current_timestamp":
-          return `${STD_ROOT_ALIAS}.Function.currentTimestamp()`
+          return `${PG_ALIAS}.Function.currentTimestamp()`
         case "localtime":
-          return `${STD_ROOT_ALIAS}.Function.localTime()`
+          return `${PG_ALIAS}.Function.localTime()`
         case "localtimestamp":
-          return `${STD_ROOT_ALIAS}.Function.localTimestamp()`
+          return `${PG_ALIAS}.Function.localTimestamp()`
         case "current_schema":
         case "current_catalog":
         case "current_role":
@@ -800,23 +800,23 @@ const renderSqlExpressionCode = (
       const args = Array.isArray(expression.args) ? expression.args : []
       switch (name) {
         case "lower":
-          return `${STD_ROOT_ALIAS}.Function.lower(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${PG_ALIAS}.Function.lower(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "upper":
-          return `${STD_ROOT_ALIAS}.Function.upper(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
+          return `${PG_ALIAS}.Function.upper(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "coalesce":
           return `${STD_ROOT_ALIAS}.Function.coalesce(${args.map((arg) => renderSqlExpressionCode(arg, context)).join(", ")})`
         case "now":
-          return `${STD_ROOT_ALIAS}.Function.now()`
+          return `${PG_ALIAS}.Function.now()`
         case "current_timestamp":
-          return `${STD_ROOT_ALIAS}.Function.currentTimestamp()`
+          return `${PG_ALIAS}.Function.currentTimestamp()`
         case "current_date":
-          return `${STD_ROOT_ALIAS}.Function.currentDate()`
+          return `${PG_ALIAS}.Function.currentDate()`
         case "current_time":
-          return `${STD_ROOT_ALIAS}.Function.currentTime()`
+          return `${PG_ALIAS}.Function.currentTime()`
         case "localtime":
-          return `${STD_ROOT_ALIAS}.Function.localTime()`
+          return `${PG_ALIAS}.Function.localTime()`
         case "localtimestamp":
-          return `${STD_ROOT_ALIAS}.Function.localTimestamp()`
+          return `${PG_ALIAS}.Function.localTimestamp()`
         case "uuid_generate_v4":
         case "gen_random_uuid":
           return `${PG_ALIAS}.Function.uuidGenerateV4()`

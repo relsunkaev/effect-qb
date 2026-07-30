@@ -1,0 +1,22 @@
+// Generated from README.md.
+// Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
+// Code fences: 1607-1623
+
+// README.md:1607-1623
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import * as Pg from "effect-qb/postgres"
+
+const driver = Pg.Executor.driver({
+  execute: () => Effect.succeed([]),
+  executeResult: () => Effect.succeed({
+    rows: [],
+    affectedRows: 1
+  }),
+  stream: () => Stream.empty
+})
+
+const executor = Pg.Executor.make({ driver })
+
+
+export {};

@@ -55,8 +55,8 @@ const pgLiteral = StdRoot.Query.literal("user")
 const myLiteral = StdRoot.Query.literal("user")
 const pgPredicate = StdRoot.Query.eq(pgUsers.email, "alice@example.com")
 const myPredicate = StdRoot.Query.eq(myUsers.email, "alice@example.com")
-const pgConcat = StdRoot.Function.concat(StdRoot.Function.lower(pgUsers.email), "-user")
-const myConcat = StdRoot.Function.concat(StdRoot.Function.lower(myUsers.email), "-user")
+const pgConcat = StdRoot.Function.concat(Postgres.Function.lower(pgUsers.email), "-user")
+const myConcat = StdRoot.Function.concat(Mysql.Function.lower(myUsers.email), "-user")
 
 const pgLiteralDialect: StdRoot.Scalar.DbTypeOf<typeof pgLiteral>["dialect"] = "standard"
 const myLiteralDialect: StdRoot.Scalar.DbTypeOf<typeof myLiteral>["dialect"] = "standard"

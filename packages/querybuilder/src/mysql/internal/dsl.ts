@@ -4,6 +4,7 @@ import * as Schema from "effect/Schema"
 import { mysqlDatatypes } from "../datatypes/index.js"
 
 import * as Expression from "../../internal/scalar.js"
+import type * as FunctionConstraint from "../../internal/function-constraints.js"
 import * as Plan from "../../internal/row-set.js"
 import * as Table from "../../internal/table.js"
 import type {
@@ -1523,8 +1524,8 @@ type NumberWindowExpression<
   PartitionBy extends readonly WindowPartitionInput[],
   OrderBy extends NonEmptyWindowOrderTerms
 > = AstBackedExpression<
-  number,
-  Expression.DbType.Any,
+  RuntimeOfDbType<ReturnType<typeof mysqlDatatypes.bigint>>,
+  ReturnType<typeof mysqlDatatypes.bigint>,
   "never",
   NumberWindowDialectOf<PartitionBy, OrderBy>,
   "window",
@@ -2161,12 +2162,17 @@ type BinaryPredicateExpression<
   }
 
   const upper = <Value extends ExpressionInput>(
-    value: Value
+    value: Value & FunctionConstraint.CaseConversionInput<
+      NoInfer<Value>,
+      DialectDbTypeOfInput<NoInfer<Value>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Dialect,
+      "upper"
+    >
   ): AstBackedExpression<
     string,
     TextDb,
     NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DialectOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Dialect,
     KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     ExpressionAst.UnaryNode<"upper", DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
@@ -2176,7 +2182,7 @@ type BinaryPredicateExpression<
       runtime: "" as string,
       dbType: profile.textDb as TextDb,
       nullability: expression[Expression.TypeId].nullability as NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      dialect: expression[Expression.TypeId].dialect,
+      dialect: profile.dialect as Dialect,
       kind: expression[Expression.TypeId].kind as KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
 
       dependencies: expression[Expression.TypeId].dependencies
@@ -2187,12 +2193,17 @@ type BinaryPredicateExpression<
   }
 
   const lower = <Value extends ExpressionInput>(
-    value: Value
+    value: Value & FunctionConstraint.CaseConversionInput<
+      NoInfer<Value>,
+      DialectDbTypeOfInput<NoInfer<Value>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Dialect,
+      "lower"
+    >
   ): AstBackedExpression<
     string,
     TextDb,
     NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    DialectOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+    Dialect,
     KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     ExpressionAst.UnaryNode<"lower", DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
@@ -2202,7 +2213,7 @@ type BinaryPredicateExpression<
       runtime: "" as string,
       dbType: profile.textDb as TextDb,
       nullability: expression[Expression.TypeId].nullability as NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      dialect: expression[Expression.TypeId].dialect,
+      dialect: profile.dialect as Dialect,
       kind: expression[Expression.TypeId].kind as KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
 
       dependencies: expression[Expression.TypeId].dependencies
@@ -3481,8 +3492,8 @@ type BinaryPredicateExpression<
   const count = <Value extends ExpressionInput>(
     value: Value
   ): AstBackedExpression<
-    number,
-    NumericDb,
+    RuntimeOfDbType<ReturnType<typeof mysqlDatatypes.bigint>>,
+    ReturnType<typeof mysqlDatatypes.bigint>,
     "never",
     DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     "aggregate",
@@ -3491,8 +3502,8 @@ type BinaryPredicateExpression<
   > => {
     const expression = toDialectExpression(value)
     return makeExpression({
-      runtime: 0 as number,
-      dbType: profile.numericDb as NumericDb,
+      runtime: undefined as unknown as RuntimeOfDbType<ReturnType<typeof mysqlDatatypes.bigint>>,
+      dbType: mysqlDatatypes.bigint(),
       nullability: "never",
       dialect: expression[Expression.TypeId].dialect,
       kind: "aggregate",
@@ -3720,8 +3731,8 @@ type BinaryPredicateExpression<
     const normalized = normalizeWindowSpec(spec)
     const expressions = mergeWindowExpressions(undefined, normalized.partitionBy, normalized.orderBy)
     return makeExpression({
-      runtime: 0 as number,
-      dbType: profile.numericDb as Expression.DbType.Any,
+      runtime: undefined as unknown as RuntimeOfDbType<ReturnType<typeof mysqlDatatypes.bigint>>,
+      dbType: mysqlDatatypes.bigint(),
       nullability: "never",
       dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as NumberWindowDialectOf<PartitionBy, OrderBy>,
       kind: "window",
@@ -3761,7 +3772,7 @@ type BinaryPredicateExpression<
     buildNumberWindow("denseRank", spec)
 
   const max = <Value extends Expression.Any>(
-    value: Value
+    value: Value & FunctionConstraint.OrderedInput<NoInfer<Value>, Dialect, "max">
   ): AstBackedExpression<
     Expression.RuntimeOf<Value>,
     Expression.DbTypeOf<Value>,
@@ -3785,7 +3796,7 @@ type BinaryPredicateExpression<
     })
 
   const min = <Value extends Expression.Any>(
-    value: Value
+    value: Value & FunctionConstraint.OrderedInput<NoInfer<Value>, Dialect, "min">
   ): AstBackedExpression<
     Expression.RuntimeOf<Value>,
     Expression.DbTypeOf<Value>,
@@ -3820,7 +3831,7 @@ type BinaryPredicateExpression<
   const coalesce = <
     Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
   >(
-    ...values: Values
+    ...values: Values & FunctionConstraint.CoalesceConstraint<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, Dialect>
   ): AstBackedExpression<
     CoalesceRuntimeTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     Expression.DbTypeOf<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>[number]>,

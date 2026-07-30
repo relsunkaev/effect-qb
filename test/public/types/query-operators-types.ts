@@ -184,7 +184,7 @@ Q.offset(10)(Q.insert(users, {
 const aliasPlan = Q.select({
   profile: {
     id: Q.as(users.id, "user_identifier"),
-    email: Q.as(F.lower(users.email), "email_lower")
+    email: Q.as(Postgres.Function.lower(users.email), "email_lower")
   }
 }).pipe(
   Q.from(users)

@@ -14,7 +14,7 @@ const users = Table.make("users", {
 
 const activeUsers = Query.select({
   id: users.id,
-  email: Function.lower(users.email)
+  email: Pg.Function.lower(users.email)
 }).pipe(
   Query.from(users),
   Query.where(Query.eq(users.active, true)),
@@ -24,7 +24,7 @@ const activeUsers = Query.select({
 type ActiveUser = Query.ResultRow<typeof activeUsers>
 // { readonly id: string; readonly email: string }
 
-// The plan is portable. Here it is rendered for Postgres.
+// Pg.Function.lower makes this a Postgres plan.
 const rendered = Pg.Renderer.make().render(activeUsers)
 // rendered.sql:
 // select "users"."id" as "id", lower("users"."email") as "email" from "users" where ("users"."active" = $1) order by "users"."email" asc

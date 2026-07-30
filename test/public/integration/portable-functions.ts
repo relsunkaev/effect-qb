@@ -8,20 +8,10 @@ export const portableScalarFunctions = Q.select({
   absolute: F.abs(-9)
 })
 
-export const portableAggregateFunctions = Q.select({
-  total: F.sum(F.add(2, 2)),
-  average: F.avg(F.add(2, 2))
-})
-
 const windowValue = F.add(1, 1)
 const windowOrder = F.add(0, 1)
 const windowSpec = {
-  orderBy: [{ value: windowOrder }],
-  frame: {
-    unit: "rows",
-    start: "unboundedPreceding",
-    end: "unboundedFollowing"
-  }
+  orderBy: [{ value: windowOrder }]
 } as const
 
 export const portableWindowFunctions = Q.select({
@@ -44,10 +34,6 @@ export const portableFunctionResults = {
     multiplied: 12,
     negated: -5,
     absolute: 9
-  },
-  aggregates: {
-    total: 4,
-    average: 4
   },
   windows: {
     previous: 0,

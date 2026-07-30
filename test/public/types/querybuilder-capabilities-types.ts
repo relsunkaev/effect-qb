@@ -24,12 +24,85 @@ const custom = Fragment.expression({
 const customRuntime: string = undefined as unknown as Scalar.RuntimeOf<typeof custom>
 void customRuntime
 
-const sum = Function.sum(users.score)
-const sumRuntime: number = undefined as unknown as NonNullable<Scalar.RuntimeOf<typeof sum>>
+const sum = Pg.Function.sum(users.score)
+const sumRuntime: Scalar.BigIntString = undefined as unknown as NonNullable<Scalar.RuntimeOf<typeof sum>>
 void sumRuntime
+
+const count = Function.count(users.id)
+const countRuntime: Scalar.BigIntString = undefined as unknown as Scalar.RuntimeOf<typeof count>
+const rowNumber = Function.rowNumber({
+  orderBy: [{ value: users.id }]
+})
+const rowNumberRuntime: Scalar.BigIntString = undefined as unknown as Scalar.RuntimeOf<typeof rowNumber>
+const firstValue = Function.firstValue(users.score, {
+  orderBy: [{ value: users.id }]
+})
+const firstValueNullability: "never" = undefined as unknown as Scalar.NullabilityOf<typeof firstValue>
+void countRuntime
+void rowNumberRuntime
+void firstValueNullability
+
+Function.firstValue(users.score, {
+  orderBy: [{ value: users.id }],
+  // @ts-expect-error explicit frames have dialect-specific boundary semantics
+  frame: {
+    unit: "rows",
+    start: "currentRow",
+    end: { preceding: 1 }
+  }
+})
+
+Function.over(Function.count(users.id), {
+  orderBy: [{ value: users.id }],
+  // @ts-expect-error explicit aggregate frames are dialect-specific
+  frame: {
+    unit: "rows",
+    start: "unboundedPreceding",
+    end: "currentRow"
+  }
+})
+
+const pgFramedFirstValue = Pg.Function.firstValue(users.score, {
+  orderBy: [{ value: users.id }],
+  frame: {
+    unit: "rows",
+    start: { preceding: 1 },
+    end: { preceding: 1 }
+  }
+})
+const pgFramedFirstValueNullability: "maybe" =
+  undefined as unknown as Scalar.NullabilityOf<typeof pgFramedFirstValue>
+void pgFramedFirstValueNullability
+
+// @ts-expect-error explicitly framed window specs are exported by dialect Function modules
+type PortableWindowSpec = Query.WindowSpec
+
+// @ts-expect-error sum has dialect-specific result and accumulation semantics
+Function.sum(users.score)
+// @ts-expect-error avg has dialect-specific result and accumulation semantics
+Function.avg(users.score)
 
 // @ts-expect-error arithmetic inputs must decode to numbers
 Function.add(users.email, 1)
+
+const numericRuntimeText = Fragment.expression({
+  dbType: Type.text(),
+  schema: Schema.Number,
+  nullability: "never"
+})`length(${users.email})`
+// @ts-expect-error arithmetic support follows the database type, not only the runtime schema
+Function.add(numericRuntimeText, 1)
+
+// @ts-expect-error coalesce inputs must share a portable database type family
+Function.coalesce(users.email, users.score)
+
+const jsonRows = Table.make("json_rows", {
+  payload: Column.json(Schema.Unknown)
+})
+// @ts-expect-error max requires an ordered database type
+Function.max(jsonRows.payload)
+// @ts-expect-error min requires an ordered database type
+Function.min(jsonRows.payload)
 
 // @ts-expect-error division is not portable across the supported dialects
 Function.divide(users.score, 2)
@@ -64,10 +137,9 @@ const rowEffect: Effect.Effect<Query.ResultRow<typeof plan>, unknown, unknown> =
   prepared.execute.pipe(PgExecutor.exactlyOne)
 void rowEffect
 
-Function.over(Function.sum(users.score), {
+Pg.Function.over(Pg.Function.sum(users.score), {
   orderBy: [{ value: users.id }],
   frame: {
-    // @ts-expect-error GROUPS frames are not portable to MySQL
     unit: "groups",
     start: "unboundedPreceding",
     end: "currentRow"
@@ -86,7 +158,7 @@ Function.lag(users.score, {
   }
 })
 
-Pg.Function.over(Function.sum(users.score), {
+Pg.Function.over(Pg.Function.sum(users.score), {
   orderBy: [{ value: users.id }],
   frame: {
     unit: "groups",
@@ -95,7 +167,7 @@ Pg.Function.over(Function.sum(users.score), {
   }
 })
 
-Sq.Function.over(Function.sum(users.score), {
+Sq.Function.over(Sq.Function.sum(users.score), {
   orderBy: [{ value: users.id }],
   frame: {
     unit: "groups",
@@ -104,7 +176,7 @@ Sq.Function.over(Function.sum(users.score), {
   }
 })
 
-My.Function.over(Function.sum(users.score), {
+My.Function.over(My.Function.sum(users.score), {
   orderBy: [{ value: users.id }],
   frame: {
     // @ts-expect-error MySQL does not support GROUPS frames

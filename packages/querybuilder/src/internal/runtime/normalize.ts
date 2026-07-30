@@ -164,8 +164,11 @@ const normalizeOffsetTime = (value: unknown): string => {
     return `${formatLocalTime(validDate(value))}Z`
   }
   const raw = expectString(value, "offset time").trim()
-  if (isValidOffsetTimeString(raw)) {
-    return raw
+  const canonical = raw
+    .replace(/([+-]\d{2})$/, "$1:00")
+    .replace(/([+-]\d{2})(\d{2})$/, "$1:$2")
+  if (isValidOffsetTimeString(canonical)) {
+    return canonical
   }
   throw new Error("Expected an offset-time value")
 }

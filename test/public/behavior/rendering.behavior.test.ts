@@ -18,16 +18,16 @@ describe("rendering behavior", () => {
     })
 
     const plan = Standard.Query.select({
-      label: Standard.Function.concat(Standard.Function.lower(users.email), "-user")
+      label: Standard.Function.concat(Standard.Function.coalesce(users.email, ""), "-user")
     }).pipe(
       Standard.Query.from(users),
       Standard.Query.where(Standard.Query.eq(users.email, "alice@example.com"))
     )
 
-    expect(Standard.Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || ?) as "label" from "users" where ("users"."email" = ?)')
-    expect(Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || $1) as "label" from "users" where ("users"."email" = $2)')
-    expect(Mysql.Renderer.make().render(plan).sql).toBe("select concat(lower(`users`.`email`), ?) as `label` from `users` where (`users`.`email` = ?)")
-    expect(Sqlite.Renderer.make().render(plan).sql).toBe('select (lower("users"."email") || ?) as "label" from "users" where ("users"."email" = ?)')
+    expect(Standard.Renderer.make().render(plan).sql).toBe('select (coalesce("users"."email", ?) || ?) as "label" from "users" where ("users"."email" = ?)')
+    expect(Renderer.make().render(plan).sql).toBe('select (coalesce("users"."email", $1) || $2) as "label" from "users" where ("users"."email" = $3)')
+    expect(Mysql.Renderer.make().render(plan).sql).toBe("select concat(coalesce(`users`.`email`, ?), ?) as `label` from `users` where (`users`.`email` = ?)")
+    expect(Sqlite.Renderer.make().render(plan).sql).toBe('select (coalesce("users"."email", ?) || ?) as "label" from "users" where ("users"."email" = ?)')
   })
 
   test("standard ctes, joins, grouping, ordering, and pagination render across built-in SQL renderers", () => {
@@ -760,14 +760,14 @@ describe("rendering behavior", () => {
     const { users, posts } = makeRootSocialGraph()
 
     const plan = Q.select({
-      label: F.concat(F.lower(users.email), "::"),
+      label: F.concat(PgFunction.lower(users.email), "::"),
       fallbackTitle: F.coalesce(posts.title, Q.literal("missing")),
       ok: Q.not(Q.or(Q.eq(users.email, "a"), Q.isNull(posts.title)))
     }).pipe(
       Q.from(users),
       Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
       Q.where(Q.and(Q.eq(users.email, "alice@example.com"), Q.isNotNull(posts.title))),
-      Q.orderBy(F.lower(users.email), "desc")
+      Q.orderBy(PgFunction.lower(users.email), "desc")
     )
 
     const rendered = Renderer.make().render(plan)
@@ -785,14 +785,14 @@ describe("rendering behavior", () => {
     const { users, posts } = makeMysqlSocialGraph()
 
     const plan = StdRoot.Query.select({
-      label: StdRoot.Function.concat(StdRoot.Function.lower(users.email), "::"),
+      label: StdRoot.Function.concat(Mysql.Function.lower(users.email), "::"),
       fallbackTitle: StdRoot.Function.coalesce(posts.title, StdRoot.Query.literal("missing")),
       ok: StdRoot.Query.not(StdRoot.Query.or(StdRoot.Query.eq(users.email, "a"), StdRoot.Query.isNull(posts.title)))
     }).pipe(
       StdRoot.Query.from(users),
       StdRoot.Query.leftJoin(posts, StdRoot.Query.eq(users.id, posts.userId)),
       StdRoot.Query.where(StdRoot.Query.and(StdRoot.Query.eq(users.email, "alice@example.com"), StdRoot.Query.isNotNull(posts.title))),
-      StdRoot.Query.orderBy(StdRoot.Function.lower(users.email), "desc")
+      StdRoot.Query.orderBy(Mysql.Function.lower(users.email), "desc")
     )
 
     const rendered = Mysql.Renderer.make().render(plan)
@@ -863,7 +863,7 @@ describe("rendering behavior", () => {
     const plan = Q.select({
       profile: {
         id: users.id,
-        lowerEmail: Q.as(F.lower(users.email), "email_lower")
+        lowerEmail: Q.as(PgFunction.lower(users.email), "email_lower")
       },
       kind: Q.literal("user")
     }).pipe(

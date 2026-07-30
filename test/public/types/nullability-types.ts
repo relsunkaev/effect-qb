@@ -1,5 +1,6 @@
 import * as Std from "effect-qb"
 import { Scalar as E, Query as Q, Function as F } from "effect-qb"
+import { Function as PgFunction } from "effect-qb/postgres"
 
 const users = Std.Table.make("users", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
@@ -72,7 +73,7 @@ type AggregatedLeftJoinedRow = Q.ResultRow<typeof aggregatedLeftJoined>
 const aggregatedUserId: AggregatedLeftJoinedRow["userId"] = "user-id"
 const maxTitle: AggregatedLeftJoinedRow["maxTitle"] = null
 const minTitle: AggregatedLeftJoinedRow["minTitle"] = null
-const postCount: AggregatedLeftJoinedRow["postCount"] = 0
+const postCount: AggregatedLeftJoinedRow["postCount"] = "0" as E.BigIntString
 // @ts-expect-error count should remain non-null
 const nullPostCount: AggregatedLeftJoinedRow["postCount"] = null
 void maxTitle
@@ -86,7 +87,7 @@ const twoOptionalSources = Q.select({
   commentId: comments.id,
   commentBody: comments.body,
   fallbackComment: F.coalesce(null, comments.body, Q.literal("none")),
-  loweredFallbackComment: F.lower(F.coalesce(null, comments.body, Q.literal("none")))
+  loweredFallbackComment: PgFunction.lower(F.coalesce(null, comments.body, Q.literal("none")))
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -170,7 +171,7 @@ const filteredOptionalSource = Q.select({
   userId: users.id,
   postId: posts.id,
   postTitle: posts.title,
-  upperPostTitle: F.upper(posts.title)
+  upperPostTitle: PgFunction.upper(posts.title)
 }).pipe(
   Q.from(users),
   Q.leftJoin(posts, Q.eq(users.id, posts.userId)),
@@ -259,7 +260,7 @@ void absentAcrossDependentBadCommentId
 void absentAcrossDependentBadCommentBody
 
 const normalizedTitleExpr = Q.case()
-  .when(Q.isNotNull(posts.title), F.upper(posts.title))
+  .when(Q.isNotNull(posts.title), PgFunction.upper(posts.title))
   .else("missing")
 
 type SearchedCaseTitle = E.RuntimeOf<typeof normalizedTitleExpr>

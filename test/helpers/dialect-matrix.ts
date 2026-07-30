@@ -1,9 +1,10 @@
 import { Function, Query } from "#standard"
 
-export const buildGroupedConcatPlan = (_dialect: any, users: any, posts: any) => {
+export const buildGroupedConcatPlan = (dialect: any, users: any, posts: any) => {
+  const dialectFunction = dialect.Function
   const selected = Query.select({
     emailLabel: Function.concat(
-      Function.lower(users.email),
+      dialectFunction.lower(users.email),
       "-",
       Function.coalesce(Function.max(posts.title), "missing")
     ),
@@ -13,7 +14,7 @@ export const buildGroupedConcatPlan = (_dialect: any, users: any, posts: any) =>
 
   const fromUsers = Query.from(users)(selected)
   const joined = Query.innerJoin(posts, Query.eq(users.id, posts.userId))(fromUsers)
-  const grouped = Query.groupBy(Function.lower(users.email))(joined)
+  const grouped = Query.groupBy(dialectFunction.lower(users.email))(joined)
   const filtered = Query.having(Query.eq(Function.count(posts.id), 2))(grouped)
   return Query.orderBy(Function.count(posts.id), "desc")(filtered)
 }
