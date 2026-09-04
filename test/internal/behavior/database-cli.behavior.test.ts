@@ -1,0 +1,103 @@
+import { expect, test } from "bun:test"
+import { BunServices } from "@effect/platform-bun"
+import { Command } from "effect/unstable/cli"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Queue from "effect/Queue"
+import * as Terminal from "effect/Terminal"
+import * as TestConsole from "effect/testing/TestConsole"
+
+import { root, push, pull, migrateGenerate, migrateDown, migrateRepair } from "../../../packages/database/src/commands.js"
+
+const run = <A, E>(program: Effect.Effect<A, E, Command.Environment>) =>
+  Effect.runPromise(program.pipe(Effect.provide(BunServices.layer), Effect.provide(TestConsole.layer)))
+
+for (const command of [push, pull, migrateGenerate, migrateDown, migrateRepair]) {
+  test(`${command.name}: omitted boolean flags default to false`, async () => {
+    let parsed: unknown
+    const probe = Command.withHandler(command, (flags) => Effect.sync(() => { parsed = flags }))
+    await run(Command.runWith(probe, { version: "test" })([]))
+    expect(parsed).toMatchObject(command === migrateGenerate
+      ? { allowDestructive: false }
+      : { dryRun: false })
+    if (command === push) expect(parsed).toMatchObject({ allowDestructive: false })
+  })
+}
+
+test("push: explicit boolean values preserve destructive opt-in", async () => {
+  let parsed: unknown
+  const probe = Command.withHandler(push, (flags) => Effect.sync(() => { parsed = flags }))
+  await run(Command.runWith(probe, { version: "test" })(["--dry-run", "--allow-destructive"]))
+  expect(parsed).toMatchObject({ dryRun: true, allowDestructive: true })
+  await run(Command.runWith(probe, { version: "test" })(["--no-dry-run", "--no-allow-destructive"]))
+  expect(parsed).toMatchObject({ dryRun: false, allowDestructive: false })
+})
+
+// Each prompt receives only its own keystrokes; exhausted scripts fail instead of hanging.
+const scriptedTerminal = (prompts: readonly (readonly string[])[]) => {
+  let index = 0
+  return Terminal.make({
+    columns: Effect.succeed(100),
+    rows: Effect.succeed(30),
+    readLine: Effect.die("Unexpected line prompt"),
+    display: () => Effect.void,
+    readInput: Effect.gen(function*() {
+      const keys = prompts[index++]
+      if (keys === undefined) return yield* Effect.die("Unexpected wizard prompt")
+      const queue = yield* Queue.unbounded<Terminal.UserInput>()
+      if (keys.length === 0) {
+        yield* Queue.end(queue)
+        return queue
+      }
+      yield* Queue.offerAll(queue, keys.map((name) => ({
+        input: Option.some(name),
+        key: { name, ctrl: false, meta: false, shift: false }
+      })))
+      return queue
+    })
+  })
+}
+
+for (const command of [push, pull, migrateGenerate]) {
+  test(`${command.name}: wizard preserves optional flag defaults`, async () => {
+    const count = command === pull ? 3 : 4
+    const args = await run(Command.wizard(command).pipe(
+      Effect.provideService(Terminal.Terminal, scriptedTerminal(Array.from({ length: count }, () => ["return"])))
+    ))
+    expect(args).toEqual([command.name])
+    let parsed: unknown
+    await run(Command.runWith(Command.withHandler(command, (flags) => Effect.sync(() => { parsed = flags })), {
+      version: "test"
+    })(args.slice(1)))
+    expect(parsed).toMatchObject(command === migrateGenerate ? { allowDestructive: false } : { dryRun: false })
+  })
+}
+
+test("root wizard can be declined or cancelled without running the database handler", async () => {
+  // No config/database services are mocked: running the real handler would fail.
+  await run(Command.runWith(root, { version: "test" })(["push", "--wizard"]).pipe(
+    Effect.provideService(Terminal.Terminal, scriptedTerminal([
+      ["return"], ["return"], ["return"], ["return"], ["right", "return"]
+    ]))
+  ))
+  await run(Command.runWith(root, { version: "test" })(["pull", "--wizard"]).pipe(
+    Effect.provideService(Terminal.Terminal, scriptedTerminal([[]]))
+  ))
+})
+
+test("built Node CLI accepts omitted booleans and reaches config loading", async () => {
+  const node = Bun.which("node")
+  if (node === null) throw new Error("Node.js is required for the CLI smoke test")
+  for (const command of [["push"], ["pull"], ["migrate", "generate"], ["migrate", "down"], ["migrate", "repair"]]) {
+    const configPath = `/effect-qb-missing-config-${crypto.randomUUID()}.ts`
+    const process = Bun.spawn([node, "packages/database/dist/cli.js", ...command, "--config", configPath], {
+      stdout: "pipe", stderr: "pipe"
+    })
+    const [stdout, stderr, status] = await Promise.all([
+      new Response(process.stdout).text(), new Response(process.stderr).text(), process.exited
+    ])
+    expect(status).not.toBe(0)
+    expect(stdout + stderr).toContain(configPath)
+    expect(stdout + stderr).not.toContain("MissingOption")
+  }
+})
