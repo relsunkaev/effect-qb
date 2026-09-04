@@ -39,7 +39,7 @@ export interface MakeOptions<Error = never, Context = never> {
 export type PostgresExecutorError = PostgresDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in Postgres executors. */
 export type PostgresQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? PostgresReadQueryError : PostgresExecutorError
+  Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? PostgresReadQueryError | RowDecodeError : PostgresExecutorError
 
 /** Pipeable execution cardinality helpers. */
 export const atMostOne = CoreExecutor.atMostOne

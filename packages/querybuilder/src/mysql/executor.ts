@@ -47,7 +47,7 @@ export interface MakeOptions<Error = never, Context = never> {
 export type MysqlExecutorError = MysqlDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in MySQL executors. */
 export type MysqlQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError : MysqlExecutorError
+  Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError | RowDecodeError : MysqlExecutorError
 
 /** Pipeable execution cardinality helpers. */
 export const atMostOne = CoreExecutor.atMostOne

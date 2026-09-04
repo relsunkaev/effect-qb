@@ -37,7 +37,7 @@ export interface MakeOptions<Error = never, Context = never> {
 export type SqliteExecutorError = SqliteDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in SQLite executors. */
 export type SqliteQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? SqliteReadQueryError : SqliteExecutorError
+  Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? SqliteReadQueryError | RowDecodeError : SqliteExecutorError
 
 /** Pipeable execution cardinality helpers. */
 export const atMostOne = CoreExecutor.atMostOne
