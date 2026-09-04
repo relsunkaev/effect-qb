@@ -58,12 +58,12 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@typescript/native-preview": "beta"
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2"
   },
   "dependencies": {
     "pgsql-ast-parser": "^12.0.2"
   },
   "peerDependencies": {
-    "effect": "4.0.0-beta.98"
+    "effect": "4.0.0-beta.107"
   }
 }
