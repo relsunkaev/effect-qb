@@ -1,4 +1,6 @@
 import * as Effect from "effect/Effect"
+import * as Graph from "effect/Graph"
+import * as Option from "effect/Option"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
 import { Datatypes } from "effect-qb/postgres"
@@ -176,136 +178,76 @@ const sortPulledAdditions = (
   return [...additions].sort((left, right) => left.sourceIndex - right.sourceIndex)
 }
 
+type ForeignKeyDependency = {
+  readonly table: TableModel
+  readonly columns: readonly string[]
+  readonly referencedTable: TableModel
+  readonly referencedColumns: readonly string[]
+}
+
+const tableDependencyGraph = (tables: readonly TableModel[]) =>
+  Graph.directed<TableModel, ForeignKeyDependency>((graph) => {
+    const nodes = new Map(tables.map((table) => [
+      schemaObjectKey(table.schemaName, table.name), Graph.addNode(graph, table)
+    ]))
+    for (const table of tables) {
+      const from = nodes.get(schemaObjectKey(table.schemaName, table.name))!
+      for (const option of normalizedTableOptions(table)) {
+        if (option.kind !== "foreignKey") continue
+        const reference = option.references()
+        const to = nodes.get(schemaObjectKey(reference.schemaName, reference.tableName))
+        if (to === undefined) continue
+        Graph.addEdge(graph, from, to, {
+          table,
+          columns: option.columns,
+          referencedTable: Option.getOrThrow(Graph.getNode(graph, to)),
+          referencedColumns: reference.columns
+        })
+      }
+    }
+  })
+
+const cyclicComponents = (graph: ReturnType<typeof tableDependencyGraph>) =>
+  Graph.stronglyConnectedComponents(graph).filter((component) =>
+    component.length > 1 || Graph.successors(graph, component[0]!).includes(component[0]!)
+  )
+
 const sortTableAdditionsByDependency = (
   additions: readonly (PulledAddition & { readonly kind: "table"; readonly model: TableModel })[]
 ): readonly (PulledAddition & { readonly kind: "table"; readonly model: TableModel })[] => {
-  if (additions.length <= 1) {
-    return additions
-  }
-  const keyOf = (addition: PulledAddition & { readonly kind: "table"; readonly model: TableModel }): string =>
-    schemaObjectKey(addition.model.schemaName, addition.model.name)
-  const additionsByKey = new Map(additions.map((addition) => [keyOf(addition), addition] as const))
-  const dependenciesByKey = new Map<string, Set<string>>()
-  for (const addition of additions) {
-    const key = keyOf(addition)
-    const dependencies = new Set<string>()
-    for (const option of normalizedTableOptions(addition.model)) {
-      if (option.kind !== "foreignKey") {
-        continue
-      }
-      const reference = option.references()
-      const dependencyKey = schemaObjectKey(reference.schemaName, reference.tableName)
-      if (dependencyKey !== key && additionsByKey.has(dependencyKey)) {
-        dependencies.add(dependencyKey)
-      }
+  // Self references never constrain declaration ordering.
+  const graph = Graph.mutate(tableDependencyGraph(additions.map((addition) => addition.model)), (mutable) => {
+    Graph.filterEdges(mutable, (edge) => edge.table !== edge.referencedTable)
+  })
+  const blocked = new Set(Graph.indices(Graph.dfs(graph, {
+    start: cyclicComponents(graph).flat(),
+    direction: "incoming"
+  })))
+  const acyclic = Graph.inducedSubgraph(graph, Array.from(Graph.indices(Graph.nodes(graph))).filter((node) => !blocked.has(node)))
+  const dependenciesFirst = Graph.mutate(acyclic, (mutable) => { Graph.reverse(mutable) })
+  const wave = new Map<Graph.NodeIndex, number>()
+  for (const node of Graph.indices(Graph.topo(dependenciesFirst))) {
+    let depth = 0
+    for (const dependency of Graph.successors(acyclic, node)) {
+      depth = Math.max(depth, wave.get(dependency)! + 1)
     }
-    dependenciesByKey.set(key, dependencies)
+    wave.set(node, depth)
   }
-
-  const remaining = new Map(additionsByKey)
-  const ordered: Array<PulledAddition & { readonly kind: "table"; readonly model: TableModel }> = []
-  const rendered = new Set<string>()
-  while (remaining.size > 0) {
-    const ready = [...remaining.values()]
-      .filter((addition) => {
-        const dependencies = dependenciesByKey.get(keyOf(addition)) ?? new Set<string>()
-        for (const dependency of dependencies) {
-          if (!rendered.has(dependency)) {
-            return false
-          }
-        }
-        return true
-      })
-      .sort((left, right) => left.sourceIndex - right.sourceIndex)
-    if (ready.length === 0) {
-      ordered.push(...[...remaining.values()].sort((left, right) => left.sourceIndex - right.sourceIndex))
-      break
-    }
-    for (const addition of ready) {
-      const key = keyOf(addition)
-      rendered.add(key)
-      remaining.delete(key)
-      ordered.push(addition)
-    }
-  }
-  return ordered
+  // Preserve the existing ready-wave/source order, then append cycle-blocked tables.
+  return additions.map((addition, node) => ({ addition, wave: wave.get(node) ?? Infinity }))
+    .sort((left, right) => left.wave - right.wave || left.addition.sourceIndex - right.addition.sourceIndex)
+    .map(({ addition }) => addition)
 }
 
-const collectCyclicTableKeys = (
-  tables: readonly TableModel[]
-): ReadonlySet<string> => {
-  const keys = new Set(tables.map((table) => schemaObjectKey(table.schemaName, table.name)))
-  const edgesByKey = new Map<string, Set<string>>()
-  for (const table of tables) {
-    const key = schemaObjectKey(table.schemaName, table.name)
-    const dependencies = new Set<string>()
-    for (const option of normalizedTableOptions(table)) {
-      if (option.kind !== "foreignKey" || option.columns.length !== 1) {
-        continue
-      }
-      const reference = option.references()
-      if (reference.columns.length !== 1) {
-        continue
-      }
-      const dependencyKey = schemaObjectKey(reference.schemaName, reference.tableName)
-      if (keys.has(dependencyKey)) {
-        dependencies.add(dependencyKey)
-      }
-    }
-    edgesByKey.set(key, dependencies)
-  }
-
-  const indices = new Map<string, number>()
-  const lowLinks = new Map<string, number>()
-  const stack: string[] = []
-  const onStack = new Set<string>()
-  const cyclicKeys = new Set<string>()
-  let index = 0
-
-  const strongConnect = (key: string): void => {
-    indices.set(key, index)
-    lowLinks.set(key, index)
-    index += 1
-    stack.push(key)
-    onStack.add(key)
-
-    for (const dependency of edgesByKey.get(key) ?? []) {
-      if (!indices.has(dependency)) {
-        strongConnect(dependency)
-        lowLinks.set(key, Math.min(lowLinks.get(key)!, lowLinks.get(dependency)!))
-      } else if (onStack.has(dependency)) {
-        lowLinks.set(key, Math.min(lowLinks.get(key)!, indices.get(dependency)!))
-      }
-    }
-
-    if (lowLinks.get(key) !== indices.get(key)) {
-      return
-    }
-
-    const component: string[] = []
-    while (stack.length > 0) {
-      const current = stack.pop()!
-      onStack.delete(current)
-      component.push(current)
-      if (current === key) {
-        break
-      }
-    }
-
-    if (component.length > 1 || (edgesByKey.get(key) ?? new Set<string>()).has(key)) {
-      for (const current of component) {
-        cyclicKeys.add(current)
-      }
-    }
-  }
-
-  for (const key of keys) {
-    if (!indices.has(key)) {
-      strongConnect(key)
-    }
-  }
-
-  return cyclicKeys
+const collectCyclicTableKeys = (tables: readonly TableModel[]): ReadonlySet<string> => {
+  // Only single-column foreign keys are candidates for inline column rendering.
+  const graph = Graph.mutate(tableDependencyGraph(tables), (mutable) => {
+    Graph.filterEdges(mutable, (edge) => edge.columns.length === 1 && edge.referencedColumns.length === 1)
+  })
+  return new Set(cyclicComponents(graph).flat().map((node) => {
+    const table = Option.getOrThrow(Graph.getNode(graph, node))
+    return schemaObjectKey(table.schemaName, table.name)
+  }))
 }
 
 const normalizeType = (value: string): string =>
