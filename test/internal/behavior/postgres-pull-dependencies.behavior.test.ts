@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test"
+import { mkdtemp, rm } from "node:fs/promises"
+import { join } from "node:path"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
@@ -81,4 +83,22 @@ test("pull reports one exact witness per disjoint cyclic group", async () => {
     "foreign-key cycle: public.a(peer) -> public.b(id); public.b(peer) -> public.a(id)",
     "foreign-key cycle: public.d(peer) -> public.e(id); public.e(peer) -> public.d(id)"
   ])
+})
+
+test("generated cyclic declarations evaluate and retain their foreign-key targets", async () => {
+  const plan = await planFor([table("cycle_a", ["cycle_b"]), table("cycle_b", ["cycle_a"]), table("self", ["self"])])
+  const directory = await mkdtemp(join(process.cwd(), "test/.tmp-pull-cycle-"))
+  try {
+    const path = join(directory, "schema.ts")
+    await Bun.write(path, plan.updates[0]!.after)
+    const module = await import(path)
+    for (const [source, target] of [["cycle_a", "cycle_b"], ["cycle_b", "cycle_a"], ["self", "self"]]) {
+      const model = toTableModel(module[source!])
+      const foreignKey = model.options.find((option) => option.kind === "foreignKey")
+      if (foreignKey?.kind !== "foreignKey") throw new Error("Missing generated foreign key")
+      expect(foreignKey.references().tableName).toBe(target)
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })
