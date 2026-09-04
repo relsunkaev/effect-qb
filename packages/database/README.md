@@ -57,6 +57,10 @@ written to stderr and default to `info`; use `--log-level debug` for config
 diagnostics or `--log-level none` to suppress logs. Plans and status
 output remain on stdout.
 
+Pull plans report a concrete foreign-key cycle for each cyclic dependency group,
+including the source and referenced columns. These are diagnostic examples, not
+an exhaustive list of cycles; they do not change declaration ordering or apply policy.
+
 ## Runtime services
 
 The CLI obtains file-system, path, crypto, and terminal capabilities from

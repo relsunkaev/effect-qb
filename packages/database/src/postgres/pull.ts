@@ -40,6 +40,8 @@ export interface PullFileUpdate {
 
 export interface PullPlan {
   readonly updates: readonly PullFileUpdate[]
+  /** One concrete foreign-key cycle per cyclic dependency group, not every possible cycle. */
+  readonly warnings?: readonly string[]
 }
 
 type RenderContext = {
@@ -248,6 +250,22 @@ const collectCyclicTableKeys = (tables: readonly TableModel[]): ReadonlySet<stri
     const table = Option.getOrThrow(Graph.getNode(graph, node))
     return schemaObjectKey(table.schemaName, table.name)
   }))
+}
+
+const foreignKeyCycleWarnings = (tables: readonly TableModel[]): readonly string[] => {
+  const graph = tableDependencyGraph(tables)
+  const endpoint = (table: TableModel, columns: readonly string[]) =>
+    `${renderSqlIdentifier(table.schemaName ?? "public")}.${renderSqlIdentifier(table.name)}(${columns.map(renderSqlIdentifier).join(", ")})`
+  return cyclicComponents(graph)
+    .sort((left, right) => Math.min(...left) - Math.min(...right))
+    .map((component) => {
+      const cycle = Option.getOrThrow(Graph.findCycle(Graph.inducedSubgraph(graph, component)))
+      const links = cycle.edges.map((index) => {
+        const edge = Option.getOrThrow(Graph.getEdge(graph, index)).data
+        return `${endpoint(edge.table, edge.columns)} -> ${endpoint(edge.referencedTable, edge.referencedColumns)}`
+      })
+      return `foreign-key cycle: ${links.join("; ")}`
+    })
 }
 
 const normalizeType = (value: string): string =>
@@ -3150,8 +3168,10 @@ export const planPostgresPullEffect = (
     }
   }
 
+  const warnings = foreignKeyCycleWarnings(database.tables)
   return {
-    updates
+    updates,
+    ...(warnings.length === 0 ? {} : { warnings })
   }
 })
 
@@ -3186,9 +3206,12 @@ export const summarizePullPlanEffect = (
   plan: PullPlan
 ): Effect.Effect<readonly string[], never, Path.Path> =>
   Effect.map(Path.Path, (paths) =>
-    plan.updates.map((update) =>
-      `${update.before.length === 0 ? "create" : "update"} ${paths.relative(cwd, update.filePath)}`
-    ))
+    [
+      ...plan.updates.map((update) =>
+        `${update.before.length === 0 ? "create" : "update"} ${paths.relative(cwd, update.filePath)}`
+      ),
+      ...(plan.warnings ?? []).map((warning) => `warning: ${warning}`)
+    ])
 
 export const summarizePullPlan = (cwd: string, plan: PullPlan): readonly string[] =>
   runNodePath(summarizePullPlanEffect(cwd, plan))
