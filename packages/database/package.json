@@ -55,13 +55,13 @@
     "prepack": "bun run build"
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.0-beta.107",
-    "@effect/sql-pg": "4.0.0-beta.107",
+    "@effect/platform-node": "4.0.0-rc.112",
+    "@effect/sql-pg": "4.0.0-rc.112",
     "effect-qb": "workspace:*",
     "tinyglobby": "0.2.17",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
-    "effect": "4.0.0-beta.107"
+    "effect": "4.0.0-rc.112"
   }
 }

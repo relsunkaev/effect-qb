@@ -18,7 +18,7 @@
     "#internal/*": "./packages/querybuilder/src/internal/*"
   },
   "overrides": {
-    "@effect/platform-node-shared": "4.0.0-beta.107"
+    "@effect/platform-node-shared": "4.0.0-rc.112"
   },
   "scripts": {
     "build": "bun scripts/build-package.ts",
@@ -32,14 +32,14 @@
     "test:integration:datatypes": "bun scripts/test-datatype-matrix-integration.ts"
   },
   "devDependencies": {
-    "@effect/platform-bun": "4.0.0-beta.107",
-    "@effect/sql-mysql2": "4.0.0-beta.107",
-    "@effect/sql-pg": "4.0.0-beta.107",
-    "@effect/sql-sqlite-bun": "4.0.0-beta.107",
+    "@effect/platform-bun": "4.0.0-rc.112",
+    "@effect/sql-mysql2": "4.0.0-rc.112",
+    "@effect/sql-pg": "4.0.0-rc.112",
+    "@effect/sql-sqlite-bun": "4.0.0-rc.112",
     "@types/bun": "^1.4.1",
     "@types/node": "^26.4.1",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
-    "effect": "4.0.0-beta.107",
+    "effect": "4.0.0-rc.112",
     "effect-db": "workspace:*",
     "effect-qb": "workspace:*",
     "pgsql-ast-parser": "^12.0.2",
