@@ -1,8 +1,10 @@
 import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Formatter from "effect/Formatter"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as SchemaIssue from "effect/SchemaIssue"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 import * as Stream from "effect/Stream"
@@ -23,6 +25,13 @@ import { isJsonValue } from "./runtime/normalize.js"
 /** Flat database row keyed by rendered projection aliases. */
 export type FlatRow = Readonly<Record<string, unknown>>
 export type DriverMode = "raw" | "normalized"
+
+export interface DecodeOptions {
+  readonly driverMode?: DriverMode
+  readonly valueMappings?: Expression.DriverValueMappings
+  /** Include rejected values in schema issues. For local debugging only. */
+  readonly reportInput?: boolean
+}
 
 /** Driver-level result metadata retained alongside returned rows. */
 export interface DriverResult {
@@ -82,6 +91,27 @@ export interface RowDecodeError {
     readonly message: string
     readonly issue: unknown
   }
+}
+
+/**
+ * Formats projection metadata without rows, SQL, causes, or custom schema messages.
+ * Projection names and dialect are caller-supplied metadata, not redacted identifiers.
+ * `reportInput: true` includes sensitive diagnostic values; do not use it in shared logs.
+ * The original error retains its existing raw fields regardless of this formatter.
+ */
+export const formatRowDecodeError = (
+  error: RowDecodeError,
+  options: { readonly reportInput?: boolean } = {}
+): string => {
+  const summary = `RowDecodeError (${error.dialect}/${error.stage}) at ${JSON.stringify(error.projection.path)}`
+  if (options.reportInput !== true) return summary
+  const issue = error.schemaError?.issue
+  return `${summary}\n${Formatter.format({
+    raw: error.raw,
+    normalized: error.normalized,
+    query: error.query,
+    cause: SchemaIssue.isIssue(issue) ? SchemaIssue.makeFormatterDefault()(issue) : error.cause
+  })}`
 }
 
 /**
@@ -390,7 +420,8 @@ const decodeProjectionValue = (
   raw: unknown,
   scope: ImplicationScope,
   driverMode: DriverMode,
-  valueMappings?: Expression.DriverValueMappings
+  valueMappings?: Expression.DriverValueMappings,
+  reportInput = false
 ): unknown => {
   let normalized = raw
   if (driverMode === "raw") {
@@ -459,7 +490,7 @@ const decodeProjectionValue = (
     return normalized
   }
 
-  const decoded = (Schema.decodeUnknownExit as any)(schema)(normalized)
+  const decoded = (Schema.decodeUnknownExit as any)(schema)(normalized, { reportInput })
   if (Exit.isSuccess(decoded)) {
     return decoded.value
   }
@@ -474,10 +505,7 @@ const decodeProjectionValue = (
 export const makeRowDecoder = (
   rendered: Renderer.RenderedQuery<any, any>,
   plan: Query.Plan.Any,
-  options: {
-    readonly driverMode?: DriverMode
-    readonly valueMappings?: Expression.DriverValueMappings
-  } = {}
+  options: DecodeOptions = {}
 ): ((row: FlatRow) => any) => {
   const projections = flattenSelection(
     Query.getAst(plan).select as Record<string, unknown>
@@ -508,7 +536,7 @@ export const makeRowDecoder = (
       setPath(
         decoded,
         projection.path,
-        decodeProjectionValue(rendered, projection, expression, row[projection.alias], scope, driverMode, valueMappings)
+        decodeProjectionValue(rendered, projection, expression, row[projection.alias], scope, driverMode, valueMappings, options.reportInput)
       )
     }
     return decoded
@@ -519,10 +547,7 @@ export const decodeChunk = (
   rendered: Renderer.RenderedQuery<any, any>,
   plan: Query.Plan.Any,
   rows: Chunk.Chunk<FlatRow>,
-  options: {
-    readonly driverMode?: DriverMode
-    readonly valueMappings?: Expression.DriverValueMappings
-  } = {}
+  options: DecodeOptions = {}
 ): Chunk.Chunk<any> => {
   const decodeRow = makeRowDecoder(rendered, plan, options)
   return Chunk.fromIterable(Chunk.toReadonlyArray(rows).map((row) => decodeRow(row)))
@@ -532,10 +557,7 @@ export const decodeRows = (
   rendered: Renderer.RenderedQuery<any, any>,
   plan: Query.Plan.Any,
   rows: ReadonlyArray<FlatRow>,
-  options: {
-    readonly driverMode?: DriverMode
-    readonly valueMappings?: Expression.DriverValueMappings
-  } = {}
+  options: DecodeOptions = {}
 ): ReadonlyArray<any> => {
   const decodeRow = makeRowDecoder(rendered, plan, options)
   return rows.map((row) => decodeRow(row))

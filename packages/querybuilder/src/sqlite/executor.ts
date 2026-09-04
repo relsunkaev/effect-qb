@@ -19,6 +19,8 @@ import {
 export type FlatRow = CoreExecutor.FlatRow
 /** Runtime decode failure raised after SQL execution but before row remapping. */
 export type RowDecodeError = CoreExecutor.RowDecodeError
+/** Safe by default; input reporting is an explicit debugging opt-in. */
+export const formatRowDecodeError = CoreExecutor.formatRowDecodeError
 /** SQLite-specialized rendered-query driver. */
 export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"sqlite", Error, Context>
 /** SQLite-specialized executor contract. */
@@ -31,6 +33,8 @@ export interface MakeOptions<Error = never, Context = never> {
   readonly renderer?: Renderer
   readonly driver?: Driver<Error, Context>
   readonly driverMode?: CoreExecutor.DriverMode
+  /** Retain rejected values in schema issues for local debugging. */
+  readonly reportInput?: boolean
   readonly valueMappings?: ValueMappings
 }
 /** Standard composed error shape for SQLite executors. */
@@ -131,8 +135,7 @@ const fromDriver = <
 >(
   renderer: Renderer,
   sqlDriver: Driver<Error, Context>,
-  driverMode: CoreExecutor.DriverMode = "raw",
-  valueMappings?: Expression.DriverValueMappings
+  options: CoreExecutor.DecodeOptions = {}
 ): QueryExecutor<Context> => {
   const renderedCache = new WeakMap<object, CoreRenderer.RenderedQuery<any, "sqlite">>()
   const render = (plan: CoreQuery.Plan.Any) => {
@@ -165,7 +168,7 @@ const fromDriver = <
         Effect.flatMap(
           sqlDriver.execute(rendered),
           (rows) => Effect.try({
-            try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }),
+            try: () => CoreExecutor.decodeRows(rendered, plan, rows, options),
             catch: (error) => error as RowDecodeError
           })
         ),
@@ -181,7 +184,7 @@ const fromDriver = <
         Effect.flatMap(result, ({ rows, ...metadata }) => Effect.try({
           try: () => ({
             ...metadata,
-            rows: CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings })
+            rows: CoreExecutor.decodeRows(rendered, plan, rows, options)
           }),
           catch: (error) => error as RowDecodeError
         })),
@@ -194,7 +197,7 @@ const fromDriver = <
         Stream.mapArrayEffect(
           sqlDriver.stream(rendered),
           (rows) => Effect.try({
-            try: () => CoreExecutor.decodeRows(rendered, plan, rows, { driverMode, valueMappings }) as never,
+            try: () => CoreExecutor.decodeRows(rendered, plan, rows, options) as never,
             catch: (error) => error as RowDecodeError
           })
         ),
@@ -237,6 +240,7 @@ export function make(): QueryExecutor<SqlClient.SqlClient>
 export function make(options: {
   readonly renderer?: Renderer
   readonly driverMode?: CoreExecutor.DriverMode
+  readonly reportInput?: boolean
   readonly valueMappings?: ValueMappings
 }): QueryExecutor<SqlClient.SqlClient>
 export function make<Error = never, Context = never>(
@@ -244,6 +248,7 @@ export function make<Error = never, Context = never>(
     readonly renderer?: Renderer
     readonly driver: Driver<Error, Context>
     readonly driverMode?: CoreExecutor.DriverMode
+    readonly reportInput?: boolean
     readonly valueMappings?: ValueMappings
   }
 ): QueryExecutor<Context>
@@ -254,15 +259,13 @@ export function make<Error = never, Context = never>(
     return fromDriver(
       options.renderer ?? CoreRenderer.makeTrusted("sqlite", (plan) => renderSqlitePlan(plan, { valueMappings: options.valueMappings })),
       options.driver,
-      options.driverMode,
-      options.valueMappings
+      options
     )
   }
   return fromDriver(
     options.renderer ?? CoreRenderer.makeTrusted("sqlite", (plan) => renderSqlitePlan(plan, { valueMappings: options.valueMappings })),
     sqlClientDriver(),
-    options.driverMode,
-    options.valueMappings
+    options
   )
 }
 
