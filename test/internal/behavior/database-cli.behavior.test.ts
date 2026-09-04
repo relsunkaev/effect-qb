@@ -2,6 +2,8 @@ import { expect, test } from "bun:test"
 import { BunServices } from "@effect/platform-bun"
 import { Command } from "effect/unstable/cli"
 import * as Effect from "effect/Effect"
+import type * as Cause from "effect/Cause"
+import type * as Crypto from "effect/Crypto"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Terminal from "effect/Terminal"
@@ -9,20 +11,25 @@ import * as TestConsole from "effect/testing/TestConsole"
 
 import { root, push, pull, migrateGenerate, migrateDown, migrateRepair } from "../../../packages/database/src/commands.js"
 
-const run = <A, E>(program: Effect.Effect<A, E, Command.Environment>) =>
+const run = <A, E>(program: Effect.Effect<A, E, Command.Environment | Crypto.Crypto>) =>
   Effect.runPromise(program.pipe(Effect.provide(BunServices.layer), Effect.provide(TestConsole.layer)))
 
-for (const command of [push, pull, migrateGenerate, migrateDown, migrateRepair]) {
+const checkDefaults = <Name extends string, Input, E, R>(command: Command.Command<Name, Input, {}, E, R>) => {
   test(`${command.name}: omitted boolean flags default to false`, async () => {
     let parsed: unknown
     const probe = Command.withHandler(command, (flags) => Effect.sync(() => { parsed = flags }))
     await run(Command.runWith(probe, { version: "test" })([]))
-    expect(parsed).toMatchObject(command === migrateGenerate
+    expect(parsed).toMatchObject(command.name === "generate"
       ? { allowDestructive: false }
       : { dryRun: false })
-    if (command === push) expect(parsed).toMatchObject({ allowDestructive: false })
+    if (command.name === "push") expect(parsed).toMatchObject({ allowDestructive: false })
   })
 }
+checkDefaults(push)
+checkDefaults(pull)
+checkDefaults(migrateGenerate)
+checkDefaults(migrateDown)
+checkDefaults(migrateRepair)
 
 test("push: explicit boolean values preserve destructive opt-in", async () => {
   let parsed: unknown
@@ -44,7 +51,7 @@ const scriptedTerminal = (prompts: readonly (readonly string[])[]) => {
     readInput: Effect.gen(function*() {
       const keys = prompts[index++]
       if (keys === undefined) return yield* Effect.die("Unexpected wizard prompt")
-      const queue = yield* Queue.unbounded<Terminal.UserInput>()
+      const queue = yield* Queue.unbounded<Terminal.UserInput, Cause.Done>()
       if (keys.length === 0) {
         yield* Queue.end(queue)
         return queue
@@ -58,9 +65,9 @@ const scriptedTerminal = (prompts: readonly (readonly string[])[]) => {
   })
 }
 
-for (const command of [push, pull, migrateGenerate]) {
+const checkWizard = <Name extends string, Input, E, R>(command: Command.Command<Name, Input, {}, E, R>) => {
   test(`${command.name}: wizard preserves optional flag defaults`, async () => {
-    const count = command === pull ? 3 : 4
+    const count = command.name === "pull" ? 3 : 4
     const args = await run(Command.wizard(command).pipe(
       Effect.provideService(Terminal.Terminal, scriptedTerminal(Array.from({ length: count }, () => ["return"])))
     ))
@@ -69,9 +76,12 @@ for (const command of [push, pull, migrateGenerate]) {
     await run(Command.runWith(Command.withHandler(command, (flags) => Effect.sync(() => { parsed = flags })), {
       version: "test"
     })(args.slice(1)))
-    expect(parsed).toMatchObject(command === migrateGenerate ? { allowDestructive: false } : { dryRun: false })
+    expect(parsed).toMatchObject(command.name === "generate" ? { allowDestructive: false } : { dryRun: false })
   })
 }
+checkWizard(push)
+checkWizard(pull)
+checkWizard(migrateGenerate)
 
 test("root wizard can be declined or cancelled without running the database handler", async () => {
   // No config/database services are mocked: running the real handler would fail.
