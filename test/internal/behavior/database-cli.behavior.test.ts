@@ -83,6 +83,20 @@ checkWizard(push)
 checkWizard(pull)
 checkWizard(migrateGenerate)
 
+test("wizard-generated dry-run flags keep destructive changes disabled", async () => {
+  const args = await run(Command.wizard(push).pipe(
+    Effect.provideService(Terminal.Terminal, scriptedTerminal([
+      ["return"], ["return"], ["y"], ["y"], ["return"]
+    ]))
+  ))
+  expect(args).toEqual(["push", "--dry-run", "true"])
+  let parsed: unknown
+  await run(Command.runWith(Command.withHandler(push, (flags) => Effect.sync(() => { parsed = flags })), {
+    version: "test"
+  })(args.slice(1)))
+  expect(parsed).toMatchObject({ dryRun: true, allowDestructive: false })
+})
+
 test("root wizard can be declined or cancelled without running the database handler", async () => {
   // No config/database services are mocked: running the real handler would fail.
   await run(Command.runWith(root, { version: "test" })(["push", "--wizard"]).pipe(

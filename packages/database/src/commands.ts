@@ -382,4 +382,3 @@ const migrate = Command.make("migrate", {}, () => Effect.void).pipe(
 export const root = Command.make("effectdb", {}, () => Effect.void).pipe(
   Command.withSubcommands([push, pull, migrate])
 )
-
