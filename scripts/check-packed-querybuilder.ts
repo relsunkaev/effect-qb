@@ -49,16 +49,18 @@ const databaseTarballPath = async () => {
 
 const run = async (
   command: readonly string[],
-  workdir: string
+  workdir: string,
+  env: Record<string, string | undefined> = process.env
 ) => {
   const proc = Bun.spawn(command, {
     cwd: workdir,
+    env,
     stdout: "inherit",
     stderr: "inherit"
   })
   const exitCode = await proc.exited
   if (exitCode !== 0) {
-    process.exit(exitCode)
+    throw new Error(`Command ${command[0]} failed with exit code ${exitCode}`)
   }
 }
 
@@ -241,7 +243,21 @@ const main = async () => {
       ""
     ].join("\n"))
 
-    await run(["bun", "install", "--no-save"], consumerDir)
+    // A public-package consumer must not inherit the developer's registry
+    // credentials, global Bun config, or mutable package cache.
+    const installHome = join(consumerDir, ".install-home")
+    await mkdir(installHome)
+    await run([
+      process.execPath, "install", "--no-save",
+      "--registry=https://registry.npmjs.org",
+      `--cache-dir=${join(installHome, "cache")}`
+    ], consumerDir, {
+      PATH: process.env.PATH,
+      HOME: installHome,
+      USERPROFILE: installHome,
+      TMPDIR: tmpdir(),
+      SystemRoot: process.env.SystemRoot
+    })
     await run([join(cwd, "node_modules", ".bin", "tsgo"), "-p", "tsconfig.json"], consumerDir)
 
     const nodePath = Bun.which("node")
