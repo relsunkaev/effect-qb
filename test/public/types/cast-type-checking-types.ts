@@ -78,3 +78,31 @@ const docs = Table.make("docs", {
 }
 
 export {}
+
+// Pipe form must stay usable on mixed-field tables, not only direct currying.
+{
+  const idText = ids.id.pipe(Cast.to(Type.text()))
+  const seqText = ids.sequence.pipe(Cast.to(Type.text()))
+  const amountInt = ids.amount.pipe(Cast.to(Type.int()))
+  const numericJson = docs.payload.metrics.count.pipe(Cast.to(Pg.Type.float8()))
+  const a: Scalar.RuntimeOf<typeof idText> = "x"
+  const b: Scalar.RuntimeOf<typeof seqText> = "x"
+  const c: Scalar.RuntimeOf<typeof amountInt> = 1
+  const d: Scalar.RuntimeOf<typeof numericJson> = 1
+  void [a, b, c, d]
+  // @ts-expect-error pipe form must not weaken incompatible JSON object casts
+  docs.payload.metrics.pipe(Cast.to(Pg.Type.float8()))
+}
+
+// Pipe results retain exact types and cannot bypass grouping validation.
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false
+type Expect<T extends true> = T
+const pipedId = ids.id.pipe(Cast.to(Type.text()))
+const pipedSequence = ids.sequence.pipe(Cast.to(Type.text()))
+type PipedIdIsString = Expect<Equal<Scalar.RuntimeOf<typeof pipedId>, string>>
+type PipedSequenceIsString = Expect<Equal<Scalar.RuntimeOf<typeof pipedSequence>, string>>
+const groupedId = Query.select({ id: pipedId }).pipe(Query.from(ids), Query.groupBy(pipedId))
+Pg.Renderer.make().render(groupedId)
+const wrongGrouping = Query.select({ id: pipedId }).pipe(Query.from(ids), Query.groupBy(pipedSequence))
+// @ts-expect-error grouping a different cast does not authorize this projection
+Pg.Renderer.make().render(wrongGrouping)

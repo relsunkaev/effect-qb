@@ -1,3 +1,4 @@
+import { isDomain, isArray, isComposite } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 
 import type * as Expression from "../scalar.js"
@@ -26,13 +27,13 @@ const runtimeTagOfDbType = (
   if (dbType === undefined) {
     return undefined
   }
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return runtimeTagOfDbType(dbType.base)
   }
-  if ("element" in dbType) {
+  if (isArray(dbType)) {
     return "array"
   }
-  if ("fields" in dbType) {
+  if (isComposite(dbType)) {
     return "record"
   }
   if ("variant" in dbType && dbType.variant === "json") {
@@ -50,7 +51,7 @@ const familyOfDbType = (
   if (dbType === undefined) {
     return undefined
   }
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return familyOfDbType(dbType.base)
   }
   return dbType.family
@@ -88,7 +89,7 @@ const isJsonDbType = (dbType: Expression.DbType.Any | undefined): boolean => {
   if (dbType === undefined) {
     return false
   }
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return isJsonDbType(dbType.base)
   }
   if (!("variant" in dbType)) {

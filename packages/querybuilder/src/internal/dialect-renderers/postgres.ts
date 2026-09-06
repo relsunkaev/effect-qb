@@ -1,3 +1,4 @@
+import { isDomain, isArray, hasSubtype } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 
 import * as Query from "../query.js"
@@ -31,9 +32,6 @@ const renderDbType = (
 ): string => {
   return renderDbTypeName(renderPortableDatatypeDdlType(dialect.name, dbType.kind) ?? dbType.kind)
 }
-
-const isArrayDbType = (dbType: Expression.DbType.Any): boolean =>
-  "element" in dbType
 
 const renderCastType = (
   dialect: SqlDialect,
@@ -281,7 +279,7 @@ const renderColumnDefinition = (
   casing?: Casing.Options
 ): string => {
   const expressionState = { ...state, casing, rowLocalColumns: true }
-  if (dialect.name !== "postgres" && isArrayDbType(column.metadata.dbType)) {
+  if (dialect.name !== "postgres" && isArray(column.metadata.dbType)) {
     throw new Error(`Unsupported ${dialect.name} array column options`)
   }
   const clauses = [
@@ -502,10 +500,10 @@ const postgresRangeSubtypeByKind: Readonly<Record<string, string>> = {
 }
 
 const postgresRangeSubtypeKey = (dbType: Expression.DbType.Any): string | undefined => {
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return postgresRangeSubtypeKey(dbType.base)
   }
-  if ("subtype" in dbType) {
+  if (hasSubtype(dbType)) {
     return postgresRangeSubtypeKey(dbType.subtype) ?? dbType.subtype.kind
   }
   return postgresRangeSubtypeByKind[dbType.kind]

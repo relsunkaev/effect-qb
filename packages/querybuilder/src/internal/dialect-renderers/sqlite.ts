@@ -1,3 +1,4 @@
+import { isArray } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 
 import * as Query from "../query.js"
@@ -29,9 +30,6 @@ const renderDbType = (
 ): string => {
   return renderDbTypeName(renderPortableDatatypeDdlType(dialect.name, dbType.kind) ?? dbType.kind)
 }
-
-const isArrayDbType = (dbType: Expression.DbType.Any): boolean =>
-  "element" in dbType
 
 const renderCastType = (
   dialect: SqlDialect,
@@ -279,7 +277,7 @@ const renderColumnDefinition = (
   casing?: Casing.Options
 ): string => {
   const expressionState = { ...state, casing, rowLocalColumns: true }
-  if (isArrayDbType(column.metadata.dbType)) {
+  if (isArray(column.metadata.dbType)) {
     throw new Error("Unsupported sqlite array column options")
   }
   const clauses = [

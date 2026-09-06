@@ -1,3 +1,4 @@
+import { isDomain } from "../../internal/datatypes/guards.js"
 import * as Numeric from "../../internal/dialect-numeric.js"
 import * as Expression from "../../internal/scalar.js"
 import { mysqlDatatypes } from "../datatypes/index.js"
@@ -58,7 +59,7 @@ type MyAggregateResultDb<Value extends Numeric.Input> =
     : MyDouble
 
 const baseDb = (db: Expression.DbType.Any): Expression.DbType.Any =>
-  "base" in db ? baseDb(db.base) : db
+  isDomain(db) ? baseDb(db.base) : db
 
 const resultDb = (value: Numeric.Input): MyDecimal | MyDouble => {
   if (typeof value === "number") return mysqlDatatypes.double()

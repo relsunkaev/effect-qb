@@ -125,16 +125,8 @@ export declare namespace DbType {
     readonly variant: "set"
   }
 
-  export type Any =
-    | Json
-    | Base<string, string>
-    | Array<string, any, string>
-    | Range<string, any, string>
-    | Multirange<string, any, string>
-    | Composite<string, Record<string, any>, string>
-    | Domain<string, any, string>
-    | Enum<string, string>
-    | Set<string, string>
+  /** Common constraint for every SQL descriptor, including nested descriptors. */
+  export type Any = Base<string, string>
   }
 
 export interface DriverValueMapping {

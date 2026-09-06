@@ -1,3 +1,4 @@
+import { isDomain } from "../../internal/datatypes/guards.js"
 import * as Numeric from "../../internal/dialect-numeric.js"
 import * as Expression from "../../internal/scalar.js"
 import { postgresDatatypes, postgresDatatypeFamilies } from "../datatypes/index.js"
@@ -164,7 +165,7 @@ type PgRoundResult<
 >
 
 const baseDb = (db: Expression.DbType.Any): Expression.DbType.Any =>
-  "base" in db ? baseDb(db.base) : db
+  isDomain(db) ? baseDb(db.base) : db
 
 const moduloCategory = (value: Numeric.Input): "int2" | "int4" | "int8" | "numeric" => {
   if (typeof value === "number") {

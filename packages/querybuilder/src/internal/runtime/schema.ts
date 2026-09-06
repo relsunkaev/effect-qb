@@ -1,3 +1,4 @@
+import { isDomain, isArray, isComposite } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 import * as SchemaAST from "effect/SchemaAST"
 
@@ -88,13 +89,13 @@ const runtimeTagOfBaseDbType = (
 export const runtimeSchemaForDbType = (
   dbType: Expression.DbType.Any
 ): RuntimeSchema | undefined => {
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return runtimeSchemaForDbType(dbType.base)
   }
-  if ("element" in dbType) {
+  if (isArray(dbType)) {
     return Schema.Array(runtimeSchemaForDbType(dbType.element) ?? Schema.Unknown)
   }
-  if ("fields" in dbType) {
+  if (isComposite(dbType)) {
     const fields = Object.fromEntries(
       Object.entries(dbType.fields).map(([key, field]) => [key, runtimeSchemaForDbType(field) ?? Schema.Unknown])
     )

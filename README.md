@@ -769,7 +769,7 @@ const events = Table.make("events", {
 
 // id (uuid) and externalRef (text) are different comparison families, so cast
 // one side to compare them.
-const idAsText = Cast.to(events.id, Type.text())
+const idAsText = events.id.pipe(Cast.to(Type.text()))
 const sameRef = Query.eq(idAsText, events.externalRef)
 
 // @ts-expect-error uuid and text are different comparison families

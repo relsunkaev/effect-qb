@@ -1,3 +1,4 @@
+import { isDomain } from "./datatypes/guards.js"
 import * as Chunk from "effect/Chunk"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -402,7 +403,7 @@ const effectiveRuntimeNullability = (
 const dbTypeAllowsTopLevelJsonNull = (
   dbType: Expression.DbType.Any
 ): boolean => {
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return dbTypeAllowsTopLevelJsonNull(dbType.base)
   }
   return ("variant" in dbType && dbType.variant === "json") || dbType.runtime === "json"
