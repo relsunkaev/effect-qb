@@ -385,7 +385,7 @@ export const insertChangelogSection = (existing: string, section: string): strin
 const main = async () => {
   const argv = process.argv.slice(2)
   const args = new Set(argv)
-  const push = args.has("--push")
+  if (args.has("--push")) throw new Error("Release preparation no longer pushes or tags; open a release PR, then run Publish after merge")
   const dryRun = args.has("--dry-run")
   const explicitVersionValue = getArgValue(argv, "--version")
   const explicitVersion = explicitVersionValue === null ? null : parseSemver(explicitVersionValue)
@@ -439,11 +439,8 @@ const main = async () => {
 
   await run(["git", "add", "package.json", "packages/querybuilder/package.json", "packages/database/package.json", "packages/database/src/cli.ts", "bun.lock", "CHANGELOG.md"])
   await run(["git", "commit", "-m", `chore(release): v${formatSemver(nextVersion)}`])
-  await run(["git", "tag", "-a", `v${formatSemver(nextVersion)}`, "-m", `v${formatSemver(nextVersion)}`])
+  console.log("Release commit prepared. Open a PR; publish explicitly after it lands on main.")
 
-  if (push) {
-    await run(["git", "push", "origin", `HEAD:${branch}`, "--tags"])
-  }
 }
 
 if (import.meta.main) {

@@ -1,18 +1,19 @@
 name: Publish
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
         description: Release tag to publish
         required: true
         type: string
+      commit:
+        description: Merged release commit SHA on main (required even for reruns)
+        required: true
+        type: string
 
 concurrency:
-  group: publish-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  group: publish-${{ inputs.tag }}
   cancel-in-progress: false
 
 permissions:
@@ -28,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -41,17 +43,23 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
-      - name: Determine release tag
+      - name: Validate merged release and create tag
         id: tag
         env:
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ inputs.commit }}
         run: |
-          git fetch --tags --force
-          TAG="$RELEASE_TAG"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout release tag
-        run: git checkout --detach "${{ steps.tag.outputs.tag }}"
+          git fetch origin main --tags
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ ! "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "An exact merged commit SHA is required" >&2
+            exit 1
+          fi
+          bun scripts/release-tag.ts "$RELEASE_TAG" "$RELEASE_COMMIT"
+          git push origin "refs/tags/$RELEASE_TAG"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          git checkout --detach "$RELEASE_COMMIT"
 
       - name: Extract release notes
         id: notes
