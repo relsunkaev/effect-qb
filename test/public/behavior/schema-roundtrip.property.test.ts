@@ -26,7 +26,6 @@ const select = Q.select({
 const selectedRows = Schema.toArbitrary(Table.selectSchema(records))(FastCheck)
 
 test("schema-derived rows round-trip through SQLite inserts, defaults, and decoding", async () => {
-  // Explicit undefined mutation values are tracked in effect-qb-o8r. Cover omission, not coercion.
   await FastCheck.assert(FastCheck.asyncProperty(selectedRows, FastCheck.boolean(), async (row, omitDefaults) => {
     const { bio, active, ...required } = row
     const input = omitDefaults ? required : row
@@ -65,5 +64,36 @@ test("generated update payloads exclude primary keys and permit nullable fields"
     expect(Object.hasOwn(row, "id")).toBe(false)
     expect(Schema.is(schema)(row)).toBe(true)
     expect(Schema.is(schema)({ ...row, bio: null })).toBe(true)
+  }), { seed: 98112, numRuns: 100 })
+})
+
+test("mutation schemas distinguish omitted fields from explicit undefined", () => {
+  const insert = Table.insertSchema(records)
+  const update = Table.updateSchema(records)
+  const required = { id: 1, name: "one", payload: { tags: [], count: 0, note: null } }
+  expect(Schema.is(insert)(required)).toBe(true)
+  expect(Schema.is(insert)({ ...required, bio: null })).toBe(true)
+  expect(Schema.is(insert)({ ...required, active: undefined })).toBe(false)
+  expect(Schema.is(insert)({ ...required, bio: undefined })).toBe(false)
+  expect(Schema.is(update)({})).toBe(true)
+  expect(Schema.is(update)({ bio: null })).toBe(true)
+  expect(Schema.is(update)({ bio: undefined })).toBe(false)
+  expect(Schema.is(update)({ active: undefined })).toBe(false)
+})
+
+
+test("generated insert-schema values execute without mutation coercion", async () => {
+  const inputs = Schema.toArbitrary(Table.insertSchema(records))(FastCheck)
+  await FastCheck.assert(FastCheck.asyncProperty(inputs, async (input) => {
+    const row = await Effect.runPromise(Effect.gen(function*() {
+      const executor = Sq.Executor.make()
+      yield* executor.execute(Q.createTable(records))
+      yield* executor.execute(Q.insert(records, input))
+      const updated = { name: "updated", bio: null }
+      expect(Schema.is(Table.updateSchema(records))(updated)).toBe(true)
+      yield* executor.execute(Q.update(records, updated))
+      return yield* executor.execute(select).pipe(Sq.Executor.exactlyOne)
+    }).pipe(Effect.provide(SqliteClient.layer({ filename: ":memory:", disableWAL: true }))))
+    expect(row).toEqual({ ...input, active: input.active ?? false, bio: null, name: "updated" })
   }), { seed: 98112, numRuns: 100 })
 })

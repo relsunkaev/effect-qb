@@ -520,6 +520,10 @@ type UserUpdateFromSchema = Schema.Schema.Type<typeof updateSchema>
 expose the same schemas, so Effect Schema validation and TypeScript payload
 types stay aligned.
 
+Optional mutation fields may be omitted, but an explicitly supplied `undefined`
+is rejected by the derived schema. Use `null` only for nullable columns. Omit a
+field to use its insert default or leave it unchanged in an update.
+
 ### Conflict Targets
 
 `onConflict` and `upsert` column targets must match table arbiter metadata:
