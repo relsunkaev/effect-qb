@@ -21,14 +21,7 @@ const renderLiteral = (value: unknown, state: RenderState, context: RenderValueC
   return "?"
 }
 
-/**
- * Internal runtime dialect sketch for MySQL.
- *
- * This is intentionally not wired into the public renderer surface yet. It
- * exists to pressure-test the current abstraction seam and to document the
- * concrete SQL differences we still need to account for as dialect support
- * grows.
- */
+/** Built-in runtime dialect implementation for MySQL. */
 export const mysqlDialect: SqlDialect<"mysql"> = {
   ...standardDialect,
   name: "mysql",
