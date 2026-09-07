@@ -1,3 +1,5 @@
+import { renderCommonExpression, expectValueExpression, expectBinaryExpressions, renderBinaryExpression, renderSubqueryExpressionPlan } from "./common-expression.js"
+import { casingForTable, casedTableReferenceName, quoteColumn, stateWithTableCasing, renderReferenceTable, quoteReferenceColumn, registerQuerySources } from "./source-context.js"
 import { isArray } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 
@@ -8,7 +10,6 @@ import * as QueryAst from "../query-ast.js"
 import { renderDbTypeName, type RenderState, type RenderValueContext, type SqlDialect } from "../dialect.js"
 import { renderPortableDatatypeCastType, renderPortableDatatypeDdlType } from "../datatypes/matrix.js"
 import * as ExpressionAst from "../expression-ast.js"
-import { renderCustomSql } from "../custom-sql-renderer.js"
 import { renderWindowFrame } from "../window-renderer.js"
 import * as JsonPath from "../json/path.js"
 import { expectConflictClause } from "../dsl-mutation-runtime.js"
@@ -132,140 +133,6 @@ const renderSqliteMutationLimit = (
     return String(ast.value)
   }
   return renderExpression(expression, state, dialect)
-}
-
-const casingForTable = (
-  table: Table.AnyTable,
-  state: RenderState
-): Casing.Options | undefined =>
-  Casing.merge(state.casing, table[Table.TypeId].casing)
-
-const casedColumnName = (
-  columnName: string,
-  state: RenderState,
-  tableName?: string
-): string => {
-  if (tableName !== undefined) {
-    const mapped = state.sourceNames?.get(tableName)?.columns.get(columnName)
-    if (mapped !== undefined) {
-      return mapped
-    }
-  }
-  return Casing.applyCategory(state.casing, "columns", columnName)
-}
-
-const casedTableReferenceName = (
-  tableName: string,
-  state: RenderState
-): string =>
-  state.sourceNames?.get(tableName)?.tableName ?? Casing.applyCategory(state.casing, "tables", tableName)
-
-const quoteColumn = (
-  columnName: string,
-  state: RenderState,
-  dialect: SqlDialect,
-  tableName?: string
-): string => dialect.quoteIdentifier(casedColumnName(columnName, state, tableName))
-
-const stateWithTableCasing = (
-  state: RenderState,
-  source: unknown
-): RenderState =>
-  typeof source === "object" && source !== null && Table.TypeId in source
-    ? { ...state, casing: casingForTable(source as Table.AnyTable, state) }
-    : state
-
-const referenceCasing = (
-  reference: { readonly casing?: Casing.Options },
-  state: RenderState
-): Casing.Options | undefined =>
-  Casing.merge(state.casing, reference.casing)
-
-const renderReferenceTable = (
-  reference: {
-    readonly tableName: string
-    readonly schemaName?: string
-    readonly casing?: Casing.Options
-  },
-  state: RenderState,
-  dialect: SqlDialect
-): string => {
-  const casing = referenceCasing(reference, state)
-  const tableName = Casing.applyCategory(casing, "tables", reference.tableName)
-  const schemaName = reference.schemaName === undefined
-    ? undefined
-    : Casing.applyCategory(casing, "schemas", reference.schemaName)
-  return dialect.renderTableReference(tableName, tableName, schemaName)
-}
-
-const quoteReferenceColumn = (
-  columnName: string,
-  reference: { readonly casing?: Casing.Options },
-  state: RenderState,
-  dialect: SqlDialect
-): string =>
-  dialect.quoteIdentifier(Casing.applyCategory(referenceCasing(reference, state), "columns", columnName))
-
-const registerSourceReference = (
-  source: unknown,
-  tableName: string,
-  state: RenderState
-): void => {
-  if (typeof source !== "object" || source === null) {
-    return
-  }
-  if (Table.TypeId in source) {
-    const table = source as Table.AnyTable
-    const tableState = table[Table.TypeId]
-    const casing = casingForTable(table, state)
-    const renderedTableName = tableState.kind === "alias"
-      ? tableName
-      : Casing.applyCategory(casing, "tables", tableState.baseName)
-    const columns = new Map(
-      Object.keys(tableState.fields).map((columnName) => [
-        columnName,
-        Casing.applyCategory(casing, "columns", columnName)
-      ] as const)
-    )
-    state.sourceNames?.set(tableName, {
-      tableName: renderedTableName,
-      columns
-    })
-    return
-  }
-  if ("columns" in source && typeof source.columns === "object" && source.columns !== null) {
-    state.sourceNames?.set(tableName, {
-      tableName,
-      columns: new Map(Object.keys(source.columns).map((columnName) => [columnName, columnName] as const))
-    })
-  }
-}
-
-const registerQuerySources = (
-  ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
-  state: RenderState
-): void => {
-  if (ast.from !== undefined) {
-    registerSourceReference(ast.from.source, ast.from.tableName, state)
-  }
-  for (const source of ast.fromSources ?? []) {
-    registerSourceReference(source.source, source.tableName, state)
-  }
-  for (const join of ast.joins) {
-    registerSourceReference(join.source, join.tableName, state)
-  }
-  if (ast.into !== undefined) {
-    registerSourceReference(ast.into.source, ast.into.tableName, state)
-  }
-  if (ast.target !== undefined) {
-    registerSourceReference(ast.target.source, ast.target.tableName, state)
-  }
-  for (const target of ast.targets ?? []) {
-    registerSourceReference(target.source, target.tableName, state)
-  }
-  if (ast.using !== undefined) {
-    registerSourceReference(ast.using.source, ast.using.tableName, state)
-  }
 }
 
 const renderColumnDefinition = (
@@ -396,29 +263,6 @@ const isJsonDbType = (dbType: Expression.DbType.Any): boolean =>
 
 const isJsonExpression = (value: unknown): value is Expression.Any =>
   isExpression(value) && isJsonDbType(value[Expression.TypeId].dbType)
-
-const expectValueExpression = (
-  _functionName: string,
-  value: unknown
-): Expression.Any => value as Expression.Any
-
-const expectBinaryExpressions = (
-  _functionName: string,
-  left: unknown,
-  right: unknown
-): readonly [Expression.Any, Expression.Any] => [left as Expression.Any, right as Expression.Any]
-
-const renderBinaryExpression = (
-  functionName: string,
-  operator: string,
-  left: unknown,
-  right: unknown,
-  state: RenderState,
-  dialect: SqlDialect
-): string => {
-  const [leftExpression, rightExpression] = expectBinaryExpressions(functionName, left, right)
-  return `(${renderExpression(leftExpression, state, dialect)} ${operator} ${renderExpression(rightExpression, state, dialect)})`
-}
 
 const unsupportedJsonFeature = (
   dialect: SqlDialect,
@@ -1731,22 +1575,6 @@ const renderSourceReference = (
   )
 }
 
-const renderSubqueryExpressionPlan = (
-  plan: Query.Plan.Any,
-  state: RenderState,
-  dialect: SqlDialect
-): string => {
-  const statement = Query.getQueryState(plan).statement
-  if (statement !== "select" && statement !== "set") {
-    throw new Error("subquery expressions only accept select-like query plans")
-  }
-  return renderQueryAst(
-    Query.getAst(plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
-    state,
-    dialect
-  ).sql
-}
-
 /**
  * Renders a scalar expression AST into SQL text.
  *
@@ -1777,15 +1605,6 @@ export const renderExpression = (
       gte: ">="
     } as const)[operator as "eq" | "neq" | "lt" | "lte" | "gt" | "gte"]!
   switch (ast.kind) {
-    case "column":
-      return state.rowLocalColumns || ast.tableName.length === 0
-        ? quoteColumn(ast.columnName, state, dialect, ast.tableName)
-        : `${dialect.quoteIdentifier(casedTableReferenceName(ast.tableName, state))}.${quoteColumn(ast.columnName, state, dialect, ast.tableName)}`
-    case "literal":
-      if (typeof ast.value === "number" && !Number.isFinite(ast.value)) {
-        throw new Error("Expected a finite numeric value")
-      }
-      return dialect.renderLiteral(ast.value, state, expression[Expression.TypeId])
     case "excluded":
       if (state.allowExcluded !== true) {
         throw new Error("excluded(...) is only supported inside insert conflict handlers")
@@ -1795,20 +1614,6 @@ export const renderExpression = (
       return `cast(${renderExpression(expectValueExpression("cast", ast.value), state, dialect)} as ${renderCastType(dialect, ast.target)})`
     case "function":
       return renderFunctionCall(ast.name, ast.args, state, dialect)
-    case "customSql":
-      return renderCustomSql(ast, state, dialect, renderExpression)
-    case "eq":
-      return renderBinaryExpression("eq", "=", ast.left, ast.right, state, dialect)
-    case "neq":
-      return renderBinaryExpression("neq", "<>", ast.left, ast.right, state, dialect)
-    case "lt":
-      return renderBinaryExpression("lt", "<", ast.left, ast.right, state, dialect)
-    case "lte":
-      return renderBinaryExpression("lte", "<=", ast.left, ast.right, state, dialect)
-    case "gt":
-      return renderBinaryExpression("gt", ">", ast.left, ast.right, state, dialect)
-    case "gte":
-      return renderBinaryExpression("gte", ">=", ast.left, ast.right, state, dialect)
     case "add":
       return renderBinaryExpression("add", "+", ast.left, ast.right, state, dialect)
     case "subtract":
@@ -1819,8 +1624,6 @@ export const renderExpression = (
       return renderBinaryExpression("divide", "/", ast.left, ast.right, state, dialect)
     case "modulo":
       return renderBinaryExpression("modulo", "%", ast.left, ast.right, state, dialect)
-    case "like":
-      return renderBinaryExpression("like", "like", ast.left, ast.right, state, dialect)
     case "ilike": {
       const [left, right] = expectBinaryExpressions("ilike", ast.left, ast.right)
       return dialect.name === "postgres"
@@ -1902,18 +1705,6 @@ export const renderExpression = (
       }
       throw new Error("Unsupported container operator for SQL rendering")
     }
-    case "isNull":
-      return `(${renderExpression(expectValueExpression("isNull", ast.value), state, dialect)} is null)`
-    case "isNotNull":
-      return `(${renderExpression(expectValueExpression("isNotNull", ast.value), state, dialect)} is not null)`
-    case "not":
-      return `(not ${renderExpression(expectValueExpression("not", ast.value), state, dialect)})`
-    case "upper":
-      return `upper(${renderExpression(expectValueExpression("upper", ast.value), state, dialect)})`
-    case "lower":
-      return `lower(${renderExpression(expectValueExpression("lower", ast.value), state, dialect)})`
-    case "count":
-      return `count(${renderExpression(expectValueExpression("count", ast.value), state, dialect)})`
     case "sum":
       return `sum(${renderExpression(expectValueExpression("sum", ast.value), state, dialect)})`
     case "avg":
@@ -1924,34 +1715,6 @@ export const renderExpression = (
       return `round(${renderExpression(expectValueExpression("round", ast.value), state, dialect)})`
     case "negate":
       return `(-${renderExpression(expectValueExpression("negate", ast.value), state, dialect)})`
-    case "max":
-      return `max(${renderExpression(expectValueExpression("max", ast.value), state, dialect)})`
-    case "min":
-      return `min(${renderExpression(expectValueExpression("min", ast.value), state, dialect)})`
-    case "and":
-      return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" and ")})`
-    case "or":
-      return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" or ")})`
-    case "coalesce":
-      return `coalesce(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")})`
-    case "in":
-      return `(${renderExpression(ast.values[0]!, state, dialect)} in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
-    case "notIn":
-      return `(${renderExpression(ast.values[0]!, state, dialect)} not in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
-    case "between":
-      return `(${renderExpression(ast.values[0]!, state, dialect)} between ${renderExpression(ast.values[1]!, state, dialect)} and ${renderExpression(ast.values[2]!, state, dialect)})`
-    case "concat":
-      return dialect.renderConcat(ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)))
-    case "case":
-      return `case ${ast.branches.map((branch) =>
-        `when ${renderExpression(branch.when, state, dialect)} then ${renderExpression(branch.then, state, dialect)}`
-      ).join(" ")} else ${renderExpression(ast.else, state, dialect)} end`
-    case "exists":
-      return `exists (${renderSubqueryExpressionPlan(ast.plan, state, dialect)})`
-    case "scalarSubquery":
-      return `(${renderSubqueryExpressionPlan(ast.plan, state, dialect)})`
-    case "inSubquery":
-      return `(${renderExpression(expectValueExpression("inSubquery", ast.left), state, dialect)} in (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
     case "comparisonAny": {
       const left = expectValueExpression("compareAny", ast.left)
       const operator = renderComparisonOperator(ast.operator)
@@ -2017,5 +1780,5 @@ export const renderExpression = (
       break
     }
   }
-  throw new Error("Unsupported expression for SQL rendering")
+  return renderCommonExpression(expression, state, dialect)
 }
