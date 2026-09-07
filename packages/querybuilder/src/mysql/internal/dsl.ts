@@ -1,3 +1,5 @@
+import { makeDialectLiteral, makeDialectColumn, type QueryDialectProfile, type DialectLiteralExpression } from "../../internal/dsl-literal.js"
+export type { QueryDialectProfile } from "../../internal/dsl-literal.js"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
@@ -147,77 +149,6 @@ import { normalizeColumnList } from "../../internal/table-options.js"
 type MutationTargetLike = Table.AnyTable<Dialect | "standard">
 type MutationTargetTuple = readonly [MutationTargetLike, MutationTargetLike, ...MutationTargetLike[]]
 type MutationTargetInput = MutationTargetLike | MutationTargetTuple
-
-/**
- * Dialect-specific DB type profile used to specialize the shared query
- * operator surface.
- *
- * The factory does not need to know about every SQL type for a dialect. It
- * only needs the canonical output DB types produced by the query operators
- * implemented so far.
- */
-export interface QueryDialectProfile<
-  Dialect extends string,
-  TextDb extends Expression.DbType.Any,
-  NumericDb extends Expression.DbType.Any,
-  BoolDb extends Expression.DbType.Any,
-  TimestampDb extends Expression.DbType.Any,
-  NullDb extends Expression.DbType.Any,
-  TypeWitnesses extends object = object
-> {
-  readonly dialect: Dialect
-  readonly textDb: TextDb
-  readonly numericDb: NumericDb
-  readonly boolDb: BoolDb
-  readonly timestampDb: TimestampDb
-  readonly nullDb: NullDb
-  readonly type: TypeWitnesses
-}
-
-/** Maps a literal runtime value to the corresponding dialect-level DB type. */
-type DialectLiteralDbType<
-  Value extends LiteralValue,
-  TextDb extends Expression.DbType.Any,
-  NumericDb extends Expression.DbType.Any,
-  BoolDb extends Expression.DbType.Any,
-  TimestampDb extends Expression.DbType.Any,
-  NullDb extends Expression.DbType.Any
-> =
-  Value extends string ? TextDb :
-    Value extends number ? NumericDb :
-      Value extends boolean ? BoolDb :
-        Value extends Date ? TimestampDb :
-          NullDb
-
-type DialectLiteralRuntime<
-  Value extends LiteralValue,
-  TimestampDb extends Expression.DbType.Any
-> = Value extends Date
-  ? RuntimeOfDbType<TimestampDb>
-  : Value
-
-/** Maps a literal runtime value to its intrinsic nullability state. */
-type LiteralNullability<Value extends LiteralValue> = Value extends null ? "always" : "never"
-
-/** Dialect-specialized expression produced by `literal(...)`. */
-type DialectLiteralExpression<
-  Value extends LiteralValue,
-  Dialect extends string,
-  TextDb extends Expression.DbType.Any,
-  NumericDb extends Expression.DbType.Any,
-  BoolDb extends Expression.DbType.Any,
-  TimestampDb extends Expression.DbType.Any,
-  NullDb extends Expression.DbType.Any
-> = Expression.Scalar<
-  DialectLiteralRuntime<Value, TimestampDb>,
-  DialectLiteralDbType<Value, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-  LiteralNullability<Value>,
-  Dialect,
-  "scalar",
-  never
-> & {
-  readonly [ExpressionAst.TypeId]: ExpressionAst.LiteralNode<Value>
-}
 
 /** Normalizes a generic scalar input into the expression form used internally. */
 type DialectAsExpression<
@@ -1575,80 +1506,11 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     }
   }
 
-  const literalSchemaOf = <Value extends LiteralValue>(
-    value: Value
-  ): Schema.Top | undefined => {
-    if (value === null || value instanceof Date) {
-      return undefined
-    }
-    if (typeof value === "number" && !Number.isFinite(value)) {
-      return undefined
-    }
-    return Schema.Literal(value) as unknown as Schema.Top
-  }
+  const literal = <const Value extends LiteralValue>(value: Value): DialectLiteralExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
+    makeDialectLiteral(profile, value)
 
-  const literal = <const Value extends LiteralValue>(
-    value: Value
-  ): DialectLiteralExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
-    makeExpression({
-      runtime: undefined as any,
-      dbType: (
-        value === null ? profile.nullDb :
-          value instanceof Date ? profile.timestampDb :
-            typeof value === "string" ? profile.textDb :
-              typeof value === "number" ? profile.numericDb :
-                profile.boolDb
-      ) as DialectLiteralDbType<Value, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      runtimeSchema: literalSchemaOf(value),
-      nullability: (value === null ? "always" : "never") as LiteralNullability<Value>,
-      dialect: profile.dialect as Dialect,
-      kind: "scalar",
-
-      dependencies: {}
-    }, {
-      kind: "literal",
-      value
-    })
-
-  const column = <
-    Name extends string,
-    Db extends Expression.DbType.Any
-  >(
-    name: Name,
-    dbType: Db,
-    nullable = false
-  ): Expression.Scalar<
-    Expression.RuntimeOfDbType<Db> | null,
-    Db,
-    Expression.Nullability,
-    Dialect,
-    "scalar",
-    never
-  > & {
-    readonly [ExpressionAst.TypeId]: ExpressionAst.ColumnNode<"", Name>
-  } =>
-    makeExpression({
-      runtime: undefined as unknown as Expression.RuntimeOfDbType<Db> | (typeof nullable extends true ? null : never),
-      dbType,
-      nullability: (nullable ? "maybe" : "never") as typeof nullable extends true ? "maybe" : "never",
-      dialect: profile.dialect as Dialect,
-      kind: "scalar",
-
-      dependencies: {}
-    }, {
-      kind: "column",
-      tableName: "",
-      columnName: name
-    }) as Expression.Scalar<
-      Expression.RuntimeOfDbType<Db> | null,
-      Db,
-      Expression.Nullability,
-      Dialect,
-      "scalar",
-      never
-    > & {
-      readonly [ExpressionAst.TypeId]: ExpressionAst.ColumnNode<"", Name>
-    }
+  const column = <Name extends string, Db extends Expression.DbType.Any>(name: Name, dbType: Db, nullable = false) =>
+    makeDialectColumn(profile.dialect, name, dbType, nullable)
 
   const toDialectExpression = <Value extends ExpressionInput>(
     value: Value
