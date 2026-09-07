@@ -1,4 +1,6 @@
-import { renderCommonExpression, expectValueExpression, expectBinaryExpressions, renderBinaryExpression, renderSubqueryExpressionPlan } from "./common-expression.js"
+import { unsupportedJsonFeature, extractJsonBase, isJsonPathValue, extractJsonPathSegments, extractJsonKeys, extractJsonValue, renderJsonPathSegment } from "../json/renderer.js"
+import { renderSelectClauses, renderSelectionList, selectionProjections, nestedRenderState } from "./common-query.js"
+import { expressionDriverContext, renderCommonExpression, expectValueExpression, expectBinaryExpressions, renderBinaryExpression, renderSubqueryExpressionPlan } from "./common-expression.js"
 import { casingForTable, casedTableReferenceName, quoteColumn, stateWithTableCasing, renderReferenceTable, quoteReferenceColumn, registerQuerySources } from "./source-context.js"
 import { isArray } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
@@ -17,11 +19,10 @@ import { expectConflictClause } from "../dsl-mutation-runtime.js"
 import { expectDdlClauseKind, expectTruncateClause, normalizeStatementFlag, normalizeStatementIdentifier, renderTransactionIsolationLevel } from "../dsl-transaction-ddl-runtime.js"
 import {
   renderJsonSelectSql,
-  renderSelectSql,
   toDriverValue
 } from "../runtime/driver-value-mapping.js"
 import { normalizeDbValue } from "../runtime/normalize.js"
-import { flattenSelection, type Projection } from "../projections.js"
+import type { Projection } from "../projections.js"
 import * as SchemaExpression from "../schema-expression.js"
 import { renderReferentialAction, validateOptions, type DdlExpressionLike, type TableOptionSpec } from "../table-options.js"
 import * as Casing from "../casing.js"
@@ -278,145 +279,6 @@ const isJsonDbType = (dbType: Expression.DbType.Any): boolean => {
 const isJsonExpression = (value: unknown): value is Expression.Any =>
   isExpression(value) && isJsonDbType(value[Expression.TypeId].dbType)
 
-const unsupportedJsonFeature = (
-  dialect: SqlDialect,
-  feature: string
-): never => {
-  const error = new Error(`Unsupported JSON feature for ${dialect.name}: ${feature}`) as Error & {
-    readonly tag: string
-    readonly dialect: string
-    readonly feature: string
-  }
-  Object.assign(error, {
-    tag: `@${dialect.name}/unsupported/json-feature`,
-    dialect: dialect.name,
-    feature
-  })
-  throw error
-}
-
-const extractJsonBase = (node: Record<string, unknown>): unknown =>
-  node.value ?? node.base ?? node.input ?? node.left ?? node.target
-
-const isJsonPathValue = (value: unknown): value is JsonPath.Path<any> =>
-  value !== null && typeof value === "object" && JsonPath.TypeId in value
-
-const isOptionalJsonPathNumber = (value: unknown): boolean =>
-  value === undefined || (typeof value === "number" && Number.isFinite(value))
-
-const isJsonPathSegment = (segment: unknown): boolean => {
-  if (typeof segment === "string") {
-    return true
-  }
-  if (typeof segment === "number") {
-    return Number.isFinite(segment)
-  }
-  if (segment === null || typeof segment !== "object" || !("kind" in segment)) {
-    return false
-  }
-  switch ((segment as { readonly kind?: unknown }).kind) {
-    case "key":
-      return typeof (segment as { readonly key?: unknown }).key === "string"
-    case "index": {
-      const index = (segment as { readonly index?: unknown }).index
-      return typeof index === "number" && Number.isFinite(index)
-    }
-    case "wildcard":
-    case "descend":
-      return true
-    case "slice":
-      return isOptionalJsonPathNumber((segment as { readonly start?: unknown }).start) &&
-        isOptionalJsonPathNumber((segment as { readonly end?: unknown }).end)
-    default:
-      return false
-  }
-}
-
-const validateJsonPathSegments = (segments: unknown): ReadonlyArray<JsonPath.AnySegment> => {
-  if (!Array.isArray(segments)) {
-    throw new Error("JSON path expressions require a segment array")
-  }
-  if (segments.some((segment) => !isJsonPathSegment(segment))) {
-    throw new Error("JSON path segments require string, number, or path segment objects")
-  }
-  return segments as ReadonlyArray<JsonPath.AnySegment>
-}
-
-const extractJsonPathSegments = (node: Record<string, unknown>): ReadonlyArray<JsonPath.AnySegment> => {
-  const path = node.path ?? node.segments ?? node.keys
-  if (isJsonPathValue(path)) {
-    return validateJsonPathSegments(path.segments)
-  }
-  if (Array.isArray(path)) {
-    return validateJsonPathSegments(path)
-  }
-  if (node.segments !== undefined) {
-    return validateJsonPathSegments(node.segments)
-  }
-  if ("key" in node) {
-    return [JsonPath.key(String(node.key))]
-  }
-  if ("segment" in node) {
-    const segment = node.segment
-    if (typeof segment === "string") {
-      return [JsonPath.key(segment)]
-    }
-    if (typeof segment === "number") {
-      return [JsonPath.index(segment)]
-    }
-    if (segment !== null && typeof segment === "object" && JsonPath.SegmentTypeId in segment) {
-      return [segment as JsonPath.AnySegment]
-    }
-    return []
-  }
-  if ("right" in node && isJsonPathValue(node.right)) {
-    return validateJsonPathSegments(node.right.segments)
-  }
-  return []
-}
-
-const extractJsonKeys = (
-  node: Record<string, unknown>,
-  segments: ReadonlyArray<JsonPath.AnySegment>
-): readonly unknown[] =>
-  Array.isArray(node.keys)
-    ? node.keys
-    : segments.map((segment) =>
-        typeof segment === "object" && segment !== null && segment.kind === "key"
-          ? segment.key
-          : segment
-      )
-
-const extractJsonValue = (node: Record<string, unknown>): unknown =>
-  node.newValue ?? node.insert ?? node.right
-
-const renderJsonPathSegment = (segment: JsonPath.AnySegment | string | number): string => {
-  const renderKey = (value: string): string =>
-    /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
-      ? `.${value}`
-      : `.${JSON.stringify(value)}`
-  if (typeof segment === "string") {
-    return renderKey(segment)
-  }
-  if (typeof segment === "number") {
-    return `[${segment}]`
-  }
-  switch (segment.kind) {
-    case "key":
-      return renderKey(segment.key)
-    case "index":
-      return `[${segment.index}]`
-    case "wildcard":
-      return "[*]"
-    case "slice":
-      return `[${segment.start ?? 0} to ${segment.end ?? "last"}]`
-    case "descend":
-      return ".**"
-    default:
-      throw new Error("Unsupported JSON path segment")
-  }
-}
-
 const renderMySqlJsonIndex = (index: number): string =>
   index >= 0 ? String(index) : index === -1 ? "last" : `last-${Math.abs(index) - 1}`
 
@@ -545,18 +407,6 @@ const renderPostgresJsonValue = (
     ? rendered
     : `cast(${rendered} as jsonb)`
 }
-
-const expressionDriverContext = (
-  expression: Expression.Any,
-  state: RenderState,
-  dialect: SqlDialect
-) => ({
-  dialect: dialect.name,
-  valueMappings: state.valueMappings,
-  dbType: expression[Expression.TypeId].dbType,
-  runtimeSchema: expression[Expression.TypeId].runtimeSchema,
-  driverValueMapping: expression[Expression.TypeId].driverValueMapping
-})
 
 const renderMySqlStructuredJsonLiteral = (
   expression: Expression.Any,
@@ -983,12 +833,6 @@ export interface RenderedQueryAst {
   readonly projections: readonly Projection[]
 }
 
-const selectionProjections = (selection: Record<string, unknown>): readonly Projection[] =>
-  flattenSelection(selection).map(({ path, alias }) => ({
-    path,
-    alias
-  }))
-
 const renderMutationAssignment = (
   entry: QueryAst.AssignmentClause,
   state: RenderState,
@@ -1076,31 +920,6 @@ const renderTransactionClause = (
   return "start transaction"
 }
 
-const renderSelectionList = (
-  selection: Record<string, unknown>,
-  state: RenderState,
-  dialect: SqlDialect
-): RenderedQueryAst => {
-  const flattened = flattenSelection(selection)
-  const projections = selectionProjections(selection)
-  const sql = flattened.map(({ expression, alias }) =>
-    `${renderSelectSql(renderExpression(expression, state, dialect), expressionDriverContext(expression, state, dialect))} as ${dialect.quoteIdentifier(alias)}`).join(", ")
-  return {
-    sql,
-    projections
-  }
-}
-
-const nestedRenderState = (state: RenderState): RenderState => ({
-  params: state.params,
-  valueMappings: state.valueMappings,
-  casing: state.casing,
-  ctes: [],
-  cteNames: new Set(state.cteNames),
-  cteSources: new Map(state.cteSources),
-  sourceNames: new Map(state.sourceNames)
-})
-
 export const renderQueryAst = (
   ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
   state: RenderState,
@@ -1121,38 +940,10 @@ export const renderQueryAst = (
           ? `select distinct on (${ast.distinctOn.map((value) => renderExpression(value, state, dialect)).join(", ")})${selectList}`
           : `select${ast.distinct ? " distinct" : ""}${selectList}`
       ]
-      if (ast.from) {
-        clauses.push(`from ${renderSourceReference(ast.from.source, ast.from.tableName, ast.from.baseTableName, state, dialect)}`)
+      if (dialect.name === "mysql" && ast.joins.some((join) => join.kind === "full")) {
+        throw new Error("Unsupported mysql full join")
       }
-      for (const join of ast.joins) {
-        if (dialect.name === "mysql" && join.kind === "full") {
-          throw new Error("Unsupported mysql full join")
-        }
-        const source = renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)
-        clauses.push(
-          join.kind === "cross"
-            ? `cross join ${source}`
-            : `${join.kind} join ${source} on ${renderExpression(join.on!, state, dialect)}`
-        )
-      }
-      if (ast.where.length > 0) {
-        clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
-      }
-      if (ast.groupBy.length > 0) {
-        clauses.push(`group by ${ast.groupBy.map((value: QueryAst.Ast["groupBy"][number]) => renderExpression(value, state, dialect)).join(", ")}`)
-      }
-      if (ast.having.length > 0) {
-        clauses.push(`having ${ast.having.map((entry: QueryAst.HavingClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
-      }
-      if (ast.orderBy.length > 0) {
-        clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`)
-      }
-      if (ast.limit) {
-        clauses.push(`limit ${renderExpression(ast.limit, state, dialect)}`)
-      }
-      if (ast.offset) {
-        clauses.push(`offset ${renderExpression(ast.offset, state, dialect)}`)
-      }
+      clauses.push(...renderSelectClauses(ast, state, dialect))
       if (ast.lock) {
         clauses.push(
           `${renderSelectLockMode(ast.lock.mode)}${ast.lock.nowait ? " nowait" : ""}${ast.lock.skipLocked ? " skip locked" : ""}`
@@ -1512,7 +1303,7 @@ export const renderQueryAst = (
   }
 }
 
-const renderSourceReference = (
+export const renderSourceReference = (
   source: unknown,
   tableName: string,
   baseTableName: string,

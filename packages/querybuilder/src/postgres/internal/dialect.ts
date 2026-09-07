@@ -1,5 +1,5 @@
 import { type RenderState, type RenderValueContext, type SqlDialect } from "../../internal/dialect.js"
-import { renderExpression, renderQueryAst } from "../../internal/dialect-renderers/postgres.js"
+import { renderExpression, renderQueryAst, renderSourceReference } from "../../internal/dialect-renderers/postgres.js"
 import { toDriverValue } from "../../internal/runtime/driver-value-mapping.js"
 import { standardDialect } from "../../standard/dialect.js"
 
@@ -26,6 +26,7 @@ export const postgresDialect: SqlDialect<"postgres"> = {
   ...standardDialect,
   name: "postgres",
   renderLiteral,
+  renderSourceReference,
   renderQueryAst,
   renderExpression
 }

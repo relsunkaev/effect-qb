@@ -1,5 +1,5 @@
 import { type RenderState, type RenderValueContext, type SqlDialect } from "../../internal/dialect.js"
-import { renderExpression, renderQueryAst } from "../../internal/dialect-renderers/sqlite.js"
+import { renderExpression, renderQueryAst, renderSourceReference } from "../../internal/dialect-renderers/sqlite.js"
 import { toDriverValue } from "../../internal/runtime/driver-value-mapping.js"
 import { standardDialect } from "../../standard/dialect.js"
 
@@ -23,6 +23,7 @@ export const sqliteDialect: SqlDialect<"sqlite"> = {
   ...standardDialect,
   name: "sqlite",
   renderLiteral,
+  renderSourceReference,
   renderQueryAst,
   renderExpression
 }

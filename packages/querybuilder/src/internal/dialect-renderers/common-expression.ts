@@ -123,3 +123,15 @@ export const renderCommonExpression = (
   }
   throw new Error("Unsupported expression for SQL rendering")
 }
+
+export const expressionDriverContext = (
+  expression: Expression.Any,
+  state: RenderState,
+  dialect: SqlDialect
+) => ({
+  dialect: dialect.name,
+  valueMappings: state.valueMappings,
+  dbType: expression[Expression.TypeId].dbType,
+  runtimeSchema: expression[Expression.TypeId].runtimeSchema,
+  driverValueMapping: expression[Expression.TypeId].driverValueMapping
+})
