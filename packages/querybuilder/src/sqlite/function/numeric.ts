@@ -112,7 +112,7 @@ export const modulo = <
   left: Left & SqNumericConstraint<NoInfer<Left>, "modulo">,
   right: Right & SqNumericConstraint<NoInfer<Right>, "modulo">
 ): SqModuloResult<Left, Right> =>
-  (Numeric.modulo as any)(left, right, {
+  (Numeric.binary as any)("modulo", left, right, {
     dialect: "sqlite",
     literalDb: sqliteDatatypes.double(),
     resultDb: moduloResultDb(left, right) as SqModuloResultDb<Left, Right>,

@@ -209,7 +209,7 @@ export const modulo = <
   left: Left & PgModuloConstraint<NoInfer<Left>>,
   right: Right & PgModuloConstraint<NoInfer<Right>>
 ): PgModuloResult<Left, Right> =>
-  (Numeric.modulo as any)(left, right, {
+  (Numeric.binary as any)("modulo", left, right, {
     dialect: "postgres",
     literalDb: postgresDatatypes.int4(),
     resultDb: moduloResultDb(left, right) as PgModuloResultDb<Left, Right>,

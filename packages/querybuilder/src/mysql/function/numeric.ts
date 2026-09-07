@@ -155,7 +155,7 @@ export const modulo = <
   left: Left & MyNumericConstraint<NoInfer<Left>, "modulo">,
   right: Right & MyNumericConstraint<NoInfer<Right>, "modulo">
 ): MyModuloResult<Left, Right> =>
-  (Numeric.modulo as any)(left, right, {
+  (Numeric.binary as any)("modulo", left, right, {
     dialect: "mysql",
     literalDb: mysqlDatatypes.double(),
     resultDb: resultDb(mergedCategory(left, right)) as MyModuloResultDb<Left, Right>,
