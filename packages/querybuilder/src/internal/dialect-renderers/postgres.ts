@@ -447,11 +447,18 @@ const renderJsonInputExpression = (
   expression: Expression.Any,
   state: RenderState,
   dialect: SqlDialect
-): string =>
-  renderJsonSelectSql(
+): string => {
+  const ast = (expression as Expression.Any & {
+    readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+  })[ExpressionAst.TypeId]
+  if (dialect.name === "postgres" && ast.kind === "literal") {
+    return renderPostgresJsonValue(expression, state, dialect)
+  }
+  return renderJsonSelectSql(
     renderExpression(expression, state, dialect),
     expressionDriverContext(expression, state, dialect)
   )
+}
 
 const encodeArrayValues = (
   values: readonly unknown[],
@@ -654,7 +661,7 @@ const renderJsonExpression = (
     case "jsonBuildObject": {
       const entries = (ast as { readonly entries: readonly { readonly key: string; readonly value: Expression.Any }[] }).entries
       const renderedEntries = entries.flatMap((entry) => [
-        dialect.renderLiteral(entry.key, state),
+        `cast(${dialect.renderLiteral(entry.key, state)} as text)`,
         renderJsonInputExpression(entry.value, state, dialect)
       ])
       if (dialect.name === "postgres") {

@@ -68,7 +68,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", json_build_object($9, $10, $11, $12) as "builtObject", json_build_array($13, $14, true) as "builtArray", to_json($15) as "toJson", json_typeof("docs"."payload") as "typeName", (case when json_typeof("docs"."payload") = \'array\' then json_array_length("docs"."payload") when json_typeof("docs"."payload") = \'object\' then (select count(*)::int from json_object_keys("docs"."payload")) else null end) as "length", (case when json_typeof("docs"."payload") = \'object\' then to_json(array(select json_object_keys("docs"."payload"))) else null end) as "keys", json_strip_nulls("docs"."payload") as "stripNulls" from "docs"'
+      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", json_build_object(cast($9 as text), cast($10 as jsonb), cast($11 as text), cast($12 as jsonb)) as "builtObject", json_build_array(cast($13 as jsonb), cast($14 as jsonb), cast($15 as jsonb)) as "builtArray", to_json(cast($16 as jsonb)) as "toJson", json_typeof("docs"."payload") as "typeName", (case when json_typeof("docs"."payload") = \'array\' then json_array_length("docs"."payload") when json_typeof("docs"."payload") = \'object\' then (select count(*)::int from json_object_keys("docs"."payload")) else null end) as "length", (case when json_typeof("docs"."payload") = \'object\' then to_json(array(select json_object_keys("docs"."payload"))) else null end) as "keys", json_strip_nulls("docs"."payload") as "stripNulls" from "docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -80,12 +80,13 @@ describe("json behavior", () => {
       "address",
       "city",
       "a",
-      1,
+      JSON.stringify(1),
       "b",
-      "x",
-      1,
-      "x",
-      1
+      JSON.stringify("x"),
+      JSON.stringify(1),
+      JSON.stringify("x"),
+      JSON.stringify(true),
+      JSON.stringify(1)
     ])
   })
 
@@ -372,7 +373,7 @@ describe("json behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", jsonb_path_query_first("docs"."payload", $9) as "wildcardJson", ("docs"."payload" ? cast($10 as text)) as "hasProfile", ("docs"."payload" ?| array[cast($11 as text), cast($12 as text)]) as "hasAny", ("docs"."payload" ?& array[cast($13 as text), cast($14 as text)]) as "hasAll", ("docs"."payload" @> cast($15 as jsonb)) as "contains", ("docs"."payload" <@ cast($16 as jsonb)) as "containedBy", ("docs"."payload" - $17) as "deleteNote", ("docs"."payload" - $18) as "removeNote", jsonb_set("docs"."payload", array[$19, $20, $21], cast($22 as jsonb), true) as "setPostcode", jsonb_insert("docs"."payload", array[$23, $24, $25], cast($26 as jsonb), false) as "insertSuite", (cast($27 as jsonb) || cast($28 as jsonb)) as "concatValue", (cast($29 as jsonb) || cast($30 as jsonb)) as "mergeValue", jsonb_build_object($31, $32, $33, $34) as "builtObject", jsonb_build_array($35, $36, true) as "builtArray", to_jsonb($37) as "toJsonb", jsonb_typeof("docs"."payload") as "typeName", (case when jsonb_typeof("docs"."payload") = \'array\' then jsonb_array_length("docs"."payload") when jsonb_typeof("docs"."payload") = \'object\' then (select count(*)::int from jsonb_object_keys("docs"."payload")) else null end) as "length", (case when jsonb_typeof("docs"."payload") = \'object\' then to_json(array(select jsonb_object_keys("docs"."payload"))) else null end) as "keys", ("docs"."payload" @? $38) as "pathExists", ("docs"."payload" @@ $39) as "pathMatch", jsonb_strip_nulls("docs"."payload") as "stripNulls" from "docs"'
+      'select ("docs"."payload" -> $1) as "profileJson", ("docs"."payload" ->> $2) as "profileText", ("docs"."payload" #> array[$3, $4, $5]) as "cityJson", ("docs"."payload" #>> array[$6, $7, $8]) as "cityText", jsonb_path_query_first("docs"."payload", $9) as "wildcardJson", ("docs"."payload" ? cast($10 as text)) as "hasProfile", ("docs"."payload" ?| array[cast($11 as text), cast($12 as text)]) as "hasAny", ("docs"."payload" ?& array[cast($13 as text), cast($14 as text)]) as "hasAll", ("docs"."payload" @> cast($15 as jsonb)) as "contains", ("docs"."payload" <@ cast($16 as jsonb)) as "containedBy", ("docs"."payload" - $17) as "deleteNote", ("docs"."payload" - $18) as "removeNote", jsonb_set("docs"."payload", array[$19, $20, $21], cast($22 as jsonb), true) as "setPostcode", jsonb_insert("docs"."payload", array[$23, $24, $25], cast($26 as jsonb), false) as "insertSuite", (cast($27 as jsonb) || cast($28 as jsonb)) as "concatValue", (cast($29 as jsonb) || cast($30 as jsonb)) as "mergeValue", jsonb_build_object(cast($31 as text), cast($32 as jsonb), cast($33 as text), cast($34 as jsonb)) as "builtObject", jsonb_build_array(cast($35 as jsonb), cast($36 as jsonb), cast($37 as jsonb)) as "builtArray", to_jsonb(cast($38 as jsonb)) as "toJsonb", jsonb_typeof("docs"."payload") as "typeName", (case when jsonb_typeof("docs"."payload") = \'array\' then jsonb_array_length("docs"."payload") when jsonb_typeof("docs"."payload") = \'object\' then (select count(*)::int from jsonb_object_keys("docs"."payload")) else null end) as "length", (case when jsonb_typeof("docs"."payload") = \'object\' then to_json(array(select jsonb_object_keys("docs"."payload"))) else null end) as "keys", ("docs"."payload" @? $39) as "pathExists", ("docs"."payload" @@ $40) as "pathMatch", jsonb_strip_nulls("docs"."payload") as "stripNulls" from "docs"'
     )
     expect(rendered.params).toEqual([
       "profile",
@@ -406,12 +407,13 @@ describe("json behavior", () => {
       JSON.stringify({ a: 1 }),
       JSON.stringify({ b: 2 }),
       "a",
-      1,
+      JSON.stringify(1),
       "b",
-      "x",
-      1,
-      "x",
-      1,
+      JSON.stringify("x"),
+      JSON.stringify(1),
+      JSON.stringify("x"),
+      JSON.stringify(true),
+      JSON.stringify(1),
       "$.profile.tags[*]",
       "$.profile.address[*] ? (@.city == \"Paris\")"
     ])
@@ -525,7 +527,7 @@ describe("json behavior", () => {
       "suite",
       JSON.stringify("42"),
       "code",
-      "42"
+      JSON.stringify("42")
     ])
   })
 
@@ -1010,25 +1012,21 @@ describe("json behavior", () => {
 
     const insert = Postgres.Renderer.make().render(insertPlan)
     expect(insert.sql).toBe(
-      'insert into "docs_json" ("id", "payload") values ($1, json_build_object($2, $3))'
+      'insert into "docs_json" ("id", "payload") values ($1, json_build_object(cast($2 as text), cast($3 as jsonb)))'
     )
     expect(insert.params).toEqual([
       jsonDocId,
       "profile",
-      {
-        city: "Paris"
-      }
+      JSON.stringify({ city: "Paris" })
     ])
 
     const update = Postgres.Renderer.make().render(updatePlan)
     expect(update.sql).toBe(
-      'update "docs_jsonb" set "payload" = ("docs_jsonb"."payload" || jsonb_build_object($1, $2))'
+      'update "docs_jsonb" set "payload" = ("docs_jsonb"."payload" || jsonb_build_object(cast($1 as text), cast($2 as jsonb)))'
     )
     expect(update.params).toEqual([
       "profile",
-      {
-        city: "Paris"
-      }
+      JSON.stringify({ city: "Paris" })
     ])
   })
 
