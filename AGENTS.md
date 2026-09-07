@@ -137,6 +137,14 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 - Keep property-path JSON navigation such as `jsonColumn.someArray[2].someField`.
   Reusable focuses and pipeable mutations supplement that API.
+- JSON paths and mutations use stored encoded shapes and return stored values.
+  Whole-column selection retains schema decoding.
+- Expose native division only through dialect function modules. Keep numeric
+  cast witnesses unqualified engine casts; portable precision/scale is not a
+  contract. Column DDL precision remains separate.
+- Use PostgreSQL 16.x and MySQL 8.4.x as the initial coercion support baseline;
+  verify SQLite per supported driver. Reject unsupported modeled built-in cast
+  pairs; custom metadata remains a caller assertion.
 
 - Prefer pipeable Effect transforms for result cardinality instead of adding
   convenience methods to executors. Keep result metadata on executors because
