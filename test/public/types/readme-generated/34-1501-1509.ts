@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1486-1494
+// Code fences: 1501-1509
 
-// README.md:1486-1494
+// README.md:1501-1509
 import { Query } from "effect-qb"
 
 const begin = Query.transaction({ isolationLevel: "serializable" })

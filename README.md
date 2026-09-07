@@ -842,6 +842,21 @@ modules do not re-expose portable ones, so each rejects the other's witnesses.
 A compatible cast or comparison resolves before any SQL is rendered; an
 incompatible one fails at compile time.
 
+`Type.numeric()` and `Type.decimal()` request an unqualified native cast, not
+portable decimal precision. Both decode to `DecimalString`, but that shared
+output type does not guarantee value preservation:
+
+| Engine | Casting `2.675` to numeric/decimal |
+| --- | --- |
+| PostgreSQL | Unqualified NUMERIC preserves `2.675` |
+| MySQL | Unqualified DECIMAL defaults to scale zero and returns `3` |
+| SQLite | NUMERIC affinity returns `2.675` here, without an exact-decimal guarantee |
+
+Cast witnesses take no precision/scale options. `Column.number({ precision,
+scale })` configures column DDL, not expression casts. For an engine-specific
+precision cast, use a typed SQL fragment; applying `round` afterward cannot
+recover digits already lost by the cast.
+
 <details>
 <summary>Casts the type checker rejects</summary>
 

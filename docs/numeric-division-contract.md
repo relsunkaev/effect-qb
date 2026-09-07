@@ -1,7 +1,7 @@
 # Numeric division and cast proposal
 
-Status: awaiting public-contract approval for `effect-qb-98t` and
-`effect-qb-ah4`. Division is not implemented by this document.
+Status: approved on 2026-09-07 for `effect-qb-98t` and `effect-qb-ah4`.
+Division still requires implementation; native numeric casts already exist.
 
 ## Proposed API
 
@@ -57,7 +57,7 @@ by cast integer 2 remains 2. Integer overflow can promote to REAL, including
 minimum signed integer divided by -1. A witness is not a promise of arbitrary
 precision. See [SQLite expressions](https://www.sqlite.org/lang_expr.html).
 
-## Proposed numeric cast policy
+## Approved numeric cast policy
 
 Keep unqualified `Type.numeric()` and `Type.decimal()` as native engine casts.
 Do not add portable precision/scale parameters: SQLite cannot uphold the same
@@ -70,7 +70,7 @@ Public type tests verify the string result, not value preservation. MySQL's
 scale-zero default is specified in its
 [cast documentation](https://dev.mysql.com/doc/refman/8.4/en/cast-functions.html).
 
-Approval would make these limitations explicit in the public API documentation.
+These limitations are documented in the README casting contract.
 Dialect-specific precision parameters are a separate alternative, not silently
 included in this proposal. Existing typed fragments can express an explicit
 engine cast today; no additional escape hatch is needed.

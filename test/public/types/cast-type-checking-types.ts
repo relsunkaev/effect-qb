@@ -110,6 +110,10 @@ Pg.Renderer.make().render(wrongGrouping)
 // Numeric witnesses describe decoded values, not a portable precision policy.
 {
   const fractional = Cast.to(2.675, Type.decimal())
+  // @ts-expect-error precision and scale belong to column DDL, not cast witnesses
+  Type.decimal({ precision: 12, scale: 2 })
+  // @ts-expect-error numeric casts also use native unqualified semantics
+  Type.numeric({ precision: 12, scale: 2 })
   const decoded = null as unknown as Scalar.RuntimeOf<typeof fractional>
   const stringDecoded: string = decoded
   // @ts-expect-error exact numeric casts expose strings, even when SQLite stores REAL
