@@ -106,3 +106,19 @@ Pg.Renderer.make().render(groupedId)
 const wrongGrouping = Query.select({ id: pipedId }).pipe(Query.from(ids), Query.groupBy(pipedSequence))
 // @ts-expect-error grouping a different cast does not authorize this projection
 Pg.Renderer.make().render(wrongGrouping)
+
+// Numeric witnesses describe decoded values, not a portable precision policy.
+{
+  const fractional = Cast.to(2.675, Type.decimal())
+  const decoded = null as unknown as Scalar.RuntimeOf<typeof fractional>
+  const stringDecoded: string = decoded
+  // @ts-expect-error exact numeric casts expose strings, even when SQLite stores REAL
+  const numericDecoded: Scalar.RuntimeOf<typeof fractional> = 2.675
+  const text = Cast.to("1", Type.text())
+  const integer = Cast.to(1, Pg.Type.int4())
+  Query.eq(Cast.to(text, Pg.Type.int4()), integer)
+  // @ts-expect-error explicit castability does not grant implicit comparison conversion
+  Query.eq(text, integer)
+  void decoded
+  void numericDecoded
+}
