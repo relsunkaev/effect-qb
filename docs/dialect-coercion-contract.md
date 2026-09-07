@@ -1,6 +1,6 @@
 # Dialect coercion contract audit
 
-Status: proposal for `effect-qb-ugi`; not a declaration of broader version support.
+Status: approved baseline and implemented rules for `effect-qb-ugi`.
 
 ## Verification targets
 
@@ -9,7 +9,7 @@ The repository provisions PostgreSQL 16 and MySQL 8.4 in
 The focused probes passed on PostgreSQL 16.15, MySQL 8.4.11, and Bun SQLite
 3.54.0. Those observations do not prove every release in a version range.
 
-Proposed support baseline: PostgreSQL 16.x and MySQL 8.4.x, with the SQLite
+Approved support baseline: PostgreSQL 16.x and MySQL 8.4.x, with the SQLite
 version supplied by each supported driver tested separately. Widening the
 baseline needs additional engine jobs, not just a lower version in prose.
 No server-version parameter or automatic session-mode mutation is proposed.
@@ -24,9 +24,9 @@ STRICT tables are a storage policy, not a different expression-cast mode.
 
 | Owner | Current responsibility | Audit finding |
 | --- | --- | --- |
-| `internal/datatypes/matrix.ts` | Built-in families, kinds, implicit/cast targets, engine SQL names | Broad family targets are not evidence for every kind pair. |
-| `internal/datatypes/lookup.ts` | Cast and comparison admissibility | Custom source/target types and container targets have permissive branches. Matching comparison groups also allow casts. |
-| `standard/cast.ts` | Public cast input checks and result type | JSONB primitive checks currently inspect decoded runtime shape; encoded schema work belongs to `effect-qb-7xe`. |
+| `internal/datatypes/matrix.ts` | Built-in families, kinds, implicit/cast targets, engine SQL names | PostgreSQL 16 kind-pair rules and MySQL 8.4 unsupported CAST targets supplement family metadata. |
+| `internal/datatypes/lookup.ts` | Cast and comparison admissibility | PostgreSQL casts no longer inherit comparison groups. Arrays check element casts; named enums/records keep their identities. |
+| `standard/cast.ts` | Public cast input checks and result type | JSONB primitive casts inspect stored shapes. Numeric/boolean guards remain stricter than native JSONB cast availability. |
 | Dialect renderers and runtime mappings | SQL cast syntax and driver decoding | Exact numeric witnesses decode to strings; that does not promise exact arithmetic on every engine. |
 | Mutation assignment checks | Destination compatibility | Must remain separate from explicit cast and comparison rules. |
 
@@ -35,7 +35,7 @@ lookup/matrix, rather than adding a second compatibility engine or querying a
 live catalog during TypeScript compilation. Numeric division and precision
 contracts consume these same witnesses; they do not need another type registry.
 
-Before tightening public types, propose the rejected pairs and migration route.
+The rejected pairs were approved with the baseline contract.
 Custom types, extensions, user-defined casts, enum identity, domains and
 container element conversions cannot be assumed supported from a matching
 family alone. Caller-provided metadata is an assertion, not server discovery.
@@ -62,7 +62,9 @@ casts and the existing SQL clients for engine-policy probes:
 
 The paired type tests cover explicit text-to-integer casts, rejection of the
 corresponding uncast comparison, and string output for exact numeric witnesses.
-They do not yet prove that all accepted cast pairs are engine-supported.
+The additional matrix suite verifies all 4,225 PostgreSQL native kind pairs for
+explicit casts and another 4,225 for equality operator resolution. MySQL tests
+all 44 modeled target spellings through the production renderer.
 
 ## Sources and interpretation
 
@@ -84,5 +86,46 @@ whether an arbitrary value can be stored losslessly.
 
 The portable API must promise supported syntax and compatible modeled runtime
 semantics, not identical coercion, precision, collation or failure behavior.
-Value-dependent failures remain runtime concerns. The current accepted-pair
-matrix still needs tightening before this audit can be closed.
+Value-dependent failures remain runtime concerns. PostgreSQL equality evidence
+is an upper bound: existing comparison policies can remain more restrictive,
+and ordering still requires the ordered trait.
+
+## Rejected casts and migration
+
+- PostgreSQL boolean casts only to int4 among numeric kinds. Choose an explicit
+  int4 intermediate before converting to numeric.
+- PostgreSQL time has no date component and cannot cast directly to timestamp.
+  Construct the intended date/time explicitly.
+- PostgreSQL arrays require an existing element cast. A scalar does not become
+  an array through CAST; use an array constructor. Array-to-JSON uses toJson or
+  toJsonb, not CAST.
+- Different enum/record names are not interchangeable. Text I/O is explicit and
+  can fail for values the destination does not accept.
+- MySQL tinyint/smallint/mediumint, text/blob size variants, bool, bit, varbinary,
+  fixed, geometry, enum and set are not supported CAST target spellings. Their
+  column witnesses remain available for DDL. Use an applicable supported target
+  such as the portable integer/boolean witness or binary; do not assume it
+  preserves the narrower column's size or range.
+
+A string representation is not an implicit comparison conversion. The native
+equality guard rejects unrelated PostgreSQL identifier and OID kinds even when
+their metadata shares a family.
+
+## Evidence limits
+
+The PostgreSQL matrix executes typed NULL expressions, so it proves cast
+availability and operator resolution, not successful conversion of every value.
+Fractional casts, array element conversion and enum/text conversion also run
+through production executors. MySQL warnings, spatial shape restrictions,
+invalid textual values, precision loss, timezone and collation effects remain
+runtime/configuration concerns. No session settings are changed by the library.
+
+The SQLite probe currently covers Bun's SQLite 3.54.0 with JSON1. Other SqlClient
+or custom-driver configurations need the same probe on their embedded SQLite
+version; this is not a claim that every SQLite driver/version is qualified.
+
+User-defined casts and extension types such as citext are outside the native
+PostgreSQL matrix. Explicit custom descriptors remain caller assertions, not
+catalog discovery. Domain constraints and named-type search_path resolution are
+also caller/server responsibilities. Built-in cast rules do not authorize
+assignment/storage conversion, and SQLite STRICT storage remains separate.

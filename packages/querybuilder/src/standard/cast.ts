@@ -52,7 +52,7 @@ type JsonbScalarCastTarget<Value extends CastInput, Target extends CastTarget> =
   Value extends Expression.Any
     ? Expression.DbTypeOf<Value> extends Expression.DbType.Json<"postgres", "jsonb">
       ? [StoredOf<Value>] extends [number]
-        ? FamilyOfDbType<Target> extends "numeric" ? Target : never
+        ? FamilyOfDbType<Target> extends "numeric" | "integer" | "real" ? Target : never
         : [StoredOf<Value>] extends [boolean]
           ? FamilyOfDbType<Target> extends "boolean" ? Target : never
           : never
@@ -66,15 +66,20 @@ type CanCastJsonbScalar<Value extends CastInput, Target extends CastTarget> =
       ? true
       : false
 
+type CanCastInput<Value extends CastInput, Target extends CastTarget> =
+  CastSourceDbType<Value> extends Expression.DbType.Json<"postgres", "jsonb">
+    ? FamilyOfDbType<Target> extends "numeric" | "integer" | "real" | "boolean"
+      ? CanCastJsonbScalar<Value, Target>
+      : CanCastDbType<CastSourceDbType<Value>, Target, CastDialect<Value, Target>>
+    : CanCastDbType<CastSourceDbType<Value>, Target, CastDialect<Value, Target>>
+
 type CastTargetInput<Value extends CastInput, Target extends CastTarget> =
   IsAny<Value> extends true
     ? Target
     : IsAny<Target> extends true
       ? Target
-      : CanCastDbType<CastSourceDbType<Value>, Target, CastDialect<Value, Target>> extends true
+      : CanCastInput<Value, Target> extends true
         ? Target
-        : CanCastJsonbScalar<Value, Target> extends true
-          ? Target
         : CastTargetError<CastSourceDbType<Value>, Target, CastDialect<Value, Target>>
 
 type CastValueInput<Value extends CastInput, Target extends CastTarget> =
@@ -99,7 +104,7 @@ type CastExpression<
 export const to: {
   <Value extends CastInput, Target extends CastTarget>(
     value: Value,
-    target: Target & CastTargetInput<Value, Target>
+    target: Target & CastTargetInput<NoInfer<Value>, NoInfer<Target>>
   ): CastExpression<Value, Target>
   // `NoInfer` keeps `Value` out of its own inference constraint: it is inferred
   // from the argument, then validated against the already-fixed `Target`.

@@ -865,6 +865,11 @@ scale })` configures column DDL, not expression casts. For an engine-specific
 precision cast, use a typed SQL fragment; applying `round` afterward cannot
 recover digits already lost by the cast.
 
+Cast checks target PostgreSQL 16.x and MySQL 8.4.x; SQLite qualification is
+driver-specific. A column type is not necessarily a legal CAST target.
+See the [coercion contract](docs/dialect-coercion-contract.md) for rejected pairs,
+migration options, configuration assumptions, and runtime limits.
+
 <details>
 <summary>Casts the type checker rejects</summary>
 

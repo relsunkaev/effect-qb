@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1203-1234
+// Code fences: 1208-1239
 
-// README.md:1203-1234
+// README.md:1208-1239
 import { Cast, Column, Query, Table, Type } from "effect-qb"
 import * as My from "effect-qb/mysql"
 import * as Pg from "effect-qb/postgres"
