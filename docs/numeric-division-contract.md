@@ -1,9 +1,10 @@
 # Numeric division and cast proposal
 
 Status: approved on 2026-09-07 for `effect-qb-98t` and `effect-qb-ah4`.
-Division still requires implementation; native numeric casts already exist.
+MySQL and SQLite division are implemented; PostgreSQL division remains pending.
+Native numeric casts already exist.
 
-## Proposed API
+## Approved API
 
 Add `Pg.Function.divide(left, right)`, `My.Function.divide(left, right)` and
 `Sq.Function.divide(left, right)`. Do not add root `Function.divide`: identical
@@ -82,3 +83,20 @@ executor decoding, paired accepted/rejected type cases, operand nullability,
 zero behavior and nested rounding. Include integer width, mixed approximate
 inputs and SQLite overflow promotion. Preserve MySQL session configuration;
 tests restore changed settings on their reserved transaction connection.
+
+## MySQL and SQLite executor contract
+
+MySQL exact operands return DecimalString; an approximate operand returns
+number. The executor normalizes decimal strings, so raw driver scale is not
+preserved in selected results. JavaScript number literals use the existing
+MySQL double literal mapping.
+
+SQLite division always exposes number results, including integer truncation
+and overflow promotion to REAL. JavaScript integer literals do not force REAL
+arithmetic: use Cast.to(value, Sq.Type.double()) explicitly. This avoids
+claiming a bigint-string result when native division can produce REAL.
+
+Both APIs preserve operand dependencies and aggregation metadata. Their
+SELECT results can be null for a zero divisor; MySQL DML can instead fail
+according to SQL mode. Non-numeric and foreign-dialect operands are rejected
+at compile time.

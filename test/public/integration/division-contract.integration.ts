@@ -70,3 +70,40 @@ test("sqlite division follows stored values rather than NUMERIC declarations", a
     approximate_value: 2.5, integer_zero: null, real_zero: null, overflow_type: "real"
   }])
 })
+
+test("mysql division API decodes exact and approximate results through the executor", async () => {
+  const { Cast, Query, Type } = await import("#standard")
+  const My = await import("#mysql")
+  const values = await runMysql(Effect.gen(function*() {
+    const integer = Cast.to(5, Type.int())
+    const divisor = Cast.to(2, Type.int())
+    return yield* My.Executor.make().execute(Query.select({
+      integral: My.Function.divide(integer, divisor),
+      approximate: My.Function.divide(integer, 2),
+      zero: My.Function.divide(integer, 0),
+      rounded: My.Function.round(My.Function.divide(integer, divisor), 1)
+    })).pipe(My.Executor.exactlyOne)
+  }))
+  expect(values).toEqual({ integral: "2.5", approximate: 2.5, zero: null, rounded: "2.5" })
+})
+
+test("sqlite division API preserves truncation and overflow promotion", async () => {
+  const { Cast, Query, Type } = await import("#standard")
+  const Sq = await import("#sqlite")
+  const values = await Effect.runPromise(Effect.gen(function*() {
+    const integer = Cast.to(5, Type.int())
+    return yield* Sq.Executor.make().execute(Query.select({
+      integral: Sq.Function.divide(integer, Cast.to(2, Type.int())),
+      literal: Sq.Function.divide(integer, 2),
+      approximate: Sq.Function.divide(integer, Cast.to(2, Sq.Type.double())),
+      exact: Sq.Function.divide(Cast.to(5.5, Type.numeric()), Cast.to(2, Type.numeric())),
+      overflow: Sq.Function.divide(Cast.to("-9223372036854775808", Type.bigint()), Cast.to(-1, Type.int())),
+      zero: Sq.Function.divide(integer, 0),
+      rounded: Sq.Function.round(Sq.Function.divide(integer, 2), 1)
+    })).pipe(Sq.Executor.exactlyOne)
+  }).pipe(Effect.provide(SqliteClient.layer({ filename: ":memory:", disableWAL: true }))))
+  expect(values).toEqual({
+    integral: 2, literal: 2, approximate: 2.5, exact: 2.75, overflow: 9223372036854775808,
+    zero: null, rounded: 2
+  })
+})

@@ -155,3 +155,27 @@ Pg.Renderer.make().render(sqPlan)
 Function.round(values.integer)
 // @ts-expect-error modulo is intentionally not on the portable Function surface
 Function.modulo(values.integer, values.integer)
+
+const myIntegralDivision = My.Function.divide(values.integer, values.bigint)
+const myApproximateDivision = My.Function.divide(values.integer, 2)
+const sqIntegralDivision = Sq.Function.divide(values.bigint, values.integer)
+type MyDivisionExact = Assert<Equal<Scalar.RuntimeOf<typeof myIntegralDivision>, Scalar.DecimalString>>
+type MyDivisionApproximate = Assert<Equal<Scalar.RuntimeOf<typeof myApproximateDivision>, number>>
+type SqDivisionNumber = Assert<Equal<Scalar.RuntimeOf<typeof sqIntegralDivision>, number>>
+type MyDivisionZeroPossible = Assert<Equal<Scalar.NullabilityOf<typeof myIntegralDivision>, "maybe">>
+const sqZeroDivision = Sq.Function.divide(values.integer, 0)
+type SqDivisionZero = Assert<Equal<Scalar.NullabilityOf<typeof sqZeroDivision>, "always">>
+const myNullableDivision = My.Function.divide(values.nullableInteger, 2)
+type MyDivisionNullable = Assert<Equal<Scalar.NullabilityOf<typeof myNullableDivision>, "maybe">>
+My.Function.round(myIntegralDivision, 2)
+Sq.Function.round(sqIntegralDivision, 2)
+// @ts-expect-error native division is dialect-only
+Function.divide(5, 2)
+// @ts-expect-error nonnumeric values are not division operands
+My.Function.divide(values.text, 2)
+// @ts-expect-error nonnumeric values are not division operands
+Sq.Function.divide(values.text, 2)
+// @ts-expect-error dialect provenance must not cross engines
+My.Function.divide(sqValues.approximate, 2)
+// @ts-expect-error dialect provenance must not cross engines
+Sq.Function.divide(myValues.approximate, 2)
