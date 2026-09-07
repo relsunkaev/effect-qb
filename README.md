@@ -799,6 +799,13 @@ object key is created by default. Pass `{ createMissing: false }` to update
 only existing paths. Null intermediate containers remain null; optional parents
 remain optional in the result type.
 
+Reading an optional parent, a record key, or an unconstrained array index can
+return SQL `NULL`, represented by `null` in the result type. This also applies
+to literal record keys: a string index signature does not guarantee presence.
+With `noUncheckedIndexedAccess`, TypeScript additionally marks property-style
+record and array expression lookups as possibly `undefined`; use `Json.key` /
+`Json.index` (or their `Jsonb` equivalents) to construct those paths explicitly.
+
 Use existing parent containers and in-range indexes for consistent results
 across engines. PostgreSQL and MySQL leave a missing intermediate object
 unchanged, whereas SQLite can create it. Array indexes replace rather than

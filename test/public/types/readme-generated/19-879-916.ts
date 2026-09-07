@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 872-894, 899-909
+// Code fences: 879-901, 906-916
 
-// README.md:872-894
+// README.md:879-901
 import { Column, Query, Renderer, Table } from "effect-qb"
 
 const users = Table.make("users", {
@@ -26,7 +26,7 @@ type RenderedRow = Renderer.RowOf<typeof rendered>
 // }
 
 {
-  // README.md:899-909
+  // README.md:906-916
   const activeUsers = Query.as(complete, "active_users")
 
   const dynamicAlias: string = "users_alias"

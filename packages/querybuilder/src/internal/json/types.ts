@@ -10,7 +10,7 @@ export type JsonValue =
 
 type OptionalKeyOf<ObjectType extends object, Key extends PropertyKey> =
   Key extends keyof ObjectType
-    ? {} extends Pick<ObjectType, Key> ? true : false
+    ? string extends keyof ObjectType ? true : {} extends Pick<ObjectType, Key> ? true : false
     : true
 
 type NormalizeJsonTuple<Values extends readonly unknown[]> =
@@ -273,7 +273,7 @@ type RecurseValue<
   Segments extends readonly JsonPath.CanonicalSegment[],
   Operation extends string
 > = Segments extends readonly [infer Head extends JsonPath.CanonicalSegment, ...infer Tail extends readonly JsonPath.CanonicalSegment[]]
-  ? StepValue<Current, Head, Operation> extends infer Next
+  ? (StepValue<StripNull<Current>, Head, Operation> | (null extends Current ? null : never)) extends infer Next
     ? Next extends JsonPathUsageError<any, any, any, any>
       ? Next
       : Tail extends readonly []

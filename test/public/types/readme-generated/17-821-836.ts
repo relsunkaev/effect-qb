@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 814-829
+// Code fences: 821-836
 
-// README.md:814-829
+// README.md:821-836
 import { Cast, Column, Query, Table, Type } from "effect-qb"
 
 const events = Table.make("events", {

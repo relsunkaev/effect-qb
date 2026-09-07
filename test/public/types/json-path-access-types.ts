@@ -190,6 +190,13 @@ const recordDocs = Table.make("record_docs", {
   })))
 })
 
+const explicitRecordScore = recordDocs.payload.pipe(Jsonb.key("anyKey"), Jsonb.key("score"))
+type _ExplicitRecordScoreRuntime = Expect<IsExact<Scalar.RuntimeOf<typeof explicitRecordScore>, number | null>>
+
+const sharedRecordScore = recordDocs.payload.pipe(Json.key("anyKey"), Json.key("score"))
+type _SharedRecordScoreRuntime = Expect<IsExact<Scalar.RuntimeOf<typeof sharedRecordScore>, number | null>>
+type _OptionalProfileNameRuntime = Expect<IsExact<Scalar.RuntimeOf<typeof optionalProfileName>, string | null>>
+
 const recordScore = recordDocs.payload.anyKey!.score
 Jsonb.hasKey(recordDocs.payload, "anyKey")
 
