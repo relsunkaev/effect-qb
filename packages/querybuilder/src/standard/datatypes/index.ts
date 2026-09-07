@@ -1,46 +1,12 @@
-import type { DatatypeModule } from "../../internal/datatypes/define.js"
+import { makeDatatypeModule, type DatatypeModule } from "../../internal/datatypes/define.js"
 import type * as Expression from "../../internal/scalar.js"
-import type { NonEmptyStringInput } from "../../internal/table-options.js"
 import { standardDatatypeFamilies, standardDatatypeKinds } from "./spec.js"
 
-const withMetadata = <Kind extends keyof typeof standardDatatypeKinds & string>(
-  kind: Kind
-): Expression.DbType.Base<"standard", Kind> => {
-  const kindSpec = standardDatatypeKinds[kind]
-  const familySpec = standardDatatypeFamilies[kindSpec.family as keyof typeof standardDatatypeFamilies]
-  return {
-    dialect: "standard",
-    kind,
-    family: kindSpec.family,
-    runtime: kindSpec.runtime,
-    compareGroup: familySpec?.compareGroup,
-    castTargets: familySpec?.castTargets,
-    implicitTargets: (familySpec as { readonly implicitTargets?: readonly string[] }).implicitTargets,
-    traits: familySpec?.traits
-  }
-}
+const baseDatatypes = makeDatatypeModule("standard", standardDatatypeKinds, standardDatatypeFamilies)
 
 const standardDatatypeModule = {
-  custom: <Kind extends string>(kind: NonEmptyStringInput<Kind>) => ({
-    dialect: "standard",
-    kind: kind as Kind
-  }),
-  uuid: () => ({
-    dialect: "standard",
-    kind: "uuid",
-    family: "uuid",
-    runtime: "string",
-    compareGroup: "uuid",
-    castTargets: ["uuid", "char", "varchar", "text"],
-    traits: {
-      textual: true
-    }
-  })
+  ...baseDatatypes
 } as Record<string, (...args: readonly any[]) => Expression.DbType.Base<"standard", string>>
-
-for (const kind of Object.keys(standardDatatypeKinds)) {
-  standardDatatypeModule[kind] = () => withMetadata(kind as keyof typeof standardDatatypeKinds & string)
-}
 
 type StandardUuidWitness = Expression.DbType.Base<"standard", "uuid"> & {
   readonly family: "uuid"
@@ -63,7 +29,7 @@ type StandardJsonWitness = Expression.DbType.Base<"standard", "json"> & {
 }
 
 standardDatatypeModule.json = () => ({
-  ...withMetadata("json"),
+  ...baseDatatypes.json(),
   driverValueMapping: {
     toDriver: (value: unknown) => JSON.stringify(value)
   }
