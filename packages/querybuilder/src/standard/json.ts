@@ -792,6 +792,25 @@ export const set = ((...args: readonly unknown[]) => {
   >
 }
 
+/** Describe a reusable location; replacement types are inferred from each input. */
+export const focus = JsonPath.focus
+
+/** Replace a focused value and return the whole, potentially reshaped document. */
+export const replace = <
+  Target extends JsonPath.NonEmptyFocus,
+  Next extends Parameters<typeof standardJson.set>[2],
+  CreateMissing extends boolean = true
+>(
+  target: Target,
+  next: Next,
+  options?: { readonly createMissing?: CreateMissing }
+) => <Base extends JsonExpression<any>>(
+  base: Base & JsonSetPathGuard<Expression.RuntimeOf<NoInfer<Base>>, Target, NoInfer<Next>, "json.set">
+): JsonResultExpression<
+  JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
+  JsonDbOf<Base>, JsonKindOf<Base>, Expression.DependenciesOf<Base>, never, DialectOf<Base>
+> => standardJson.set(base as never, normalizeTarget(target) as never, next as never, options as never) as never
+
 export const insert = ((...args: readonly unknown[]) => {
   if (args.length === 1 || (args.length === 2 && !isExpression(args[0]))) {
     const [next, options] = args

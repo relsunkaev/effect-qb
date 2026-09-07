@@ -530,3 +530,25 @@ test("mysql lock nowait failures are normalized from live row locks", async () =
   }
   expect(contender.failure.query.sql).toContain("for update nowait")
 })
+
+test("mysql composes reusable JSON focuses into one database-side expression", async () => {
+  const { focusQuery, focusInput, focusExpected, sparseFocusQuery, sparseInputs, sparseExpected } = await import("./json-focus.ts")
+  const rows = await runMysql(Effect.gen(function*() {
+    const sql = yield* SqlClient.SqlClient
+    return yield* sql.withTransaction(Effect.gen(function*() {
+      yield* sql.unsafe('create temporary table focus_docs (payload json not null)')
+      yield* sql.unsafe('insert into focus_docs values (?)', [JSON.stringify(focusInput)])
+      const main = yield* Executor.make().execute(focusQuery)
+      const sparse = []
+      for (const input of sparseInputs) {
+        yield* sql.unsafe('delete from focus_docs')
+        yield* sql.unsafe('insert into focus_docs values (?)', [JSON.stringify(input)])
+        sparse.push(...(yield* Executor.make().execute(sparseFocusQuery)))
+      }
+      yield* sql.unsafe("drop temporary table focus_docs")
+      return { main, sparse }
+    }))
+  }))
+  expect(rows.main).toEqual([{ payload: focusExpected }])
+  expect(rows.sparse).toEqual(sparseExpected("mysql"))
+})

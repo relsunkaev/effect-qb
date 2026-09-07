@@ -293,12 +293,12 @@ type RecurseSet<
   ? Tail extends readonly []
     ? StepSet<Current, Head, Next, Operation>
     : StepValue<Current, Head, Operation> extends infer Child
-      ? Child extends JsonPathUsageError<any, any, any, any>
+      ? [Child] extends [JsonPathUsageError<any, any, any, any>]
         ? Child
         : RecurseSet<StripNull<Child>, Tail, Next, Operation> extends infer UpdatedChild
           ? UpdatedChild extends JsonPathUsageError<any, any, any, any>
             ? UpdatedChild
-            : StepSet<
+            : (null extends Child ? Current : never) | StepSet<
                 Current,
                 Head,
                 UpdatedChild,

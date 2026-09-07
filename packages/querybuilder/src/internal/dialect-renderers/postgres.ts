@@ -724,13 +724,14 @@ const renderPostgresJsonValue = (
   if (!isExpression(value)) {
     throw new Error("Expected a JSON expression")
   }
-  const rendered = renderExpression(value, state, dialect)
   const ast = (value as Expression.Any & {
     readonly [ExpressionAst.TypeId]: ExpressionAst.Any
   })[ExpressionAst.TypeId]
   if (ast.kind === "literal") {
-    return `cast(${rendered} as jsonb)`
+    // PostgreSQL expects JSON text, including quotes around string scalars.
+    return `cast(${dialect.renderLiteral(JSON.stringify(ast.value), state)} as jsonb)`
   }
+  const rendered = renderExpression(value, state, dialect)
   return value[Expression.TypeId].dbType.kind === "jsonb"
     ? rendered
     : `cast(${rendered} as jsonb)`

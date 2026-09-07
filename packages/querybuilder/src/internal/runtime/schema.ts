@@ -214,6 +214,54 @@ const schemaAstAtExactJsonPath = (
   return current
 }
 
+/**
+ * Rebuild changed containers while retaining untouched leaf codecs. Reusing the
+ * original document schema would reject shape-changing SQL mutation results.
+ */
+const setJsonPathAst = (
+  ast: SchemaAST.AST,
+  segments: readonly JsonPath.ExactSegment[],
+  next: SchemaAST.AST
+): SchemaAST.AST => {
+  const [head, ...tail] = segments
+  if (head === undefined) return next
+  if (ast._tag === "Suspend") return setJsonPathAst(ast.thunk(), segments, next)
+  if (ast._tag === "Union") {
+    return new SchemaAST.Union(ast.types.map((member) => setJsonPathAst(member, segments, next)), "anyOf")
+  }
+  if (head.kind === "key" && ast._tag === "Objects") {
+    const existing = ast.propertySignatures.find((property) => property.name === head.key)
+    const child = existing?.type ?? propertyAstOf(ast, head.key)
+    const updated = tail.length === 0 ? next : child === undefined
+      ? JsonValueSchema.ast
+      : setJsonPathAst(child, tail, next)
+    // Missing intermediate containers may remain missing in the database.
+    const field = tail.length > 0 && child?.context?.isOptional === true
+      ? Schema.optionalKey(makeSchemaFromAst(updated)).ast
+      : updated
+    return new SchemaAST.Objects([
+      ...ast.propertySignatures.filter((property) => property.name !== head.key),
+      new SchemaAST.PropertySignature(head.key, field)
+    ], ast.indexSignatures)
+  }
+  if (head.kind === "index" && ast._tag === "Arrays") {
+    const index = head.index < 0 ? ast.elements.length + head.index : head.index
+    if (ast.rest.length === 0 && index >= 0 && index < ast.elements.length) {
+      return new SchemaAST.Arrays(ast.isMutable, ast.elements.map((element, position) =>
+        position === index ? setJsonPathAst(element, tail, next) : element
+      ), [])
+    }
+    // An array write can affect one existing element or append a new one.
+    const members = [...ast.elements, ...ast.rest]
+    const updated = tail.length === 0 ? [next] : members.map((member) => setJsonPathAst(member, tail, next))
+    return new SchemaAST.Arrays(ast.isMutable, [], [
+      unionAst([...members, ...updated]) ?? JsonValueSchema.ast
+    ])
+  }
+  // A null/scalar intermediate value cannot be traversed by a JSON mutation.
+  return ast
+}
+
 const unionSchemas = (schemas: ReadonlyArray<RuntimeSchema | undefined>): RuntimeSchema | undefined => {
   const resolved = schemas.filter((schema): schema is RuntimeSchema => schema !== undefined)
   if (resolved.length === 0) {
@@ -411,10 +459,17 @@ const deriveRuntimeSchema = (
       const subAst = schemaAstAtExactJsonPath(baseSchema, segments)
       return subAst === undefined ? JsonValueSchema : makeSchemaFromAst(subAst)
     }
+    case "jsonSet": {
+      const baseSchema = expressionRuntimeSchema(ast.base!, context)
+      const nextSchema = expressionRuntimeSchema(ast.newValue!, context)
+      if (baseSchema === undefined || nextSchema === undefined || ast.segments === undefined ||
+        !exactJsonSegments(ast.segments)) return JsonValueSchema
+      const updated = makeSchemaFromAst(setJsonPathAst(baseSchema.ast, ast.segments, nextSchema.ast))
+      return ast.createMissing === false ? unionSchemas([updated, baseSchema]) : updated
+    }
     case "jsonDelete":
     case "jsonDeletePath":
     case "jsonRemove":
-    case "jsonSet":
     case "jsonInsert":
       return expressionRuntimeSchema(ast.base!, context)
     case "jsonStripNulls":

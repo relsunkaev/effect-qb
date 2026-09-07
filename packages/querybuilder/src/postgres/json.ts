@@ -758,6 +758,22 @@ const json = {
 }
 
 const jsonb = {
+  focus: JsonPath.focus,
+  replace: <
+    Target extends JsonPath.NonEmptyFocus,
+    Next extends Parameters<typeof postgresJsonb.set>[2],
+    CreateMissing extends boolean = true
+  >(
+    target: Target,
+    next: Next,
+    options?: { readonly createMissing?: CreateMissing }
+  ) => <Base extends PostgresJsonExpression<any>>(
+    base: Base & JsonbBaseGuard<NoInfer<Base>, "jsonb.replace"> & JsonSetPathGuard<Expression.RuntimeOf<NoInfer<Base>>, Target, NoInfer<Next>, "json.set">
+  ): JsonResultExpression<
+    JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
+    Expression.DbTypeOf<Base>, Expression.KindOf<Base>, Expression.DependenciesOf<Base>, never, DialectOf<Base>
+  > => postgresJsonb.set(base as never, normalizeTarget(target) as never, next as never, options as never) as never,
+
   key: <const Key extends string>(value: Key): JsonbSegmentOperation<JsonPath.KeySegment<Key>> =>
     jsonbSegmentOperation(JsonPath.key(value)),
   index: <const Index extends number>(value: Index): JsonbSegmentOperation<JsonPath.IndexSegment<Index>> =>

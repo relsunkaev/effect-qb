@@ -225,3 +225,19 @@ export type JsonValueOfInput<Input> =
     : Input extends JsonLiteral
       ? Input
       : never
+
+/** Reusable exact location; its input shape is inferred when an operation uses it. */
+export interface Focus<Segments extends readonly ExactSegment[]> extends Path<Segments> {
+  key<const Key extends string>(value: Key): Focus<readonly [...Segments, KeySegment<Key>]>
+  index<const Index extends number>(value: Index): Focus<readonly [...Segments, IndexSegment<Index>]>
+}
+
+const makeFocus = <Segments extends readonly ExactSegment[]>(segments: Segments): Focus<Segments> => ({
+  ...path(...segments),
+  key: <const Key extends string>(value: Key) => makeFocus([...segments, key(value)] as const),
+  index: <const Index extends number>(value: Index) => makeFocus([...segments, index(value)] as const)
+})
+
+export const focus = (): Focus<readonly []> => makeFocus([] as const)
+
+export type NonEmptyFocus = Focus<readonly [ExactSegment, ...ExactSegment[]]>

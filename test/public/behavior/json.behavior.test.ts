@@ -389,42 +389,22 @@ describe("json behavior", () => {
       "note",
       "profile",
       "note",
-      {
-        profile: {
-          address: {
-            city: "Paris"
-          }
-        }
-      },
-      {
-        profile: {
-          address: {
-            city: "Paris"
-          }
-        }
-      },
+      JSON.stringify({ profile: { address: { city: "Paris" } } }),
+      JSON.stringify({ profile: { address: { city: "Paris" } } }),
       "note",
       "note",
       "profile",
       "address",
       "postcode",
-      "1000",
+      JSON.stringify("1000"),
       "profile",
       "address",
       "suite",
-      "12A",
-      {
-        a: 1
-      },
-      {
-        b: 2
-      },
-      {
-        a: 1
-      },
-      {
-        b: 2
-      },
+      JSON.stringify("12A"),
+      JSON.stringify({ a: 1 }),
+      JSON.stringify({ b: 2 }),
+      JSON.stringify({ a: 1 }),
+      JSON.stringify({ b: 2 }),
       "a",
       1,
       "b",
@@ -468,7 +448,7 @@ describe("json behavior", () => {
       "profile",
       "address",
       "city",
-      "Paris",
+      JSON.stringify("Paris"),
       "profile",
       "address",
       "city"
@@ -520,7 +500,7 @@ describe("json behavior", () => {
       "profile",
       "address",
       "suite",
-      "12A"
+      JSON.stringify("12A")
     ])
   })
 
@@ -543,7 +523,7 @@ describe("json behavior", () => {
       "profile",
       "address",
       "suite",
-      "42",
+      JSON.stringify("42"),
       "code",
       "42"
     ])
@@ -1097,4 +1077,25 @@ describe("json behavior", () => {
       JSON.stringify({ city: "Paris" })
     ])
   })
+})
+
+test("reusable focuses keep sibling paths independent and render sequential replacements", () => {
+  const docs = makeJsonbTable(Postgres)
+  const address = Postgres.Jsonb.focus().key("profile").key("address")
+  const city = address.key("city")
+  const postcode = address.key("postcode")
+  const updated = docs.payload.pipe(
+    Postgres.Jsonb.replace(city, "Paris"),
+    Postgres.Jsonb.replace(postcode, "75001")
+  )
+  const rendered = Postgres.Renderer.make().render(
+    StdRoot.Query.select({ payload: updated }).pipe(StdRoot.Query.from(docs))
+  )
+  expect(rendered.sql).toBe(
+    'select jsonb_set(jsonb_set("docs"."payload", array[$1, $2, $3], cast($4 as jsonb), true), array[$5, $6, $7], cast($8 as jsonb), true) as "payload" from "docs"'
+  )
+  expect(rendered.params).toEqual(["profile", "address", "city", JSON.stringify("Paris"), "profile", "address", "postcode", JSON.stringify("75001")])
+  expect(address.segments.map((segment) => segment.key)).toEqual(["profile", "address"])
+  expect(city.segments.map((segment) => segment.key)).toEqual(["profile", "address", "city"])
+  expect(postcode.segments.map((segment) => segment.key)).toEqual(["profile", "address", "postcode"])
 })

@@ -135,6 +135,9 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 ## Querybuilder public API boundaries
 
+- Keep property-path JSON navigation such as `jsonColumn.someArray[2].someField`.
+  Reusable focuses and pipeable mutations supplement that API.
+
 - Prefer pipeable Effect transforms for result cardinality instead of adding
   convenience methods to executors. Keep result metadata on executors because
   the driver owns that contract.

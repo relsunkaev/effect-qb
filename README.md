@@ -753,6 +753,58 @@ The same property-path shape works with root `Json.delete` for portable
 when a path segment cannot be written as a normal property, such as a dynamic,
 invalid-identifier, or reserved JSON key.
 
+For repeated mutations, build a reusable focus instead of repeating a callback
+from the document root. Property paths such as
+`docs.payload.someArray[2].someField` remain available.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Query, Table } from "effect-qb"
+import { Column as PgColumn, Jsonb } from "effect-qb/postgres"
+
+const documents = Table.make("documents", {
+  id: Column.int().pipe(Column.primaryKey),
+  payload: PgColumn.jsonb(Schema.Struct({
+    profile: Schema.Struct({ city: Schema.String, postcode: Schema.String })
+  }))
+})
+const profile = Jsonb.focus().key("profile")
+const city = profile.key("city")
+const postcode = profile.key("postcode")
+
+const updated = documents.payload.pipe(
+  Jsonb.replace(city, "Paris"),
+  Jsonb.replace(postcode, "75001")
+)
+Query.update(documents, { payload: updated })
+
+const reshaped = documents.payload.pipe(Jsonb.replace(city, 123))
+Query.select({ payload: reshaped }).pipe(Query.from(documents))
+Query.update(documents, {
+  // @ts-expect-error SELECT may change shape; this column still requires a string city
+  payload: reshaped
+})
+```
+
+A focus stores only key/index segments, not a document or its original field
+types. Extending one leaves it reusable for other sibling paths. Each
+`replace` operates on the previous expression and returns the whole document;
+the renderer nests the mutations into one SQL expression. Empty focuses are
+not replacement targets.
+
+Root `Json.focus` / `Json.replace` wrap the existing `Json.set` semantics;
+`Jsonb.replace` requires a PostgreSQL JSONB expression. These are database
+operations, not JavaScript optics applied after fetching rows. A final missing
+object key is created by default. Pass `{ createMissing: false }` to update
+only existing paths. Null intermediate containers remain null; optional parents
+remain optional in the result type.
+
+Use existing parent containers and in-range indexes for consistent results
+across engines. PostgreSQL and MySQL leave a missing intermediate object
+unchanged, whereas SQLite can create it. Array indexes replace rather than
+insert; negative and out-of-range indexes retain the selected engine's
+`set` behavior. No JavaScript read-modify-write or parent creation is added.
+
 ### Casting and Type Comparison
 
 `Cast.to` converts an expression to another type and checks the conversion at
