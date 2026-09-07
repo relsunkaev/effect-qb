@@ -1,3 +1,4 @@
+import type { StoredOf, WithoutStoredJson } from "../../internal/json/storage.js"
 import { makeDialectLiteral, makeDialectColumn, type QueryDialectProfile, type DialectLiteralExpression } from "../../internal/dsl-literal.js"
 export type { QueryDialectProfile } from "../../internal/dsl-literal.js"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
@@ -1012,7 +1013,7 @@ type JsonExpressionLike<Runtime = unknown> = Expression.Scalar<
   Expression.BindingId
 >
 
-type JsonDbOfExpression<Value extends JsonExpressionLike<any>> = Expression.DbTypeOf<Value>
+type JsonDbOfExpression<Value extends JsonExpressionLike<any>> = WithoutStoredJson<Expression.DbTypeOf<Value>>
 
 type JsonKindOfInput<
   Value,
@@ -1138,7 +1139,7 @@ type JsonNullabilityOf<Output> =
     : "never"
 
 type JsonOutputOfInput<Value> = Value extends Expression.Any
-  ? JsonRuntime<Expression.RuntimeOf<Value>>
+  ? JsonRuntime<StoredOf<Value>>
   : JsonRuntime<Value>
 
 type JsonObjectOutput<Shape extends Record<string, JsonValueInput>> = {
@@ -2333,9 +2334,9 @@ type BinaryPredicateExpression<
   ) => buildJsonNodeExpression(
     [value],
     {
-      runtime: undefined as unknown as JsonRuntime<Expression.RuntimeOf<typeof value>>,
+      runtime: undefined as unknown as JsonRuntime<StoredOf<typeof value>>,
       dbType,
-      nullability: value[Expression.TypeId].nullability as JsonNullabilityOf<JsonRuntime<Expression.RuntimeOf<typeof value>>>,
+      nullability: value[Expression.TypeId].nullability as JsonNullabilityOf<JsonRuntime<StoredOf<typeof value>>>,
     },
     {
       kind,
@@ -2365,11 +2366,11 @@ type BinaryPredicateExpression<
     Target extends JsonPathInput
   >(
     base: Base,
-    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.get">
+    target: Target & JsonPathGuard<StoredOf<Base>, Target, "json.get">
   ): JsonExpression<
-    JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
+    JsonPathOutputOf<StoredOf<Base>, Target, "json.get">,
     JsonDbOfExpression<Base>,
-    JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>,
+    JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.get">>,
     DialectOf<Base>,
     KindOf<Base>,
     DependenciesOf<Base>,
@@ -2382,9 +2383,9 @@ type BinaryPredicateExpression<
     return buildJsonNodeExpression(
       [base],
       {
-        runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
+        runtime: undefined as unknown as JsonPathOutputOf<StoredOf<Base>, Target, "json.get">,
         dbType: jsonDbTypeOf(base),
-        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.get">>
       },
       {
         kind,
@@ -2392,9 +2393,9 @@ type BinaryPredicateExpression<
         segments
       }
     ) as JsonExpression<
-      JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">,
+      JsonPathOutputOf<StoredOf<Base>, Target, "json.get">,
       JsonDbOfExpression<Base>,
-      JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.get">>,
+      JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.get">>,
       DialectOf<Base>,
       KindOf<Base>,
       DependenciesOf<Base>,
@@ -2407,12 +2408,12 @@ type BinaryPredicateExpression<
     Target extends JsonPathInput
   >(
     base: Base,
-    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.text">
+    target: Target & JsonPathGuard<StoredOf<Base>, Target, "json.text">
   ): JsonExpression<
-    JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
-      (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never),
+    JsonTextResult<Exclude<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
+      (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.text"> ? null : never),
     TextDb,
-    JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">>,
+    JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">>,
     DialectOf<Base>,
     KindOf<Base>,
     DependenciesOf<Base>,
@@ -2425,10 +2426,10 @@ type BinaryPredicateExpression<
     return buildJsonNodeExpression(
       [base],
       {
-        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
-          (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never),
+        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
+          (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.text"> ? null : never),
         dbType: profile.textDb as TextDb,
-        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">>
       },
       {
         kind,
@@ -2436,10 +2437,10 @@ type BinaryPredicateExpression<
         segments
       }
     ) as JsonExpression<
-      JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
-        (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never),
+      JsonTextResult<Exclude<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
+        (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.text"> ? null : never),
       TextDb,
-      JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">>,
+      JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">>,
       DialectOf<Base>,
       KindOf<Base>,
       DependenciesOf<Base>,
@@ -2452,15 +2453,15 @@ type BinaryPredicateExpression<
     Target extends JsonPathInput
   >(
     base: Base,
-    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.access">
+    target: Target & JsonPathGuard<StoredOf<Base>, Target, "json.access">
   ) => {
     const segments = normalizeJsonPathInput(target)
     return buildJsonNodeExpression(
       [base],
       {
-        runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.access">,
+        runtime: undefined as unknown as JsonPathOutputOf<StoredOf<Base>, Target, "json.access">,
         dbType: jsonDbTypeOf(base),
-        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.access">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.access">>
       },
       {
         kind: isJsonPathValue(target) || segments.length > 1 ? "jsonTraverse" : "jsonAccess",
@@ -2475,15 +2476,15 @@ type BinaryPredicateExpression<
     Target extends JsonPathInput
   >(
     base: Base,
-    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.traverse">
+    target: Target & JsonPathGuard<StoredOf<Base>, Target, "json.traverse">
   ) => {
     const segments = normalizeJsonPathInput(target)
     return buildJsonNodeExpression(
       [base],
       {
-        runtime: undefined as unknown as JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverse">,
+        runtime: undefined as unknown as JsonPathOutputOf<StoredOf<Base>, Target, "json.traverse">,
         dbType: jsonDbTypeOf(base),
-        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverse">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.traverse">>
       },
       {
         kind: "jsonTraverse",
@@ -2498,16 +2499,16 @@ type BinaryPredicateExpression<
     Target extends JsonPathInput
   >(
     base: Base,
-    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.accessText">
+    target: Target & JsonPathGuard<StoredOf<Base>, Target, "json.accessText">
   ) => {
     const segments = normalizeJsonPathInput(target)
     return buildJsonNodeExpression(
       [base],
       {
-        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.accessText">, JsonPathUsageError<any, any, any, any> | null>> |
-          (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.accessText"> ? null : never),
+        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<StoredOf<Base>, Target, "json.accessText">, JsonPathUsageError<any, any, any, any> | null>> |
+          (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.accessText"> ? null : never),
         dbType: profile.textDb as TextDb,
-        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.accessText">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.accessText">>
       },
       {
         kind: isJsonPathValue(target) || segments.length > 1 ? "jsonTraverseText" : "jsonAccessText",
@@ -2522,16 +2523,16 @@ type BinaryPredicateExpression<
     Target extends JsonPathInput
   >(
     base: Base,
-    target: Target & JsonPathGuard<Expression.RuntimeOf<Base>, Target, "json.traverseText">
+    target: Target & JsonPathGuard<StoredOf<Base>, Target, "json.traverseText">
   ) => {
     const segments = normalizeJsonPathInput(target)
     return buildJsonNodeExpression(
       [base],
       {
-        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverseText">, JsonPathUsageError<any, any, any, any> | null>> |
-          (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverseText"> ? null : never),
+        runtime: undefined as unknown as JsonTextResult<Exclude<JsonPathOutputOf<StoredOf<Base>, Target, "json.traverseText">, JsonPathUsageError<any, any, any, any> | null>> |
+          (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.traverseText"> ? null : never),
         dbType: profile.textDb as TextDb,
-        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.traverseText">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.traverseText">>
       },
       {
         kind: "jsonTraverseText",
@@ -2622,11 +2623,11 @@ type BinaryPredicateExpression<
     Target extends JsonPathInput
   >(
     base: Base,
-    target: Target & JsonDeleteGuard<Expression.RuntimeOf<Base>, Target, "json.delete">
+    target: Target & JsonDeleteGuard<StoredOf<Base>, Target, "json.delete">
   ): JsonExpression<
-    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+    JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">,
     JsonDbOfExpression<Base>,
-    JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>,
+    JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">>,
     DialectOf<Base>,
     KindOf<Base>,
     DependenciesOf<Base>,
@@ -2636,9 +2637,9 @@ type BinaryPredicateExpression<
     return buildJsonNodeExpression(
       [base],
       {
-        runtime: undefined as unknown as JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+        runtime: undefined as unknown as JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">,
         dbType: jsonDbTypeOf(base),
-        nullability: undefined as unknown as JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">>
       },
       {
         kind: isJsonPathValue(target) ? "jsonDeletePath" : "jsonDelete",
@@ -2646,9 +2647,9 @@ type BinaryPredicateExpression<
         segments
       }
     ) as JsonExpression<
-      JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+      JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">,
       JsonDbOfExpression<Base>,
-      JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">>,
+      JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">>,
       DialectOf<Base>,
       KindOf<Base>,
       DependenciesOf<Base>,
@@ -2661,11 +2662,11 @@ type BinaryPredicateExpression<
     Target extends JsonPathInput
   >(
     base: Base,
-    target: Target & JsonDeleteGuard<Expression.RuntimeOf<Base>, Target, "json.remove">
+    target: Target & JsonDeleteGuard<StoredOf<Base>, Target, "json.remove">
   ): JsonExpression<
-    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+    JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">,
     JsonDbOfExpression<Base>,
-    JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>,
+    JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">>,
     DialectOf<Base>,
     KindOf<Base>,
     DependenciesOf<Base>,
@@ -2675,9 +2676,9 @@ type BinaryPredicateExpression<
     return buildJsonNodeExpression(
       [base],
       {
-        runtime: undefined as unknown as JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+        runtime: undefined as unknown as JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">,
         dbType: jsonDbTypeOf(base),
-        nullability: undefined as unknown as JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">>
       },
       {
         kind: "jsonRemove",
@@ -2685,9 +2686,9 @@ type BinaryPredicateExpression<
         segments
       }
     ) as JsonExpression<
-      JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+      JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">,
       JsonDbOfExpression<Base>,
-      JsonNullabilityOf<JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">>,
+      JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">>,
       DialectOf<Base>,
       KindOf<Base>,
       DependenciesOf<Base>,
@@ -2701,15 +2702,15 @@ type BinaryPredicateExpression<
     Next extends JsonValueInput
   >(
     base: Base,
-    target: Target & JsonSetGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, "json.set">,
+    target: Target & JsonSetGuard<StoredOf<Base>, Target, NoInfer<Next>, "json.set">,
     next: Next,
     options: {
       readonly createMissing?: boolean
     } = {}
   ): JsonExpression<
-    JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+    JsonSetOutputOf<StoredOf<Base>, Target, Next, "json.set">,
     JsonDbOfExpression<Base>,
-    JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>,
+    JsonNullabilityOf<JsonSetOutputOf<StoredOf<Base>, Target, Next, "json.set">>,
     DialectOf<Base>,
     KindOf<Base>,
     DependenciesOf<Base>,
@@ -2720,9 +2721,9 @@ type BinaryPredicateExpression<
     return buildJsonNodeExpression(
       [base, newValue],
       {
-        runtime: undefined as unknown as JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+        runtime: undefined as unknown as JsonSetOutputOf<StoredOf<Base>, Target, Next, "json.set">,
         dbType: jsonDbTypeOf(base),
-        nullability: undefined as unknown as JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonSetOutputOf<StoredOf<Base>, Target, Next, "json.set">>
       },
       {
         kind: "jsonSet",
@@ -2732,9 +2733,9 @@ type BinaryPredicateExpression<
         createMissing: options.createMissing ?? true
       }
     ) as JsonExpression<
-      JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">,
+      JsonSetOutputOf<StoredOf<Base>, Target, Next, "json.set">,
       JsonDbOfExpression<Base>,
-      JsonNullabilityOf<JsonSetOutputOf<Expression.RuntimeOf<Base>, Target, Next, "json.set">>,
+      JsonNullabilityOf<JsonSetOutputOf<StoredOf<Base>, Target, Next, "json.set">>,
       DialectOf<Base>,
       KindOf<Base>,
       DependenciesOf<Base>,
@@ -2749,15 +2750,15 @@ type BinaryPredicateExpression<
     InsertAfter extends boolean = false
   >(
     base: Base,
-    target: Target & JsonInsertGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, NoInfer<InsertAfter>, "json.insert">,
+    target: Target & JsonInsertGuard<StoredOf<Base>, Target, NoInfer<Next>, NoInfer<InsertAfter>, "json.insert">,
     next: Next,
     options: {
       readonly insertAfter?: InsertAfter
     } = {}
   ): JsonExpression<
-    JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+    JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">,
     JsonDbOfExpression<Base>,
-    JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>,
+    JsonNullabilityOf<JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">>,
     DialectOf<Base>,
     KindOf<Base>,
     DependenciesOf<Base>,
@@ -2769,9 +2770,9 @@ type BinaryPredicateExpression<
     return buildJsonNodeExpression(
       [base, insert],
       {
-        runtime: undefined as unknown as JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+        runtime: undefined as unknown as JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">,
         dbType: jsonDbTypeOf(base),
-        nullability: undefined as unknown as JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>
+        nullability: undefined as unknown as JsonNullabilityOf<JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">>
       },
       {
         kind: "jsonInsert",
@@ -2781,9 +2782,9 @@ type BinaryPredicateExpression<
         insertAfter
       }
     ) as JsonExpression<
-      JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+      JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">,
       JsonDbOfExpression<Base>,
-      JsonNullabilityOf<JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">>,
+      JsonNullabilityOf<JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">>,
       DialectOf<Base>,
       KindOf<Base>,
       DependenciesOf<Base>,
@@ -2971,7 +2972,7 @@ type BinaryPredicateExpression<
   ) => buildJsonNodeExpression(
     [base],
     {
-      runtime: undefined as unknown as JsonTypeName<Expression.RuntimeOf<Base>>,
+      runtime: undefined as unknown as JsonTypeName<StoredOf<Base>>,
       dbType: profile.textDb as TextDb,
       nullability: base[Expression.TypeId].nullability
     },
@@ -2986,9 +2987,9 @@ type BinaryPredicateExpression<
   ) => buildJsonNodeExpression(
     [base],
     {
-      runtime: undefined as unknown as JsonLengthResult<Expression.RuntimeOf<Base>>,
+      runtime: undefined as unknown as JsonLengthResult<StoredOf<Base>>,
       dbType: profile.numericDb as NumericDb,
-      nullability: undefined as unknown as JsonNullabilityOf<JsonLengthResult<Expression.RuntimeOf<Base>>>
+      nullability: undefined as unknown as JsonNullabilityOf<JsonLengthResult<StoredOf<Base>>>
     },
     {
       kind: "jsonLength",
@@ -3001,9 +3002,9 @@ type BinaryPredicateExpression<
   ) => buildJsonNodeExpression(
     [base],
     {
-      runtime: undefined as unknown as JsonKeysResult<Expression.RuntimeOf<Base>>,
+      runtime: undefined as unknown as JsonKeysResult<StoredOf<Base>>,
       dbType: jsonDb,
-      nullability: undefined as unknown as JsonNullabilityOf<JsonKeysResult<Expression.RuntimeOf<Base>>>
+      nullability: undefined as unknown as JsonNullabilityOf<JsonKeysResult<StoredOf<Base>>>
     },
     {
       kind: "jsonKeys",
@@ -3054,9 +3055,9 @@ type BinaryPredicateExpression<
   ) => buildJsonNodeExpression(
     [base],
     {
-      runtime: undefined as unknown as JsonStripNullsResult<Expression.RuntimeOf<Base>>,
+      runtime: undefined as unknown as JsonStripNullsResult<StoredOf<Base>>,
       dbType: jsonDbTypeOf(base),
-      nullability: undefined as unknown as JsonNullabilityOf<JsonStripNullsResult<Expression.RuntimeOf<Base>>>
+      nullability: undefined as unknown as JsonNullabilityOf<JsonStripNullsResult<StoredOf<Base>>>
     },
     {
       kind: "jsonStripNulls",

@@ -32,7 +32,7 @@ describe("runtime schema inference", () => {
     expect(() => decode(city, "Phoenix")).toThrow()
   })
 
-  test("narrows exact JSON tuple indexes and preserves transformations", () => {
+  test("narrows exact JSON tuple indexes to stored values", () => {
     const docs = Table.make("schema_tuple_docs", {
       id: Column.uuid().pipe(Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Struct({
@@ -42,7 +42,7 @@ describe("runtime schema inference", () => {
 
     const secondTag = Postgres.Jsonb.get(docs.payload.tags[1])
 
-    expect(decode(secondTag, "42")).toBe(42)
+    expect(decode(secondTag, "42")).toBe("42")
   })
 
   test("narrows JSON paths through unions", () => {
@@ -98,7 +98,7 @@ describe("runtime schema inference", () => {
     const exactSecondTag = Postgres.Jsonb.get(docs.payload.tags[1])
     const wildcardTags = Postgres.Jsonb.get(docs.payload.tags, Postgres.Jsonb.wildcard())
 
-    expect(decode(exactSecondTag, "42")).toBe(42)
+    expect(decode(exactSecondTag, "42")).toBe("42")
     expect(decode(wildcardTags, "42")).toBe("42")
     expect(decode(wildcardTags, ["a", 1, true])).toEqual(["a", 1, true])
   })
@@ -122,7 +122,7 @@ describe("runtime schema inference", () => {
   })
 })
 
-test("JSON replacements decode changed leaves and preserve untouched codecs", () => {
+test("JSON replacements return changed and untouched stored values", () => {
   const docs = Table.make("focus_schema_docs", {
     payload: Postgres.Column.jsonb(Schema.Struct({
       profile: Schema.Struct({ city: Schema.String, count: Schema.NumberFromString }),
@@ -134,7 +134,7 @@ test("JSON replacements decode changed leaves and preserve untouched codecs", ()
     Postgres.Jsonb.replace(Postgres.Jsonb.focus().key("pair").index(0), true)
   )
   expect(decode(changed, { profile: { city: 123, count: "42" }, pair: [true, "7"] }))
-    .toEqual({ profile: { city: 123, count: 42 }, pair: [true, 7] })
+    .toEqual({ profile: { city: 123, count: "42" }, pair: [true, "7"] })
   expect(() => decode(changed, { profile: { city: "old", count: "42" }, pair: [true, "7"] })).toThrow()
 })
 

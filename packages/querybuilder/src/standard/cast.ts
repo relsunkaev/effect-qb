@@ -1,3 +1,4 @@
+import type { StoredOf } from "../internal/json/storage.js"
 import type * as ExpressionAst from "../internal/expression-ast.js"
 import type { CastTargetError } from "../internal/coercion/errors.js"
 import type { RuntimeOfDbType } from "../internal/coercion/analysis.js"
@@ -50,9 +51,9 @@ type CastDependencies<Value extends CastInput> = Value extends Expression.Any
 type JsonbScalarCastTarget<Value extends CastInput, Target extends CastTarget> =
   Value extends Expression.Any
     ? Expression.DbTypeOf<Value> extends Expression.DbType.Json<"postgres", "jsonb">
-      ? [Expression.RuntimeOf<Value>] extends [number]
+      ? [StoredOf<Value>] extends [number]
         ? FamilyOfDbType<Target> extends "numeric" ? Target : never
-        : [Expression.RuntimeOf<Value>] extends [boolean]
+        : [StoredOf<Value>] extends [boolean]
           ? FamilyOfDbType<Target> extends "boolean" ? Target : never
           : never
       : never

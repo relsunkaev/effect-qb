@@ -189,9 +189,8 @@ const schemaAstAtExactJsonPath = (
   schema: RuntimeSchema,
   segments: readonly JsonPath.CanonicalSegment[]
 ): SchemaAST.AST | undefined => {
-  // JSON path operators return encoded JSON subvalues, so preserve field-level
-  // encoding links instead of walking the type-side AST.
-  let current: SchemaAST.AST = schema.ast
+  // SQL paths address stored keys and return stored values, not decoded leaves.
+  let current: SchemaAST.AST = Schema.toEncoded(schema).ast
   for (const segment of segments) {
     if (segment.kind === "key") {
       const property = propertyAstOf(current, segment.key)
@@ -215,7 +214,7 @@ const schemaAstAtExactJsonPath = (
 }
 
 /**
- * Rebuild changed containers while retaining untouched leaf codecs. Reusing the
+ * Rebuild changed containers using the stored shape. Reusing the
  * original document schema would reject shape-changing SQL mutation results.
  */
 const setJsonPathAst = (
@@ -311,18 +310,29 @@ const jsonCompatibleSchema = (schema: RuntimeSchema | undefined): RuntimeSchema 
   return isJsonCompatibleAst(ast) ? schema : JsonValueSchema
 }
 
+const jsonInputRuntimeSchema = (
+  expression: Expression.Any,
+  context?: SchemaContext
+): RuntimeSchema | undefined => {
+  const schema = expressionRuntimeSchema(expression, context)
+  const db = expression[Expression.TypeId].dbType
+  return schema !== undefined && (db.kind === "json" || db.kind === "jsonb")
+    ? Schema.toEncoded(schema)
+    : schema
+}
+
 const buildStructSchema = (
   entries: readonly { readonly key: string; readonly value: Expression.Any }[],
   context?: SchemaContext
 ): RuntimeSchema => {
   const fields = Object.fromEntries(
-    entries.map((entry) => [entry.key, expressionRuntimeSchema(entry.value, context) ?? JsonValueSchema])
+    entries.map((entry) => [entry.key, jsonInputRuntimeSchema(entry.value, context) ?? JsonValueSchema])
   )
   return Schema.Struct(fields as Record<string, RuntimeSchema>)
 }
 
 const buildTupleSchema = (values: readonly Expression.Any[], context?: SchemaContext): RuntimeSchema =>
-  Schema.Tuple(values.map((value) => expressionRuntimeSchema(value, context) ?? JsonValueSchema))
+  Schema.Tuple(values.map((value) => jsonInputRuntimeSchema(value, context) ?? JsonValueSchema))
 
 const deriveCaseSchema = (
   ast: ExpressionAst.CaseNode,
@@ -451,7 +461,8 @@ const deriveRuntimeSchema = (
     case "jsonPath":
     case "jsonAccess":
     case "jsonTraverse": {
-      const baseSchema = expressionRuntimeSchema(ast.base!, context)
+      const rootSchema = expressionRuntimeSchema(ast.base!, context)
+      const baseSchema = rootSchema === undefined ? undefined : Schema.toEncoded(rootSchema)
       const segments = ast.segments
       if (baseSchema === undefined || segments === undefined || !exactJsonSegments(segments)) {
         return JsonValueSchema
@@ -460,8 +471,9 @@ const deriveRuntimeSchema = (
       return subAst === undefined ? JsonValueSchema : makeSchemaFromAst(subAst)
     }
     case "jsonSet": {
-      const baseSchema = expressionRuntimeSchema(ast.base!, context)
-      const nextSchema = expressionRuntimeSchema(ast.newValue!, context)
+      const rootSchema = expressionRuntimeSchema(ast.base!, context)
+      const baseSchema = rootSchema === undefined ? undefined : Schema.toEncoded(rootSchema)
+      const nextSchema = jsonInputRuntimeSchema(ast.newValue!, context)
       if (baseSchema === undefined || nextSchema === undefined || ast.segments === undefined ||
         !exactJsonSegments(ast.segments)) return JsonValueSchema
       const updated = makeSchemaFromAst(setJsonPathAst(baseSchema.ast, ast.segments, nextSchema.ast))
@@ -471,9 +483,9 @@ const deriveRuntimeSchema = (
     case "jsonDeletePath":
     case "jsonRemove":
     case "jsonInsert":
-      return expressionRuntimeSchema(ast.base!, context)
+      return JsonValueSchema
     case "jsonStripNulls":
-      return expressionRuntimeSchema(ast.value!, context)
+      return JsonValueSchema
     case "jsonConcat":
     case "jsonMerge":
       return JsonValueSchema
@@ -483,7 +495,7 @@ const deriveRuntimeSchema = (
       return buildTupleSchema(ast.values ?? [], context)
     case "jsonToJson":
     case "jsonToJsonb":
-      return jsonCompatibleSchema(expressionRuntimeSchema(ast.value!, context))
+      return jsonCompatibleSchema(jsonInputRuntimeSchema(ast.value!, context))
     case "jsonKeys":
       return Schema.Array(Schema.String)
   }

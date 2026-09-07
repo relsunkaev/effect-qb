@@ -1,3 +1,4 @@
+import type { WithStoredJson } from "../internal/json/storage.js"
 import * as Schema from "effect/Schema"
 
 import * as BaseColumn from "../internal/column.js"
@@ -46,7 +47,7 @@ export const custom = <SchemaType extends Schema.Top, Db extends Expression.DbTy
   dbType: Db
 ) =>
   makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
-    dbType: enrichDbType(mysqlDatatypes, dbType),
+    dbType: enrichDbType(mysqlDatatypes, dbType) as WithStoredJson<Db, Schema.Codec.Encoded<SchemaType>>,
     nullable: false,
     hasDefault: false,
     generated: false,
@@ -78,7 +79,7 @@ export const datetime = () => primitive(LocalDateTimeStringSchema, mysqlDatatype
 export const timestamp = () => primitive(LocalDateTimeStringSchema, mysqlDatatypes.timestamp())
 export const json = <SchemaType extends Schema.Top>(schema: SchemaType) =>
   makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
-    dbType: { ...mysqlDatatypes.json(), variant: "json" } as Expression.DbType.Json<"mysql", "json">,
+    dbType: { ...mysqlDatatypes.json(), variant: "json" } as unknown as WithStoredJson<Expression.DbType.Json<"mysql", "json">, Schema.Codec.Encoded<SchemaType>>,
     nullable: false,
     hasDefault: false,
     generated: false,

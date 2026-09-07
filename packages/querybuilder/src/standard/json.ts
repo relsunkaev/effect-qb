@@ -1,3 +1,4 @@
+import type { StoredOf, WithoutStoredJson } from "../internal/json/storage.js"
 import * as Expression from "../internal/scalar.js"
 import * as ExpressionAst from "../internal/expression-ast.js"
 import type { JsonPathUsageError } from "../internal/json/errors.js"
@@ -183,7 +184,7 @@ type JsonResultExpression<
   Dialect extends string = string
 > = Expression.Scalar<
   Runtime,
-  Db,
+  WithoutStoredJson<Db>,
   Expression.Nullability,
   Dialect,
   Kind,
@@ -197,7 +198,7 @@ type JsonGetResultExpression<
   Target extends JsonPathInput,
   Operation extends string
 > = WithJsonPathAccess<JsonResultExpression<
-  JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, Operation>,
+  JsonPathOutputOf<StoredOf<Base>, Target, Operation>,
   JsonDbOf<Base>,
   Expression.KindOf<Base>,
   Expression.DependenciesOf<Base>,
@@ -209,8 +210,8 @@ type JsonTextRuntime<
   Base extends JsonExpression<any>,
   Target extends JsonPathInput
 > =
-  JsonTextRuntimeResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
-  (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never)
+  JsonTextRuntimeResult<Exclude<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
+  (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.text"> ? null : never)
 
 type JsonTextResultExpression<
   Base extends JsonExpression<any>,
@@ -241,7 +242,7 @@ type JsonDeleteResultExpression<
   Base extends JsonExpression<any>,
   Target extends JsonPathInput
 > = WithJsonPathAccess<JsonResultExpression<
-  JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+  JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">,
   JsonDbOf<Base>,
   JsonKindOf<Base>,
   Expression.DependenciesOf<Base>,
@@ -313,10 +314,10 @@ type JsonAccessBase<Value extends Expression.Any> =
       : Value
 
 type JsonTextValueRuntime<Value extends Expression.Any> =
-  (Exclude<Expression.RuntimeOf<Value>, JsonPathUsageError<any, any, any, any> | null> extends infer Runtime
+  (Exclude<StoredOf<Value>, JsonPathUsageError<any, any, any, any> | null> extends infer Runtime
     ? Runtime extends string ? Runtime : string
     : string) |
-  (null extends Expression.RuntimeOf<Value> ? null : never)
+  (null extends StoredOf<Value> ? null : never)
 
 type JsonTextValueNullability<Value extends Expression.Any> =
   null extends JsonTextValueRuntime<Value> ? "maybe" : "never"
@@ -354,7 +355,7 @@ type JsonAccessDeleteResultExpression<
 > = Value extends JsonAccessExpression
   ? JsonAccessRoot<Value> extends JsonExpression<any>
       ? WithJsonPathAccess<JsonResultExpression<
-        JsonDeleteOutputOf<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Operation>,
+        JsonDeleteOutputOf<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Operation>,
         JsonDbOf<JsonAccessRoot<Value>>,
         JsonKindOf<JsonAccessRoot<Value>>,
         Expression.DependenciesOf<JsonAccessRoot<Value>>,
@@ -371,7 +372,7 @@ type JsonAccessSetResultExpression<
 > = Value extends JsonAccessExpression
   ? JsonAccessRoot<Value> extends JsonExpression<any>
     ? WithJsonPathAccess<JsonResultExpression<
-        JsonSetOutputWithCreateMissing<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, "json.set", CreateMissing>,
+        JsonSetOutputWithCreateMissing<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, "json.set", CreateMissing>,
         JsonDbOf<JsonAccessRoot<Value>>,
         JsonKindOf<JsonAccessRoot<Value>>,
         Expression.DependenciesOf<JsonAccessRoot<Value>>,
@@ -395,7 +396,7 @@ type JsonAccessInsertResultExpression<
 > = Value extends JsonAccessExpression
   ? JsonAccessRoot<Value> extends JsonExpression<any>
     ? WithJsonPathAccess<JsonResultExpression<
-        JsonInsertOutputOf<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, InsertAfter, "json.insert">,
+        JsonInsertOutputOf<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, InsertAfter, "json.insert">,
         JsonDbOf<JsonAccessRoot<Value>>,
         JsonKindOf<JsonAccessRoot<Value>>,
         Expression.DependenciesOf<JsonAccessRoot<Value>>,
@@ -419,7 +420,7 @@ type JsonAccessDeleteGuard<
   ? Value extends JsonAccessExpression
     ? JsonAccessRoot<Value> extends JsonExpression<any>
       ? ExactJsonPathGuard<JsonAccessPath<Value>, Operation> &
-        JsonDeletePathGuard<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Operation>
+        JsonDeletePathGuard<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Operation>
       : unknown
     : unknown
   : unknown
@@ -432,7 +433,7 @@ type JsonAccessSetGuard<
   ? Value extends JsonAccessExpression
     ? JsonAccessRoot<Value> extends JsonExpression<any>
       ? ExactJsonPathGuard<JsonAccessPath<Value>, "json.set"> &
-        JsonSetPathGuard<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, "json.set">
+        JsonSetPathGuard<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, "json.set">
       : unknown
     : unknown
   : unknown
@@ -445,7 +446,7 @@ type JsonAccessInsertGuard<
   ? Value extends JsonAccessExpression
     ? JsonAccessRoot<Value> extends JsonExpression<any>
       ? ExactJsonPathGuard<JsonAccessPath<Value>, "json.insert"> &
-        JsonInsertPathGuard<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, InsertAfter, "json.insert">
+        JsonInsertPathGuard<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, InsertAfter, "json.insert">
       : unknown
     : unknown
   : unknown
@@ -602,7 +603,7 @@ export const descend = (): SegmentOperation<JsonPath.DescendSegment> =>
 export interface Get {
   <Base extends JsonExpression<any>, Target extends JsonPathInput>(
     base: Base,
-    target: Target & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.get">
+    target: Target & JsonValuePathGuard<StoredOf<Base>, Target, "json.get">
   ): JsonGetResultExpression<Base, Target, "json.get">
   <Target extends JsonPathInput>(
     target: Target & JsonValuePathGuard<any, Target, "json.get">
@@ -777,13 +778,13 @@ export const set = ((...args: readonly unknown[]) => {
   ): JsonAccessSetResultExpression<Base, Next, CreateMissing>
   <Base extends JsonExpression<any>, Target extends JsonPathInput, Next extends Parameters<typeof standardJson.set>[2], CreateMissing extends boolean = true>(
     base: Base,
-    target: Target & ExactJsonPathGuard<Target, "json.set"> & JsonSetPathGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, "json.set">,
+    target: Target & ExactJsonPathGuard<Target, "json.set"> & JsonSetPathGuard<StoredOf<Base>, Target, NoInfer<Next>, "json.set">,
     next: Next,
     options?: {
       readonly createMissing?: CreateMissing
     }
   ): JsonResultExpression<
-    JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
+    JsonSetOutputWithCreateMissing<StoredOf<Base>, Target, Next, "json.set", CreateMissing>,
     JsonDbOf<Base>,
     JsonKindOf<Base>,
     Expression.DependenciesOf<Base>,
@@ -805,9 +806,9 @@ export const replace = <
   next: Next,
   options?: { readonly createMissing?: CreateMissing }
 ) => <Base extends JsonExpression<any>>(
-  base: Base & JsonSetPathGuard<Expression.RuntimeOf<NoInfer<Base>>, Target, NoInfer<Next>, "json.set">
+  base: Base & JsonSetPathGuard<StoredOf<NoInfer<Base>>, Target, NoInfer<Next>, "json.set">
 ): JsonResultExpression<
-  JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
+  JsonSetOutputWithCreateMissing<StoredOf<Base>, Target, Next, "json.set", CreateMissing>,
   JsonDbOf<Base>, JsonKindOf<Base>, Expression.DependenciesOf<Base>, never, DialectOf<Base>
 > => standardJson.set(base as never, normalizeTarget(target) as never, next as never, options as never) as never
 
@@ -850,13 +851,13 @@ export const insert = ((...args: readonly unknown[]) => {
   ): JsonAccessInsertResultExpression<Base, Next, InsertAfter>
   <Base extends JsonExpression<any>, Target extends JsonPathInput, Next extends Parameters<typeof standardJson.insert>[2], InsertAfter extends boolean = false>(
     base: Base,
-    target: Target & ExactJsonPathGuard<Target, "json.insert"> & JsonInsertPathGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, NoInfer<InsertAfter>, "json.insert">,
+    target: Target & ExactJsonPathGuard<Target, "json.insert"> & JsonInsertPathGuard<StoredOf<Base>, Target, NoInfer<Next>, NoInfer<InsertAfter>, "json.insert">,
     next: Next,
     options?: {
       readonly insertAfter?: InsertAfter
     }
   ): JsonResultExpression<
-    JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+    JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">,
     JsonDbOf<Base>,
     JsonKindOf<Base>,
     Expression.DependenciesOf<Base>,

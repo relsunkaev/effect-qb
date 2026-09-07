@@ -1,3 +1,5 @@
+import type * as Expression from "../scalar.js"
+import type { StoredOf } from "./storage.js"
 import type * as JsonPath from "./path.js"
 import type { JsonPathUsageError } from "./errors.js"
 
@@ -26,7 +28,9 @@ type NormalizeJsonObject<ObjectType extends object> = {
 }
 
 export type NormalizeJsonLiteral<Value> =
+  0 extends (1 & Value) ? any :
   [Value] extends [never] ? never :
+    Value extends Expression.Any ? NormalizeJsonLiteral<StoredOf<Value>> :
     Value extends JsonPrimitive ? Value :
       Value extends undefined | bigint | symbol | Date | ((...args: readonly any[]) => any) ? never :
         Value extends readonly unknown[] ? NormalizeJsonTuple<Value> :

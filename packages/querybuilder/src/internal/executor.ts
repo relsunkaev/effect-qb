@@ -424,13 +424,14 @@ const decodeProjectionValue = (
   valueMappings?: Expression.DriverValueMappings,
   reportInput = false
 ): unknown => {
+  const schema = expressionRuntimeSchema(expression, { assumptions: scope.assumptions })
   let normalized = raw
   if (driverMode === "raw") {
     try {
       normalized = fromDriverValue(raw, {
         dialect: rendered.dialect,
         dbType: expression[Expression.TypeId].dbType,
-        runtimeSchema: expression[Expression.TypeId].runtimeSchema,
+        runtimeSchema: schema,
         driverValueMapping: expression[Expression.TypeId].driverValueMapping,
         valueMappings
       })
@@ -440,7 +441,6 @@ const decodeProjectionValue = (
   }
 
   const nullability = effectiveRuntimeNullability(expression, scope)
-  const schema = expressionRuntimeSchema(expression, { assumptions: scope.assumptions })
   if (normalized === null) {
     if (nullability === "never") {
       if (dbTypeAllowsTopLevelJsonNull(expression[Expression.TypeId].dbType) && schemaAcceptsNull(schema)) {

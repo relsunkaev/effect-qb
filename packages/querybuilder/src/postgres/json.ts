@@ -1,3 +1,4 @@
+import type { StoredOf, WithoutStoredJson } from "../internal/json/storage.js"
 import * as Expression from "../internal/scalar.js"
 import * as ExpressionAst from "../internal/expression-ast.js"
 import type { JsonPathUsageError } from "../internal/json/errors.js"
@@ -207,7 +208,7 @@ type JsonResultExpression<
   Dialect extends string = string
 > = Expression.Scalar<
   Runtime,
-  Db,
+  WithoutStoredJson<Db>,
   Expression.Nullability,
   Dialect,
   Kind,
@@ -226,7 +227,7 @@ type JsonGetResultExpression<
   Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment,
   Operation extends string
 > = WithJsonPathAccess<JsonResultExpression<
-  JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, Operation>,
+  JsonPathOutputOf<StoredOf<Base>, Target, Operation>,
   JsonDbOf<Base>,
   Expression.KindOf<Base>,
   Expression.DependenciesOf<Base>,
@@ -238,8 +239,8 @@ type JsonTextRuntime<
   Base extends AnyJsonExpression<any>,
   Target extends JsonPath.Path<any> | JsonPath.CanonicalSegment
 > =
-  JsonTextResult<Exclude<JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
-  (null extends JsonPathOutputOf<Expression.RuntimeOf<Base>, Target, "json.text"> ? null : never)
+  JsonTextResult<Exclude<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">, JsonPathUsageError<any, any, any, any> | null>> |
+  (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.text"> ? null : never)
 
 type JsonTextResultExpression<
   Base extends AnyJsonExpression<any>,
@@ -299,10 +300,10 @@ type JsonAccessBase<Value extends Expression.Any> =
       : Value
 
 type JsonTextValueRuntime<Value extends Expression.Any> =
-  (Exclude<Expression.RuntimeOf<Value>, JsonPathUsageError<any, any, any, any> | null> extends infer Runtime
+  (Exclude<StoredOf<Value>, JsonPathUsageError<any, any, any, any> | null> extends infer Runtime
     ? Runtime extends string ? Runtime : string
     : string) |
-  (null extends Expression.RuntimeOf<Value> ? null : never)
+  (null extends StoredOf<Value> ? null : never)
 
 type JsonTextValueNullability<Value extends Expression.Any> =
   null extends JsonTextValueRuntime<Value> ? "maybe" : "never"
@@ -331,7 +332,7 @@ type JsonAccessDeleteResultExpression<
 > = Value extends JsonAccessExpression
   ? JsonAccessRoot<Value> extends PostgresJsonExpression<any>
   ? WithJsonPathAccess<JsonResultExpression<
-      JsonDeleteOutputOf<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Operation>,
+      JsonDeleteOutputOf<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Operation>,
       Expression.DbTypeOf<JsonAccessRoot<Value>>,
       Expression.KindOf<JsonAccessRoot<Value>>,
       Expression.DependenciesOf<JsonAccessRoot<Value>>,
@@ -355,7 +356,7 @@ type JsonAccessSetResultExpression<
 > = Value extends JsonAccessExpression
   ? JsonAccessRoot<Value> extends PostgresJsonExpression<any>
   ? WithJsonPathAccess<JsonResultExpression<
-      JsonSetOutputWithCreateMissing<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, "json.set", CreateMissing>,
+      JsonSetOutputWithCreateMissing<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, "json.set", CreateMissing>,
       Expression.DbTypeOf<JsonAccessRoot<Value>>,
       Expression.KindOf<JsonAccessRoot<Value>>,
       Expression.DependenciesOf<JsonAccessRoot<Value>>,
@@ -379,7 +380,7 @@ type JsonAccessInsertResultExpression<
 > = Value extends JsonAccessExpression
   ? JsonAccessRoot<Value> extends PostgresJsonExpression<any>
   ? WithJsonPathAccess<JsonResultExpression<
-      JsonInsertOutputOf<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, InsertAfter, "json.insert">,
+      JsonInsertOutputOf<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Next, InsertAfter, "json.insert">,
       Expression.DbTypeOf<JsonAccessRoot<Value>>,
       Expression.KindOf<JsonAccessRoot<Value>>,
       Expression.DependenciesOf<JsonAccessRoot<Value>>,
@@ -438,7 +439,7 @@ type JsonbDeleteCallResult<
     ? <Base extends PostgresJsonbExpression<any>>(
         base: Base
       ) => WithJsonPathAccess<JsonResultExpression<
-        JsonDeleteOutputOf<Expression.RuntimeOf<Base>, First, Operation>,
+        JsonDeleteOutputOf<StoredOf<Base>, First, Operation>,
         Expression.DbTypeOf<Base>,
         Expression.KindOf<Base>,
         Expression.DependenciesOf<Base>,
@@ -450,7 +451,7 @@ type JsonbDeleteCallResult<
         ? JsonAccessDeleteResultExpression<First, Operation>
         : Second extends JsonPath.CanonicalSegment | JsonPath.Path<any>
           ? WithJsonPathAccess<JsonResultExpression<
-              JsonDeleteOutputOf<Expression.RuntimeOf<First>, Second, Operation>,
+              JsonDeleteOutputOf<StoredOf<First>, Second, Operation>,
               Expression.DbTypeOf<First>,
               Expression.KindOf<First>,
               Expression.DependenciesOf<First>,
@@ -466,7 +467,7 @@ type JsonAccessDeleteGuard<
 > = Value extends PostgresJsonExpression<any>
   ? Value extends JsonAccessExpression
     ? JsonAccessRoot<Value> extends PostgresJsonExpression<any>
-      ? JsonDeletePathGuard<Expression.RuntimeOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Operation>
+      ? JsonDeletePathGuard<StoredOf<JsonAccessRoot<Value>>, JsonAccessPath<Value>, Operation>
       : unknown
     : unknown
   : unknown
@@ -484,7 +485,7 @@ type JsonbDeleteSecondGuard<
   Operation extends "json.delete" | "json.remove"
 > = First extends PostgresJsonExpression<any>
   ? Second extends JsonPath.CanonicalSegment | JsonPath.Path<any>
-    ? JsonDeletePathGuard<Expression.RuntimeOf<First>, Second, Operation>
+    ? JsonDeletePathGuard<StoredOf<First>, Second, Operation>
     : unknown
   : unknown
 
@@ -633,7 +634,7 @@ const jsonbGetDirect = <
   Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
 >(
   base: Base,
-  target: Target & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.get">
+  target: Target & JsonValuePathGuard<StoredOf<Base>, Target, "json.get">
 ): JsonGetResultExpression<Base, Target, "json.get"> =>
   postgresJsonb.get(base as Base, normalizeTarget(target)) as unknown as JsonGetResultExpression<Base, Target, "json.get">
 
@@ -642,7 +643,7 @@ const jsonbTextDirect = <
   Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
 >(
   base: Base,
-  target: Target & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.text">
+  target: Target & JsonValuePathGuard<StoredOf<Base>, Target, "json.text">
 ): JsonTextResultExpression<Base, Target> =>
   postgresJsonb.text(base as Base, normalizeTarget(target)) as unknown as JsonTextResultExpression<Base, Target>
 
@@ -679,14 +680,14 @@ const json = {
     Target extends ExactJsonPathInput
   >(
     base: Base,
-    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.access">
+    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<StoredOf<Base>, Target, "json.access">
   ) => postgresJson.access(base, normalizeTarget(target)),
   traverse: <
     Base extends PostgresJsonExpression<any>,
     Target extends ExactJsonPathInput
   >(
     base: Base,
-    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.traverse">
+    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<StoredOf<Base>, Target, "json.traverse">
   ) => postgresJson.traverse(base, normalizeTarget(target)),
   text: ((...args: readonly [unknown] | readonly [unknown, unknown]) => {
     if (args.length === 1) {
@@ -706,14 +707,14 @@ const json = {
     Target extends ExactJsonPathInput
   >(
     base: Base,
-    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.accessText">
+    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<StoredOf<Base>, Target, "json.accessText">
   ) => postgresJson.accessText(base, normalizeTarget(target)),
   traverseText: <
     Base extends PostgresJsonExpression<any>,
     Target extends ExactJsonPathInput
   >(
     base: Base,
-    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.traverseText">
+    target: Target & ExactJsonPathGuard<Target> & JsonValuePathGuard<StoredOf<Base>, Target, "json.traverseText">
   ) => postgresJson.traverseText(base, normalizeTarget(target)),
   buildObject: postgresJson.buildObject,
   buildArray: postgresJson.buildArray,
@@ -734,12 +735,12 @@ const json = {
     Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
   >(
     base: Base,
-    target: Target & JsonDeletePathGuard<Expression.RuntimeOf<Base>, Target, "json.delete">
+    target: Target & JsonDeletePathGuard<StoredOf<Base>, Target, "json.delete">
   ): JsonResultExpression<
-    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+    JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">,
     Expression.DbTypeOf<Base>
   > => postgresJson.delete(base as any, normalizeTarget(target) as any) as unknown as JsonResultExpression<
-    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.delete">,
+    JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">,
     Expression.DbTypeOf<Base>
   >,
   remove: <
@@ -747,12 +748,12 @@ const json = {
     Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
   >(
     base: Base,
-    target: Target & JsonDeletePathGuard<Expression.RuntimeOf<Base>, Target, "json.remove">
+    target: Target & JsonDeletePathGuard<StoredOf<Base>, Target, "json.remove">
   ): JsonResultExpression<
-    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+    JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">,
     Expression.DbTypeOf<Base>
   > => postgresJson.remove(base as any, normalizeTarget(target) as any) as unknown as JsonResultExpression<
-    JsonDeleteOutputOf<Expression.RuntimeOf<Base>, Target, "json.remove">,
+    JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">,
     Expression.DbTypeOf<Base>
   >
 }
@@ -768,9 +769,9 @@ const jsonb = {
     next: Next,
     options?: { readonly createMissing?: CreateMissing }
   ) => <Base extends PostgresJsonExpression<any>>(
-    base: Base & JsonbBaseGuard<NoInfer<Base>, "jsonb.replace"> & JsonSetPathGuard<Expression.RuntimeOf<NoInfer<Base>>, Target, NoInfer<Next>, "json.set">
+    base: Base & JsonbBaseGuard<NoInfer<Base>, "jsonb.replace"> & JsonSetPathGuard<StoredOf<NoInfer<Base>>, Target, NoInfer<Next>, "json.set">
   ): JsonResultExpression<
-    JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
+    JsonSetOutputWithCreateMissing<StoredOf<Base>, Target, Next, "json.set", CreateMissing>,
     Expression.DbTypeOf<Base>, Expression.KindOf<Base>, Expression.DependenciesOf<Base>, never, DialectOf<Base>
   > => postgresJsonb.set(base as never, normalizeTarget(target) as never, next as never, options as never) as never,
 
@@ -808,7 +809,7 @@ const jsonb = {
     ): Base & PostgresJsonbExpression<any>
     <Base extends PostgresJsonbExpression<any>, Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>>(
       base: Base,
-      target: Target & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.get">
+      target: Target & JsonValuePathGuard<StoredOf<Base>, Target, "json.get">
     ): JsonGetResultExpression<Base, Target, "json.get">
     <Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>>(
       target: Target & JsonValuePathGuard<any, Target, "json.get">
@@ -821,14 +822,14 @@ const jsonb = {
     Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.access">,
-    target: Target & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.access">
+    target: Target & JsonValuePathGuard<StoredOf<Base>, Target, "json.access">
   ) => postgresJsonb.access(base as Base, normalizeTarget(target)),
   traverse: <
     Base extends PostgresJsonExpression<any>,
     Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.traverse">,
-    target: Target & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.traverse">
+    target: Target & JsonValuePathGuard<StoredOf<Base>, Target, "json.traverse">
   ) => postgresJsonb.traverse(base as Base, normalizeTarget(target)),
   text: ((...args: readonly [unknown] | readonly [unknown, unknown]) => {
     if (args.length === 1) {
@@ -848,14 +849,14 @@ const jsonb = {
     Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.accessText">,
-    target: Target & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.accessText">
+    target: Target & JsonValuePathGuard<StoredOf<Base>, Target, "json.accessText">
   ) => postgresJsonb.accessText(base as Base, normalizeTarget(target)),
   traverseText: <
     Base extends PostgresJsonExpression<any>,
     Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>
   >(
     base: Base & JsonbBaseGuard<Base, "jsonb.traverseText">,
-    target: Target & JsonValuePathGuard<Expression.RuntimeOf<Base>, Target, "json.traverseText">
+    target: Target & JsonValuePathGuard<StoredOf<Base>, Target, "json.traverseText">
   ) => postgresJsonb.traverseText(base as Base, normalizeTarget(target)),
   contains: <
     Left extends PostgresJsonExpression<any>,
@@ -992,13 +993,13 @@ const jsonb = {
     ): JsonAccessSetResultExpression<Base, Next, CreateMissing>
     <Base extends PostgresJsonbExpression<any>, Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>, Next extends Parameters<typeof postgresJsonb.set>[2], CreateMissing extends boolean = true>(
       base: Base,
-      target: Target & JsonSetPathGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, "json.set">,
+      target: Target & JsonSetPathGuard<StoredOf<Base>, Target, NoInfer<Next>, "json.set">,
       next: Next,
       options?: {
         readonly createMissing?: CreateMissing
       }
     ): JsonResultExpression<
-      JsonSetOutputWithCreateMissing<Expression.RuntimeOf<Base>, Target, Next, "json.set", CreateMissing>,
+      JsonSetOutputWithCreateMissing<StoredOf<Base>, Target, Next, "json.set", CreateMissing>,
       Expression.DbTypeOf<Base>,
       Expression.KindOf<Base>,
       Expression.DependenciesOf<Base>,
@@ -1043,13 +1044,13 @@ const jsonb = {
     ): JsonAccessInsertResultExpression<Base, Next, InsertAfter>
     <Base extends PostgresJsonbExpression<any>, Target extends JsonPath.CanonicalSegment | JsonPath.Path<any>, Next extends Parameters<typeof postgresJsonb.insert>[2], InsertAfter extends boolean = false>(
       base: Base,
-      target: Target & JsonInsertPathGuard<Expression.RuntimeOf<Base>, Target, NoInfer<Next>, NoInfer<InsertAfter>, "json.insert">,
+      target: Target & JsonInsertPathGuard<StoredOf<Base>, Target, NoInfer<Next>, NoInfer<InsertAfter>, "json.insert">,
       next: Next,
       options?: {
         readonly insertAfter?: InsertAfter
       }
     ): JsonResultExpression<
-      JsonInsertOutputOf<Expression.RuntimeOf<Base>, Target, Next, InsertAfter, "json.insert">,
+      JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">,
       Expression.DbTypeOf<Base>,
       Expression.KindOf<Base>,
       Expression.DependenciesOf<Base>,

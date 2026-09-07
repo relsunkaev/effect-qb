@@ -1,3 +1,4 @@
+import type { StoredOf } from "./json/storage.js"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import type * as Schema from "effect/Schema"
 
@@ -927,26 +928,14 @@ type MutationValueCompatibilityIssue<
       ? ValueDb extends Expression.DbType.Json<ColumnDialect, infer ReceivedKind>
         ? [ExpectedKind] extends [ReceivedKind]
           ? [ReceivedKind] extends [ExpectedKind]
-            ? Value extends Expression.Scalar<infer ReceivedRuntime, any, any, any, any, any>
-              ? Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
-                ? [ReceivedRuntime] extends [ExpectedRuntime]
-                  ? never
-                  : JsonMutationShapeError<ColumnName, ExpectedRuntime, ReceivedRuntime>
-                : never
-              : never
+            ? [StoredOf<Value>] extends [StoredOf<Column>]
+              ? never
+              : JsonMutationShapeError<ColumnName, StoredOf<Column>, StoredOf<Value>>
             : JsonMutationDbKindError<ColumnName, ExpectedKind, ReceivedKind>
           : JsonMutationDbKindError<ColumnName, ExpectedKind, ReceivedKind>
-        : Value extends Expression.Scalar<infer ReceivedRuntime, any, any, any, any, any>
-          ? Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
-            ? [ReceivedRuntime] extends [ExpectedRuntime]
-              ? never
-              : JsonMutationShapeError<ColumnName, ExpectedRuntime, ReceivedRuntime>
-            : never
-          : Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
-            ? [Value] extends [ExpectedRuntime]
-              ? never
-              : JsonMutationShapeError<ColumnName, ExpectedRuntime, Value>
-            : never
+        : [StoredOf<Value>] extends [StoredOf<Column>]
+          ? never
+          : JsonMutationShapeError<ColumnName, StoredOf<Column>, StoredOf<Value>>
       : Column extends Expression.Scalar<infer ExpectedRuntime, any, any, any, any, any>
         ? [Value] extends [ExpectedRuntime]
           ? never
@@ -970,7 +959,7 @@ type MutationExpectedValue<
   Value,
   ColumnName extends string
 > = [MutationValueCompatibilityIssue<Column, Value, ColumnName>] extends [never]
-  ? MutationAcceptedInput<Column>
+  ? Value extends Expression.Any ? Value : MutationAcceptedInput<Column>
   : MutationValueCompatibilityIssue<Column, Value, ColumnName>
 
 type MutationShapeOf<

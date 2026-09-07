@@ -672,10 +672,18 @@ assumptions.
 
 ### JSON and JSONB Paths
 
-A JSON column carries its Effect Schema type through property-path access, so
-schema-known keys are reached with ordinary property access and keep their type.
+A JSON column carries its Effect Schema **encoded** shape through property-path
+access. Paths address stored keys and return stored values, not decoded leaves.
+For example, a NumberFromString field is a string when selected through a JSON
+path. Whole-column selection still decodes the complete document with its codec.
+Schema.encodeKeys changes the keys available to paths, not the decoded row keys.
 Use root `Json` for portable `Column.json(...)` columns and `Pg.Jsonb` for
 Postgres `jsonb` columns; the path shape is identical.
+
+JSON mutations and JSON constructors return stored values too. Shape-changing
+expressions remain selectable; INSERT/UPDATE checks SQL expression assignments
+against the destination encoded shape. Plain JavaScript document inputs still
+use the decoded column shape and are encoded on write.
 
 ```ts
 import * as Schema from "effect/Schema"

@@ -1,3 +1,4 @@
+import type { WithStoredJson } from "./json/storage.js"
 import type * as Brand from "effect/Brand"
 import * as Schema from "effect/Schema"
 
@@ -275,7 +276,7 @@ type ColumnWithSchema<
   ColumnSchemaOutput<Column, SchemaType>,
   ColumnSchemaOutput<Column, SchemaType>,
   ColumnSchemaOutput<Column, SchemaType>,
-  Column[typeof ColumnTypeId]["dbType"],
+  WithStoredJson<Column[typeof ColumnTypeId]["dbType"], Schema.Codec.Encoded<SchemaType>>,
   IsNullable<Column>,
   HasDefault<Column>,
   IsGenerated<Column>,
