@@ -1185,9 +1185,9 @@ const report = Query.select({
 </details>
 
 <details>
-<summary>Dialect-specific modulo and rounding</summary>
+<summary>Dialect-specific division, modulo and rounding</summary>
 
-`round` and `modulo` live on each dialect's `Function` module because their
+`divide`, `round` and `modulo` live on each dialect's `Function` module because their
 accepted database types, result types, and runtime behavior are not portable.
 `Cast.to(...)` can deliberately select an overload; the operation still belongs
 to the dialect that defines its semantics.
@@ -1207,16 +1207,19 @@ const amounts = Table.make("amounts", {
 const postgresExact = Cast.to(amounts.value, Type.numeric())
 
 const postgresPlan = Query.select({
+  quotient: Pg.Function.divide(amounts.count, Cast.to(2, Pg.Type.int4())),
   remainder: Pg.Function.modulo(amounts.count, 2),
   rounded: Pg.Function.round(postgresExact, 2)
 }).pipe(Query.from(amounts))
 
 const mysqlPlan = Query.select({
+  quotient: My.Function.divide(amounts.exact, amounts.count),
   remainder: My.Function.modulo(amounts.exact, amounts.count),
   rounded: My.Function.round(amounts.exact, 2)
 }).pipe(Query.from(amounts))
 
 const sqlitePlan = Query.select({
+  quotient: Sq.Function.divide(amounts.value, amounts.count),
   remainder: Sq.Function.modulo(amounts.value, amounts.count),
   rounded: Sq.Function.round(amounts.exact, 2)
 }).pipe(Query.from(amounts))
@@ -1227,6 +1230,20 @@ const sqlitePlan = Query.select({
 | PostgreSQL | integer and `numeric`; floating operands are rejected; zero divisors fail the statement | `numeric` is exact and rounds ties away from zero; integer/float one-argument forms return `float8` with platform-dependent floating-point ties |
 | MySQL | integer → `BIGINT`, exact → `DECIMAL`, approximate → `DOUBLE`; zero divisors return `NULL` | preserves the input category; exact ties round away from zero while approximate rounding follows floating-point semantics |
 | SQLite | operands are integer-coerced; a potentially REAL result is typed as `double`; zero divisors return `NULL` | always returns floating-point `double`; negative scales behave as zero and binary representation can affect decimal ties |
+
+Division uses native `/`, without casts or zero guards added to expression
+operands. PostgreSQL integer pairs truncate (bigint returns BigIntString);
+exact pairs return DecimalString. A float operand promotes to float8 except
+float4/float4, which stays float4. Zero denominators fail. MySQL exact pairs
+return DecimalString, approximate pairs return number, and zero denominators
+return NULL in SELECT (DML depends on SQL mode). SQLite always exposes number
+results: integer values truncate, REAL values divide fractionally, and integer
+overflow can promote to REAL. MySQL decimal results are normalized by the
+executor; trailing scale is not preserved.
+
+JavaScript number literals use the dialect numeric literal mapping: float8 for
+PostgreSQL, double for MySQL, and native bound numbers for SQLite. Use explicit
+integer or REAL casts when selecting truncating or fractional division matters.
 
 All three dialects give a nonzero remainder the dividend's sign. Scale-sensitive
 exact casts are still dialect-specific: in particular, MySQL's bare
@@ -1723,9 +1740,9 @@ Dialect modules expose:
 
 | Module | Adds |
 | --- | --- |
-| `effect-qb/postgres` | Postgres aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
-| `effect-qb/mysql` | MySQL aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit `rows`/`range` window frames, column extensions, JSON helpers, type witnesses, renderer, executor |
-| `effect-qb/sqlite` | SQLite aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/postgres` | Postgres aggregates, case conversion, clock functions, `divide`/`round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
+| `effect-qb/mysql` | MySQL aggregates, case conversion, clock functions, `divide`/`round`/`modulo`, function calls and explicit `rows`/`range` window frames, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/sqlite` | SQLite aggregates, case conversion, clock functions, `divide`/`round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, JSON helpers, type witnesses, renderer, executor |
 
 Portable columns and tables are created from `effect-qb`, not from dialect
 modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.

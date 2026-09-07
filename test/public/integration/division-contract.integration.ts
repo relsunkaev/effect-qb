@@ -107,3 +107,83 @@ test("sqlite division API preserves truncation and overflow promotion", async ()
     zero: null, rounded: 2
   })
 })
+
+test("postgres division API matches all six numeric kind pairs", async () => {
+  const { Cast, Query, Scalar, Type } = await import("#standard")
+  const Pg = await import("#postgres")
+  const kinds = ["int2", "int4", "int8", "numeric", "float4", "float8"] as const
+  const witness = (kind: typeof kinds[number]) => kind === "numeric" ? Type.numeric() : Pg.Type[kind]()
+  const expected = [
+    ["int2", "int4", "int8", "numeric", "float8", "float8"],
+    ["int4", "int4", "int8", "numeric", "float8", "float8"],
+    ["int8", "int8", "int8", "numeric", "float8", "float8"],
+    ["numeric", "numeric", "numeric", "numeric", "float8", "float8"],
+    ["float8", "float8", "float8", "float8", "float4", "float8"],
+    ["float8", "float8", "float8", "float8", "float8", "float8"]
+  ]
+  await runPostgres(Effect.gen(function*() {
+    const executor = Pg.Executor.make()
+    const sql = yield* SqlClient.SqlClient
+    for (const [i, left] of kinds.entries()) {
+      for (const [j, right] of kinds.entries()) {
+        const quotient = Pg.Function.divide(Cast.to(5, witness(left)), Cast.to(2, witness(right)))
+        expect(quotient[Scalar.TypeId].dbType.kind).toBe(expected[i]![j])
+        const [native] = yield* sql.unsafe<{ kind: string }>(
+          `select pg_typeof(5::${left} / 2::${right})::oid::regtype::text as kind`
+        )
+        const names: Record<string, string> = { int2: "smallint", int4: "integer", int8: "bigint", numeric: "numeric", float4: "real", float8: "double precision" }
+        expect(native!.kind).toBe(names[expected[i]![j]!])
+        const result = yield* executor.execute(Query.select({ value: quotient })).pipe(Pg.Executor.exactlyOne)
+        const kind = expected[i]![j]
+        expect(result.value).toBe(kind === "numeric" ? "2.5" : kind === "int8" ? "2" : kind === "int2" || kind === "int4" ? 2 : 2.5)
+      }
+      const zero = yield* Effect.result(executor.execute(Query.select({
+        value: Pg.Function.divide(Cast.to(5, witness(left)), Cast.to(0, witness(left)))
+      })))
+      expect(zero._tag).toBe("Failure")
+    }
+    const rounded = yield* executor.execute(Query.select({
+      value: Pg.Function.round(Pg.Function.divide(Cast.to(5, Type.numeric()), Cast.to(2, Type.numeric())), 1),
+      literal: Pg.Function.divide(5, 2)
+    })).pipe(Pg.Executor.exactlyOne)
+    expect(rounded).toEqual({ value: "2.5", literal: 2.5 })
+  }))
+})
+
+test("mysql division covers integral, exact and approximate pairings", async () => {
+  const { Cast, Query, Type } = await import("#standard")
+  const My = await import("#mysql")
+  await runMysql(Effect.gen(function*() {
+    const executor = My.Executor.make()
+    const operands = (value: number) => [
+      Cast.to(value, Type.int()), Cast.to(value, Type.bigint()),
+      Cast.to(value, Type.decimal()), Cast.to(value, My.Type.double())
+    ] as const
+    for (const [i, left] of operands(5).entries()) {
+      for (const [j, right] of operands(2).entries()) {
+        const row = yield* executor.execute(Query.select({ value: My.Function.divide(left, right) }))
+          .pipe(My.Executor.exactlyOne)
+        expect(row.value).toBe(i === 3 || j === 3 ? 2.5 : "2.5")
+      }
+    }
+  }))
+})
+
+test("sqlite division covers integer, bigint, numeric and real pairings", async () => {
+  const { Cast, Query, Type } = await import("#standard")
+  const Sq = await import("#sqlite")
+  await Effect.runPromise(Effect.gen(function*() {
+    const executor = Sq.Executor.make()
+    const operands = (value: number) => [
+      Cast.to(value, Type.int()), Cast.to(value, Type.bigint()),
+      Cast.to(value, Type.numeric()), Cast.to(value, Sq.Type.double())
+    ] as const
+    for (const [i, left] of operands(5).entries()) {
+      for (const [j, right] of operands(2).entries()) {
+        const row = yield* executor.execute(Query.select({ value: Sq.Function.divide(left, right) }))
+          .pipe(Sq.Executor.exactlyOne)
+        expect(row.value).toBe(i === 3 || j === 3 ? 2.5 : 2)
+      }
+    }
+  }).pipe(Effect.provide(SqliteClient.layer({ filename: ":memory:", disableWAL: true }))))
+})

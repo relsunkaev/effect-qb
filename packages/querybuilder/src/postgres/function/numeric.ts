@@ -4,7 +4,7 @@ import * as Expression from "../../internal/scalar.js"
 import { postgresDatatypes, postgresDatatypeFamilies } from "../datatypes/index.js"
 
 type PgNumericDb<
-  Kind extends "int2" | "int4" | "int8" | "numeric" | "float8",
+  Kind extends "int2" | "int4" | "int8" | "numeric" | "float4" | "float8",
   Runtime extends "number" | "bigintString" | "decimalString"
 > = Expression.DbType.Base<"postgres", Kind> & {
   readonly family: "numeric"
@@ -19,6 +19,7 @@ type PgInt2 = PgNumericDb<"int2", "number">
 type PgInt4 = PgNumericDb<"int4", "number">
 type PgInt8 = PgNumericDb<"int8", "bigintString">
 type PgNumeric = PgNumericDb<"numeric", "decimalString">
+type PgFloat4 = PgNumericDb<"float4", "number">
 type PgFloat8 = PgNumericDb<"float8", "number">
 
 type IsAny<Value> = 0 extends (1 & Value) ? true : false
@@ -58,7 +59,7 @@ type PgRoundCategory<Db extends Expression.DbType.Any> =
     : never
 
 type NumericInputError<
-  Operation extends "modulo" | "round",
+  Operation extends "modulo" | "round" | "divide",
   Db extends Expression.DbType.Any,
   Expected extends string
 > = {
@@ -91,12 +92,12 @@ type PgModuloConstraint<Value extends Numeric.Input> =
           : unknown
     )
 
-type PgRoundConstraint<Value extends Numeric.Input> =
+type PgRoundConstraint<Value extends Numeric.Input, Operation extends "round" | "divide" = "round"> =
   IsAny<Value> extends true ? unknown
     : Numeric.DialectConstraint<Value, PgFloat8, "postgres"> & (
       PgRoundCategory<Numeric.DbTypeOfInput<Value, PgFloat8, "postgres">> extends never
         ? NumericInputError<
-            "round",
+            Operation,
             Numeric.DbTypeOfInput<Value, PgFloat8, "postgres">,
             "smallint, integer, bigint, numeric, real, or double precision"
           >
@@ -245,3 +246,43 @@ export const round: {
     scale: number
   ): PgRoundResult<Value, PgNumeric, true>
 } = roundRuntime as any
+
+type PgDivideCategory<Value extends Numeric.Input> =
+  BaseDb<Numeric.DbTypeOfInput<Value, PgFloat8, "postgres">>["kind"] extends "float4" | "real"
+    ? "float4"
+    : PgRoundCategory<Numeric.DbTypeOfInput<Value, PgFloat8, "postgres">>
+
+type PgDivideDb<Left extends Numeric.Input, Right extends Numeric.Input> =
+  [PgDivideCategory<Left>, PgDivideCategory<Right>] extends ["float4", "float4"] ? PgFloat4
+    : Extract<PgDivideCategory<Left> | PgDivideCategory<Right>, "float4" | "approximate"> extends never
+      ? PgModuloResultDb<Left, Right>
+      : PgFloat8
+
+type PgDivideResult<Left extends Numeric.Input, Right extends Numeric.Input> =
+  Numeric.BinaryResult<Left, Right, PgFloat8, PgDivideDb<Left, Right>,
+    Numeric.BinaryNullability<Left, Right, PgFloat8, "postgres">, "postgres", "divide">
+
+const divideResultDb = (left: Numeric.Input, right: Numeric.Input) => {
+  const kind = (value: Numeric.Input) =>
+    typeof value === "number" ? "float8" : baseDb(value[Expression.TypeId].dbType).kind
+  const kinds = [kind(left), kind(right)]
+  if (kinds.every((value) => value === "float4" || value === "real")) {
+    return postgresDatatypes.float4()
+  }
+  if (kinds.some((value) => value === "float4" || value === "float8" || value === "real")) {
+    return postgresDatatypes.float8()
+  }
+  return moduloResultDb(left, right)
+}
+
+/** Native division; integer operands truncate and zero denominators fail. */
+export const divide = <Left extends Numeric.Input, Right extends Numeric.Input>(
+  left: Left & PgRoundConstraint<NoInfer<Left>, "divide">,
+  right: Right & PgRoundConstraint<NoInfer<Right>, "divide">
+): PgDivideResult<Left, Right> =>
+  (Numeric.binary as any)("divide", left, right, {
+    dialect: "postgres",
+    literalDb: postgresDatatypes.float8(),
+    resultDb: divideResultDb(left, right),
+    nullability: Numeric.binaryInputNullability(left, right)
+  }) as PgDivideResult<Left, Right>

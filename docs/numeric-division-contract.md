@@ -1,19 +1,19 @@
 # Numeric division and cast proposal
 
 Status: approved on 2026-09-07 for `effect-qb-98t` and `effect-qb-ah4`.
-MySQL and SQLite division are implemented; PostgreSQL division remains pending.
+All three dialect division APIs are implemented and executor-tested.
 Native numeric casts already exist.
 
 ## Approved API
 
-Add `Pg.Function.divide(left, right)`, `My.Function.divide(left, right)` and
+Use `Pg.Function.divide(left, right)`, `My.Function.divide(left, right)` and
 `Sq.Function.divide(left, right)`. Do not add root `Function.divide`: identical
 integer inputs do not have compatible cross-engine division semantics.
 Use the existing dialect numeric input/result machinery and binary expression
 AST, with result metadata owned by each dialect. Do not rewrite division into
 casts, zero guards or JavaScript arithmetic. Callers choose those operations.
 
-Representative caller after approval:
+Representative caller:
 
 ```ts
 Pg.Function.divide(Cast.to(5, Pg.Type.int4()), Cast.to(2, Pg.Type.int4()))
@@ -42,14 +42,13 @@ PostgreSQL 16.15, MySQL 8.4.11 and SQLite 3.54.0.
 
 PostgreSQL smallint/smallint remains smallint; int4/int8 becomes bigint, decoded
 as a string. Numeric/float4 resolves to double precision in the live probe;
-result metadata cannot be inferred solely by ranking operand names. The
-implementation needs kind-pair coverage before exposing those overloads.
+result metadata cannot be inferred solely by ranking operand names. All 36 kind pairs are verified against pg_typeof and the production executor.
 See [PostgreSQL mathematical operators](https://www.postgresql.org/docs/16/functions-math.html).
 
 MySQL exact division scale depends on the numerator scale plus session
 `div_precision_increment`. Tests cover increments 4 and 6. Native `DIV` returns
 an integer quotient but is a different operation, not an implementation of the
-proposed `divide`. DML error behavior depends on SQL mode and is not established
+`divide`. DML error behavior depends on SQL mode and is not established
 by SELECT nullability probes. See
 [MySQL arithmetic operators](https://dev.mysql.com/doc/refman/8.4/en/arithmetic-functions.html).
 
@@ -76,9 +75,9 @@ Dialect-specific precision parameters are a separate alternative, not silently
 included in this proposal. Existing typed fragments can express an explicit
 engine cast today; no additional escape hatch is needed.
 
-## Implementation acceptance
+## Verification contract
 
-After approval, prove each supported input-kind pair's result DB type and
+The integration and type suites cover each supported input-kind pair's result DB type and
 executor decoding, paired accepted/rejected type cases, operand nullability,
 zero behavior and nested rounding. Include integer width, mixed approximate
 inputs and SQLite overflow promotion. Preserve MySQL session configuration;
