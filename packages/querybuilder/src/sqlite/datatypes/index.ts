@@ -1,30 +1,11 @@
-import type { DatatypeModule } from "../../internal/datatypes/define.js"
+import { makeDatatypeModule, type DatatypeModule } from "../../internal/datatypes/define.js"
 import type * as Expression from "../../internal/scalar.js"
-import type { NonEmptyStringInput } from "../../internal/table-options.js"
 import { sqliteDatatypeFamilies, sqliteDatatypeKinds } from "./spec.js"
 
-const withMetadata = <Kind extends keyof typeof sqliteDatatypeKinds & string>(
-  kind: Kind
-): Expression.DbType.Base<"sqlite", Kind> => {
-  const kindSpec = sqliteDatatypeKinds[kind]
-  const familySpec = sqliteDatatypeFamilies[kindSpec.family as keyof typeof sqliteDatatypeFamilies]
-  return {
-    dialect: "sqlite",
-    kind,
-    family: kindSpec.family,
-    runtime: kindSpec.runtime,
-    compareGroup: familySpec?.compareGroup,
-    castTargets: familySpec?.castTargets,
-    implicitTargets: (familySpec as { readonly implicitTargets?: readonly string[] }).implicitTargets,
-    traits: familySpec?.traits
-  }
-}
+const baseDatatypes = makeDatatypeModule("sqlite", sqliteDatatypeKinds, sqliteDatatypeFamilies)
 
 const sqliteDatatypeModule = {
-  custom: <Kind extends string>(kind: NonEmptyStringInput<Kind>) => ({
-    dialect: "sqlite",
-    kind: kind as Kind
-  }),
+  ...baseDatatypes,
   uuid: () => ({
     dialect: "sqlite",
     kind: "uuid",
@@ -37,10 +18,6 @@ const sqliteDatatypeModule = {
     }
   })
 } as Record<string, (...args: readonly any[]) => Expression.DbType.Base<"sqlite", string>>
-
-for (const kind of Object.keys(sqliteDatatypeKinds)) {
-  sqliteDatatypeModule[kind] = () => withMetadata(kind as keyof typeof sqliteDatatypeKinds & string)
-}
 
 type SqliteUuidWitness = Expression.DbType.Base<"sqlite", "uuid"> & {
   readonly family: "uuid"
@@ -63,7 +40,7 @@ type SqliteJsonWitness = Expression.DbType.Base<"sqlite", "json"> & {
 }
 
 sqliteDatatypeModule.json = () => ({
-  ...withMetadata("json"),
+  ...baseDatatypes.json(),
   driverValueMapping: {
     toDriver: (value: unknown) => JSON.stringify(value)
   }

@@ -1,3 +1,4 @@
+import { isDomain } from "../../internal/datatypes/guards.js"
 import * as Numeric from "../../internal/dialect-numeric.js"
 import * as Expression from "../../internal/scalar.js"
 import { postgresDatatypes } from "../datatypes/index.js"
@@ -70,7 +71,7 @@ type PgAvgResultDb<Value extends Numeric.Input> =
     : PgNumeric
 
 const baseDb = (db: Expression.DbType.Any): Expression.DbType.Any =>
-  "base" in db ? baseDb(db.base) : db
+  isDomain(db) ? baseDb(db.base) : db
 
 const category = (
   value: Numeric.Input

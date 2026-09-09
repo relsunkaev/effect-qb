@@ -1,3 +1,4 @@
+import type { WithStoredJson } from "../internal/json/storage.js"
 import * as Schema from "effect/Schema"
 
 import * as BaseColumn from "../internal/column.js"
@@ -60,7 +61,7 @@ export const custom = <SchemaType extends Schema.Top, Db extends Expression.DbTy
   dbType: Db
 ) =>
   makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
-    dbType: enrichDbType(postgresDatatypes, dbType),
+    dbType: enrichDbType(postgresDatatypes, dbType) as WithStoredJson<Db, Schema.Codec.Encoded<SchemaType>>,
     nullable: false,
     hasDefault: false,
     generated: false,
@@ -131,7 +132,7 @@ export const varchar = (length?: number) =>
   })
 export const json = <SchemaType extends Schema.Top>(schema: SchemaType) =>
   makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
-    dbType: postgresDatatypes.json(),
+    dbType: postgresDatatypes.json() as WithStoredJson<ReturnType<typeof postgresDatatypes.json>, Schema.Codec.Encoded<SchemaType>>,
     nullable: false,
     hasDefault: false,
     generated: false,
@@ -143,7 +144,7 @@ export const json = <SchemaType extends Schema.Top>(schema: SchemaType) =>
   })
 export const jsonb = <SchemaType extends Schema.Top>(schema: SchemaType) =>
   makeColumnDefinition(schema as unknown as Schema.Schema<NonNullable<Schema.Schema.Type<SchemaType>>>, {
-    dbType: postgresDatatypes.jsonb(),
+    dbType: postgresDatatypes.jsonb() as WithStoredJson<ReturnType<typeof postgresDatatypes.jsonb>, Schema.Codec.Encoded<SchemaType>>,
     nullable: false,
     hasDefault: false,
     generated: false,

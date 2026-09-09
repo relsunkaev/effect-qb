@@ -1,5 +1,5 @@
 import { quoteBacktickIdentifier, type RenderState, type RenderValueContext, type SqlDialect } from "../../internal/dialect.js"
-import { renderExpression, renderQueryAst } from "../../internal/dialect-renderers/mysql.js"
+import { renderExpression, renderQueryAst, renderSourceReference } from "../../internal/dialect-renderers/mysql.js"
 import { toDriverValue } from "../../internal/runtime/driver-value-mapping.js"
 import { standardDialect } from "../../standard/dialect.js"
 
@@ -21,14 +21,7 @@ const renderLiteral = (value: unknown, state: RenderState, context: RenderValueC
   return "?"
 }
 
-/**
- * Internal runtime dialect sketch for MySQL.
- *
- * This is intentionally not wired into the public renderer surface yet. It
- * exists to pressure-test the current abstraction seam and to document the
- * concrete SQL differences we still need to account for as dialect support
- * grows.
- */
+/** Built-in runtime dialect implementation for MySQL. */
 export const mysqlDialect: SqlDialect<"mysql"> = {
   ...standardDialect,
   name: "mysql",
@@ -45,6 +38,7 @@ export const mysqlDialect: SqlDialect<"mysql"> = {
   renderConcat(values) {
     return `concat(${values.join(", ")})`
   },
+  renderSourceReference,
   renderQueryAst,
   renderExpression
 }

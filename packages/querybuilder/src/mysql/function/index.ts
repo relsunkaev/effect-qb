@@ -9,7 +9,7 @@ export { coalesce } from "./core.js"
 export { call } from "./core.js"
 export { lower, upper, concat } from "./string.js"
 export { avg, count, max, min, sum } from "./aggregate.js"
-export { modulo, round } from "./numeric.js"
+export { divide, modulo, round } from "./numeric.js"
 export { firstValue, lastValue, over, rowNumber, rank, denseRank } from "./window.js"
 export type { WindowSpec } from "./window.js"
 export {

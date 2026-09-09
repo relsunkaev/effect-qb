@@ -90,7 +90,8 @@ export type BinaryResult<
   LiteralDb extends Expression.DbType.Any,
   ResultDb extends Expression.DbType.Any,
   Nullable extends Expression.Nullability,
-  Dialect extends string
+  Dialect extends string,
+  Operation extends "modulo" | "divide" = "modulo"
 > = Expression.Scalar<
   Expression.RuntimeOfDbType<ResultDb>,
   ResultDb,
@@ -102,7 +103,7 @@ export type BinaryResult<
   >,
   TupleDependencies<BinaryValues<Left, Right, LiteralDb, Dialect>>
 > & {
-  readonly [ExpressionAst.TypeId]: ExpressionAst.BinaryNode<"modulo">
+  readonly [ExpressionAst.TypeId]: ExpressionAst.BinaryNode<Operation>
 }
 
 export type RoundResult<
@@ -180,7 +181,8 @@ const asExpression = <
     ? literal(value, literalDb, dialect)
     : value) as AsExpression<Value, Db, Dialect>
 
-export const modulo = <
+export const binary = <
+  Operation extends "modulo" | "divide",
   Left extends Input,
   Right extends Input,
   LiteralDb extends Expression.DbType.Any,
@@ -188,6 +190,7 @@ export const modulo = <
   Nullable extends Expression.Nullability,
   Dialect extends string
 >(
+  operation: Operation,
   left: Left,
   right: Right,
   options: {
@@ -196,7 +199,7 @@ export const modulo = <
     readonly resultDb: ResultDb
     readonly nullability: Nullable
   }
-): BinaryResult<Left, Right, LiteralDb, ResultDb, Nullable, Dialect> => {
+): BinaryResult<Left, Right, LiteralDb, ResultDb, Nullable, Dialect, Operation> => {
   const leftExpression = asExpression(left, options.literalDb, options.dialect)
   const rightExpression = asExpression(right, options.literalDb, options.dialect)
   const values = [leftExpression, rightExpression] as const
@@ -209,10 +212,10 @@ export const modulo = <
     kind: mergeAggregationManyRuntime(values),
     dependencies: mergeManyDependencies(values)
   }, {
-    kind: "modulo",
+    kind: operation,
     left: leftExpression,
     right: rightExpression
-  }) as BinaryResult<Left, Right, LiteralDb, ResultDb, Nullable, Dialect>
+  }) as BinaryResult<Left, Right, LiteralDb, ResultDb, Nullable, Dialect, Operation>
 }
 
 export const round = <

@@ -44,10 +44,22 @@ effectdb migrate generate
 effectdb migrate up
 ```
 
+Add `--wizard` for guided flag selection, for example `effectdb push --wizard`
+or `effectdb migrate generate --wizard`. Review the generated command before
+accepting the final run prompt. Declining or cancelling does not execute it.
+The wizard uses the same command handlers and safety checks as direct invocation;
+`--allow-destructive` remains opt-in. Select `--dry-run` to preview push/pull plans.
+Prefer a config file or `DATABASE_URL` over entering credentials with `--url`:
+the wizard displays ordinary string flags in its generated command.
+
 `effectdb` uses Effect CLI's global `--log-level` flag. Operational logs are
 written to stderr and default to `info`; use `--log-level debug` for config
 diagnostics or `--log-level none` to suppress logs. Plans and status
 output remain on stdout.
+
+Pull plans report a concrete foreign-key cycle for each cyclic dependency group,
+including the source and referenced columns. These are diagnostic examples, not
+an exhaustive list of cycles; they do not change declaration ordering or apply policy.
 
 ## Runtime services
 

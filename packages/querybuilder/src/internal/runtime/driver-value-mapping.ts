@@ -1,3 +1,4 @@
+import { isDomain, isArray, isComposite } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 
 import type * as Expression from "../scalar.js"
@@ -26,13 +27,13 @@ const runtimeTagOfDbType = (
   if (dbType === undefined) {
     return undefined
   }
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return runtimeTagOfDbType(dbType.base)
   }
-  if ("element" in dbType) {
+  if (isArray(dbType)) {
     return "array"
   }
-  if ("fields" in dbType) {
+  if (isComposite(dbType)) {
     return "record"
   }
   if ("variant" in dbType && dbType.variant === "json") {
@@ -50,7 +51,7 @@ const familyOfDbType = (
   if (dbType === undefined) {
     return undefined
   }
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return familyOfDbType(dbType.base)
   }
   return dbType.family
@@ -84,12 +85,15 @@ const findMapping = <Key extends MappingKey>(
   return undefined
 }
 
-const isJsonDbType = (dbType: Expression.DbType.Any | undefined): boolean => {
+export const isJsonDbType = (dbType: Expression.DbType.Any | undefined): boolean => {
   if (dbType === undefined) {
     return false
   }
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return isJsonDbType(dbType.base)
+  }
+  if (dbType.runtime === "json") {
+    return true
   }
   if (!("variant" in dbType)) {
     return false
@@ -97,12 +101,6 @@ const isJsonDbType = (dbType: Expression.DbType.Any | undefined): boolean => {
   const variant = dbType.variant as string
   return variant === "json" || variant === "jsonb"
 }
-
-const schemaAccepts = (
-  schema: Schema.Top | undefined,
-  value: unknown
-): boolean =>
-  schema !== undefined && (Schema.is(schema) as (candidate: unknown) => boolean)(value)
 
 const encodeWithSchema = (
   schema: Schema.Top | undefined,
@@ -118,32 +116,6 @@ const encodeWithSchema = (
     value: (Schema.encodeUnknownSync as any)(schema)(value),
     encoded: true
   }
-}
-
-const normalizeJsonDriverString = (
-  value: string,
-  context: DriverValueContext
-): unknown | undefined => {
-  if (!isJsonDbType(context.dbType) || context.runtimeSchema === undefined) {
-    return undefined
-  }
-  try {
-    const parsed = JSON.parse(value)
-    if (value.trimStart().startsWith("\"") && schemaAccepts(context.runtimeSchema, parsed)) {
-      return parsed
-    }
-    if (schemaAccepts(context.runtimeSchema, value) && !schemaAccepts(context.runtimeSchema, parsed)) {
-      return value
-    }
-  } catch (error) {
-    if (error instanceof SyntaxError && schemaAccepts(context.runtimeSchema, value)) {
-      return value
-    }
-    if (!(error instanceof SyntaxError)) {
-      throw error
-    }
-  }
-  return undefined
 }
 
 export const toDriverValue = (
@@ -163,8 +135,8 @@ export const toDriverValue = (
   if (custom !== undefined && dbType !== undefined) {
     return custom(current, dbType)
   }
-  if (encoded.encoded && typeof current === "string" && isJsonDbType(dbType)) {
-    return current
+  if (isJsonDbType(dbType)) {
+    return JSON.stringify(current)
   }
   return dbType === undefined || !encoded.encoded
     ? current
@@ -183,11 +155,14 @@ export const fromDriverValue = (
   if (custom !== undefined && dbType !== undefined) {
     return custom(value, dbType)
   }
-  if (typeof value === "string") {
-    const normalizedJsonString = normalizeJsonDriverString(value, context)
-    if (normalizedJsonString !== undefined) {
-      return normalizedJsonString
+  if (isJsonDbType(dbType)) {
+    if (context.dialect === "sqlite") {
+      if (typeof value !== "string") {
+        throw new Error("Expected serialized JSON from SQLite; configure fromDriver for custom representations")
+      }
+      return JSON.parse(value)
     }
+    return value
   }
   return dbType === undefined
     ? value
@@ -224,8 +199,12 @@ export const renderSelectSql = (
 ): string => {
   const dbType = context.dbType
   const custom = findMapping(context, "selectSql")
-  return custom !== undefined && dbType !== undefined
-    ? custom(sql, dbType)
+  if (custom !== undefined && dbType !== undefined) {
+    return custom(sql, dbType)
+  }
+  // SQLite column affinity can store JSON numbers as SQL numbers.
+  return context.dialect === "sqlite" && isJsonDbType(dbType)
+    ? `cast(${sql} as text)`
     : sql
 }
 
@@ -237,6 +216,10 @@ export const renderJsonSelectSql = (
   const custom = findMapping(context, "jsonSelectSql")
   if (custom !== undefined && dbType !== undefined) {
     return custom(sql, dbType)
+  }
+  if (runtimeTagOfDbType(dbType) === "boolean" && (context.dialect === "mysql" || context.dialect === "sqlite")) {
+    const booleanJson = `case ${sql} when 1 then 'true' when 0 then 'false' else 'null' end`
+    return context.dialect === "sqlite" ? `json(${booleanJson})` : `cast(${booleanJson} as json)`
   }
   return context.dialect === "postgres" && dbType !== undefined
     ? postgresJsonSql(sql, dbType)

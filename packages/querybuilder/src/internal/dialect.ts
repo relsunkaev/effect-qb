@@ -52,18 +52,19 @@ export interface RenderedAst {
   readonly projections: readonly Projection[]
 }
 
-/**
- * Minimal runtime contract for a SQL dialect.
- *
- * This is intentionally small for the first abstraction pass. It covers the
- * renderer seams that are already dialect-sensitive today: identifier quoting,
- * literal serialization, and table-reference rendering.
- */
+/** Runtime contract for dialect-owned SQL lowering and shared traversal. */
 export interface SqlDialect<Name extends string = string> {
   readonly name: Name
   quoteIdentifier(value: string): string
   renderLiteral(value: unknown, state: RenderState, context?: RenderValueContext): string
   renderTableReference(tableName: string, baseTableName: string, schemaName?: string): string
+  renderSourceReference(
+    source: unknown,
+    tableName: string,
+    baseTableName: string,
+    state: RenderState,
+    dialect: SqlDialect<Name>
+  ): string
   renderConcat(values: readonly string[]): string
   renderQueryAst(
     ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,

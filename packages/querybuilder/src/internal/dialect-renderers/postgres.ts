@@ -1,3 +1,8 @@
+import { unsupportedJsonFeature, extractJsonBase, isJsonPathValue, extractJsonPathSegments, extractJsonKeys, extractJsonValue, renderJsonPathSegment } from "../json/renderer.js"
+import { renderSelectClauses, renderSelectionList, selectionProjections, nestedRenderState } from "./common-query.js"
+import { expressionDriverContext, renderCommonExpression, expectValueExpression, expectBinaryExpressions, renderSubqueryExpressionPlan } from "./common-expression.js"
+import { casingForTable, casedTableReferenceName, quoteColumn, stateWithTableCasing, renderReferenceTable, quoteReferenceColumn, registerQuerySources } from "./source-context.js"
+import { isDomain, isArray, hasSubtype } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 
 import * as Query from "../query.js"
@@ -7,7 +12,6 @@ import * as QueryAst from "../query-ast.js"
 import { renderDbTypeName, type RenderState, type RenderValueContext, type SqlDialect } from "../dialect.js"
 import { renderPortableDatatypeCastType, renderPortableDatatypeDdlType } from "../datatypes/matrix.js"
 import * as ExpressionAst from "../expression-ast.js"
-import { renderCustomSql } from "../custom-sql-renderer.js"
 import { renderWindowFrame } from "../window-renderer.js"
 import * as JsonPath from "../json/path.js"
 import { renderSelectLockMode } from "../dsl-plan-runtime.js"
@@ -15,11 +19,10 @@ import { expectConflictClause } from "../dsl-mutation-runtime.js"
 import { expectDdlClauseKind, expectTruncateClause, normalizeStatementFlag, normalizeStatementIdentifier, renderTransactionIsolationLevel } from "../dsl-transaction-ddl-runtime.js"
 import {
   renderJsonSelectSql,
-  renderSelectSql,
   toDriverValue
 } from "../runtime/driver-value-mapping.js"
 import { normalizeDbValue } from "../runtime/normalize.js"
-import { flattenSelection, type Projection } from "../projections.js"
+import type { Projection } from "../projections.js"
 import { groupingKeyOfExpression } from "../grouping-key.js"
 import * as SchemaExpression from "../schema-expression.js"
 import { renderReferentialAction, validateOptions, type DdlExpressionLike, type TableOptionSpec } from "../table-options.js"
@@ -31,9 +34,6 @@ const renderDbType = (
 ): string => {
   return renderDbTypeName(renderPortableDatatypeDdlType(dialect.name, dbType.kind) ?? dbType.kind)
 }
-
-const isArrayDbType = (dbType: Expression.DbType.Any): boolean =>
-  "element" in dbType
 
 const renderCastType = (
   dialect: SqlDialect,
@@ -66,12 +66,6 @@ const renderCastType = (
   }
 }
 
-const casingForTable = (
-  table: Table.AnyTable,
-  state: RenderState
-): Casing.Options | undefined =>
-  Casing.merge(state.casing, table[Table.TypeId].casing)
-
 const casedTableName = (
   table: Table.AnyTable,
   state: RenderState
@@ -88,134 +82,6 @@ const casedSchemaName = (
   return schemaName === undefined
     ? undefined
     : Casing.applyCategory(casingForTable(table, state), "schemas", schemaName)
-}
-
-const casedColumnName = (
-  columnName: string,
-  state: RenderState,
-  tableName?: string
-): string => {
-  if (tableName !== undefined) {
-    const mapped = state.sourceNames?.get(tableName)?.columns.get(columnName)
-    if (mapped !== undefined) {
-      return mapped
-    }
-  }
-  return Casing.applyCategory(state.casing, "columns", columnName)
-}
-
-const casedTableReferenceName = (
-  tableName: string,
-  state: RenderState
-): string =>
-  state.sourceNames?.get(tableName)?.tableName ?? Casing.applyCategory(state.casing, "tables", tableName)
-
-const quoteColumn = (
-  columnName: string,
-  state: RenderState,
-  dialect: SqlDialect,
-  tableName?: string
-): string => dialect.quoteIdentifier(casedColumnName(columnName, state, tableName))
-
-const stateWithTableCasing = (
-  state: RenderState,
-  source: unknown
-): RenderState =>
-  typeof source === "object" && source !== null && Table.TypeId in source
-    ? { ...state, casing: casingForTable(source as Table.AnyTable, state) }
-    : state
-
-const referenceCasing = (
-  reference: { readonly casing?: Casing.Options },
-  state: RenderState
-): Casing.Options | undefined =>
-  Casing.merge(state.casing, reference.casing)
-
-const renderReferenceTable = (
-  reference: {
-    readonly tableName: string
-    readonly schemaName?: string
-    readonly casing?: Casing.Options
-  },
-  state: RenderState,
-  dialect: SqlDialect
-): string => {
-  const casing = referenceCasing(reference, state)
-  const tableName = Casing.applyCategory(casing, "tables", reference.tableName)
-  const schemaName = reference.schemaName === undefined
-    ? undefined
-    : Casing.applyCategory(casing, "schemas", reference.schemaName)
-  return dialect.renderTableReference(tableName, tableName, schemaName)
-}
-
-const quoteReferenceColumn = (
-  columnName: string,
-  reference: { readonly casing?: Casing.Options },
-  state: RenderState,
-  dialect: SqlDialect
-): string =>
-  dialect.quoteIdentifier(Casing.applyCategory(referenceCasing(reference, state), "columns", columnName))
-
-const registerSourceReference = (
-  source: unknown,
-  tableName: string,
-  state: RenderState
-): void => {
-  if (typeof source !== "object" || source === null) {
-    return
-  }
-  if (Table.TypeId in source) {
-    const table = source as Table.AnyTable
-    const tableState = table[Table.TypeId]
-    const casing = casingForTable(table, state)
-    const renderedTableName = tableState.kind === "alias"
-      ? tableName
-      : Casing.applyCategory(casing, "tables", tableState.baseName)
-    const columns = new Map(
-      Object.keys(tableState.fields).map((columnName) => [
-        columnName,
-        Casing.applyCategory(casing, "columns", columnName)
-      ] as const)
-    )
-    state.sourceNames?.set(tableName, {
-      tableName: renderedTableName,
-      columns
-    })
-    return
-  }
-  if ("columns" in source && typeof source.columns === "object" && source.columns !== null) {
-    state.sourceNames?.set(tableName, {
-      tableName,
-      columns: new Map(Object.keys(source.columns).map((columnName) => [columnName, columnName] as const))
-    })
-  }
-}
-
-const registerQuerySources = (
-  ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
-  state: RenderState
-): void => {
-  if (ast.from !== undefined) {
-    registerSourceReference(ast.from.source, ast.from.tableName, state)
-  }
-  for (const source of ast.fromSources ?? []) {
-    registerSourceReference(source.source, source.tableName, state)
-  }
-  for (const join of ast.joins) {
-    registerSourceReference(join.source, join.tableName, state)
-  }
-  if (ast.into !== undefined) {
-    registerSourceReference(ast.into.source, ast.into.tableName, state)
-  }
-  if (ast.target !== undefined) {
-    registerSourceReference(ast.target.source, ast.target.tableName, state)
-  }
-  for (const target of ast.targets ?? []) {
-    registerSourceReference(target.source, target.tableName, state)
-  }
-  if (ast.using !== undefined) {
-    registerSourceReference(ast.using.source, ast.using.tableName, state)
-  }
 }
 
 const renderPostgresDdlString = (value: string): string =>
@@ -281,7 +147,7 @@ const renderColumnDefinition = (
   casing?: Casing.Options
 ): string => {
   const expressionState = { ...state, casing, rowLocalColumns: true }
-  if (dialect.name !== "postgres" && isArrayDbType(column.metadata.dbType)) {
+  if (dialect.name !== "postgres" && isArray(column.metadata.dbType)) {
     throw new Error(`Unsupported ${dialect.name} array column options`)
   }
   const clauses = [
@@ -437,29 +303,6 @@ const isJsonDbType = (dbType: Expression.DbType.Any): boolean => {
 const isJsonExpression = (value: unknown): value is Expression.Any =>
   isExpression(value) && isJsonDbType(value[Expression.TypeId].dbType)
 
-const expectValueExpression = (
-  _functionName: string,
-  value: unknown
-): Expression.Any => value as Expression.Any
-
-const expectBinaryExpressions = (
-  _functionName: string,
-  left: unknown,
-  right: unknown
-): readonly [Expression.Any, Expression.Any] => [left as Expression.Any, right as Expression.Any]
-
-const renderBinaryExpression = (
-  functionName: string,
-  operator: string,
-  left: unknown,
-  right: unknown,
-  state: RenderState,
-  dialect: SqlDialect
-): string => {
-  const [leftExpression, rightExpression] = expectBinaryExpressions(functionName, left, right)
-  return `(${renderExpression(leftExpression, state, dialect)} ${operator} ${renderExpression(rightExpression, state, dialect)})`
-}
-
 const renderNumericExpression = (
   expression: Expression.Any,
   state: RenderState,
@@ -502,10 +345,10 @@ const postgresRangeSubtypeByKind: Readonly<Record<string, string>> = {
 }
 
 const postgresRangeSubtypeKey = (dbType: Expression.DbType.Any): string | undefined => {
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return postgresRangeSubtypeKey(dbType.base)
   }
-  if ("subtype" in dbType) {
+  if (hasSubtype(dbType)) {
     return postgresRangeSubtypeKey(dbType.subtype) ?? dbType.subtype.kind
   }
   return postgresRangeSubtypeByKind[dbType.kind]
@@ -519,145 +362,6 @@ const assertCompatiblePostgresRangeOperands = (
   const rightKey = postgresRangeSubtypeKey(right[Expression.TypeId].dbType)
   if (leftKey !== undefined && rightKey !== undefined && leftKey !== rightKey) {
     throw new Error("Incompatible postgres range operands")
-  }
-}
-
-const unsupportedJsonFeature = (
-  dialect: SqlDialect,
-  feature: string
-): never => {
-  const error = new Error(`Unsupported JSON feature for ${dialect.name}: ${feature}`) as Error & {
-    readonly tag: string
-    readonly dialect: string
-    readonly feature: string
-  }
-  Object.assign(error, {
-    tag: `@${dialect.name}/unsupported/json-feature`,
-    dialect: dialect.name,
-    feature
-  })
-  throw error
-}
-
-const extractJsonBase = (node: Record<string, unknown>): unknown =>
-  node.value ?? node.base ?? node.input ?? node.left ?? node.target
-
-const isJsonPathValue = (value: unknown): value is JsonPath.Path<any> =>
-  value !== null && typeof value === "object" && JsonPath.TypeId in value
-
-const isOptionalJsonPathNumber = (value: unknown): boolean =>
-  value === undefined || (typeof value === "number" && Number.isFinite(value))
-
-const isJsonPathSegment = (segment: unknown): boolean => {
-  if (typeof segment === "string") {
-    return true
-  }
-  if (typeof segment === "number") {
-    return Number.isFinite(segment)
-  }
-  if (segment === null || typeof segment !== "object" || !("kind" in segment)) {
-    return false
-  }
-  switch ((segment as { readonly kind?: unknown }).kind) {
-    case "key":
-      return typeof (segment as { readonly key?: unknown }).key === "string"
-    case "index": {
-      const index = (segment as { readonly index?: unknown }).index
-      return typeof index === "number" && Number.isFinite(index)
-    }
-    case "wildcard":
-    case "descend":
-      return true
-    case "slice":
-      return isOptionalJsonPathNumber((segment as { readonly start?: unknown }).start) &&
-        isOptionalJsonPathNumber((segment as { readonly end?: unknown }).end)
-    default:
-      return false
-  }
-}
-
-const validateJsonPathSegments = (segments: unknown): ReadonlyArray<JsonPath.AnySegment> => {
-  if (!Array.isArray(segments)) {
-    throw new Error("JSON path expressions require a segment array")
-  }
-  if (segments.some((segment) => !isJsonPathSegment(segment))) {
-    throw new Error("JSON path segments require string, number, or path segment objects")
-  }
-  return segments as ReadonlyArray<JsonPath.AnySegment>
-}
-
-const extractJsonPathSegments = (node: Record<string, unknown>): ReadonlyArray<JsonPath.AnySegment> => {
-  const path = node.path ?? node.segments ?? node.keys
-  if (isJsonPathValue(path)) {
-    return validateJsonPathSegments(path.segments)
-  }
-  if (Array.isArray(path)) {
-    return validateJsonPathSegments(path)
-  }
-  if (node.segments !== undefined) {
-    return validateJsonPathSegments(node.segments)
-  }
-  if ("key" in node) {
-    return [JsonPath.key(String(node.key))]
-  }
-  if ("segment" in node) {
-    const segment = node.segment
-    if (typeof segment === "string") {
-      return [JsonPath.key(segment)]
-    }
-    if (typeof segment === "number") {
-      return [JsonPath.index(segment)]
-    }
-    if (segment !== null && typeof segment === "object" && JsonPath.SegmentTypeId in segment) {
-      return [segment as JsonPath.AnySegment]
-    }
-    return []
-  }
-  if ("right" in node && isJsonPathValue(node.right)) {
-    return validateJsonPathSegments(node.right.segments)
-  }
-  return []
-}
-
-const extractJsonKeys = (
-  node: Record<string, unknown>,
-  segments: ReadonlyArray<JsonPath.AnySegment>
-): readonly unknown[] =>
-  Array.isArray(node.keys)
-    ? node.keys
-    : segments.map((segment) =>
-        typeof segment === "object" && segment !== null && segment.kind === "key"
-          ? segment.key
-          : segment
-      )
-
-const extractJsonValue = (node: Record<string, unknown>): unknown =>
-  node.newValue ?? node.insert ?? node.right
-
-const renderJsonPathSegment = (segment: JsonPath.AnySegment | string | number): string => {
-  const renderKey = (value: string): string =>
-    /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
-      ? `.${value}`
-      : `.${JSON.stringify(value)}`
-  if (typeof segment === "string") {
-    return renderKey(segment)
-  }
-  if (typeof segment === "number") {
-    return `[${segment}]`
-  }
-  switch (segment.kind) {
-    case "key":
-      return renderKey(segment.key)
-    case "index":
-      return `[${segment.index}]`
-    case "wildcard":
-      return "[*]"
-    case "slice":
-      return `[${segment.start ?? 0} to ${segment.end ?? "last"}]`
-    case "descend":
-      return ".**"
-    default:
-      throw new Error("Unsupported JSON path segment")
   }
 }
 
@@ -726,39 +430,35 @@ const renderPostgresJsonValue = (
   if (!isExpression(value)) {
     throw new Error("Expected a JSON expression")
   }
-  const rendered = renderExpression(value, state, dialect)
   const ast = (value as Expression.Any & {
     readonly [ExpressionAst.TypeId]: ExpressionAst.Any
   })[ExpressionAst.TypeId]
   if (ast.kind === "literal") {
-    return `cast(${rendered} as jsonb)`
+    // PostgreSQL expects JSON text, including quotes around string scalars.
+    return `cast(${dialect.renderLiteral(JSON.stringify(ast.value), state)} as jsonb)`
   }
+  const rendered = renderExpression(value, state, dialect)
   return value[Expression.TypeId].dbType.kind === "jsonb"
     ? rendered
     : `cast(${rendered} as jsonb)`
 }
 
-const expressionDriverContext = (
-  expression: Expression.Any,
-  state: RenderState,
-  dialect: SqlDialect
-) => ({
-  dialect: dialect.name,
-  valueMappings: state.valueMappings,
-  dbType: expression[Expression.TypeId].dbType,
-  runtimeSchema: expression[Expression.TypeId].runtimeSchema,
-  driverValueMapping: expression[Expression.TypeId].driverValueMapping
-})
-
 const renderJsonInputExpression = (
   expression: Expression.Any,
   state: RenderState,
   dialect: SqlDialect
-): string =>
-  renderJsonSelectSql(
+): string => {
+  const ast = (expression as Expression.Any & {
+    readonly [ExpressionAst.TypeId]: ExpressionAst.Any
+  })[ExpressionAst.TypeId]
+  if (dialect.name === "postgres" && ast.kind === "literal") {
+    return renderPostgresJsonValue(expression, state, dialect)
+  }
+  return renderJsonSelectSql(
     renderExpression(expression, state, dialect),
     expressionDriverContext(expression, state, dialect)
   )
+}
 
 const encodeArrayValues = (
   values: readonly unknown[],
@@ -961,7 +661,7 @@ const renderJsonExpression = (
     case "jsonBuildObject": {
       const entries = (ast as { readonly entries: readonly { readonly key: string; readonly value: Expression.Any }[] }).entries
       const renderedEntries = entries.flatMap((entry) => [
-        dialect.renderLiteral(entry.key, state),
+        `cast(${dialect.renderLiteral(entry.key, state)} as text)`,
         renderJsonInputExpression(entry.value, state, dialect)
       ])
       if (dialect.name === "postgres") {
@@ -1142,12 +842,6 @@ export interface RenderedQueryAst {
   readonly projections: readonly Projection[]
 }
 
-const selectionProjections = (selection: Record<string, unknown>): readonly Projection[] =>
-  flattenSelection(selection).map(({ path, alias }) => ({
-    path,
-    alias
-  }))
-
 const renderMutationAssignment = (
   entry: QueryAst.AssignmentClause,
   state: RenderState,
@@ -1243,31 +937,6 @@ const renderTransactionClause = (
   return "start transaction"
 }
 
-const renderSelectionList = (
-  selection: Record<string, unknown>,
-  state: RenderState,
-  dialect: SqlDialect
-): RenderedQueryAst => {
-  const flattened = flattenSelection(selection)
-  const projections = selectionProjections(selection)
-  const sql = flattened.map(({ expression, alias }) =>
-    `${renderSelectSql(renderExpression(expression, state, dialect), expressionDriverContext(expression, state, dialect))} as ${dialect.quoteIdentifier(alias)}`).join(", ")
-  return {
-    sql,
-    projections
-  }
-}
-
-const nestedRenderState = (state: RenderState): RenderState => ({
-  params: state.params,
-  valueMappings: state.valueMappings,
-  casing: state.casing,
-  ctes: [],
-  cteNames: new Set(state.cteNames),
-  cteSources: new Map(state.cteSources),
-  sourceNames: new Map(state.sourceNames)
-})
-
 const assertSupportedMutationReturning = (
   dialect: SqlDialect,
   selection: Record<string, unknown>
@@ -1319,38 +988,10 @@ export const renderQueryAst = (
           ? `select distinct on (${ast.distinctOn.map((value) => renderExpression(value, state, dialect)).join(", ")})${selectList}`
           : `select${ast.distinct ? " distinct" : ""}${selectList}`
       ]
-      if (ast.from) {
-        clauses.push(`from ${renderSourceReference(ast.from.source, ast.from.tableName, ast.from.baseTableName, state, dialect)}`)
+      if (dialect.name === "standard" && ast.joins.some((join) => join.kind === "full")) {
+        throw new Error("Unsupported standard full join")
       }
-      for (const join of ast.joins) {
-        if (dialect.name === "standard" && join.kind === "full") {
-          throw new Error("Unsupported standard full join")
-        }
-        const source = renderSourceReference(join.source, join.tableName, join.baseTableName, state, dialect)
-        clauses.push(
-          join.kind === "cross"
-            ? `cross join ${source}`
-            : `${join.kind} join ${source} on ${renderExpression(join.on!, state, dialect)}`
-        )
-      }
-      if (ast.where.length > 0) {
-        clauses.push(`where ${ast.where.map((entry: QueryAst.WhereClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
-      }
-      if (ast.groupBy.length > 0) {
-        clauses.push(`group by ${ast.groupBy.map((value: QueryAst.Ast["groupBy"][number]) => renderExpression(value, state, dialect)).join(", ")}`)
-      }
-      if (ast.having.length > 0) {
-        clauses.push(`having ${ast.having.map((entry: QueryAst.HavingClause) => renderExpression(entry.predicate, state, dialect)).join(" and ")}`)
-      }
-      if (ast.orderBy.length > 0) {
-        clauses.push(`order by ${ast.orderBy.map((entry: QueryAst.OrderByClause) => `${renderExpression(entry.value, state, dialect)} ${entry.direction}`).join(", ")}`)
-      }
-      if (ast.limit) {
-        clauses.push(`limit ${renderExpression(ast.limit, state, dialect)}`)
-      }
-      if (ast.offset) {
-        clauses.push(`offset ${renderExpression(ast.offset, state, dialect)}`)
-      }
+      clauses.push(...renderSelectClauses(ast, state, dialect))
       if (ast.lock) {
         if (dialect.name === "standard") {
           throw new Error("Unsupported standard row locking")
@@ -1707,7 +1348,7 @@ export const renderQueryAst = (
   }
 }
 
-const renderSourceReference = (
+export const renderSourceReference = (
   source: unknown,
   tableName: string,
   baseTableName: string,
@@ -1830,22 +1471,6 @@ const renderSourceReference = (
   )
 }
 
-const renderSubqueryExpressionPlan = (
-  plan: Query.Plan.Any,
-  state: RenderState,
-  dialect: SqlDialect
-): string => {
-  const statement = Query.getQueryState(plan).statement
-  if (statement !== "select" && statement !== "set") {
-    throw new Error("subquery expressions only accept select-like query plans")
-  }
-  return renderQueryAst(
-    Query.getAst(plan) as QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,
-    state,
-    dialect
-  ).sql
-}
-
 /**
  * Renders a scalar expression AST into SQL text.
  *
@@ -1879,15 +1504,6 @@ export const renderExpression = (
     return (collation as readonly string[]).map((segment) => dialect.quoteIdentifier(segment)).join(".")
   }
   switch (ast.kind) {
-    case "column":
-      return state.rowLocalColumns || ast.tableName.length === 0
-        ? quoteColumn(ast.columnName, state, dialect, ast.tableName)
-        : `${dialect.quoteIdentifier(casedTableReferenceName(ast.tableName, state))}.${quoteColumn(ast.columnName, state, dialect, ast.tableName)}`
-    case "literal":
-      if (typeof ast.value === "number" && !Number.isFinite(ast.value)) {
-        throw new Error("Expected a finite numeric value")
-      }
-      return dialect.renderLiteral(ast.value, state, expression[Expression.TypeId])
     case "excluded":
       if (state.allowExcluded !== true) {
         throw new Error("excluded(...) is only supported inside insert conflict handlers")
@@ -1901,20 +1517,6 @@ export const renderExpression = (
       return `(${renderExpression(expectValueExpression("collate", ast.value), state, dialect)} collate ${renderCollation(ast.collation)})`
     case "function":
       return renderFunctionCall(ast.name, ast.args, state, dialect)
-    case "customSql":
-      return renderCustomSql(ast, state, dialect, renderExpression)
-    case "eq":
-      return renderBinaryExpression("eq", "=", ast.left, ast.right, state, dialect)
-    case "neq":
-      return renderBinaryExpression("neq", "<>", ast.left, ast.right, state, dialect)
-    case "lt":
-      return renderBinaryExpression("lt", "<", ast.left, ast.right, state, dialect)
-    case "lte":
-      return renderBinaryExpression("lte", "<=", ast.left, ast.right, state, dialect)
-    case "gt":
-      return renderBinaryExpression("gt", ">", ast.left, ast.right, state, dialect)
-    case "gte":
-      return renderBinaryExpression("gte", ">=", ast.left, ast.right, state, dialect)
     case "add":
       return renderNumericBinaryExpression("add", "+", ast.left, ast.right, state, dialect)
     case "subtract":
@@ -1925,8 +1527,6 @@ export const renderExpression = (
       return renderNumericBinaryExpression("divide", "/", ast.left, ast.right, state, dialect)
     case "modulo":
       return renderNumericBinaryExpression("modulo", "%", ast.left, ast.right, state, dialect)
-    case "like":
-      return renderBinaryExpression("like", "like", ast.left, ast.right, state, dialect)
     case "ilike": {
       const [left, right] = expectBinaryExpressions("ilike", ast.left, ast.right)
       return dialect.name === "postgres"
@@ -2032,18 +1632,6 @@ export const renderExpression = (
       }
       throw new Error("Unsupported container operator for SQL rendering")
     }
-    case "isNull":
-      return `(${renderExpression(expectValueExpression("isNull", ast.value), state, dialect)} is null)`
-    case "isNotNull":
-      return `(${renderExpression(expectValueExpression("isNotNull", ast.value), state, dialect)} is not null)`
-    case "not":
-      return `(not ${renderExpression(expectValueExpression("not", ast.value), state, dialect)})`
-    case "upper":
-      return `upper(${renderExpression(expectValueExpression("upper", ast.value), state, dialect)})`
-    case "lower":
-      return `lower(${renderExpression(expectValueExpression("lower", ast.value), state, dialect)})`
-    case "count":
-      return `count(${renderExpression(expectValueExpression("count", ast.value), state, dialect)})`
     case "sum":
       return `sum(${renderNumericExpression(expectValueExpression("sum", ast.value), state, dialect)})`
     case "avg":
@@ -2054,34 +1642,6 @@ export const renderExpression = (
       return `round(${renderNumericExpression(expectValueExpression("round", ast.value), state, dialect)})`
     case "negate":
       return `(-${renderNumericExpression(expectValueExpression("negate", ast.value), state, dialect)})`
-    case "max":
-      return `max(${renderExpression(expectValueExpression("max", ast.value), state, dialect)})`
-    case "min":
-      return `min(${renderExpression(expectValueExpression("min", ast.value), state, dialect)})`
-    case "and":
-      return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" and ")})`
-    case "or":
-      return `(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(" or ")})`
-    case "coalesce":
-      return `coalesce(${ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")})`
-    case "in":
-      return `(${renderExpression(ast.values[0]!, state, dialect)} in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
-    case "notIn":
-      return `(${renderExpression(ast.values[0]!, state, dialect)} not in (${ast.values.slice(1).map((value: Expression.Any) => renderExpression(value, state, dialect)).join(", ")}))`
-    case "between":
-      return `(${renderExpression(ast.values[0]!, state, dialect)} between ${renderExpression(ast.values[1]!, state, dialect)} and ${renderExpression(ast.values[2]!, state, dialect)})`
-    case "concat":
-      return dialect.renderConcat(ast.values.map((value: Expression.Any) => renderExpression(value, state, dialect)))
-    case "case":
-      return `case ${ast.branches.map((branch) =>
-        `when ${renderExpression(branch.when, state, dialect)} then ${renderExpression(branch.then, state, dialect)}`
-      ).join(" ")} else ${renderExpression(ast.else, state, dialect)} end`
-    case "exists":
-      return `exists (${renderSubqueryExpressionPlan(ast.plan, state, dialect)})`
-    case "scalarSubquery":
-      return `(${renderSubqueryExpressionPlan(ast.plan, state, dialect)})`
-    case "inSubquery":
-      return `(${renderExpression(expectValueExpression("inSubquery", ast.left), state, dialect)} in (${renderSubqueryExpressionPlan(ast.plan, state, dialect)}))`
     case "comparisonAny": {
       const left = expectValueExpression("compareAny", ast.left)
       const operator = renderComparisonOperator(ast.operator)
@@ -2147,5 +1707,5 @@ export const renderExpression = (
       break
     }
   }
-  throw new Error("Unsupported expression for SQL rendering")
+  return renderCommonExpression(expression, state, dialect)
 }

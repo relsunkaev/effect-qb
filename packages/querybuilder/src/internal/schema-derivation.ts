@@ -128,7 +128,7 @@ const insertSchema = (
   const base = column.metadata.nullable
     ? Schema.NullOr(maybeBrandSchema(column, tableName, columnName))
     : maybeBrandSchema(column, tableName, columnName)
-  return column.metadata.nullable || column.metadata.hasDefault ? Schema.optional(base) : base
+  return column.metadata.nullable || column.metadata.hasDefault ? Schema.optionalKey(base) : base
 }
 
 const updateSchema = (
@@ -143,7 +143,7 @@ const updateSchema = (
   const base = column.metadata.nullable
     ? Schema.NullOr(maybeBrandSchema(column, tableName, columnName))
     : maybeBrandSchema(column, tableName, columnName)
-  return Schema.optional(base)
+  return Schema.optionalKey(base)
 }
 
 type SchemaOfVariant<

@@ -1,3 +1,4 @@
+import { isDomain, isArray, isComposite } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 import * as SchemaAST from "effect/SchemaAST"
 
@@ -88,13 +89,13 @@ const runtimeTagOfBaseDbType = (
 export const runtimeSchemaForDbType = (
   dbType: Expression.DbType.Any
 ): RuntimeSchema | undefined => {
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return runtimeSchemaForDbType(dbType.base)
   }
-  if ("element" in dbType) {
+  if (isArray(dbType)) {
     return Schema.Array(runtimeSchemaForDbType(dbType.element) ?? Schema.Unknown)
   }
-  if ("fields" in dbType) {
+  if (isComposite(dbType)) {
     const fields = Object.fromEntries(
       Object.entries(dbType.fields).map(([key, field]) => [key, runtimeSchemaForDbType(field) ?? Schema.Unknown])
     )
@@ -188,9 +189,8 @@ const schemaAstAtExactJsonPath = (
   schema: RuntimeSchema,
   segments: readonly JsonPath.CanonicalSegment[]
 ): SchemaAST.AST | undefined => {
-  // JSON path operators return encoded JSON subvalues, so preserve field-level
-  // encoding links instead of walking the type-side AST.
-  let current: SchemaAST.AST = schema.ast
+  // SQL paths address stored keys and return stored values, not decoded leaves.
+  let current: SchemaAST.AST = Schema.toEncoded(schema).ast
   for (const segment of segments) {
     if (segment.kind === "key") {
       const property = propertyAstOf(current, segment.key)
@@ -211,6 +211,54 @@ const schemaAstAtExactJsonPath = (
     return undefined
   }
   return current
+}
+
+/**
+ * Rebuild changed containers using the stored shape. Reusing the
+ * original document schema would reject shape-changing SQL mutation results.
+ */
+const setJsonPathAst = (
+  ast: SchemaAST.AST,
+  segments: readonly JsonPath.ExactSegment[],
+  next: SchemaAST.AST
+): SchemaAST.AST => {
+  const [head, ...tail] = segments
+  if (head === undefined) return next
+  if (ast._tag === "Suspend") return setJsonPathAst(ast.thunk(), segments, next)
+  if (ast._tag === "Union") {
+    return new SchemaAST.Union(ast.types.map((member) => setJsonPathAst(member, segments, next)), "anyOf")
+  }
+  if (head.kind === "key" && ast._tag === "Objects") {
+    const existing = ast.propertySignatures.find((property) => property.name === head.key)
+    const child = existing?.type ?? propertyAstOf(ast, head.key)
+    const updated = tail.length === 0 ? next : child === undefined
+      ? JsonValueSchema.ast
+      : setJsonPathAst(child, tail, next)
+    // Missing intermediate containers may remain missing in the database.
+    const field = tail.length > 0 && child?.context?.isOptional === true
+      ? Schema.optionalKey(makeSchemaFromAst(updated)).ast
+      : updated
+    return new SchemaAST.Objects([
+      ...ast.propertySignatures.filter((property) => property.name !== head.key),
+      new SchemaAST.PropertySignature(head.key, field)
+    ], ast.indexSignatures)
+  }
+  if (head.kind === "index" && ast._tag === "Arrays") {
+    const index = head.index < 0 ? ast.elements.length + head.index : head.index
+    if (ast.rest.length === 0 && index >= 0 && index < ast.elements.length) {
+      return new SchemaAST.Arrays(ast.isMutable, ast.elements.map((element, position) =>
+        position === index ? setJsonPathAst(element, tail, next) : element
+      ), [])
+    }
+    // An array write can affect one existing element or append a new one.
+    const members = [...ast.elements, ...ast.rest]
+    const updated = tail.length === 0 ? [next] : members.map((member) => setJsonPathAst(member, tail, next))
+    return new SchemaAST.Arrays(ast.isMutable, [], [
+      unionAst([...members, ...updated]) ?? JsonValueSchema.ast
+    ])
+  }
+  // A null/scalar intermediate value cannot be traversed by a JSON mutation.
+  return ast
 }
 
 const unionSchemas = (schemas: ReadonlyArray<RuntimeSchema | undefined>): RuntimeSchema | undefined => {
@@ -262,18 +310,32 @@ const jsonCompatibleSchema = (schema: RuntimeSchema | undefined): RuntimeSchema 
   return isJsonCompatibleAst(ast) ? schema : JsonValueSchema
 }
 
+const jsonInputRuntimeSchema = (
+  expression: Expression.Any,
+  context?: SchemaContext
+): RuntimeSchema | undefined => {
+  const schema = expressionRuntimeSchema(expression, context)
+  const db = expression[Expression.TypeId].dbType
+  const stored = schema !== undefined && (db.kind === "json" || db.kind === "jsonb")
+    ? Schema.toEncoded(schema)
+    : schema
+  return stored !== undefined && expression[Expression.TypeId].nullability !== "never"
+    ? Schema.NullOr(stored)
+    : stored
+}
+
 const buildStructSchema = (
   entries: readonly { readonly key: string; readonly value: Expression.Any }[],
   context?: SchemaContext
 ): RuntimeSchema => {
   const fields = Object.fromEntries(
-    entries.map((entry) => [entry.key, expressionRuntimeSchema(entry.value, context) ?? JsonValueSchema])
+    entries.map((entry) => [entry.key, jsonInputRuntimeSchema(entry.value, context) ?? JsonValueSchema])
   )
   return Schema.Struct(fields as Record<string, RuntimeSchema>)
 }
 
 const buildTupleSchema = (values: readonly Expression.Any[], context?: SchemaContext): RuntimeSchema =>
-  Schema.Tuple(values.map((value) => expressionRuntimeSchema(value, context) ?? JsonValueSchema))
+  Schema.Tuple(values.map((value) => jsonInputRuntimeSchema(value, context) ?? JsonValueSchema))
 
 const deriveCaseSchema = (
   ast: ExpressionAst.CaseNode,
@@ -402,7 +464,8 @@ const deriveRuntimeSchema = (
     case "jsonPath":
     case "jsonAccess":
     case "jsonTraverse": {
-      const baseSchema = expressionRuntimeSchema(ast.base!, context)
+      const rootSchema = expressionRuntimeSchema(ast.base!, context)
+      const baseSchema = rootSchema === undefined ? undefined : Schema.toEncoded(rootSchema)
       const segments = ast.segments
       if (baseSchema === undefined || segments === undefined || !exactJsonSegments(segments)) {
         return JsonValueSchema
@@ -410,14 +473,22 @@ const deriveRuntimeSchema = (
       const subAst = schemaAstAtExactJsonPath(baseSchema, segments)
       return subAst === undefined ? JsonValueSchema : makeSchemaFromAst(subAst)
     }
+    case "jsonSet": {
+      const rootSchema = expressionRuntimeSchema(ast.base!, context)
+      const baseSchema = rootSchema === undefined ? undefined : Schema.toEncoded(rootSchema)
+      const nextSchema = jsonInputRuntimeSchema(ast.newValue!, context)
+      if (baseSchema === undefined || nextSchema === undefined || ast.segments === undefined ||
+        !exactJsonSegments(ast.segments)) return JsonValueSchema
+      const updated = makeSchemaFromAst(setJsonPathAst(baseSchema.ast, ast.segments, nextSchema.ast))
+      return ast.createMissing === false ? unionSchemas([updated, baseSchema]) : updated
+    }
     case "jsonDelete":
     case "jsonDeletePath":
     case "jsonRemove":
-    case "jsonSet":
     case "jsonInsert":
-      return expressionRuntimeSchema(ast.base!, context)
+      return JsonValueSchema
     case "jsonStripNulls":
-      return expressionRuntimeSchema(ast.value!, context)
+      return JsonValueSchema
     case "jsonConcat":
     case "jsonMerge":
       return JsonValueSchema
@@ -427,7 +498,7 @@ const deriveRuntimeSchema = (
       return buildTupleSchema(ast.values ?? [], context)
     case "jsonToJson":
     case "jsonToJsonb":
-      return jsonCompatibleSchema(expressionRuntimeSchema(ast.value!, context))
+      return jsonCompatibleSchema(jsonInputRuntimeSchema(ast.value!, context))
     case "jsonKeys":
       return Schema.Array(Schema.String)
   }

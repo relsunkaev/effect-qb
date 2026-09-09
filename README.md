@@ -520,6 +520,10 @@ type UserUpdateFromSchema = Schema.Schema.Type<typeof updateSchema>
 expose the same schemas, so Effect Schema validation and TypeScript payload
 types stay aligned.
 
+Optional mutation fields may be omitted, but an explicitly supplied `undefined`
+is rejected by the derived schema. Use `null` only for nullable columns. Omit a
+field to use its insert default or leave it unchanged in an update.
+
 ### Conflict Targets
 
 `onConflict` and `upsert` column targets must match table arbiter metadata:
@@ -668,10 +672,18 @@ assumptions.
 
 ### JSON and JSONB Paths
 
-A JSON column carries its Effect Schema type through property-path access, so
-schema-known keys are reached with ordinary property access and keep their type.
+A JSON column carries its Effect Schema **encoded** shape through property-path
+access. Paths address stored keys and return stored values, not decoded leaves.
+For example, a NumberFromString field is a string when selected through a JSON
+path. Whole-column selection still decodes the complete document with its codec.
+Schema.encodeKeys changes the keys available to paths, not the decoded row keys.
 Use root `Json` for portable `Column.json(...)` columns and `Pg.Jsonb` for
 Postgres `jsonb` columns; the path shape is identical.
+
+JSON mutations and JSON constructors return stored values too. Shape-changing
+expressions remain selectable; INSERT/UPDATE checks SQL expression assignments
+against the destination encoded shape. Plain JavaScript document inputs still
+use the decoded column shape and are encoded on write.
 
 ```ts
 import * as Schema from "effect/Schema"
@@ -749,6 +761,65 @@ The same property-path shape works with root `Json.delete` for portable
 when a path segment cannot be written as a normal property, such as a dynamic,
 invalid-identifier, or reserved JSON key.
 
+For repeated mutations, build a reusable focus instead of repeating a callback
+from the document root. Property paths such as
+`docs.payload.someArray[2].someField` remain available.
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Query, Table } from "effect-qb"
+import { Column as PgColumn, Jsonb } from "effect-qb/postgres"
+
+const documents = Table.make("documents", {
+  id: Column.int().pipe(Column.primaryKey),
+  payload: PgColumn.jsonb(Schema.Struct({
+    profile: Schema.Struct({ city: Schema.String, postcode: Schema.String })
+  }))
+})
+const profile = Jsonb.focus().key("profile")
+const city = profile.key("city")
+const postcode = profile.key("postcode")
+
+const updated = documents.payload.pipe(
+  Jsonb.replace(city, "Paris"),
+  Jsonb.replace(postcode, "75001")
+)
+Query.update(documents, { payload: updated })
+
+const reshaped = documents.payload.pipe(Jsonb.replace(city, 123))
+Query.select({ payload: reshaped }).pipe(Query.from(documents))
+Query.update(documents, {
+  // @ts-expect-error SELECT may change shape; this column still requires a string city
+  payload: reshaped
+})
+```
+
+A focus stores only key/index segments, not a document or its original field
+types. Extending one leaves it reusable for other sibling paths. Each
+`replace` operates on the previous expression and returns the whole document;
+the renderer nests the mutations into one SQL expression. Empty focuses are
+not replacement targets.
+
+Root `Json.focus` / `Json.replace` wrap the existing `Json.set` semantics;
+`Jsonb.replace` requires a PostgreSQL JSONB expression. These are database
+operations, not JavaScript optics applied after fetching rows. A final missing
+object key is created by default. Pass `{ createMissing: false }` to update
+only existing paths. Null intermediate containers remain null; optional parents
+remain optional in the result type.
+
+Reading an optional parent, a record key, or an unconstrained array index can
+return SQL `NULL`, represented by `null` in the result type. This also applies
+to literal record keys: a string index signature does not guarantee presence.
+With `noUncheckedIndexedAccess`, TypeScript additionally marks property-style
+record and array expression lookups as possibly `undefined`; use `Json.key` /
+`Json.index` (or their `Jsonb` equivalents) to construct those paths explicitly.
+
+Use existing parent containers and in-range indexes for consistent results
+across engines. PostgreSQL and MySQL leave a missing intermediate object
+unchanged, whereas SQLite can create it. Array indexes replace rather than
+insert; negative and out-of-range indexes retain the selected engine's
+`set` behavior. No JavaScript read-modify-write or parent creation is added.
+
 ### Casting and Type Comparison
 
 `Cast.to` converts an expression to another type and checks the conversion at
@@ -765,7 +836,7 @@ const events = Table.make("events", {
 
 // id (uuid) and externalRef (text) are different comparison families, so cast
 // one side to compare them.
-const idAsText = Cast.to(events.id, Type.text())
+const idAsText = events.id.pipe(Cast.to(Type.text()))
 const sameRef = Query.eq(idAsText, events.externalRef)
 
 // @ts-expect-error uuid and text are different comparison families
@@ -778,6 +849,26 @@ dialect-specific targets come from the dialect module (such as
 modules do not re-expose portable ones, so each rejects the other's witnesses.
 A compatible cast or comparison resolves before any SQL is rendered; an
 incompatible one fails at compile time.
+
+`Type.numeric()` and `Type.decimal()` request an unqualified native cast, not
+portable decimal precision. Both decode to `DecimalString`, but that shared
+output type does not guarantee value preservation:
+
+| Engine | Casting `2.675` to numeric/decimal |
+| --- | --- |
+| PostgreSQL | Unqualified NUMERIC preserves `2.675` |
+| MySQL | Unqualified DECIMAL defaults to scale zero and returns `3` |
+| SQLite | NUMERIC affinity returns `2.675` here, without an exact-decimal guarantee |
+
+Cast witnesses take no precision/scale options. `Column.number({ precision,
+scale })` configures column DDL, not expression casts. For an engine-specific
+precision cast, use a typed SQL fragment; applying `round` afterward cannot
+recover digits already lost by the cast.
+
+Cast checks target PostgreSQL 16.x and MySQL 8.4.x; SQLite qualification is
+driver-specific. A column type is not necessarily a legal CAST target.
+See the [coercion contract](docs/dialect-coercion-contract.md) for rejected pairs,
+migration options, configuration assumptions, and runtime limits.
 
 <details>
 <summary>Casts the type checker rejects</summary>
@@ -1107,9 +1198,9 @@ const report = Query.select({
 </details>
 
 <details>
-<summary>Dialect-specific modulo and rounding</summary>
+<summary>Dialect-specific division, modulo and rounding</summary>
 
-`round` and `modulo` live on each dialect's `Function` module because their
+`divide`, `round` and `modulo` live on each dialect's `Function` module because their
 accepted database types, result types, and runtime behavior are not portable.
 `Cast.to(...)` can deliberately select an overload; the operation still belongs
 to the dialect that defines its semantics.
@@ -1129,16 +1220,19 @@ const amounts = Table.make("amounts", {
 const postgresExact = Cast.to(amounts.value, Type.numeric())
 
 const postgresPlan = Query.select({
+  quotient: Pg.Function.divide(amounts.count, Cast.to(2, Pg.Type.int4())),
   remainder: Pg.Function.modulo(amounts.count, 2),
   rounded: Pg.Function.round(postgresExact, 2)
 }).pipe(Query.from(amounts))
 
 const mysqlPlan = Query.select({
+  quotient: My.Function.divide(amounts.exact, amounts.count),
   remainder: My.Function.modulo(amounts.exact, amounts.count),
   rounded: My.Function.round(amounts.exact, 2)
 }).pipe(Query.from(amounts))
 
 const sqlitePlan = Query.select({
+  quotient: Sq.Function.divide(amounts.value, amounts.count),
   remainder: Sq.Function.modulo(amounts.value, amounts.count),
   rounded: Sq.Function.round(amounts.exact, 2)
 }).pipe(Query.from(amounts))
@@ -1149,6 +1243,20 @@ const sqlitePlan = Query.select({
 | PostgreSQL | integer and `numeric`; floating operands are rejected; zero divisors fail the statement | `numeric` is exact and rounds ties away from zero; integer/float one-argument forms return `float8` with platform-dependent floating-point ties |
 | MySQL | integer → `BIGINT`, exact → `DECIMAL`, approximate → `DOUBLE`; zero divisors return `NULL` | preserves the input category; exact ties round away from zero while approximate rounding follows floating-point semantics |
 | SQLite | operands are integer-coerced; a potentially REAL result is typed as `double`; zero divisors return `NULL` | always returns floating-point `double`; negative scales behave as zero and binary representation can affect decimal ties |
+
+Division uses native `/`, without casts or zero guards added to expression
+operands. PostgreSQL integer pairs truncate (bigint returns BigIntString);
+exact pairs return DecimalString. A float operand promotes to float8 except
+float4/float4, which stays float4. Zero denominators fail. MySQL exact pairs
+return DecimalString, approximate pairs return number, and zero denominators
+return NULL in SELECT (DML depends on SQL mode). SQLite always exposes number
+results: integer values truncate, REAL values divide fractionally, and integer
+overflow can promote to REAL. MySQL decimal results are normalized by the
+executor; trailing scale is not preserved.
+
+JavaScript number literals use the dialect numeric literal mapping: float8 for
+PostgreSQL, double for MySQL, and native bound numbers for SQLite. Use explicit
+integer or REAL casts when selecting truncating or fractional division matters.
 
 All three dialects give a nonzero remainder the dividend's sign. Scale-sensitive
 exact casts are still dialect-specific: in particular, MySQL's bare
@@ -1558,7 +1666,7 @@ nested result shape described by the query plan.
 ### Executing Queries
 
 Use concrete executors for execution. By default, a concrete executor uses the
-built-in renderer and the ambient `effect/unstable/sql` `SqlClient` service.
+built-in renderer and the ambient `effect/unstable/sql` `SqlClient` service. See the [JSON transport contract](docs/json-transport.md) for driver configuration.
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -1645,9 +1753,9 @@ Dialect modules expose:
 
 | Module | Adds |
 | --- | --- |
-| `effect-qb/postgres` | Postgres aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
-| `effect-qb/mysql` | MySQL aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit `rows`/`range` window frames, column extensions, JSON helpers, type witnesses, renderer, executor |
-| `effect-qb/sqlite` | SQLite aggregates, case conversion, clock functions, `round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/postgres` | Postgres aggregates, case conversion, clock functions, `divide`/`round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, option modifiers, JSON/jsonb helpers, type witnesses, schemas, enums, sequences, renderer, executor |
+| `effect-qb/mysql` | MySQL aggregates, case conversion, clock functions, `divide`/`round`/`modulo`, function calls and explicit `rows`/`range` window frames, column extensions, JSON helpers, type witnesses, renderer, executor |
+| `effect-qb/sqlite` | SQLite aggregates, case conversion, clock functions, `divide`/`round`/`modulo`, function calls and explicit window frames including `groups`, column extensions, JSON helpers, type witnesses, renderer, executor |
 
 Portable columns and tables are created from `effect-qb`, not from dialect
 modules. For example, use `Column.uuid()`, not `Pg.Column.uuid()`.

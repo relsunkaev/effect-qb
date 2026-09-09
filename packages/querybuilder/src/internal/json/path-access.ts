@@ -1,3 +1,4 @@
+import type { StoredOf, WithoutStoredJson } from "./storage.js"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 
 import * as ExpressionAst from "../expression-ast.js"
@@ -71,9 +72,9 @@ type JsonAccessExpression<
   Segments extends readonly JsonPath.CanonicalSegment[]
 > = WithJsonPathAccess<
   Expression.Scalar<
-    JsonPathOutput<Expression.RuntimeOf<JsonAccessBase<Base>>, Segments, "json.get">,
-    Expression.DbTypeOf<JsonAccessBase<Base>>,
-    JsonNullabilityOf<JsonPathOutput<Expression.RuntimeOf<JsonAccessBase<Base>>, Segments, "json.get">>,
+    JsonPathOutput<StoredOf<JsonAccessBase<Base>>, Segments, "json.get">,
+    WithoutStoredJson<Expression.DbTypeOf<JsonAccessBase<Base>>>,
+    JsonNullabilityOf<JsonPathOutput<StoredOf<JsonAccessBase<Base>>, Segments, "json.get">>,
     Expression.DbTypeOf<JsonAccessBase<Base>>["dialect"],
     Expression.KindOf<JsonAccessBase<Base>>,
     Expression.DependenciesOf<JsonAccessBase<Base>>
@@ -154,18 +155,18 @@ type JsonObjectPredicateKeys<Runtime> =
       : never
 
 export type JsonObjectKeyOf<Value extends Expression.Any> =
-  IsAny<Expression.RuntimeOf<Value>> extends true
+  IsAny<StoredOf<Value>> extends true
     ? string
-    : Exclude<Expression.RuntimeOf<Value>, null> extends infer Runtime
+    : Exclude<StoredOf<Value>, null> extends infer Runtime
       ? string extends JsonObjectPredicateKeys<Runtime>
         ? string
         : JsonObjectPredicateKeys<Runtime>
       : never
 
 type JsonPathAccessors<Base extends AnyJsonExpression> =
-  IsAny<Expression.RuntimeOf<Base>> extends true
+  IsAny<StoredOf<Base>> extends true
     ? {}
-    : Exclude<Expression.RuntimeOf<Base>, null> extends infer Runtime
+    : Exclude<StoredOf<Base>, null> extends infer Runtime
       ? Runtime extends readonly unknown[]
         ? JsonArrayAccessors<Base, Runtime>
         : Runtime extends object
@@ -308,6 +309,8 @@ const makePathExpression = (
     {
       ...baseState,
       runtime: undefined,
+      runtimeSchema: undefined,
+      driverValueMapping: undefined,
       nullability: undefined as unknown as Expression.Nullability
     },
     {

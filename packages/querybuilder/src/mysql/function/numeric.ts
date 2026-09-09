@@ -1,3 +1,4 @@
+import { isDomain } from "../../internal/datatypes/guards.js"
 import * as Numeric from "../../internal/dialect-numeric.js"
 import * as Expression from "../../internal/scalar.js"
 import { mysqlDatatypes } from "../datatypes/index.js"
@@ -45,7 +46,7 @@ type MyNumericCategory<Db extends Expression.DbType.Any> =
     : never
 
 type NumericInputError<
-  Operation extends "modulo" | "round",
+  Operation extends "modulo" | "round" | "divide",
   Db extends Expression.DbType.Any
 > = {
   readonly __effect_qb_error__: "effect-qb: unsupported mysql numeric input"
@@ -57,7 +58,7 @@ type NumericInputError<
 
 type MyNumericConstraint<
   Value extends Numeric.Input,
-  Operation extends "modulo" | "round"
+  Operation extends "modulo" | "round" | "divide"
 > =
   IsAny<Value> extends true ? unknown
     : Numeric.DialectConstraint<Value, MyDouble, "mysql"> & (
@@ -116,7 +117,7 @@ type MyRoundResult<
 >
 
 const baseDb = (db: Expression.DbType.Any): Expression.DbType.Any =>
-  "base" in db ? baseDb(db.base) : db
+  isDomain(db) ? baseDb(db.base) : db
 
 const category = (value: Numeric.Input): "integer" | "exact" | "approximate" => {
   if (typeof value === "number") return "approximate"
@@ -154,7 +155,7 @@ export const modulo = <
   left: Left & MyNumericConstraint<NoInfer<Left>, "modulo">,
   right: Right & MyNumericConstraint<NoInfer<Right>, "modulo">
 ): MyModuloResult<Left, Right> =>
-  (Numeric.modulo as any)(left, right, {
+  (Numeric.binary as any)("modulo", left, right, {
     dialect: "mysql",
     literalDb: mysqlDatatypes.double(),
     resultDb: resultDb(mergedCategory(left, right)) as MyModuloResultDb<Left, Right>,
@@ -183,3 +184,22 @@ export const round: {
     scale: number
   ): MyRoundResult<Value, true>
 } = roundRuntime as any
+
+type MyDivideDb<Left extends Numeric.Input, Right extends Numeric.Input> =
+  MyResultCategory<Left, Right> extends "approximate" ? MyDouble : MyDecimal
+
+type MyDivideResult<Left extends Numeric.Input, Right extends Numeric.Input> =
+  Numeric.BinaryResult<Left, Right, MyDouble, MyDivideDb<Left, Right>,
+    Numeric.ZeroDivisorNullability<Left, Right, MyDouble, "mysql">, "mysql", "divide">
+
+/** Native division. A zero denominator returns NULL in SELECT. */
+export const divide = <Left extends Numeric.Input, Right extends Numeric.Input>(
+  left: Left & MyNumericConstraint<NoInfer<Left>, "divide">,
+  right: Right & MyNumericConstraint<NoInfer<Right>, "divide">
+): MyDivideResult<Left, Right> =>
+  (Numeric.binary as any)("divide", left, right, {
+    dialect: "mysql",
+    literalDb: mysqlDatatypes.double(),
+    resultDb: mergedCategory(left, right) === "approximate" ? mysqlDatatypes.double() : mysqlDatatypes.decimal(),
+    nullability: Numeric.nullableForZeroDivisor(left, right)
+  }) as MyDivideResult<Left, Right>

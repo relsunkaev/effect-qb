@@ -1,3 +1,4 @@
+import { isDomain } from "../../internal/datatypes/guards.js"
 import * as Numeric from "../../internal/dialect-numeric.js"
 import * as Expression from "../../internal/scalar.js"
 import { sqliteDatatypes } from "../datatypes/index.js"
@@ -25,7 +26,7 @@ type SqNumericCategory<Db extends Expression.DbType.Any> =
     : never
 
 type NumericInputError<
-  Operation extends "modulo" | "round",
+  Operation extends "modulo" | "round" | "divide",
   Db extends Expression.DbType.Any
 > = {
   readonly __effect_qb_error__: "effect-qb: unsupported sqlite numeric input"
@@ -37,7 +38,7 @@ type NumericInputError<
 
 type SqNumericConstraint<
   Value extends Numeric.Input,
-  Operation extends "modulo" | "round"
+  Operation extends "modulo" | "round" | "divide"
 > =
   IsAny<Value> extends true ? unknown
     : Numeric.DialectConstraint<Value, SqDouble, "sqlite"> & (
@@ -83,7 +84,7 @@ type SqRoundResult<
 >
 
 const baseDb = (db: Expression.DbType.Any): Expression.DbType.Any =>
-  "base" in db ? baseDb(db.base) : db
+  isDomain(db) ? baseDb(db.base) : db
 
 const category = (value: Numeric.Input): "integer" | "bigint" | "exact" | "approximate" => {
   if (typeof value === "number") return "approximate"
@@ -111,7 +112,7 @@ export const modulo = <
   left: Left & SqNumericConstraint<NoInfer<Left>, "modulo">,
   right: Right & SqNumericConstraint<NoInfer<Right>, "modulo">
 ): SqModuloResult<Left, Right> =>
-  (Numeric.modulo as any)(left, right, {
+  (Numeric.binary as any)("modulo", left, right, {
     dialect: "sqlite",
     literalDb: sqliteDatatypes.double(),
     resultDb: moduloResultDb(left, right) as SqModuloResultDb<Left, Right>,
@@ -137,3 +138,19 @@ export function round(
     nullability: typeof value === "number" ? "never" : value[Expression.TypeId].nullability
   }) as SqRoundResult<Numeric.Input, boolean>
 }
+
+type SqDivideResult<Left extends Numeric.Input, Right extends Numeric.Input> =
+  Numeric.BinaryResult<Left, Right, SqDouble, SqDouble,
+    Numeric.ZeroDivisorNullability<Left, Right, SqDouble, "sqlite">, "sqlite", "divide">
+
+/** Native division. A zero denominator returns NULL in SELECT. */
+export const divide = <Left extends Numeric.Input, Right extends Numeric.Input>(
+  left: Left & SqNumericConstraint<NoInfer<Left>, "divide">,
+  right: Right & SqNumericConstraint<NoInfer<Right>, "divide">
+): SqDivideResult<Left, Right> =>
+  (Numeric.binary as any)("divide", left, right, {
+    dialect: "sqlite",
+    literalDb: sqliteDatatypes.double(),
+    resultDb: sqliteDatatypes.double(),
+    nullability: Numeric.nullableForZeroDivisor(left, right)
+  }) as SqDivideResult<Left, Right>

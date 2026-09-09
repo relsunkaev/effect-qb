@@ -1,30 +1,11 @@
-import type { DatatypeModule } from "../../internal/datatypes/define.js"
+import { makeDatatypeModule, type DatatypeModule } from "../../internal/datatypes/define.js"
 import type * as Expression from "../../internal/scalar.js"
-import type { NonEmptyStringInput } from "../../internal/table-options.js"
 import { mysqlDatatypeFamilies, mysqlDatatypeKinds } from "./spec.js"
 
-const withMetadata = <Kind extends keyof typeof mysqlDatatypeKinds & string>(
-  kind: Kind
-): Expression.DbType.Base<"mysql", Kind> => {
-  const kindSpec = mysqlDatatypeKinds[kind]
-  const familySpec = mysqlDatatypeFamilies[kindSpec.family as keyof typeof mysqlDatatypeFamilies]
-  return {
-    dialect: "mysql",
-    kind,
-    family: kindSpec.family,
-    runtime: kindSpec.runtime,
-    compareGroup: familySpec?.compareGroup,
-    castTargets: familySpec?.castTargets,
-    implicitTargets: (familySpec as { readonly implicitTargets?: readonly string[] }).implicitTargets,
-    traits: familySpec?.traits
-  }
-}
+const baseDatatypes = makeDatatypeModule("mysql", mysqlDatatypeKinds, mysqlDatatypeFamilies)
 
 const mysqlDatatypeModule = {
-  custom: <Kind extends string>(kind: NonEmptyStringInput<Kind>) => ({
-    dialect: "mysql",
-    kind: kind as Kind
-  }),
+  ...baseDatatypes,
   uuid: () => ({
     dialect: "mysql",
     kind: "uuid",
@@ -37,10 +18,6 @@ const mysqlDatatypeModule = {
     }
   })
 } as Record<string, (...args: readonly any[]) => Expression.DbType.Base<"mysql", string>>
-
-for (const kind of Object.keys(mysqlDatatypeKinds)) {
-  mysqlDatatypeModule[kind] = () => withMetadata(kind as keyof typeof mysqlDatatypeKinds & string)
-}
 
 type MysqlUuidWitness = Expression.DbType.Base<"mysql", "uuid"> & {
   readonly family: "uuid"
@@ -63,7 +40,7 @@ type MysqlJsonWitness = Expression.DbType.Base<"mysql", "json"> & {
 }
 
 mysqlDatatypeModule.json = () => ({
-  ...withMetadata("json"),
+  ...baseDatatypes.json(),
   driverValueMapping: {
     toDriver: (value: unknown) =>
       value !== null && typeof value === "object"

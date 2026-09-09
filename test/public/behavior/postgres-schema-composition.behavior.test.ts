@@ -57,7 +57,7 @@ describe("postgres schema composition", () => {
     }))
 
     expect(rendered.sql).toBe(
-      'insert into "analytics"."events" ("id", "createdAt", "meta") values ($1, $2, $3)'
+      'insert into "analytics"."events" ("id", "createdAt", "meta") values ($1, $2, cast($3 as jsonb))'
     )
   })
 

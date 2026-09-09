@@ -1,5 +1,5 @@
 import { quoteDoubleQuotedIdentifier, type RenderState, type RenderValueContext, type SqlDialect } from "../internal/dialect.js"
-import { renderExpression, renderQueryAst } from "../internal/dialect-renderers/postgres.js"
+import { renderExpression, renderQueryAst, renderSourceReference } from "../internal/dialect-renderers/postgres.js"
 import { toDriverValue } from "../internal/runtime/driver-value-mapping.js"
 
 const quoteIdentifier = quoteDoubleQuotedIdentifier
@@ -35,6 +35,7 @@ export const standardDialect: SqlDialect<"standard"> = {
   renderConcat(values) {
     return `(${values.join(" || ")})`
   },
+  renderSourceReference,
   renderQueryAst,
   renderExpression
 }

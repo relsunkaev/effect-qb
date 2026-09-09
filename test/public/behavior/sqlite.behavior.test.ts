@@ -250,7 +250,7 @@ describe("sqlite behavior", () => {
     const rendered = render(plan)
 
     expect(rendered.sql).toBe(
-      'select json_extract("docs"."payload", ?) as "city", json_object(?, json(?), ?, json(?)) as "built", (case when json_type(json_extract("docs"."payload", ?)) = \'array\' then json_array_length(json_extract("docs"."payload", ?)) when json_type(json_extract("docs"."payload", ?)) = \'object\' then (select count(*) from json_each(json_extract("docs"."payload", ?))) else null end) as "tags" from "docs"'
+      'select json_extract("docs"."payload", ?) as "city", cast(json_object(?, json(?), ?, json(?)) as text) as "built", (case when json_type(("docs"."payload" -> ?)) = \'array\' then json_array_length(("docs"."payload" -> ?)) when json_type(("docs"."payload" -> ?)) = \'object\' then (select count(*) from json_each(("docs"."payload" -> ?))) else null end) as "tags" from "docs"'
     )
     expect(rendered.params).toEqual([
       "$.profile.address.city",
@@ -283,7 +283,7 @@ describe("sqlite behavior", () => {
     }).pipe(StdRoot.Query.from(docs)))
 
     expect(rendered.sql).toBe(
-      'select json_object(?, json(?), ?, json(?)) as "built", json_set("docs"."payload", ?, json(?)) as "patched" from "docs"'
+      'select cast(json_object(?, json(?), ?, json(?)) as text) as "built", cast(json_set("docs"."payload", ?, json(?)) as text) as "patched" from "docs"'
     )
     expect(rendered.params).toEqual([
       "nested",
@@ -304,7 +304,7 @@ describe("sqlite behavior", () => {
     }))
 
     expect(rendered.sql).toBe(
-      'select json_patch(json(?), json(?)) as "merged"'
+      'select cast(json_patch(json(?), json(?)) as text) as "merged"'
     )
     expect(rendered.params).toEqual([
       JSON.stringify({ nested: { left: true } }),
@@ -379,7 +379,7 @@ describe("sqlite behavior", () => {
     }))
 
     expect(rendered.sql).toBe(
-      'insert into "json_string_docs" ("id", "payload") values (?, ?)'
+      'insert into "json_string_docs" ("id", "payload") values (?, json(?))'
     )
     expect(rendered.params).toEqual(["json-string-1", "\"42\""])
   })

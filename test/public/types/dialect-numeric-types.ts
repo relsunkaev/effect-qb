@@ -155,3 +155,48 @@ Pg.Renderer.make().render(sqPlan)
 Function.round(values.integer)
 // @ts-expect-error modulo is intentionally not on the portable Function surface
 Function.modulo(values.integer, values.integer)
+
+const myIntegralDivision = My.Function.divide(values.integer, values.bigint)
+const myApproximateDivision = My.Function.divide(values.integer, 2)
+const sqIntegralDivision = Sq.Function.divide(values.bigint, values.integer)
+type MyDivisionExact = Assert<Equal<Scalar.RuntimeOf<typeof myIntegralDivision>, Scalar.DecimalString>>
+type MyDivisionApproximate = Assert<Equal<Scalar.RuntimeOf<typeof myApproximateDivision>, number>>
+type SqDivisionNumber = Assert<Equal<Scalar.RuntimeOf<typeof sqIntegralDivision>, number>>
+type MyDivisionZeroPossible = Assert<Equal<Scalar.NullabilityOf<typeof myIntegralDivision>, "maybe">>
+const sqZeroDivision = Sq.Function.divide(values.integer, 0)
+type SqDivisionZero = Assert<Equal<Scalar.NullabilityOf<typeof sqZeroDivision>, "always">>
+const myNullableDivision = My.Function.divide(values.nullableInteger, 2)
+type MyDivisionNullable = Assert<Equal<Scalar.NullabilityOf<typeof myNullableDivision>, "maybe">>
+My.Function.round(myIntegralDivision, 2)
+Sq.Function.round(sqIntegralDivision, 2)
+// @ts-expect-error native division is dialect-only
+Function.divide(5, 2)
+// @ts-expect-error nonnumeric values are not division operands
+My.Function.divide(values.text, 2)
+// @ts-expect-error nonnumeric values are not division operands
+Sq.Function.divide(values.text, 2)
+// @ts-expect-error dialect provenance must not cross engines
+My.Function.divide(sqValues.approximate, 2)
+// @ts-expect-error dialect provenance must not cross engines
+Sq.Function.divide(myValues.approximate, 2)
+
+const pgIntegerDivision = Pg.Function.divide(pgValues.small, pgValues.integer)
+const pgBigDivision = Pg.Function.divide(pgValues.small, pgValues.bigint)
+const pgRealDivision = Pg.Function.divide(Cast.to(5, Pg.Type.float4()), Cast.to(2, Pg.Type.float4()))
+const pgMixedDivision = Pg.Function.divide(Cast.to(5, Type.numeric()), Cast.to(2, Pg.Type.float4()))
+const pgExactDivision = Pg.Function.divide(values.integer, Cast.to(2, Type.numeric()))
+type PgDivisionInteger = Assert<Equal<Scalar.DbTypeOf<typeof pgIntegerDivision>["kind"], "int4">>
+type PgDivisionBigInt = Assert<Equal<Scalar.RuntimeOf<typeof pgBigDivision>, Scalar.BigIntString>>
+type PgDivisionReal = Assert<Equal<Scalar.DbTypeOf<typeof pgRealDivision>["kind"], "float4">>
+type PgDivisionMixed = Assert<Equal<Scalar.DbTypeOf<typeof pgMixedDivision>["kind"], "float8">>
+type PgDivisionExact = Assert<Equal<Scalar.RuntimeOf<typeof pgExactDivision>, Scalar.DecimalString>>
+type PgDivisionNotNull = Assert<Equal<Scalar.NullabilityOf<typeof pgIntegerDivision>, "never">>
+Pg.Function.round(pgExactDivision, 2)
+// @ts-expect-error approximate division cannot use scaled PostgreSQL rounding
+Pg.Function.round(pgMixedDivision, 2)
+// @ts-expect-error nonnumeric division input
+Pg.Function.divide(values.text, 2)
+// @ts-expect-error foreign dialect division input
+Pg.Function.divide(myValues.approximate, 2)
+const pgNullableDivision = Pg.Function.divide(values.nullableInteger, 2)
+type PgDivisionNullable = Assert<Equal<Scalar.NullabilityOf<typeof pgNullableDivision>, "maybe">>

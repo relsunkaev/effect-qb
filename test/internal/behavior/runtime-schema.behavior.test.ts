@@ -32,7 +32,7 @@ describe("runtime schema inference", () => {
     expect(() => decode(city, "Phoenix")).toThrow()
   })
 
-  test("narrows exact JSON tuple indexes and preserves transformations", () => {
+  test("narrows exact JSON tuple indexes to stored values", () => {
     const docs = Table.make("schema_tuple_docs", {
       id: Column.uuid().pipe(Column.primaryKey),
       payload: Postgres.Column.jsonb(Schema.Struct({
@@ -42,7 +42,7 @@ describe("runtime schema inference", () => {
 
     const secondTag = Postgres.Jsonb.get(docs.payload.tags[1])
 
-    expect(decode(secondTag, "42")).toBe(42)
+    expect(decode(secondTag, "42")).toBe("42")
   })
 
   test("narrows JSON paths through unions", () => {
@@ -98,7 +98,7 @@ describe("runtime schema inference", () => {
     const exactSecondTag = Postgres.Jsonb.get(docs.payload.tags[1])
     const wildcardTags = Postgres.Jsonb.get(docs.payload.tags, Postgres.Jsonb.wildcard())
 
-    expect(decode(exactSecondTag, "42")).toBe(42)
+    expect(decode(exactSecondTag, "42")).toBe("42")
     expect(decode(wildcardTags, "42")).toBe("42")
     expect(decode(wildcardTags, ["a", 1, true])).toEqual(["a", 1, true])
   })
@@ -120,4 +120,42 @@ describe("runtime schema inference", () => {
     expect(decode(bytesJson, "AQID")).toBe("AQID")
     expect(decode(bytesJson, new Uint8Array([1, 2, 3]))).toEqual({ 0: 1, 1: 2, 2: 3 })
   })
+})
+
+test("JSON replacements return changed and untouched stored values", () => {
+  const docs = Table.make("focus_schema_docs", {
+    payload: Postgres.Column.jsonb(Schema.Struct({
+      profile: Schema.Struct({ city: Schema.String, count: Schema.NumberFromString }),
+      pair: Schema.Tuple([Schema.String, Schema.NumberFromString])
+    }))
+  })
+  const changed = docs.payload.pipe(
+    Postgres.Jsonb.replace(Postgres.Jsonb.focus().key("profile").key("city"), 123),
+    Postgres.Jsonb.replace(Postgres.Jsonb.focus().key("pair").index(0), true)
+  )
+  expect(decode(changed, { profile: { city: 123, count: "42" }, pair: [true, "7"] }))
+    .toEqual({ profile: { city: 123, count: "42" }, pair: [true, "7"] })
+  expect(() => decode(changed, { profile: { city: "old", count: "42" }, pair: [true, "7"] })).toThrow()
+})
+
+test("JSON replacements retain missing and null intermediate containers", () => {
+  const docs = Table.make("optional_focus_schema_docs", {
+    payload: Postgres.Column.jsonb(Schema.Struct({
+      profile: Schema.optionalKey(Schema.NullOr(Schema.Struct({ city: Schema.String })))
+    }))
+  })
+  const changed = docs.payload.pipe(
+    Postgres.Jsonb.replace(Postgres.Jsonb.focus().key("profile").key("city"), 123)
+  )
+  expect(decode(changed, {})).toEqual({})
+  expect(decode(changed, { profile: null })).toEqual({ profile: null })
+  expect(decode(changed, { profile: { city: 123 } })).toEqual({ profile: { city: 123 } })
+})
+
+test("JSON replacement can append to an empty tuple without reusing its empty schema", () => {
+  const docs = Table.make("empty_tuple_docs", {
+    payload: Postgres.Column.jsonb(Schema.Tuple([]))
+  })
+  const changed = docs.payload.pipe(Postgres.Jsonb.replace(Postgres.Jsonb.focus().index(0), 123))
+  expect(decode(changed, [123])).toEqual([123])
 })

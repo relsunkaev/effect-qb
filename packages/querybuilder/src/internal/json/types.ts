@@ -1,3 +1,5 @@
+import type * as Expression from "../scalar.js"
+import type { StoredOf } from "./storage.js"
 import type * as JsonPath from "./path.js"
 import type { JsonPathUsageError } from "./errors.js"
 
@@ -10,7 +12,7 @@ export type JsonValue =
 
 type OptionalKeyOf<ObjectType extends object, Key extends PropertyKey> =
   Key extends keyof ObjectType
-    ? {} extends Pick<ObjectType, Key> ? true : false
+    ? string extends keyof ObjectType ? true : {} extends Pick<ObjectType, Key> ? true : false
     : true
 
 type NormalizeJsonTuple<Values extends readonly unknown[]> =
@@ -26,7 +28,9 @@ type NormalizeJsonObject<ObjectType extends object> = {
 }
 
 export type NormalizeJsonLiteral<Value> =
+  0 extends (1 & Value) ? any :
   [Value] extends [never] ? never :
+    Value extends Expression.Any ? NormalizeJsonLiteral<StoredOf<Value>> :
     Value extends JsonPrimitive ? Value :
       Value extends undefined | bigint | symbol | Date | ((...args: readonly any[]) => any) ? never :
         Value extends readonly unknown[] ? NormalizeJsonTuple<Value> :
@@ -273,7 +277,7 @@ type RecurseValue<
   Segments extends readonly JsonPath.CanonicalSegment[],
   Operation extends string
 > = Segments extends readonly [infer Head extends JsonPath.CanonicalSegment, ...infer Tail extends readonly JsonPath.CanonicalSegment[]]
-  ? StepValue<Current, Head, Operation> extends infer Next
+  ? (StepValue<StripNull<Current>, Head, Operation> | (null extends Current ? null : never)) extends infer Next
     ? Next extends JsonPathUsageError<any, any, any, any>
       ? Next
       : Tail extends readonly []
@@ -293,12 +297,12 @@ type RecurseSet<
   ? Tail extends readonly []
     ? StepSet<Current, Head, Next, Operation>
     : StepValue<Current, Head, Operation> extends infer Child
-      ? Child extends JsonPathUsageError<any, any, any, any>
+      ? [Child] extends [JsonPathUsageError<any, any, any, any>]
         ? Child
         : RecurseSet<StripNull<Child>, Tail, Next, Operation> extends infer UpdatedChild
           ? UpdatedChild extends JsonPathUsageError<any, any, any, any>
             ? UpdatedChild
-            : StepSet<
+            : (null extends Child ? Current : never) | StepSet<
                 Current,
                 Head,
                 UpdatedChild,

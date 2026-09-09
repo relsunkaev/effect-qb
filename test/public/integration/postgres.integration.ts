@@ -473,3 +473,24 @@ test("postgres lock nowait failures are normalized from live row locks", async (
   }
   expect(contender.failure.query.sql).toContain('for update nowait')
 })
+
+test("postgres composes reusable JSON focuses into one database-side expression", async () => {
+  const { focusQuery, focusInput, focusExpected, sparseFocusQuery, sparseInputs, sparseExpected } = await import("./json-focus.ts")
+  const rows = await runPostgres(Effect.gen(function*() {
+    const sql = yield* SqlClient.SqlClient
+    return yield* sql.withTransaction(Effect.gen(function*() {
+      yield* sql.unsafe('create temporary table focus_docs (payload jsonb not null) on commit drop')
+      yield* sql.unsafe('insert into focus_docs values ($1::jsonb)', [JSON.stringify(focusInput)])
+      const main = yield* Executor.make().execute(focusQuery)
+      const sparse = []
+      for (const input of sparseInputs) {
+        yield* sql.unsafe('delete from focus_docs')
+        yield* sql.unsafe('insert into focus_docs values ($1::jsonb)', [JSON.stringify(input)])
+        sparse.push(...(yield* Executor.make().execute(sparseFocusQuery)))
+      }
+      return { main, sparse }
+    }))
+  }))
+  expect(rows.main).toEqual([{ payload: focusExpected }])
+  expect(rows.sparse).toEqual(sparseExpected("postgres"))
+})

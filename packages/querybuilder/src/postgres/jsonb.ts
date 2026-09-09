@@ -35,3 +35,6 @@ export const keys = jsonb.keys
 export const stripNulls = jsonb.stripNulls
 export const pathExists = jsonb.pathExists
 export const pathMatch = jsonb.pathMatch
+
+export const focus = jsonb.focus
+export const replace = jsonb.replace

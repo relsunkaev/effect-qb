@@ -1,0 +1,719 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`standard expression column preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select "entry"."id" as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression literal preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "literal",
+  ],
+  "sql": "select ? as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression nullLiteral preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select null as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression booleanLiteral preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select false as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression conjunction preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    9,
+  ],
+  "sql": "select (("entry"."id" > ?) and ("entry"."id" <= ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression disjunction preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    2,
+    1,
+  ],
+  "sql": "select (("entry"."id" <> ?) or ("entry"."id" < ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression negation preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    4,
+  ],
+  "sql": "select (not ("entry"."id" = ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression nullable preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select ("entry"."label" is null) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression nonNullable preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select ("entry"."label" is not null) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression concatenation preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "-",
+    "suffix",
+  ],
+  "sql": "select ("entry"."label" || ? || ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression coalescing preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "missing",
+  ],
+  "sql": "select coalesce("entry"."label", ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression caseBranch preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    5,
+    "high",
+    "low",
+  ],
+  "sql": "select case when ("entry"."id" >= ?) then ? else ? end as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression membership preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    3,
+    5,
+  ],
+  "sql": "select ("entry"."id" in (?, ?, ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression excludedMembership preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    2,
+    4,
+  ],
+  "sql": "select ("entry"."id" not in (?, ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression interval preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    5,
+  ],
+  "sql": "select ("entry"."id" between ? and ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression like preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "%value%",
+  ],
+  "sql": "select ("entry"."label" like ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression inSubquery preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select ("entry"."id" in (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = ?))) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression scalarSubquery preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression exists preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select exists (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`standard expression castInComparison preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "7",
+  ],
+  "sql": "select (cast("entry"."id" as text) = ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression column preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select "entry"."id" as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression literal preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "literal",
+  ],
+  "sql": "select $1 as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression nullLiteral preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select null as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression booleanLiteral preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select false as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression conjunction preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    9,
+  ],
+  "sql": "select (("entry"."id" > $1) and ("entry"."id" <= $2)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression disjunction preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    2,
+    1,
+  ],
+  "sql": "select (("entry"."id" <> $1) or ("entry"."id" < $2)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression negation preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    4,
+  ],
+  "sql": "select (not ("entry"."id" = $1)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression nullable preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select ("entry"."label" is null) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression nonNullable preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select ("entry"."label" is not null) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression concatenation preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "-",
+    "suffix",
+  ],
+  "sql": "select ("entry"."label" || $1 || $2) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression coalescing preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "missing",
+  ],
+  "sql": "select coalesce("entry"."label", $1) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression caseBranch preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    5,
+    "high",
+    "low",
+  ],
+  "sql": "select case when ("entry"."id" >= $1) then $2 else $3 end as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression membership preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    3,
+    5,
+  ],
+  "sql": "select ("entry"."id" in ($1, $2, $3)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression excludedMembership preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    2,
+    4,
+  ],
+  "sql": "select ("entry"."id" not in ($1, $2)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression interval preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    5,
+  ],
+  "sql": "select ("entry"."id" between $1 and $2) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression like preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "%value%",
+  ],
+  "sql": "select ("entry"."label" like $1) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression inSubquery preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select ("entry"."id" in (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = $1))) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression scalarSubquery preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = $1)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression exists preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select exists (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = $1)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`postgres expression castInComparison preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "7",
+  ],
+  "sql": "select (cast("entry"."id" as text) = $1) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`mysql expression column preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select \`entry\`.\`id\` as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression literal preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "literal",
+  ],
+  "sql": "select ? as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression nullLiteral preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select null as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression booleanLiteral preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select false as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression conjunction preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    9,
+  ],
+  "sql": "select ((\`entry\`.\`id\` > ?) and (\`entry\`.\`id\` <= ?)) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression disjunction preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    2,
+    1,
+  ],
+  "sql": "select ((\`entry\`.\`id\` <> ?) or (\`entry\`.\`id\` < ?)) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression negation preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    4,
+  ],
+  "sql": "select (not (\`entry\`.\`id\` = ?)) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression nullable preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select (\`entry\`.\`label\` is null) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression nonNullable preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select (\`entry\`.\`label\` is not null) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression concatenation preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "-",
+    "suffix",
+  ],
+  "sql": "select concat(\`entry\`.\`label\`, ?, ?) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression coalescing preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "missing",
+  ],
+  "sql": "select coalesce(\`entry\`.\`label\`, ?) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression caseBranch preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    5,
+    "high",
+    "low",
+  ],
+  "sql": "select case when (\`entry\`.\`id\` >= ?) then ? else ? end as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression membership preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    3,
+    5,
+  ],
+  "sql": "select (\`entry\`.\`id\` in (?, ?, ?)) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression excludedMembership preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    2,
+    4,
+  ],
+  "sql": "select (\`entry\`.\`id\` not in (?, ?)) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression interval preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    5,
+  ],
+  "sql": "select (\`entry\`.\`id\` between ? and ?) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression like preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "%value%",
+  ],
+  "sql": "select (\`entry\`.\`label\` like ?) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression inSubquery preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select (\`entry\`.\`id\` in (select \`render"Source\`.\`id\` as \`id\` from \`render"Source\` where (\`render"Source\`.\`id\` = ?))) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression scalarSubquery preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select (select \`render"Source\`.\`id\` as \`id\` from \`render"Source\` where (\`render"Source\`.\`id\` = ?)) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression exists preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select exists (select \`render"Source\`.\`id\` as \`id\` from \`render"Source\` where (\`render"Source\`.\`id\` = ?)) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`mysql expression castInComparison preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "7",
+  ],
+  "sql": "select (cast(\`entry\`.\`id\` as char) = ?) as \`value\` from \`render"Source\` as \`entry\`",
+}
+`;
+
+exports[`sqlite expression column preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select "entry"."id" as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression literal preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "literal",
+  ],
+  "sql": "select ? as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression nullLiteral preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select null as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression booleanLiteral preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    false,
+  ],
+  "sql": "select ? as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression conjunction preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    9,
+  ],
+  "sql": "select (("entry"."id" > ?) and ("entry"."id" <= ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression disjunction preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    2,
+    1,
+  ],
+  "sql": "select (("entry"."id" <> ?) or ("entry"."id" < ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression negation preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    4,
+  ],
+  "sql": "select (not ("entry"."id" = ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression nullable preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select ("entry"."label" is null) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression nonNullable preserves SQL and parameter order 1`] = `
+{
+  "params": [],
+  "sql": "select ("entry"."label" is not null) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression concatenation preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "-",
+    "suffix",
+  ],
+  "sql": "select ("entry"."label" || ? || ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression coalescing preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "missing",
+  ],
+  "sql": "select coalesce("entry"."label", ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression caseBranch preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    5,
+    "high",
+    "low",
+  ],
+  "sql": "select case when ("entry"."id" >= ?) then ? else ? end as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression membership preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    3,
+    5,
+  ],
+  "sql": "select ("entry"."id" in (?, ?, ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression excludedMembership preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    2,
+    4,
+  ],
+  "sql": "select ("entry"."id" not in (?, ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression interval preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    1,
+    5,
+  ],
+  "sql": "select ("entry"."id" between ? and ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression like preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "%value%",
+  ],
+  "sql": "select ("entry"."label" like ?) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression inSubquery preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select ("entry"."id" in (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = ?))) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression scalarSubquery preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression exists preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    3,
+  ],
+  "sql": "select exists (select "render""Source"."id" as "id" from "render""Source" where ("render""Source"."id" = ?)) as "value" from "render""Source" as "entry"",
+}
+`;
+
+exports[`sqlite expression castInComparison preserves SQL and parameter order 1`] = `
+{
+  "params": [
+    "7",
+  ],
+  "sql": "select (cast("entry"."id" as text) = ?) as "value" from "render""Source" as "entry"",
+}
+`;

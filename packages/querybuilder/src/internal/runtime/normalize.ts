@@ -1,3 +1,4 @@
+import { isDomain, isArray, isComposite } from "../datatypes/guards.js"
 import type * as Expression from "../scalar.js"
 import type { RuntimeTag } from "../datatypes/shape.js"
 import {
@@ -283,16 +284,16 @@ export const normalizeDbValue = (
   if (value === null) {
     return null
   }
-  if ("base" in dbType) {
+  if (isDomain(dbType)) {
     return normalizeDbValue(dbType.base, value)
   }
-  if ("element" in dbType) {
+  if (isArray(dbType)) {
     if (!Array.isArray(value)) {
       throw new Error("Expected an array value")
     }
     return value.map((entry) => normalizeDbValue(dbType.element, entry))
   }
-  if ("fields" in dbType) {
+  if (isComposite(dbType)) {
     if (!isRecord(value)) {
       throw new Error("Expected a record value")
     }
