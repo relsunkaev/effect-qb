@@ -42,6 +42,7 @@
     "effect": "4.0.0-rc.112",
     "effect-db": "workspace:*",
     "effect-qb": "workspace:*",
+    "esbuild": "^0.28.2",
     "pgsql-ast-parser": "^12.0.2",
     "typescript": "^6.0.3"
   }
