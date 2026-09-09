@@ -7,8 +7,8 @@ import {
 import type * as Casing from "./casing.js"
 import * as Expression from "./scalar.js"
 import type { Any as AnyExpression } from "./scalar.js"
-import * as SchemaExpression from "./schema-expression.js"
-import type { Any as AnySchemaExpression } from "./schema-expression.js"
+import * as SchemaExpression from "./schema-expression-value.js"
+import type { Any as AnySchemaExpression } from "./schema-expression-value.js"
 import type { TableFieldMap } from "./schema-derivation.js"
 
 /** Non-empty list of column names. */

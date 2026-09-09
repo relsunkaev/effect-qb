@@ -24,7 +24,7 @@ import {
 import { normalizeDbValue } from "../runtime/normalize.js"
 import type { Projection } from "../projections.js"
 import { groupingKeyOfExpression } from "../grouping-key.js"
-import * as SchemaExpression from "../schema-expression.js"
+import * as SchemaExpression from "../schema-expression-value.js"
 import { renderReferentialAction, validateOptions, type DdlExpressionLike, type TableOptionSpec } from "../table-options.js"
 import * as Casing from "../casing.js"
 
