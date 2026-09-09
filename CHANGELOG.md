@@ -4,6 +4,73 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.23.0 - 2026-09-09
+
+### Breaking Changes
+
+- fix(executor)!: include row decode failures in read error types
+- fix(json)!: use stored shapes for paths and mutations
+- fix(coercion)!: enforce verified native cast and comparison rules
+- fix(json)!: make native driver transport explicit
+
+### Features
+
+- feat(database): report foreign-key cycle witnesses in pull plans
+- feat(executor): add safe diagnostics and opt-in schema inputs
+- feat(json): compose reusable focuses with shape-changing replacements
+- feat(numeric): add mysql and sqlite native division
+- feat(numeric): add postgres native division
+
+### Fixes
+
+- fix(cli): restore optional flags and verify wizard safety
+- fix(release): separate preparation from guarded publication
+- fix(schema): distinguish omitted mutation keys from undefined
+- fix(types): simplify datatype constraint for pipeable casts
+- fix(test): isolate packed consumer installation from host state
+- fix(json): preserve nullability through record key access
+- fix(postgres): type json constructor parameters
+
+### Refactors
+
+- refactor(database): use Effect Graph for pull dependencies
+- refactor(dialect): inherit equivalent standard rendering defaults
+- refactor(datatypes): share witness construction without merging dialect policy
+- refactor(renderer): share expression traversal and source naming
+- refactor(renderer): share select assembly and JSON path grammar
+- refactor(dsl): share literal and column construction
+- refactor(numeric): share dialect binary expression assembly
+
+### Docs
+
+- docs(database): evaluate TypeScript 7 parser migration
+- docs: record approved JSON and numeric contracts
+- docs(cast): define native numeric precision semantics
+- docs: add 0.23 migration guide
+
+### Tests
+
+- test(cli): typecheck scripted command coverage
+- test(querybuilder): add schema-derived round-trip properties
+- test(database): execute generated cyclic schema declarations
+- test(cli): verify wizard dry-run selection
+- test(schema): refresh generated README coverage after validation
+- test(coercion): verify dialect cast and storage distinctions
+- test(numeric): establish native division contract evidence
+- test(renderer): capture cross-dialect expression SQL baselines
+- test(cli): isolate Node command smoke test budgets
+
+### Chores
+
+- chore(beads): close v0.22.0 release
+- chore(deps): update workspace dependencies
+- chore(beads): track TypeScript 7 compatibility follow-up
+- chore(deps): upgrade Effect packages to rc.112
+- chore(beads): groom stale work and narrow remaining scope
+- chore(beads): close release safety and start consumer verification
+- chore(beads): reopen intermittent packed install investigation
+- chore(beads): track merge and release verification
+
 ## 0.22.0 - 2026-07-30
 
 ### Breaking Changes
