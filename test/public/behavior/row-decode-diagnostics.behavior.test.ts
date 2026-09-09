@@ -27,8 +27,8 @@ interface DiagnosticExecutor {
   stream(query: typeof plan): Stream.Stream<unknown, QueryError>
 }
 const cases: readonly { readonly name: string; readonly make: (reportInput: boolean) => DiagnosticExecutor }[] = [
-  { name: "postgres", make: (reportInput) => Pg.Executor.make({ reportInput, driver: Pg.Executor.driver(() => Effect.succeed([{ payload: raw }])) }) },
-  { name: "mysql", make: (reportInput) => My.Executor.make({ reportInput, driver: My.Executor.driver(() => Effect.succeed([{ payload: raw }])) }) },
+  { name: "postgres", make: (reportInput) => Pg.Executor.make({ reportInput, driver: Pg.Executor.driver(() => Effect.succeed([{ payload: { token: secret } }])) }) },
+  { name: "mysql", make: (reportInput) => My.Executor.make({ reportInput, driver: My.Executor.driver(() => Effect.succeed([{ payload: { token: secret } }])) }) },
   { name: "sqlite", make: (reportInput) => Sq.Executor.make({ reportInput, driver: Sq.Executor.driver(() => Effect.succeed([{ payload: raw }])) }) }
 ]
 
@@ -44,7 +44,7 @@ for (const dialect of cases) {
       for (const run of runs) {
         const error = await Effect.runPromise(Effect.flip(run))
         if (error._tag !== "RowDecodeError") throw new Error(`Unexpected failure: ${error._tag}`)
-        expect(error.raw).toBe(raw)
+        expect(error.raw).toEqual(dialect.name === "sqlite" ? raw : { token: secret })
         expect(error.normalized).toEqual({ token: secret })
         expect(error.query?.params).toContain(parameter)
         expect(error.schemaError).toBeDefined()

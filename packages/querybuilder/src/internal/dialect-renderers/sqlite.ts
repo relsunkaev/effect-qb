@@ -389,7 +389,7 @@ const renderJsonInputExpression = (
   state: RenderState,
   dialect: SqlDialect
 ): string => {
-  if (dialect.name === "sqlite" && isJsonDbType(expression[Expression.TypeId].dbType)) {
+  if (dialect.name === "sqlite") {
     const ast = (expression as Expression.Any & {
       readonly [ExpressionAst.TypeId]: ExpressionAst.Any
     })[ExpressionAst.TypeId]
@@ -397,7 +397,9 @@ const renderJsonInputExpression = (
       state.params.push(JSON.stringify(ast.value))
       return "json(?)"
     }
-    return `json(${renderExpression(expression, state, dialect)})`
+    if (isJsonDbType(expression[Expression.TypeId].dbType)) {
+      return `json(${renderExpression(expression, state, dialect)})`
+    }
   }
   return renderJsonSelectSql(
     renderExpression(expression, state, dialect),
@@ -558,8 +560,8 @@ const renderJsonExpression = (
         return textMode ? `(${queried} #>> '{}')` : queried
       }
       if (dialect.name === "sqlite") {
-        const extracted = `json_extract(${baseSql}, ${renderSqliteJsonPath(segments, state, dialect)})`
-        return extracted
+        const pathSql = renderSqliteJsonPath(segments, state, dialect)
+        return textMode ? `json_extract(${baseSql}, ${pathSql})` : `(${baseSql} -> ${pathSql})`
       }
       return undefined
     }
@@ -643,7 +645,7 @@ const renderJsonExpression = (
         return `to_json(${renderJsonInputExpression(base, state, dialect)})`
       }
       if (dialect.name === "sqlite") {
-        return `json_quote(${renderExpression(base, state, dialect)})`
+        return `json_quote(${renderJsonInputExpression(base, state, dialect)})`
       }
       return undefined
     case "jsonToJsonb":
@@ -654,7 +656,7 @@ const renderJsonExpression = (
         return `to_jsonb(${renderJsonInputExpression(base, state, dialect)})`
       }
       if (dialect.name === "sqlite") {
-        return `json_quote(${renderExpression(base, state, dialect)})`
+        return `json_quote(${renderJsonInputExpression(base, state, dialect)})`
       }
       return undefined
     case "jsonTypeOf":

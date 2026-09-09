@@ -316,9 +316,12 @@ const jsonInputRuntimeSchema = (
 ): RuntimeSchema | undefined => {
   const schema = expressionRuntimeSchema(expression, context)
   const db = expression[Expression.TypeId].dbType
-  return schema !== undefined && (db.kind === "json" || db.kind === "jsonb")
+  const stored = schema !== undefined && (db.kind === "json" || db.kind === "jsonb")
     ? Schema.toEncoded(schema)
     : schema
+  return stored !== undefined && expression[Expression.TypeId].nullability !== "never"
+    ? Schema.NullOr(stored)
+    : stored
 }
 
 const buildStructSchema = (

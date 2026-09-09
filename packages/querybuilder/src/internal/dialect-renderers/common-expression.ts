@@ -5,6 +5,7 @@ import * as ExpressionAst from "../expression-ast.js"
 import type { RenderState, SqlDialect } from "../dialect.js"
 import { renderCustomSql } from "../custom-sql-renderer.js"
 import { quoteColumn, casedTableReferenceName } from "./source-context.js"
+import { isJsonDbType } from "../runtime/driver-value-mapping.js"
 
 export const expectValueExpression = (
   _functionName: string,
@@ -62,6 +63,11 @@ export const renderCommonExpression = (
     case "literal":
       if (typeof ast.value === "number" && !Number.isFinite(ast.value)) {
         throw new Error("Expected a finite numeric value")
+      }
+      if (ast.value !== null && isJsonDbType(expression[Expression.TypeId].dbType)) {
+        const parameter = dialect.renderLiteral(ast.value, state, expression[Expression.TypeId])
+        return dialect.name === "sqlite" ? `json(${parameter})`
+          : `cast(${parameter} as ${dialect.name === "postgres" && expression[Expression.TypeId].dbType.kind === "jsonb" ? "jsonb" : "json"})`
       }
       return dialect.renderLiteral(ast.value, state, expression[Expression.TypeId])
     case "customSql":

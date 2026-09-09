@@ -121,7 +121,7 @@ describe("mysql insert behavior", () => {
     }))
 
     expect(rendered.sql).toBe(
-      "insert into `json_docs` (`payload`) values (?)"
+      "insert into `json_docs` (`payload`) values (cast(? as json))"
     )
     expect(rendered.params).toEqual([
       JSON.stringify({ profile: { city: "Paris" } })

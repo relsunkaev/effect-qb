@@ -998,7 +998,7 @@ describe("executor behavior", () => {
       _tag: "Failure",
       failure: {
         _tag: "RowDecodeError",
-        stage: "normalize",
+        stage: "schema",
         projection: {
           alias: "payload"
         },
@@ -1033,7 +1033,7 @@ describe("executor behavior", () => {
       _tag: "Failure",
       failure: {
         _tag: "RowDecodeError",
-        stage: "normalize",
+        stage: "schema",
         projection: {
           alias: "payload"
         },
@@ -1425,7 +1425,7 @@ describe("executor behavior", () => {
     })
   })
 
-  test("fromDriver applies schema transforms after JSON normalization", () => {
+  test("fromDriver applies schema transforms after explicit JSON transport mapping", () => {
     const users = StdRoot.Table.make("users", {
       id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
       profile: StdRoot.Column.json(Schema.Struct({
@@ -1440,6 +1440,7 @@ describe("executor behavior", () => {
     )
 
     const rows = Effect.runSync(Executor.make({
+      valueMappings: { json: { fromDriver: (value) => JSON.parse(value as string) } },
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           profile: "{\"visits\":\"42\"}"
@@ -1474,6 +1475,7 @@ describe("executor behavior", () => {
     )
 
     const error = Effect.runSync(Effect.flip(Executor.make({
+      valueMappings: { json: { fromDriver: (value) => JSON.parse(value as string) } },
       driver: Executor.driver("postgres", () => Effect.succeed([
         {
           profile: JSON.stringify({

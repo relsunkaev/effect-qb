@@ -47,7 +47,7 @@ describe("postgres driver value mappings", () => {
       payload: "42"
     }))
 
-    expect(rendered.params).toEqual(["42"])
+    expect(rendered.params).toEqual([JSON.stringify("42")])
   })
 
   test("preserves JSONB string scalars that look like JSON while decoding rows", async () => {

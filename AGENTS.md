@@ -139,6 +139,9 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
   Reusable focuses and pipeable mutations supplement that API.
 - JSON paths and mutations use stored encoded shapes and return stored values.
   Whole-column selection retains schema decoding.
+- JSON transport is explicit: default PostgreSQL/MySQL clients return decoded
+  JSON; SQLite JSON-valued paths return serialized JSON and decode once. Custom
+  driver representations use value-mapping overrides, not content guessing.
 - Expose native division only through dialect function modules. Keep numeric
   cast witnesses unqualified engine casts; portable precision/scale is not a
   contract. Column DDL precision remains separate.

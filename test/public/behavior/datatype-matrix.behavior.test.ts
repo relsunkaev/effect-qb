@@ -51,9 +51,11 @@ describe("datatype matrix coverage", () => {
           })
         )
         const expectedType = portableDatatypeCastTypeByDialect[dialect][kind]
+        const castSql = `cast(null as ${expectedType})`
+        const projectionSql = dialect === "sqlite" && kind === "json" ? `cast(${castSql} as text)` : castSql
 
         expect(rendered.sql).toBe(
-          `select cast(null as ${expectedType}) as ${quote(dialect, "value")}`
+          `select ${projectionSql} as ${quote(dialect, "value")}`
         )
       }
     }

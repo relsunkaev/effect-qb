@@ -972,10 +972,10 @@ test("sqlite JSON1 mutation and construction helpers execute against stored JSON
           tags: ["sqlite"]
         }
       },
-      merged: JSON.stringify({
+      merged: {
         profile: { address: { city: "Paris" }, tags: ["sqlite"], active: true },
         note: null
-      })
+      }
     }
   ])
 })

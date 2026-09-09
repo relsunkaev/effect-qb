@@ -408,14 +408,14 @@ const renderPostgresJsonValue = (
     : `cast(${rendered} as jsonb)`
 }
 
-const renderMySqlStructuredJsonLiteral = (
+const renderMySqlJsonLiteral = (
   expression: Expression.Any,
   state: RenderState
 ): string | undefined => {
   const ast = (expression as Expression.Any & {
     readonly [ExpressionAst.TypeId]: ExpressionAst.Any
   })[ExpressionAst.TypeId]
-  if (ast.kind !== "literal" || ast.value === null || typeof ast.value !== "object") {
+  if (ast.kind !== "literal") {
     return undefined
   }
   state.params.push(JSON.stringify(ast.value))
@@ -428,7 +428,7 @@ const renderJsonInputExpression = (
   dialect: SqlDialect
 ): string => {
   if (dialect.name === "mysql") {
-    const jsonLiteral = renderMySqlStructuredJsonLiteral(expression, state)
+    const jsonLiteral = renderMySqlJsonLiteral(expression, state)
     if (jsonLiteral !== undefined) {
       return jsonLiteral
     }
@@ -674,7 +674,7 @@ const renderJsonExpression = (
         return `to_json(${renderJsonInputExpression(base, state, dialect)})`
       }
       if (dialect.name === "mysql") {
-        return renderMySqlStructuredJsonLiteral(base, state) ?? `cast(${renderExpression(base, state, dialect)} as json)`
+        return renderMySqlJsonLiteral(base, state) ?? `json_extract(json_array(${renderJsonInputExpression(base, state, dialect)}), '$[0]')`
       }
       return undefined
     case "jsonToJsonb":
@@ -685,7 +685,7 @@ const renderJsonExpression = (
         return `to_jsonb(${renderJsonInputExpression(base, state, dialect)})`
       }
       if (dialect.name === "mysql") {
-        return renderMySqlStructuredJsonLiteral(base, state) ?? `cast(${renderExpression(base, state, dialect)} as json)`
+        return renderMySqlJsonLiteral(base, state) ?? `json_extract(json_array(${renderJsonInputExpression(base, state, dialect)}), '$[0]')`
       }
       return undefined
     case "jsonTypeOf":

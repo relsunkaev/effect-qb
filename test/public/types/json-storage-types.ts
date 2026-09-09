@@ -55,3 +55,16 @@ type DerivedLeaf = Expect<Equal<Scalar.RuntimeOf<typeof derivedLeaf>, string>>
 const withExpression = docs.pg.pipe(Pg.Jsonb.replace(Pg.Jsonb.focus().key("stored_count"), pgLeaf))
 type ExpressionReplacement = Expect<Equal<Scalar.RuntimeOf<typeof withExpression>["stored_count"], string>>
 Query.update(docs, { pg: withExpression })
+
+const withSpare = Table.make("stored_with_spare", {
+  payload: Column.json(Schema.Struct({ count: Schema.NumberFromString, spare: Schema.String }))
+})
+const deleted = Json.delete_(withSpare.payload.spare)
+const afterDelete = Json.get(deleted, Json.key("count"))
+type AfterDeleteStored = Expect<Equal<Scalar.RuntimeOf<typeof afterDelete>, string>>
+const inserted = Json.insert(Json.toJson({}), Json.key("value"), stdLeaf)
+const afterInsert = Json.get(inserted, Json.key("value"))
+type AfterInsertStored = Expect<Equal<Scalar.RuntimeOf<typeof afterInsert>, string>>
+const merged = Json.merge(withSpare.payload, { added: true })
+const afterMerge = Json.get(merged, Json.key("count"))
+type AfterMergeStored = Expect<Equal<Scalar.RuntimeOf<typeof afterMerge>, string>>

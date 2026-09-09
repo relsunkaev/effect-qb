@@ -1666,7 +1666,7 @@ nested result shape described by the query plan.
 ### Executing Queries
 
 Use concrete executors for execution. By default, a concrete executor uses the
-built-in renderer and the ambient `effect/unstable/sql` `SqlClient` service.
+built-in renderer and the ambient `effect/unstable/sql` `SqlClient` service. See the [JSON transport contract](docs/json-transport.md) for driver configuration.
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
