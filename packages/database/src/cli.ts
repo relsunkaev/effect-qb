@@ -6,7 +6,7 @@ import * as Logger from "effect/Logger"
 
 import { root } from "./commands.js"
 
-Command.run(root, { version: "0.22.0" }).pipe(
+Command.run(root, { version: "0.23.0" }).pipe(
   Effect.tapCause((cause) => Effect.logError(cause)),
   Effect.provideService(Logger.LogToStderr, true),
   Effect.provide(NodeServices.layer),
