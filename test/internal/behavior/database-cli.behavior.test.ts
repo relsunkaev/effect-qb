@@ -109,10 +109,10 @@ test("root wizard can be declined or cancelled without running the database hand
   ))
 })
 
-test("built Node CLI accepts omitted booleans and reaches config loading", async () => {
+for (const command of [["push"], ["pull"], ["migrate", "generate"], ["migrate", "down"], ["migrate", "repair"]]) {
+  test(`built Node CLI ${command.join(" ")} accepts omitted booleans and reaches config loading`, async () => {
   const node = Bun.which("node")
   if (node === null) throw new Error("Node.js is required for the CLI smoke test")
-  for (const command of [["push"], ["pull"], ["migrate", "generate"], ["migrate", "down"], ["migrate", "repair"]]) {
     const configPath = `/effect-qb-missing-config-${crypto.randomUUID()}.ts`
     const process = Bun.spawn([node, "packages/database/dist/cli.js", ...command, "--config", configPath], {
       stdout: "pipe", stderr: "pipe"
@@ -123,5 +123,5 @@ test("built Node CLI accepts omitted booleans and reaches config loading", async
     expect(status).not.toBe(0)
     expect(stdout + stderr).toContain(configPath)
     expect(stdout + stderr).not.toContain("MissingOption")
-  }
-})
+  })
+}
