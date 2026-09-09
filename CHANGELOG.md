@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.23.1 - 2026-09-09
+
+### Fixes
+
+- fix(sqlite): keep schema parser out of runtime bundles
+- fix(build): preserve ESM modules for consumer tree shaking
+
+### Tests
+
+- test(bundle): verify runtime boundaries in packed consumers
+
+### Build
+
+- build: add esbuild for consumer bundle verification
+
+### CI
+
+- ci: add Node 26 verification and integration coverage
+
+### Chores
+
+- chore(beads): close v0.23.0 release
+- chore(beads): record Node 26 and SQLite bundle verification
+- chore(beads): close runtime bundle audit fixes
+- chore(beads): track bundling patch release
+
 ## 0.23.0 - 2026-09-09
 
 ### Breaking Changes
