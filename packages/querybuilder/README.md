@@ -42,3 +42,12 @@ Do not send this verbose output to shared logs.
 The original error still retains `raw`, `normalized`, `query`, and `cause` for
 compatibility. Logging the error object directly is **not** safe, even when
 schema input reporting is disabled.
+
+## Runtime bundles
+
+Published JavaScript preserves ESM module boundaries and has no import-time
+registration side effects. Bundlers such as esbuild can remove unused exports:
+column-only imports omit renderers, renderer-only imports omit error catalogs,
+and PostgreSQL runtime imports omit schema parsing. Explicit schema parsing
+still includes `pgsql-ast-parser`; MySQL executors retain the catalog required
+by their normalized error contract. No runtime-only entrypoint is needed.

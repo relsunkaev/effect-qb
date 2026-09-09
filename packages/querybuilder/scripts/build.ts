@@ -9,24 +9,10 @@ const main = async () => {
   await mkdir(distDir, { recursive: true })
 
   const proc = Bun.spawn([
-    process.execPath,
-    "build",
-    "--outdir",
-    "dist",
-    "--target",
-    "node",
-    "--format",
-    "esm",
-    "--packages",
-    "external",
-    "--root",
-    "src",
-    "src/index.ts",
-    "src/standard.ts",
-    "src/postgres.ts",
-    "src/postgres/metadata.ts",
-    "src/mysql.ts",
-    "src/sqlite.ts"
+    "bunx",
+    "tsgo",
+    "-p",
+    "tsconfig.build.json"
   ], {
     cwd,
     stdout: "inherit",

@@ -1,0 +1,51 @@
+import type { Expr } from "pgsql-ast-parser"
+import { pipeArguments, type Pipeable } from "effect/Pipeable"
+
+export const TypeId: unique symbol = Symbol.for("effect-qb/SchemaExpression")
+
+export type TypeId = typeof TypeId
+
+const SchemaExpressionProto = {
+  pipe(this: Pipeable) {
+    return pipeArguments(this, arguments)
+  }
+}
+
+const attachPipe = <Value extends object>(value: Value): Value => {
+  Object.defineProperty(value, "pipe", {
+    configurable: true,
+    writable: true,
+    value: function(this: Value) {
+      return pipeArguments(value, arguments)
+    }
+  })
+  return value
+}
+
+export interface SchemaExpression extends Pipeable {
+  readonly [TypeId]: {
+    readonly ast?: Expr
+    readonly sql?: string
+    readonly render?: () => string
+  }
+}
+
+export type Any = SchemaExpression
+
+export const isSchemaExpression = (value: unknown): value is SchemaExpression =>
+  typeof value === "object" && value !== null && TypeId in value
+
+export const make = (value: SchemaExpression[TypeId]): SchemaExpression => {
+  const expression = attachPipe(Object.create(SchemaExpressionProto))
+  expression[TypeId] = value
+  return expression
+}
+
+export const fromSql = (sql: string): SchemaExpression => make({ sql: sql.trim() })
+
+export const render = (expression: SchemaExpression): string => {
+  const value = expression[TypeId]
+  if (value.sql !== undefined) return value.sql
+  if (value.render !== undefined) return value.render()
+  throw new Error("Schema expression has no SQL renderer")
+}

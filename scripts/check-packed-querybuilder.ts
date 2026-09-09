@@ -1,3 +1,4 @@
+import { verifyRuntimeBundles } from "./check-runtime-bundles.js"
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -258,6 +259,7 @@ const main = async () => {
       TMPDIR: tmpdir(),
       SystemRoot: process.env.SystemRoot
     })
+    console.log(await verifyRuntimeBundles(join(consumerDir, "node_modules", "effect-qb")))
     await run([join(cwd, "node_modules", ".bin", "tsgo"), "-p", "tsconfig.json"], consumerDir)
 
     const nodePath = Bun.which("node")
