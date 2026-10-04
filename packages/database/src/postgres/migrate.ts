@@ -1,7 +1,7 @@
 import * as Crypto from "effect/Crypto"
-import * as Encoding from "effect/Encoding"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
-import * as SqlSchema from "effect/unstable/sql/SqlSchema"
+import * as Hex from "effect/encoding/Hex"
+import * as SqlClient from "effect/sql/SqlClient"
+import * as SqlSchema from "effect/sql/SqlSchema"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
@@ -105,7 +105,7 @@ const migrationChecksumOfEffect = (
   Effect.flatMap(Crypto.Crypto, (crypto) =>
     Effect.map(
       crypto.digest("SHA-256", new TextEncoder().encode(normalizeMigrationContents(contents))),
-      (digest) => `${MIGRATION_CHECKSUM_PREFIX}:${Encoding.encodeHex(digest)}`
+      (digest) => `${MIGRATION_CHECKSUM_PREFIX}:${Hex.encode(digest)}`
     ))
 
 export interface MigrationFile {

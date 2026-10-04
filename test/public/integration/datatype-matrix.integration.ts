@@ -2,7 +2,7 @@ import { afterAll, expect, test } from "bun:test"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/sql/SqlClient"
 import { rm } from "node:fs/promises"
 import { join } from "node:path"
 

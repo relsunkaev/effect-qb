@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/sql/SqlClient"
 import * as Stream from "effect/Stream"
 
 import * as CoreExecutor from "../internal/executor.js"
@@ -248,7 +248,7 @@ const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
  * Creates the standard MySQL executor pipeline.
  *
  * By default this uses the built-in MySQL renderer plus the ambient
- * `effect/unstable/sql` `SqlClient`. Advanced callers can override the renderer,
+ * `effect/sql` `SqlClient`. Advanced callers can override the renderer,
  * driver, or both.
  */
 export function make(): QueryExecutor<SqlClient.SqlClient>

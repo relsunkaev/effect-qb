@@ -14,15 +14,6 @@ export type YearString = string & Brand.Brand<"YearString">
 export type BigIntString = string & Brand.Brand<"BigIntString">
 export type DecimalString = string & Brand.Brand<"DecimalString">
 
-const brandString = <BrandName extends string>(
-  pattern: RegExp,
-  brand: BrandName
-): Schema.Schema<string & Brand.Brand<BrandName>> =>
-  Schema.String.pipe(
-    Schema.check(Schema.isPattern(pattern)),
-    Schema.brand(brand)
-  ) as unknown as Schema.Schema<string & Brand.Brand<BrandName>>
-
 export const localDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/
 
 export const isValidLocalDateString = (value: string): boolean => {
@@ -129,9 +120,9 @@ export const InstantStringSchema = Schema.String.pipe(
   Schema.brand("InstantString")
 ) as unknown as Schema.Schema<InstantString>
 
-export const YearStringSchema = brandString(
-  /^\d{4}$/,
-  "YearString"
+export const YearStringSchema = Schema.String.pipe(
+  Schema.check(Schema.isPattern(/^\d{4}$/)),
+  Schema.brand("YearString")
 )
 
 export const canonicalizeBigIntString = (input: string): string => {

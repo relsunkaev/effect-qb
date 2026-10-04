@@ -1,4 +1,4 @@
-import { Command, Flag } from "effect/unstable/cli"
+import { Command, Flag } from "effect/cli"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Terminal from "effect/Terminal"
@@ -41,33 +41,33 @@ const logInfoLines = (lines: readonly string[]) =>
 const logWarningLines = (lines: readonly string[]) =>
   Effect.forEach(lines, (line) => Effect.logWarning(line), { discard: true })
 
-const configOption = Flag.string("config").pipe(
+const configOption = Flag.String("config").pipe(
   Flag.optional,
   Flag.withAlias("c"),
   Flag.withDescription("Path to effectdb.config.ts")
 )
 
-const urlOption = Flag.string("url").pipe(
+const urlOption = Flag.String("url").pipe(
   Flag.optional,
   Flag.withDescription("Override the Postgres connection URL")
 )
 
-const dryRunOption = Flag.boolean("dry-run").pipe(
+const dryRunOption = Flag.Boolean("dry-run").pipe(
   Flag.withDefault(false),
   Flag.withDescription("Print the computed plan without writing")
 )
 
-const allowDestructiveOption = Flag.boolean("allow-destructive").pipe(
+const allowDestructiveOption = Flag.Boolean("allow-destructive").pipe(
   Flag.withDefault(false),
   Flag.withDescription("Include destructive SQL instead of safe-only changes")
 )
 
-const nameOption = Flag.string("name").pipe(
+const nameOption = Flag.String("name").pipe(
   Flag.optional,
   Flag.withDescription("Migration name")
 )
 
-const stepsOption = Flag.integer("steps").pipe(
+const stepsOption = Flag.Int("steps").pipe(
   Flag.optional,
   Flag.withDescription("Number of applied migrations to roll back")
 )

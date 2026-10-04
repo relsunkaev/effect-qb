@@ -101,48 +101,33 @@ export type UpdateRow<
   }>
 >
 
-const maybeBrandSchema = (
-  column: AnyColumnDefinition,
-  tableName: string,
-  columnName: string
-): Schema.Top =>
-  column.metadata.brand === true
-    ? Schema.brand(`${tableName}.${columnName}`)(column.schema)
-    : column.schema
-
 const selectSchema = (
-  column: AnyColumnDefinition,
-  tableName: string,
-  columnName: string
+  column: AnyColumnDefinition
 ): Schema.Top =>
-  column.metadata.nullable ? Schema.NullOr(maybeBrandSchema(column, tableName, columnName)) : maybeBrandSchema(column, tableName, columnName)
+  column.metadata.nullable ? Schema.NullOr(column.schema) : column.schema
 
 const insertSchema = (
-  column: AnyColumnDefinition,
-  tableName: string,
-  columnName: string
+  column: AnyColumnDefinition
 ): any | undefined => {
   if (column.metadata.generated) {
     return undefined
   }
   const base = column.metadata.nullable
-    ? Schema.NullOr(maybeBrandSchema(column, tableName, columnName))
-    : maybeBrandSchema(column, tableName, columnName)
+    ? Schema.NullOr(column.schema)
+    : column.schema
   return column.metadata.nullable || column.metadata.hasDefault ? Schema.optionalKey(base) : base
 }
 
 const updateSchema = (
   column: AnyColumnDefinition,
-  tableName: string,
-  columnName: string,
   isPrimaryKey: boolean
 ): any | undefined => {
   if (column.metadata.generated || isPrimaryKey) {
     return undefined
   }
   const base = column.metadata.nullable
-    ? Schema.NullOr(maybeBrandSchema(column, tableName, columnName))
-    : maybeBrandSchema(column, tableName, columnName)
+    ? Schema.NullOr(column.schema)
+    : column.schema
   return Schema.optionalKey(base)
 }
 
@@ -158,17 +143,16 @@ type SchemaOfVariant<
 const fieldSchemaForVariant = (
   variant: TableSchemaVariant,
   column: AnyColumnDefinition,
-  tableName: string,
   columnName: string,
   primaryKeySet: ReadonlySet<string>
 ): any | undefined => {
   switch (variant) {
     case "select":
-      return selectSchema(column, tableName, columnName)
+      return selectSchema(column)
     case "insert":
-      return insertSchema(column, tableName, columnName)
+      return insertSchema(column)
     case "update":
-      return updateSchema(column, tableName, columnName, primaryKeySet.has(columnName))
+      return updateSchema(column, primaryKeySet.has(columnName))
   }
 }
 
@@ -186,7 +170,7 @@ export const deriveSchema = <
   const primaryKeySet = new Set<string>(primaryKeyColumns)
   const structFields: Record<string, any> = {}
   for (const [key, column] of Object.entries(fields)) {
-    const schema = fieldSchemaForVariant(variant, column, tableName, key, primaryKeySet)
+    const schema = fieldSchemaForVariant(variant, column, key, primaryKeySet)
     if (schema !== undefined) {
       structFields[key] = schema
     }

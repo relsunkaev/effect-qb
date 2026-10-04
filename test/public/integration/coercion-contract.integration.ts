@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
 import * as Effect from "effect/Effect"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/sql/SqlClient"
 
 import { Cast, Query as Q, Type } from "#standard"
 import * as Pg from "#postgres"

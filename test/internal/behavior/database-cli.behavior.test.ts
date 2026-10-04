@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { BunServices } from "@effect/platform-bun"
-import { Command } from "effect/unstable/cli"
+import { Command } from "effect/cli"
 import * as Effect from "effect/Effect"
 import type * as Cause from "effect/Cause"
 import type * as Crypto from "effect/Crypto"

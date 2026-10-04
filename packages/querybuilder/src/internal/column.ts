@@ -492,9 +492,7 @@ export const brand = <Column extends AnyColumnDefinition>(
 ): BrandResult<Column> => {
   if (BoundColumnTypeId in column) {
     const boundColumn = column as unknown as AnyBoundColumn
-    const brandName = `${boundColumn[BoundColumnTypeId].tableName}.${boundColumn[BoundColumnTypeId].columnName}`
     return remapColumnDefinition(boundColumn, {
-      schema: Schema.brand(brandName)(boundColumn.schema),
       metadata: {
         ...boundColumn.metadata,
         brand: true
