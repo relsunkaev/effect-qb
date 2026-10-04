@@ -8,7 +8,8 @@
 bun add effect-db effect
 ```
 
-The `effect-db@4.0.0-beta.66` beta artifact was deprecated because it shipped a broken generated type declaration. Wait for the next `effect-db` beta before installing the schema-management CLI from npm's beta channel.
+Requires stable Effect `4.0.0`. Install from the default npm channel;
+the old beta and RC artifacts are superseded.
 
 ## Config
 

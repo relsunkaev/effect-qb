@@ -8,11 +8,8 @@
 bun add effect-qb effect
 ```
 
-For the parallel Effect v4 beta lane:
-
-```sh
-bun add effect-qb@beta effect@4.0.0-beta.98
-```
+Requires stable Effect `4.0.0`. Install from the default npm channel;
+the old beta and RC artifacts are superseded.
 
 ## Entry points
 

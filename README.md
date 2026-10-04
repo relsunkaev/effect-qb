@@ -85,7 +85,7 @@ bun add effect-qb effect
 
 Runtime requirements:
 
-- Node.js `>=22`
+- Node.js `>=22` and stable Effect `4.0.0`
 - Bun `>=1.3.5` for this repository's development scripts
 
 Public query-builder import paths:
@@ -1666,7 +1666,7 @@ nested result shape described by the query plan.
 ### Executing Queries
 
 Use concrete executors for execution. By default, a concrete executor uses the
-built-in renderer and the ambient `effect/unstable/sql` `SqlClient` service. See the [JSON transport contract](docs/json-transport.md) for driver configuration.
+built-in renderer and the ambient `effect/sql` `SqlClient` service. See the [JSON transport contract](docs/json-transport.md) for driver configuration.
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
