@@ -36,6 +36,7 @@
     "@effect/sql-mysql2": "4.0.0",
     "@effect/sql-pg": "4.0.0",
     "@effect/sql-sqlite-bun": "4.0.0",
+    "@effect/sql-sqlite-node": "4.0.0",
     "@types/bun": "^1.4.1",
     "@types/node": "^26.4.1",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
