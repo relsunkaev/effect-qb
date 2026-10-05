@@ -4,6 +4,38 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.24.0 - 2026-10-05
+
+### Breaking Changes
+
+- build(deps)!: upgrade Effect family to stable 4.0.0
+
+### Fixes
+
+- fix(postgres): adapt native driver parameters and decoding
+- fix(postgres): execute parsed migration statements in the existing transaction
+- fix(sqlite): bind booleans as integers under the selected dialect
+
+### Docs
+
+- docs: document stable Effect and retain zero-major releases
+
+### Tests
+
+- test(schema): use native Effect arbitrary generation
+- test(schema): verify derived codecs with TestSchema
+- test(sqlite): verify packed consumers with native Node driver
+- test(schema): benchmark opt-in JIT row decoding
+
+### Build
+
+- build(test): add native Node SQLite driver
+- build(deps): add PostgreSQL parser for migration scripts
+
+### Chores
+
+- chore(beads): close v0.23.1 release
+
 ## 0.23.1 - 2026-09-09
 
 ### Fixes
