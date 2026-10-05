@@ -278,8 +278,21 @@ const main = async () => {
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { loadPostgresConfig } from "effect-db"
-import { readMigrationFiles, writeMigrationFile } from "effect-db/postgres/migrate"
+import { applyMigrationFiles, readMigrationFiles, writeMigrationFile } from "effect-db/postgres/migrate"
 import { applyPullPlan } from "effect-db/postgres/pull"
+import * as Effect from "effect/Effect"
+import * as SqlClient from "effect/sql/SqlClient"
+
+// Exercise the private WASM parser through the packed migration API under Node.
+const executed = []
+await Effect.runPromise(applyMigrationFiles("ledger", [{
+  name: "0001_packed.sql", checksum: "packed", sql: "SELECT 'é😀;'; DO $$ BEGIN RAISE NOTICE 'a;b'; END $$;"
+}]).pipe(Effect.provideService(SqlClient.SqlClient, {
+  unsafe: (sql) => Effect.sync(() => { executed.push(sql.trim()); return [] })
+})))
+if (executed.length !== 3 || executed[0] !== "SELECT 'é😀;'" || executed[1] !== "DO $$ BEGIN RAISE NOTICE 'a;b'; END $$") {
+  throw new Error("packed PostgreSQL script parser failed under Node.js")
+}
 
 const workspace = join(process.cwd(), "node-runtime-workspace")
 await mkdir(workspace)

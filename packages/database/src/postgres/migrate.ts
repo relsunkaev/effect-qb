@@ -10,6 +10,7 @@ import * as Schema from "effect/Schema"
 import { runNodePath, runNodePlatform, type PlatformServices } from "../internal/node-platform.js"
 import type { LoadedPostgresConfig } from "../internal/postgres-config.js"
 import { providePostgresUrl } from "../internal/postgres-runtime.js"
+import { executePostgresScript } from "../internal/postgres-script.js"
 import type { SchemaChange } from "../internal/postgres-schema-diff.js"
 
 const MIGRATION_UP_MARKER = "-- effect-db:up"
@@ -431,7 +432,7 @@ export const applyMigrationFiles = (
   Effect.flatMap(SqlClient.SqlClient, (sql) =>
     Effect.forEach(files, (file) =>
       Effect.andThen(
-        sql.unsafe(file.sql),
+        executePostgresScript(file.sql),
         sql.unsafe(
           `insert into ${qualifyIdentifier(tableName)} (name, checksum) values ($1, $2)`,
           [file.name, file.checksum]
@@ -450,7 +451,7 @@ export const rollbackMigrationFiles = (
         return Effect.fail(new Error(`Migration '${file.name}' does not have a rollback section`))
       }
       return Effect.andThen(
-        sql.unsafe(file.downSql),
+        executePostgresScript(file.downSql),
         sql.unsafe(
           `delete from ${qualifyIdentifier(tableName)} where name = $1`,
           [file.name]

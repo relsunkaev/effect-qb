@@ -6,6 +6,7 @@ import { MysqlClient } from "@effect/sql-mysql2"
 import { PgClient } from "@effect/sql-pg"
 import { mkdir, rm } from "node:fs/promises"
 import { join } from "node:path"
+import { postgresStatements } from "../../../packages/database/src/internal/postgres-script.js"
 
 const pgLayer = PgClient.layer({
   host: "127.0.0.1",
@@ -72,7 +73,11 @@ export const execPostgres = <Row extends Record<string, unknown> = Record<string
   withPostgresLock(() =>
     runPostgres(Effect.gen(function*() {
       const sql = yield* SqlClient.SqlClient
-      return yield* sql.unsafe<Row>(statement, params)
+      if (params !== undefined) return yield* sql.unsafe<Row>(statement, params)
+      const statements = yield* Effect.tryPromise(() => postgresStatements(statement))
+      let rows: ReadonlyArray<Row> = []
+      for (const command of statements) rows = yield* sql.unsafe<Row>(command)
+      return rows
     }))
   )
 

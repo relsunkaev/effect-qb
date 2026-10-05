@@ -13,6 +13,56 @@ if (nodePath === null) {
 }
 const postgresUrl = "postgres://effect_qb:effect_qb@127.0.0.1:55432/effect_qb_test"
 
+test("postgres cli migrates procedural scripts atomically and rolls back every statement", async () => {
+  const { workspace, schemaName } = await makeWorkspace()
+  try {
+    const config = configFile(workspace)
+    const push = await runCli("push", "--config", config)
+    expect(push.exitCode, push.stdout + push.stderr).toBe(0)
+    const directory = join(workspace, "migrations")
+    await mkdir(directory, { recursive: true })
+    await writeFile(join(directory, "0001_procedural.sql"), `-- effect-db:up
+-- é😀; byte offsets must not become JavaScript indexes
+DO $body$ BEGIN
+  INSERT INTO "${schemaName}".users (id, email) VALUES ('first', 'é😀;quoted');
+END $body$;
+CREATE FUNCTION "${schemaName}".label() RETURNS text LANGUAGE SQL
+BEGIN ATOMIC SELECT 'function;body'; END;
+INSERT INTO "${schemaName}".users (id, email) VALUES ('second', "${schemaName}".label());
+-- effect-db:down
+DELETE FROM "${schemaName}".users WHERE id IN ('first', 'second');
+DROP FUNCTION "${schemaName}".label();
+`)
+    const up = await runCli("migrate", "up", "--config", config)
+    expect(up.exitCode, up.stdout + up.stderr).toBe(0)
+    expect(await execPostgres(`select email from "${schemaName}".users order by id`))
+      .toEqual([{ email: "é😀;quoted" }, { email: "function;body" }])
+    await writeFile(join(directory, "0002_failure.sql"), `
+CREATE TABLE "${schemaName}".must_rollback (id integer);
+INSERT INTO "${schemaName}".users (id, email) VALUES ('third', 'must rollback');
+SELECT 1 / 0;
+`)
+    const failure = await runCli("migrate", "up", "--config", config)
+    expect(failure.exitCode).not.toBe(0)
+    expect(await execPostgres(`select to_regclass($1) as relation`, [`${schemaName}.must_rollback`]))
+      .toEqual([{ relation: null }])
+    expect(await execPostgres(`select id from "${schemaName}".users order by id`))
+      .toEqual([{ id: "first" }, { id: "second" }])
+    expect(await execPostgres(`select name from "${schemaName}".effect_qb_migrations order by id`))
+      .toEqual([{ name: "0001_procedural.sql" }])
+    await rm(join(directory, "0002_failure.sql"))
+    const down = await runCli("migrate", "down", "--config", config, "--steps", "1")
+    expect(down.exitCode, down.stdout + down.stderr).toBe(0)
+    expect(await execPostgres(`select id from "${schemaName}".users`)).toEqual([])
+    expect(await execPostgres(`select name from "${schemaName}".effect_qb_migrations`)).toEqual([])
+    expect(await execPostgres(`select to_regprocedure($1)::text as function`, [`${schemaName}.label()`]))
+      .toEqual([{ function: null }])
+  } finally {
+    await dropSchema(schemaName).catch(() => undefined)
+    await rm(workspace, { recursive: true, force: true })
+  }
+}, 30000)
+
 const randomId = () => Math.random().toString(36).slice(2, 10)
 
 type ConfigOptions = {

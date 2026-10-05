@@ -11,6 +11,11 @@ bun add effect-db effect
 Requires stable Effect `4.0.0`. Install from the default npm channel;
 the old beta and RC artifacts are superseded.
 
+PostgreSQL migration scripts use `libpg-query` to find statement boundaries,
+including quoted semicolons and procedural bodies. It is an internal runtime
+dependency of `effect-db`, not a peer or a dependency of `effect-qb`. Statements
+and the migration ledger run in the existing migration transaction.
+
 ## Config
 
 Use `effectdb.config.ts` and import `defineConfig` from `effect-db`:
