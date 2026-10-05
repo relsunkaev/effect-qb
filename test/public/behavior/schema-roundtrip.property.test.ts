@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import * as FastCheck from "effect/testing/FastCheck"
+import * as Arbitrary from "effect/Arbitrary"
 import { Column, Query as Q, Table } from "#standard"
 import * as Pg from "#postgres"
 import * as My from "#mysql"
@@ -13,20 +13,31 @@ const payload = Schema.Struct({
   count: Schema.Int.check(Schema.isBetween({ minimum: -1000, maximum: 1000 })),
   note: Schema.NullOr(Schema.String)
 })
+// SQL text uses UTF-8; lone UTF-16 surrogates cannot round-trip through the driver.
+const utf8Text = Schema.String.check(Schema.makeFilter((value) => value.isWellFormed()))
 const records = Table.make("property_records", {
   id: Column.int().pipe(Column.primaryKey, Column.brand),
-  name: Column.text(),
-  bio: Column.text().pipe(Column.nullable),
+  name: Column.text().pipe(Column.schema(utf8Text)),
+  bio: Column.text().pipe(Column.schema(utf8Text), Column.nullable),
   active: Column.boolean().pipe(Column.default(Q.literal(false))),
   payload: Column.json(payload)
 })
 const select = Q.select({
   id: records.id, name: records.name, bio: records.bio, active: records.active, payload: records.payload
 }).pipe(Q.from(records))
-const selectedRows = Schema.toArbitrary(Table.selectSchema(records))(FastCheck)
+const selectedRows = Arbitrary.schema(Table.selectSchema(records))
+
+const check = async <A>(arbitrary: Arbitrary.Arbitrary<A>, property: (value: A) => void | Promise<void>) => {
+  const result = await Effect.runPromise(Arbitrary.checkEffect(arbitrary, (value) =>
+    Effect.tryPromise(async () => {
+      await property(value)
+      return true
+    }), { seed: 98112, runs: 100 }))
+  expect(result._tag, Arbitrary.formatCheckFailure(result)).toBe("Passed")
+}
 
 test("schema-derived rows round-trip through SQLite inserts, defaults, and decoding", async () => {
-  await FastCheck.assert(FastCheck.asyncProperty(selectedRows, FastCheck.boolean(), async (row, omitDefaults) => {
+  await check(Arbitrary.all([selectedRows, Arbitrary.schema(Schema.Boolean)]), async ([row, omitDefaults]) => {
     const { bio, active, ...required } = row
     const input = omitDefaults ? required : row
     expect(Schema.is(Table.insertSchema(records))(input)).toBe(true)
@@ -36,16 +47,18 @@ test("schema-derived rows round-trip through SQLite inserts, defaults, and decod
       yield* executor.execute(Q.insert(records, input))
       return yield* executor.execute(select).pipe(Sq.Executor.exactlyOne)
     }).pipe(Effect.provide(SqliteClient.layer({ filename: ":memory:", disableWAL: true }))))
-    expect(result).toEqual(omitDefaults ? { ...required, bio: null, active: false } : row)
+    // SQL integers and JSON numbers do not preserve negative zero.
+    const expected = omitDefaults ? { ...required, bio: null, active: false } : row
+    expect(result).toEqual({ ...expected, id: expected.id + 0, payload: { ...expected.payload, count: expected.payload.count + 0 } })
     expect(Schema.is(Table.selectSchema(records))(result)).toBe(true)
-  }), { seed: 98112, numRuns: 100 })
+  })
 })
 
 for (const [name, renderer] of [
   ["postgres", Pg.Renderer.make()], ["mysql", My.Renderer.make()], ["sqlite", Sq.Renderer.make()]
 ] as const) {
-  test(`${name}: generated JSON and text remain bound parameters`, () => {
-    FastCheck.assert(FastCheck.property(selectedRows, (row) => {
+  test(`${name}: generated JSON and text remain bound parameters`, async () => {
+    await check(selectedRows, (row) => {
       const rendered = renderer.render(Q.insert(records, row))
       expect(rendered.params).toContain(row.name)
       if (row.bio !== null) expect(rendered.params).toContain(row.bio)
@@ -54,17 +67,17 @@ for (const [name, renderer] of [
       // SQL depends on the column set, not the generated values.
       const other = renderer.render(Q.insert(records, { ...row, name: "fixed", payload: { tags: [], count: 0, note: null } }))
       expect(rendered.sql).toBe(other.sql)
-    }), { seed: 98112, numRuns: 100 })
+    })
   })
 }
 
-test("generated update payloads exclude primary keys and permit nullable fields", () => {
+test("generated update payloads exclude primary keys and permit nullable fields", async () => {
   const schema = Table.updateSchema(records)
-  FastCheck.assert(FastCheck.property(Schema.toArbitrary(schema)(FastCheck), (row) => {
+  await check(Arbitrary.schema(schema), (row) => {
     expect(Object.hasOwn(row, "id")).toBe(false)
     expect(Schema.is(schema)(row)).toBe(true)
     expect(Schema.is(schema)({ ...row, bio: null })).toBe(true)
-  }), { seed: 98112, numRuns: 100 })
+  })
 })
 
 test("mutation schemas distinguish omitted fields from explicit undefined", () => {
@@ -83,8 +96,8 @@ test("mutation schemas distinguish omitted fields from explicit undefined", () =
 
 
 test("generated insert-schema values execute without mutation coercion", async () => {
-  const inputs = Schema.toArbitrary(Table.insertSchema(records))(FastCheck)
-  await FastCheck.assert(FastCheck.asyncProperty(inputs, async (input) => {
+  const inputs = Arbitrary.schema(Table.insertSchema(records))
+  await check(inputs, async (input) => {
     const row = await Effect.runPromise(Effect.gen(function*() {
       const executor = Sq.Executor.make()
       yield* executor.execute(Q.createTable(records))
@@ -94,6 +107,6 @@ test("generated insert-schema values execute without mutation coercion", async (
       yield* executor.execute(Q.update(records, updated))
       return yield* executor.execute(select).pipe(Sq.Executor.exactlyOne)
     }).pipe(Effect.provide(SqliteClient.layer({ filename: ":memory:", disableWAL: true }))))
-    expect(row).toEqual({ ...input, active: input.active ?? false, bio: null, name: "updated" })
-  }), { seed: 98112, numRuns: 100 })
+    expect(row).toEqual({ ...input, id: input.id + 0, payload: { ...input.payload, count: input.payload.count + 0 }, active: input.active ?? false, bio: null, name: "updated" })
+  })
 })

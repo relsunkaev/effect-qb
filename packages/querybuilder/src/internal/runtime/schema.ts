@@ -121,7 +121,7 @@ const unionAst = (asts: ReadonlyArray<SchemaAST.AST>): SchemaAST.AST | undefined
   if (asts.length === 1) {
     return asts[0]
   }
-  return new SchemaAST.Union(asts, "anyOf")
+  return new SchemaAST.Union(asts, { mode: "anyOf" })
 }
 
 const propertyAstOf = (
@@ -226,7 +226,7 @@ const setJsonPathAst = (
   if (head === undefined) return next
   if (ast._tag === "Suspend") return setJsonPathAst(ast.thunk(), segments, next)
   if (ast._tag === "Union") {
-    return new SchemaAST.Union(ast.types.map((member) => setJsonPathAst(member, segments, next)), "anyOf")
+    return new SchemaAST.Union(ast.types.map((member) => setJsonPathAst(member, segments, next)), { mode: "anyOf" })
   }
   if (head.kind === "key" && ast._tag === "Objects") {
     const existing = ast.propertySignatures.find((property) => property.name === head.key)

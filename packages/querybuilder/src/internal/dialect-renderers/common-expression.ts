@@ -65,11 +65,11 @@ export const renderCommonExpression = (
         throw new Error("Expected a finite numeric value")
       }
       if (ast.value !== null && isJsonDbType(expression[Expression.TypeId].dbType)) {
-        const parameter = dialect.renderLiteral(ast.value, state, expression[Expression.TypeId])
+        const parameter = dialect.renderLiteral(ast.value, state, expressionDriverContext(expression, state, dialect))
         return dialect.name === "sqlite" ? `json(${parameter})`
           : `cast(${parameter} as ${dialect.name === "postgres" && expression[Expression.TypeId].dbType.kind === "jsonb" ? "jsonb" : "json"})`
       }
-      return dialect.renderLiteral(ast.value, state, expression[Expression.TypeId])
+      return dialect.renderLiteral(ast.value, state, expressionDriverContext(expression, state, dialect))
     case "customSql":
       return renderCustomSql(ast, state, dialect, dialect.renderExpression)
     case "eq":

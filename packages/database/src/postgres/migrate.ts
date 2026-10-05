@@ -1,7 +1,7 @@
 import * as Crypto from "effect/Crypto"
-import * as Encoding from "effect/Encoding"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
-import * as SqlSchema from "effect/unstable/sql/SqlSchema"
+import * as Hex from "effect/encoding/Hex"
+import * as SqlClient from "effect/sql/SqlClient"
+import * as SqlSchema from "effect/sql/SqlSchema"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
@@ -10,6 +10,7 @@ import * as Schema from "effect/Schema"
 import { runNodePath, runNodePlatform, type PlatformServices } from "../internal/node-platform.js"
 import type { LoadedPostgresConfig } from "../internal/postgres-config.js"
 import { providePostgresUrl } from "../internal/postgres-runtime.js"
+import { executePostgresScript } from "../internal/postgres-script.js"
 import type { SchemaChange } from "../internal/postgres-schema-diff.js"
 
 const MIGRATION_UP_MARKER = "-- effect-db:up"
@@ -105,7 +106,7 @@ const migrationChecksumOfEffect = (
   Effect.flatMap(Crypto.Crypto, (crypto) =>
     Effect.map(
       crypto.digest("SHA-256", new TextEncoder().encode(normalizeMigrationContents(contents))),
-      (digest) => `${MIGRATION_CHECKSUM_PREFIX}:${Encoding.encodeHex(digest)}`
+      (digest) => `${MIGRATION_CHECKSUM_PREFIX}:${Hex.encode(digest)}`
     ))
 
 export interface MigrationFile {
@@ -331,7 +332,7 @@ export const readAppliedMigrationRows = (
     SqlSchema.findAll({
       Request: EmptyRequest,
       Result: AppliedMigrationRowSchema,
-      execute: () => sql.unsafe(`select id, name, checksum from ${qualifyIdentifier(tableName)} order by id`)
+      execute: () => sql.unsafe(`select id::text as id, name, checksum from ${qualifyIdentifier(tableName)} order by id`)
     })({}))
 
 const fileByName = (
@@ -431,7 +432,7 @@ export const applyMigrationFiles = (
   Effect.flatMap(SqlClient.SqlClient, (sql) =>
     Effect.forEach(files, (file) =>
       Effect.andThen(
-        sql.unsafe(file.sql),
+        executePostgresScript(file.sql),
         sql.unsafe(
           `insert into ${qualifyIdentifier(tableName)} (name, checksum) values ($1, $2)`,
           [file.name, file.checksum]
@@ -450,7 +451,7 @@ export const rollbackMigrationFiles = (
         return Effect.fail(new Error(`Migration '${file.name}' does not have a rollback section`))
       }
       return Effect.andThen(
-        sql.unsafe(file.downSql),
+        executePostgresScript(file.downSql),
         sql.unsafe(
           `delete from ${qualifyIdentifier(tableName)} where name = $1`,
           [file.name]

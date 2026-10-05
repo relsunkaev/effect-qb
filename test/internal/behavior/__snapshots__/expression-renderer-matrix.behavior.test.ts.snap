@@ -563,7 +563,7 @@ exports[`sqlite expression nullLiteral preserves SQL and parameter order 1`] = `
 exports[`sqlite expression booleanLiteral preserves SQL and parameter order 1`] = `
 {
   "params": [
-    false,
+    0,
   ],
   "sql": "select ? as "value" from "render""Source" as "entry"",
 }

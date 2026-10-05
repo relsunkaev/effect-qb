@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/sql/SqlClient"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 

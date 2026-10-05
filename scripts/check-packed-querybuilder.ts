@@ -1,4 +1,5 @@
 import { verifyRuntimeBundles } from "./check-runtime-bundles.js"
+import { build } from "esbuild"
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -86,8 +87,12 @@ const main = async () => {
       type: "module",
       dependencies: {
         "effect": effectVersion,
+        "@effect/sql-sqlite-node": effectVersion,
         "effect-db": `file:${packedDatabaseTarball}`,
         "effect-qb": `file:${packedTarball}`
+      },
+      devDependencies: {
+        "@types/node": JSON.parse(await Bun.file(join(cwd, "package.json")).text()).devDependencies["@types/node"]
       },
       overrides: {
         "effect-qb": `file:${packedTarball}`
@@ -103,10 +108,11 @@ const main = async () => {
         allowImportingTsExtensions: true,
         verbatimModuleSyntax: true,
         strict: true,
+        types: ["node"],
         noEmit: true,
         skipLibCheck: true
       },
-      include: ["index.ts"]
+      include: ["index.ts", "node-sqlite.ts"]
     }, null, 2)}\n`)
 
     await Bun.write(join(consumerDir, "index.ts"), [
@@ -259,6 +265,7 @@ const main = async () => {
       TMPDIR: tmpdir(),
       SystemRoot: process.env.SystemRoot
     })
+    await Bun.write(join(consumerDir, "node-sqlite.ts"), await Bun.file(join(cwd, "scripts", "fixtures", "node-sqlite.ts")).text())
     console.log(await verifyRuntimeBundles(join(consumerDir, "node_modules", "effect-qb")))
     await run([join(cwd, "node_modules", ".bin", "tsgo"), "-p", "tsconfig.json"], consumerDir)
 
@@ -271,8 +278,21 @@ const main = async () => {
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { loadPostgresConfig } from "effect-db"
-import { readMigrationFiles, writeMigrationFile } from "effect-db/postgres/migrate"
+import { applyMigrationFiles, readMigrationFiles, writeMigrationFile } from "effect-db/postgres/migrate"
 import { applyPullPlan } from "effect-db/postgres/pull"
+import * as Effect from "effect/Effect"
+import * as SqlClient from "effect/sql/SqlClient"
+
+// Exercise the private WASM parser through the packed migration API under Node.
+const executed = []
+await Effect.runPromise(applyMigrationFiles("ledger", [{
+  name: "0001_packed.sql", checksum: "packed", sql: "SELECT 'é😀;'; DO $$ BEGIN RAISE NOTICE 'a;b'; END $$;"
+}]).pipe(Effect.provideService(SqlClient.SqlClient, {
+  unsafe: (sql) => Effect.sync(() => { executed.push(sql.trim()); return [] })
+})))
+if (executed.length !== 3 || executed[0] !== "SELECT 'é😀;'" || executed[1] !== "DO $$ BEGIN RAISE NOTICE 'a;b'; END $$") {
+  throw new Error("packed PostgreSQL script parser failed under Node.js")
+}
 
 const workspace = join(process.cwd(), "node-runtime-workspace")
 await mkdir(workspace)
@@ -300,6 +320,15 @@ await applyPullPlan({ updates: [{ filePath: pulledPath, before: "", after: "expo
 if (await readFile(pulledPath, "utf8") !== "export {}\\n") throw new Error("failed to apply pull plan under Node.js")
 `)
     await run([nodePath, "node-smoke.mjs"], consumerDir)
+    await build({
+      entryPoints: [join(consumerDir, "node-sqlite.ts")],
+      outfile: join(consumerDir, "node-sqlite.mjs"),
+      platform: "node",
+      format: "esm",
+      bundle: true,
+      packages: "external"
+    })
+    await run([nodePath, "node-sqlite.mjs"], consumerDir)
     const runCli = async (args: readonly string[]) => {
       const cli = Bun.spawn([
         join(consumerDir, "node_modules", ".bin", "effectdb"),

@@ -1,6 +1,8 @@
+import * as PgTypes from "@effect/sql-pg/PgTypes"
+import * as Result from "effect/Result"
 import * as Effect from "effect/Effect"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
-import * as SqlSchema from "effect/unstable/sql/SqlSchema"
+import * as SqlClient from "effect/sql/SqlClient"
+import * as SqlSchema from "effect/sql/SqlSchema"
 import * as Schema from "effect/Schema"
 
 import { SchemaExpression } from "effect-qb/postgres"
@@ -93,6 +95,12 @@ type EnumRow = {
 }
 
 const EmptyRequest = Schema.Struct({})
+
+const textArray = (values: readonly string[] | null) =>
+  Result.getOrThrow(PgTypes.array(values, PgTypes.OID.text))
+
+const oidArray = (values: readonly number[]) =>
+  Result.getOrThrow(PgTypes.array(values, PgTypes.OID.oid))
 
 const FilterRequest = Schema.Struct({
   schemas: Schema.NullOr(Schema.Array(Schema.String)),
@@ -347,7 +355,7 @@ export const introspectPostgresSchema = (
           and ($1::text[] is null or n.nspname = any($1))
           and ($2::text[] is null or c.relname = any($2))
         order by n.nspname, c.relname
-      `, [request.schemas, request.tables])
+      `, [textArray(request.schemas), textArray(request.tables)])
       })(normalizedFilter)
 
       const tableOids = tables.map((table) => table.table_oid)
@@ -372,12 +380,12 @@ export const introspectPostgresSchema = (
           format_type(a.atttypid, a.atttypmod) as ddl_type,
           t.typname as db_type_kind,
           tn.nspname as type_schema,
-          t.typtype as type_kind,
+          t.typtype::text as type_kind,
           not a.attnotnull as nullable,
           ad.adbin is not null and a.attgenerated = '' as has_default,
           case when a.attgenerated = '' then pg_get_expr(ad.adbin, ad.adrelid, true) else null end as default_sql,
           case when a.attgenerated <> '' then pg_get_expr(ad.adbin, ad.adrelid, true) else null end as generated_sql,
-          a.attidentity as identity_generation,
+          a.attidentity::text as identity_generation,
           a.attcollation as attcollation_oid
         from pg_attribute a
         join pg_class c on c.oid = a.attrelid
@@ -389,7 +397,7 @@ export const introspectPostgresSchema = (
           and not a.attisdropped
           and c.oid = any($1::oid[])
         order by n.nspname, c.relname, a.attnum
-      `, [request.tableOids])
+      `, [oidArray(request.tableOids)])
       })({ tableOids })
 
       const constraints = yield* SqlSchema.findAll({
@@ -400,7 +408,7 @@ export const introspectPostgresSchema = (
           n.nspname as schema_name,
           c.relname as table_name,
           con.conname as constraint_name,
-          con.contype as constraint_type,
+          con.contype::text as constraint_type,
           con.conkey as local_attnums,
           con.confkey as referenced_attnums,
           fn.nspname as referenced_schema_name,
@@ -410,8 +418,8 @@ export const introspectPostgresSchema = (
           case when con.contype = 'c' then pg_get_expr(con.conbin, con.conrelid, true) else null end as check_sql,
           con.connoinherit as no_inherit,
           coalesce(conind.indnullsnotdistinct, false) as nulls_not_distinct,
-          con.confupdtype as on_update,
-          con.confdeltype as on_delete
+          con.confupdtype::text as on_update,
+          con.confdeltype::text as on_delete
         from pg_constraint con
         join pg_class c on c.oid = con.conrelid
         join pg_namespace n on n.oid = c.relnamespace
@@ -421,7 +429,7 @@ export const introspectPostgresSchema = (
         where c.oid = any($1::oid[])
           and con.contype in ('p', 'u', 'f', 'c')
         order by n.nspname, c.relname, con.conname
-      `, [request.tableOids])
+      `, [oidArray(request.tableOids)])
       })({ tableOids })
 
       const indexes = yield* SqlSchema.findAll({
@@ -452,7 +460,7 @@ export const introspectPostgresSchema = (
           and not ind.indisprimary
           and con.oid is null
         order by n.nspname, c.relname, idx.relname
-      `, [request.tableOids])
+      `, [oidArray(request.tableOids)])
       })({ tableOids })
 
       const indexOids = indexes.map((index) => index.index_oid)
@@ -470,7 +478,7 @@ export const introspectPostgresSchema = (
             cross join lateral generate_series(1, ind.indnkeyatts) as pos(n)
             where ind.indexrelid = any($1::oid[])
             order by ind.indexrelid, pos.n
-          `, [request.indexOids])
+          `, [oidArray(request.indexOids)])
           })({ indexOids })
 
       const opclassOids = indexes.flatMap((index) => parseVector(index.indclass))
@@ -488,7 +496,7 @@ export const introspectPostgresSchema = (
             from pg_opclass op
             join pg_namespace n on n.oid = op.opcnamespace
             where op.oid = any($1::oid[])
-          `, [request.opclassOids])
+          `, [oidArray(request.opclassOids)])
           })({ opclassOids: [...new Set(opclassOids)] })
       const opclassByOid = new Map(opclassRows.map((row) => [row.oid, row] as const))
       const collations = yield* SqlSchema.findAll({
@@ -537,7 +545,7 @@ export const introspectPostgresSchema = (
             join pg_enum e on e.enumtypid = t.oid
             where concat(n.nspname, '.', t.typname) = any($1::text[])
             order by n.nspname, t.typname, e.enumsortorder
-          `, [request.enumTypeNames])
+          `, [textArray(request.enumTypeNames)])
           })({ enumTypeNames: [...new Set(enumTypeNames)] })
 
       const columnsByTable = new Map<string, ColumnModel[]>()

@@ -443,17 +443,14 @@ export const bindColumn = <
   schemaName?: SchemaName,
   casing?: Casing.Options
 ): BoundColumnFrom<Column, TableName, ColumnName, BaseTableName> => {
-  const brandName = `${tableName}.${columnName}`
-  const schema = column.metadata.brand === true
-    ? Schema.brand(brandName)(column.schema)
-    : column.schema
   const bound = attachPipe(Object.create(ColumnProto))
-  bound.schema = schema
+  // Effect 4 brands are type-only; BoundColumnFrom carries the provenance brand.
+  bound.schema = column.schema
   bound.metadata = column.metadata
   bound[Expression.TypeId] = {
     runtime: undefined as SelectType<Column>,
     dbType: column.metadata.dbType,
-    runtimeSchema: schema,
+    runtimeSchema: column.schema,
     driverValueMapping: column.metadata.driverValueMapping,
     nullability: (column.metadata.nullable ? "maybe" : "never") as IsNullable<Column> extends true ? "maybe" : "never",
     dialect: column.metadata.dbType.dialect,

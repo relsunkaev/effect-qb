@@ -8,7 +8,13 @@
 bun add effect-db effect
 ```
 
-The `effect-db@4.0.0-beta.66` beta artifact was deprecated because it shipped a broken generated type declaration. Wait for the next `effect-db` beta before installing the schema-management CLI from npm's beta channel.
+Requires stable Effect `4.0.0`. Install from the default npm channel;
+the old beta and RC artifacts are superseded.
+
+PostgreSQL migration scripts use `libpg-query` to find statement boundaries,
+including quoted semicolons and procedural bodies. It is an internal runtime
+dependency of `effect-db`, not a peer or a dependency of `effect-qb`. Statements
+and the migration ledger run in the existing migration transaction.
 
 ## Config
 

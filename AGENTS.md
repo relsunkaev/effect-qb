@@ -123,6 +123,11 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 - Do not prefix branch names with `codex/`.
 
+## Releases
+
+- Keep both packages on the `0.x` version line until the user explicitly requests
+  a `1.0` release. A stable Effect dependency does not change this policy.
+
 ## Runtime and build boundaries
 
 - Keep Bun as the workspace package manager and tooling runtime.

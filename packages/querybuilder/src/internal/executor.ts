@@ -6,8 +6,8 @@ import * as Formatter from "effect/Formatter"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SchemaIssue from "effect/SchemaIssue"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
-import * as SqlError from "effect/unstable/sql/SqlError"
+import * as SqlClient from "effect/sql/SqlClient"
+import * as SqlError from "effect/sql/SqlError"
 import * as Stream from "effect/Stream"
 
 import * as Expression from "./scalar.js"
@@ -794,7 +794,7 @@ export const fromSqlClient = <Dialect extends string>(
   }))
 
 /**
- * Runs an effect within the ambient `effect/unstable/sql` transaction service.
+ * Runs an effect within the ambient `effect/sql` transaction service.
  *
  * Nested calls rely on the underlying client transaction implementation for
  * savepoint behavior.
