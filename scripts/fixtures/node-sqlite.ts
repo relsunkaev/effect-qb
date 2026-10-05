@@ -3,6 +3,7 @@ import { SqliteClient } from "@effect/sql-sqlite-node"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/sql/SqlClient"
+import * as Stream from "effect/Stream"
 
 import { Column, Query, Table } from "effect-qb"
 import { Executor, Function as SqliteFunction } from "effect-qb/sqlite"
@@ -24,6 +25,7 @@ await Effect.runPromise(Effect.gen(function*() {
   const expected = [{ id: 1, active: true, payload: { count: 42 }, storedCount: "42" }]
   assert.deepEqual(yield* prepared.execute, expected)
   assert.deepEqual(yield* prepared.execute, expected)
+  assert.deepEqual(Array.from(yield* Stream.runCollect(executor.stream(read))), expected)
   const aborted = yield* Effect.result(sql.withTransaction(Effect.gen(function*() {
     yield* executor.execute(Query.insert(records, { id: 2, active: false, payload: { count: 7 } }))
     return yield* Effect.fail(new Error("rollback"))

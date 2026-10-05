@@ -138,6 +138,10 @@ export const toDriverValue = (
   if (isJsonDbType(dbType)) {
     return JSON.stringify(current)
   }
+  // SQLite stores booleans as integers; node:sqlite on Node 22 cannot bind them.
+  if (context.dialect === "sqlite" && typeof current === "boolean") {
+    return current ? 1 : 0
+  }
   return dbType === undefined || !encoded.encoded
     ? current
     : normalizeDbValue(dbType, current)

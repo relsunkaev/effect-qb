@@ -20,9 +20,10 @@ const rows = await Effect.runPromise(
 Consumer TypeScript should be built or bundled normally; no runtime TypeScript
 loader is needed. The packed-consumer check builds with esbuild and runs under
 Node. It covers DDL, transformed JSON codecs, stored JSON paths, prepared reads,
-transaction rollback, native division, and mutations.
+transaction rollback, buffered executor streams, native division, and mutations.
 
 The driver uses synchronous SQLite calls, so busy waits block Node's event loop.
-It does not support streaming queries or `updateValues`; use executor reads
-rather than streams with this driver. `effect-qb` does not install or select a
-SQLite driver on the consumer's behalf.
+The driver's SQL streaming API and `updateValues` are unsupported. The
+`effect-qb` SQLite executor's stream still works: it buffers a read result and
+emits its rows, rather than streaming from the database. `effect-qb` does not
+install or select a SQLite driver on the consumer's behalf.
