@@ -24,7 +24,7 @@ test("postgres division preserves integral truncation and numeric driver types",
     return { values, zero }
   }))
   expect(result.values).toEqual([{
-    integer_value: 2, negative_value: -2, bigint_value: "2",
+    integer_value: 2, negative_value: -2, bigint_value: 2n,
     exact_value: "2.5000000000000000", approximate_value: 2.5,
     small_type: "smallint", mixed_integer_type: "bigint", mixed_float_type: "double precision"
   }])

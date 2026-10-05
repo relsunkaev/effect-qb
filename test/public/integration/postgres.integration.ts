@@ -21,6 +21,14 @@ const postsTableName = "integration_pg_posts"
 const auditLogsTableName = "integration_pg_audit_logs"
 const lockRowsTableName = "integration_pg_lock_rows"
 
+test("postgres time projections preserve native codec microseconds", async () => {
+  const row = await runPostgres(Executor.make().execute(Q.select({
+    midnight: Cast.to("00:00:00", StdType.time()),
+    precise: Cast.to("12:34:56.123456", StdType.time())
+  })).pipe(Executor.exactlyOne))
+  expect(row).toEqual({ midnight: "00:00:00", precise: "12:34:56.123456" })
+})
+
 const events = Table.make(eventsTableName, {
   id: C.text().pipe(C.primaryKey),
   happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),

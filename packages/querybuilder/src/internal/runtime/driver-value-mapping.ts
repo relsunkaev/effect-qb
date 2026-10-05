@@ -164,9 +164,24 @@ export const fromDriverValue = (
     }
     return value
   }
+  // The native PostgreSQL time codec returns microseconds since midnight.
+  if (context.dialect === "postgres" && runtimeTagOfDbType(dbType) === "localTime" && typeof value === "bigint") {
+    return postgresTime(value)
+  }
   return dbType === undefined
     ? value
     : normalizeDbValue(dbType, value)
+}
+
+const postgresTime = (microseconds: bigint): string => {
+  if (microseconds < 0n || microseconds >= 86_400_000_000n) {
+    throw new Error("Expected a local-time value before 24:00:00")
+  }
+  const seconds = microseconds / 1_000_000n
+  const pad = (value: bigint, width = 2) => value.toString().padStart(width, "0")
+  const base = `${pad(seconds / 3600n)}:${pad(seconds / 60n % 60n)}:${pad(seconds % 60n)}`
+  const fraction = microseconds % 1_000_000n
+  return fraction === 0n ? base : `${base}.${pad(fraction, 6).replace(/0+$/, "")}`
 }
 
 const textCast = (sql: string): string => `(${sql})::text`

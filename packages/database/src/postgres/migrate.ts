@@ -331,7 +331,7 @@ export const readAppliedMigrationRows = (
     SqlSchema.findAll({
       Request: EmptyRequest,
       Result: AppliedMigrationRowSchema,
-      execute: () => sql.unsafe(`select id, name, checksum from ${qualifyIdentifier(tableName)} order by id`)
+      execute: () => sql.unsafe(`select id::text as id, name, checksum from ${qualifyIdentifier(tableName)} order by id`)
     })({}))
 
 const fileByName = (
