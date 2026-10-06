@@ -10,8 +10,8 @@ export * as Function from "./sqlite/function/index.js"
 export * as Json from "./sqlite/json.js"
 /** SQLite-specialized typed query execution contracts. */
 export * as Executor from "./sqlite/executor.js"
-/** SQLite-specific query helpers. Portable queries are exported from the root package. */
-export * as Query from "./sqlite/query.js"
+/** SQLite-only query extensions. For portable builders, import { Query } from "effect-qb". */
+export * as Query from "./sqlite/query-extension.js"
 /** SQLite-only database-type constructors for casts and typed references. */
 export { type as Type } from "./sqlite/type.js"
 /** SQLite-specialized built-in renderer entrypoint. */

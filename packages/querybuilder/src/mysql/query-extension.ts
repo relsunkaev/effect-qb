@@ -1,3 +1,8 @@
+/**
+ * MySQL-only query extensions.
+ * Portable builders: import { Query } from "effect-qb".
+ * Source: ../standard/query.ts
+ */
 import { lock } from "./internal/query.js"
 
 /** MySQL-only mutation modifier for UPDATE IGNORE. */
