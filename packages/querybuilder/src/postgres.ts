@@ -31,7 +31,7 @@ export * as PrimaryKey from "./postgres/primary-key.js"
 /** Postgres-specific unique-constraint option modifiers. */
 export * as Unique from "./postgres/unique.js"
 /** Postgres-specific index option modifiers. */
-export * as Index from "./postgres/index.js"
+export * as Index from "./postgres/index-extension.js"
 /** Postgres-specific foreign-key option modifiers. */
 export * as ForeignKey from "./postgres/foreign-key.js"
 /** Postgres-specific check-constraint option modifiers. */
