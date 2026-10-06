@@ -7,7 +7,7 @@ import * as Stream from "effect/Stream"
 
 import { Cast, Column as C, Fragment, Json as J, Table, Type } from "#standard"
 import { Function as F, Query as Q } from "#standard"
-import { Executor, Function as SqFunction } from "#sqlite"
+import { Executor, Function as SqFunction, Renderer } from "#sqlite"
 import {
   portableFunctionResults,
   portableScalarFunctions,
@@ -19,6 +19,70 @@ const runSqlite = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
     filename: ":memory:",
     disableWAL: true
   })))
+
+test("branches an author search without losing correlated filters or changing its base", async () => {
+  const users = Table.make("predicate_users", {
+    id: C.text().pipe(C.primaryKey),
+    email: C.text()
+  })
+  const posts = Table.make("predicate_posts", {
+    id: C.int().pipe(C.primaryKey),
+    userId: C.text(),
+    title: C.text()
+  })
+  const launchPosts = Q.select({ id: posts.id }).pipe(
+    Q.from(posts),
+    Q.where(Q.eq(posts.userId, users.id)),
+    Q.where(Q.eq(posts.title, "launch"))
+  )
+  const authors = Q.select({ label: Q.literal("author"), email: users.email }).pipe(
+    Q.from(users),
+    Q.where(Q.exists(launchPosts)),
+    Q.orderBy(users.email)
+  )
+  const allowedAuthors = authors.pipe(Q.where(Q.neq(users.email, "blocked@example.com")))
+  const rendered = Renderer.make().render(allowedAuthors)
+
+  expect(rendered.sql).toBe([
+    'select ? as "label", "predicate_users"."email" as "email" from "predicate_users"',
+    'where exists (select "predicate_posts"."id" as "id" from "predicate_posts"',
+    'where ("predicate_posts"."userId" = "predicate_users"."id")',
+    'and ("predicate_posts"."title" = ?))',
+    'and ("predicate_users"."email" <> ?) order by "predicate_users"."email" asc'
+  ].join(" "))
+  expect(rendered.params).toEqual(["author", "launch", "blocked@example.com"])
+
+  const seedUsers = Q.insert(users).pipe(Q.from(Q.values([
+    { id: "alice", email: "alice@example.com" },
+    { id: "bob", email: "bob@example.com" },
+    { id: "blocked", email: "blocked@example.com" }
+  ])))
+  const seedPosts = Q.insert(posts).pipe(Q.from(Q.values([
+    { id: 1, userId: "alice", title: "launch" },
+    { id: 2, userId: "alice", title: "launch" },
+    { id: 3, userId: "bob", title: "draft" },
+    { id: 4, userId: "blocked", title: "launch" }
+  ])))
+  const executor = Executor.make()
+  const rows = await runSqlite(executor.execute(Q.createTable(users)).pipe(
+    Effect.andThen(executor.execute(Q.createTable(posts))),
+    Effect.andThen(executor.execute(seedUsers)),
+    Effect.andThen(executor.execute(seedPosts)),
+    Effect.andThen(executor.execute(authors)),
+    Effect.bindTo("all"),
+    Effect.bind("allowed", () => executor.execute(allowedAuthors)),
+    Effect.bind("allAgain", () => executor.execute(authors))
+  ))
+
+  // Two matching posts yield one author; another author's match must not include Bob.
+  expect(rows.all).toEqual([
+    { label: "author", email: "alice@example.com" },
+    { label: "author", email: "blocked@example.com" }
+  ])
+  expect(rows.allowed).toEqual([{ label: "author", email: "alice@example.com" }])
+  expect(rows.allAgain).toEqual(rows.all)
+  expect(Renderer.make().render(authors).params).toEqual(["author", "launch"])
+})
 
 test("sqlite executes the portable standard function matrix", async () => {
   const result = await runSqlite(Effect.gen(function*() {
