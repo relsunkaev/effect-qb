@@ -6,7 +6,8 @@ those namespaces.
 
 Shared query construction lives in `packages/querybuilder/src/internal/query/`:
 
-- `plan.ts`: query types, state, and plan construction.
+- `plan.ts`: runtime construction, updates, and state access; the existing import surface.
+- `plan-types.ts`: compile-time plan model and inference constraints, re-exported by `plan.ts`.
 - `ast.ts` and `requirements.ts`: statement structure and capabilities.
 - `selection.ts`: selection, value sources, grouping, and returning.
 - `modifiers.ts`: source attachment, joins, predicates, ordering, and limits.
