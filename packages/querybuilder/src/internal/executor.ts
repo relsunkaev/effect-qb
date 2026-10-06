@@ -428,18 +428,18 @@ export const explainQuery = <Dialect extends string>(
 export const streamFromSqlClient = <Dialect extends string>(
   query: Renderer.RenderedQuery<any, Dialect>
 ): Stream.Stream<FlatRow, SqlError.SqlError, SqlClient.SqlClient> =>
-  Stream.unwrap(
-    Effect.flatMap(SqlClient.SqlClient, (sql) =>
-      Effect.flatMap(
-        Effect.serviceOption(sql.transactionService),
-        Option.match({
-          onNone: () => sql.reserve,
-          onSome: ([connection]) => Effect.succeed(connection)
-        })
-      ).pipe(
-        Effect.map((connection) => connection.executeStream(query.sql, [...query.params], undefined))
-      )
-    )
+  SqlClient.SqlClient.pipe(
+    Effect.flatMap(connectionForStream),
+    Effect.map((connection) => connection.executeStream(query.sql, [...query.params], undefined)),
+    Stream.unwrap
+  )
+
+const connectionForStream = (sql: SqlClient.SqlClient) =>
+  Effect.serviceOption(sql.transactionService).pipe(
+    Effect.flatMap(Option.match({
+      onNone: () => sql.reserve,
+      onSome: ([connection]) => Effect.succeed(connection)
+    }))
   )
 
 export const fromSqlClient = <Dialect extends string>(
@@ -447,8 +447,9 @@ export const fromSqlClient = <Dialect extends string>(
 ): Executor<Dialect, unknown, SqlClient.SqlClient> =>
   fromDriver(renderer, driver(renderer.dialect, {
     execute: (query) =>
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        sql.unsafe<FlatRow>(query.sql, [...query.params])),
+      SqlClient.SqlClient.pipe(
+        Effect.flatMap((sql) => sql.unsafe<FlatRow>(query.sql, [...query.params]))
+      ),
     stream: (query) => streamFromSqlClient(query)
   }))
 
@@ -461,4 +462,6 @@ export const fromSqlClient = <Dialect extends string>(
 export const withTransaction = <A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
-  Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(effect))
+  SqlClient.SqlClient.pipe(
+    Effect.flatMap((sql) => sql.withTransaction(effect))
+  )

@@ -1,10 +1,11 @@
-import { isDomain } from "./datatypes/guards.js"
 import * as Chunk from "effect/Chunk"
 import * as Exit from "effect/Exit"
 import * as Formatter from "effect/Formatter"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SchemaIssue from "effect/SchemaIssue"
+
+import { isDomain } from "./datatypes/guards.js"
 import * as Expression from "./scalar.js"
 import * as ExpressionAst from "./expression-ast.js"
 import { resolveImplicationScope, type ImplicationScope } from "./implication-runtime.js"
@@ -12,7 +13,7 @@ import { fromDriverValue } from "./runtime/driver-value-mapping.js"
 import { expressionRuntimeSchema } from "./runtime/schema.js"
 import { flattenSelection } from "./projections.js"
 import * as Query from "./query.js"
-import * as Renderer from "./renderer.js"
+import type * as Renderer from "./renderer.js"
 import * as Plan from "./row-set.js"
 import { columnPredicateKey } from "./predicate/runtime.js"
 import { isJsonValue } from "./runtime/normalize.js"
@@ -28,29 +29,6 @@ export interface DecodeOptions {
   readonly reportInput?: boolean
 }
 
-export interface RowDecodeError {
-  readonly _tag: "RowDecodeError"
-  readonly message: string
-  readonly dialect: string
-  readonly query?: {
-    readonly sql: string
-    readonly params: ReadonlyArray<unknown>
-  }
-  readonly projection: {
-    readonly alias: string
-    readonly path: readonly string[]
-  }
-  readonly dbType: Expression.DbType.Any
-  readonly raw: unknown
-  readonly normalized?: unknown
-  readonly stage: "normalize" | "schema"
-  readonly cause: unknown
-  readonly schemaError?: {
-    readonly message: string
-    readonly issue: unknown
-  }
-}
-
 export const makeRowDecoder = (
   rendered: Renderer.RenderedQuery<any, any>,
   plan: Query.Plan.Any,
@@ -62,9 +40,12 @@ export const makeRowDecoder = (
   const byPath = new Map(
     projections.map((projection) => [JSON.stringify(projection.path), projection.expression] as const)
   )
-  const driverMode = options.driverMode ?? "raw"
-  const valueMappings = options.valueMappings ?? rendered.valueMappings
-  const scope = resolveImplicationScope(plan[Plan.TypeId].available, Query.getQueryState(plan).assumptions)
+  const context: RowDecodeContext = {
+    rendered,
+    scope: resolveImplicationScope(plan[Plan.TypeId].available, Query.getQueryState(plan).assumptions),
+    driverMode: options.driverMode ?? "raw",
+    valueMappings: options.valueMappings ?? rendered.valueMappings
+  }
   return (row) => {
     const decoded: Record<string, unknown> = {}
     for (const projection of rendered.projections) {
@@ -82,11 +63,10 @@ export const makeRowDecoder = (
           new Error(`Missing required projection alias '${projection.alias}'`)
         )
       }
-      setPath(
-        decoded,
-        projection.path,
-        decodeProjectionValue(rendered, projection, expression, row[projection.alias], scope, driverMode, valueMappings, options.reportInput)
+      const value = decodeProjectionValue(
+        context, projection, expression, row[projection.alias], options.reportInput
       )
+      setPath(decoded, projection.path, value)
     }
     return decoded
   }
@@ -125,6 +105,29 @@ export const remapRows = <Row>(
     }
     return decoded as Row
   })
+
+export interface RowDecodeError {
+  readonly _tag: "RowDecodeError"
+  readonly message: string
+  readonly dialect: string
+  readonly query?: {
+    readonly sql: string
+    readonly params: ReadonlyArray<unknown>
+  }
+  readonly projection: {
+    readonly alias: string
+    readonly path: readonly string[]
+  }
+  readonly dbType: Expression.DbType.Any
+  readonly raw: unknown
+  readonly normalized?: unknown
+  readonly stage: "normalize" | "schema"
+  readonly cause: unknown
+  readonly schemaError?: {
+    readonly message: string
+    readonly issue: unknown
+  }
+}
 
 /**
  * Formats projection metadata without rows, SQL, causes, or custom schema messages.
@@ -258,16 +261,21 @@ const schemaAcceptsNull = (
 ): boolean =>
   schema !== undefined && (Schema.is(schema) as (value: unknown) => boolean)(null)
 
+interface RowDecodeContext {
+  readonly rendered: Renderer.RenderedQuery<any, any>
+  readonly scope: ImplicationScope
+  readonly driverMode: DriverMode
+  readonly valueMappings?: Expression.DriverValueMappings
+}
+
 const decodeProjectionValue = (
-  rendered: Renderer.RenderedQuery<any, any>,
+  context: RowDecodeContext,
   projection: Renderer.RenderedQuery<any, any>["projections"][number],
   expression: Expression.Any,
   raw: unknown,
-  scope: ImplicationScope,
-  driverMode: DriverMode,
-  valueMappings?: Expression.DriverValueMappings,
   reportInput = false
 ): unknown => {
+  const { rendered, scope, driverMode, valueMappings } = context
   const schema = expressionRuntimeSchema(expression, { assumptions: scope.assumptions })
   let normalized = raw
   if (driverMode === "raw") {
@@ -346,4 +354,3 @@ const decodeProjectionValue = (
   })
   throw makeRowDecodeError(rendered, projection, expression, raw, "schema", cause, normalized)
 }
-

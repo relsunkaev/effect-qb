@@ -16,17 +16,13 @@ import {
   type SqliteReadQueryError
 } from "./errors/index.js"
 
-/** SQLite-specialized flat row returned by SQL drivers. */
 export type FlatRow = RowDecoder.FlatRow
 /** Runtime decode failure raised after SQL execution but before row remapping. */
 export type RowDecodeError = RowDecoder.RowDecodeError
 /** Safe by default; input reporting is an explicit debugging opt-in. */
 export const formatRowDecodeError = RowDecoder.formatRowDecodeError
-/** SQLite-specialized rendered-query driver. */
 export type Driver<Error = never, Context = never> = CoreExecutor.Driver<"sqlite", Error, Context>
-/** SQLite-specialized executor contract. */
 export type Executor<Error = never, Context = never> = CoreExecutor.Executor<"sqlite", Error, Context>
-/** SQLite-specialized renderer contract. */
 export type Renderer = CoreRenderer.Renderer<"sqlite">
 export type ValueMappings = Expression.DriverValueMappingsFor<SqliteDatatypeKind | "uuid", SqliteDatatypeFamily | "uuid">
 /** Optional renderer / driver overrides for the standard SQLite executor pipeline. */
@@ -41,7 +37,7 @@ export interface MakeOptions<Error = never, Context = never> {
 /** Standard composed error shape for SQLite executors. */
 export type SqliteExecutorError = SqliteDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in SQLite executors. */
-export type SqliteQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+export type SqliteQueryError<PlanValue extends CoreQuery.Plan.Any> =
   Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? SqliteReadQueryError | RowDecodeError : SqliteExecutorError
 
 /** Pipeable execution cardinality helpers. */
@@ -55,26 +51,71 @@ export const withTransaction = CoreExecutor.withTransaction
 /** SQLite executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"sqlite", SqliteQueryError<any>, Context> {
   readonly dialect: "sqlite"
-  execute<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): Effect.Effect<CoreQuery.ResultRows<PlanValue>, SqliteQueryError<PlanValue>, Context>
-  executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  executeResult<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, SqliteQueryError<PlanValue>, Context>
-  prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  prepare<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, SqliteQueryError<PlanValue>, Context>
-  stream<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  stream<PlanValue extends CoreQuery.Plan.Any>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
       : never
   ): Stream.Stream<CoreQuery.ResultRow<PlanValue>, SqliteQueryError<PlanValue>, Context>
-  explain<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  explain<PlanValue extends CoreQuery.Plan.Any>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
       : never
   ): Effect.Effect<ReadonlyArray<FlatRow>, SqliteQueryError<PlanValue>, Context>
 }
+
+/**
+ * Creates the standard SQLite executor pipeline.
+ *
+ * By default this uses the built-in SQLite renderer plus the ambient
+ * `effect/sql` `SqlClient`. Advanced callers can override the renderer,
+ * driver, or both.
+ */
+export function make(): QueryExecutor<SqlClient.SqlClient>
+export function make(options: {
+  readonly renderer?: Renderer
+  readonly driverMode?: RowDecoder.DriverMode
+  readonly reportInput?: boolean
+  readonly valueMappings?: ValueMappings
+}): QueryExecutor<SqlClient.SqlClient>
+export function make<Error = never, Context = never>(
+  options: {
+    readonly renderer?: Renderer
+    readonly driver: Driver<Error, Context>
+    readonly driverMode?: RowDecoder.DriverMode
+    readonly reportInput?: boolean
+    readonly valueMappings?: ValueMappings
+  }
+): QueryExecutor<Context>
+export function make<Error = never, Context = never>(
+  options: MakeOptions<Error, Context> = {}
+): QueryExecutor<any> {
+  const renderer = options.renderer ?? CoreRenderer.makeTrusted(
+    "sqlite",
+    (plan) => renderSqlitePlan(plan, { valueMappings: options.valueMappings })
+  )
+  if (options.driver) return fromDriver(renderer, options.driver, options)
+  return fromDriver(renderer, sqlClientDriver(), options)
+}
+
+/** Creates a SQLite-specialized executor from a typed implementation callback. */
+export const custom = <
+  Error = never,
+  Context = never
+>(
+  execute: <PlanValue extends CoreQuery.Plan.Any>(
+    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
+  ) => Effect.Effect<CoreQuery.ResultRows<PlanValue>, Error, Context>
+): Executor<Error, Context> =>
+  CoreExecutor.make("sqlite", execute as any) as Executor<Error, Context>
 
 type DriverExecute<Error, Context> = <Row>(
   query: CoreRenderer.RenderedQuery<Row, "sqlite">
@@ -165,15 +206,12 @@ const fromDriver = <
     dialect: "sqlite",
     execute(plan) {
       const rendered = render(plan)
-      return Effect.mapError(
-        Effect.flatMap(
-          sqlDriver.execute(rendered),
-          (rows) => Effect.try({
-            try: () => RowDecoder.decodeRows(rendered, plan, rows, options),
-            catch: (error) => error as RowDecodeError
-          })
-        ),
-        (error) => mapExecutionError(error, rendered, plan)
+      return sqlDriver.execute(rendered).pipe(
+        Effect.flatMap((rows) => Effect.try({
+          try: () => RowDecoder.decodeRows(rendered, plan, rows, options),
+          catch: (error) => error as RowDecodeError
+        })),
+        Effect.mapError((error) => mapExecutionError(error, rendered, plan))
       ) as Effect.Effect<any, any, Context>
     },
     executeResult(plan) {
@@ -181,102 +219,44 @@ const fromDriver = <
       const result = sqlDriver.executeResult
         ? sqlDriver.executeResult(rendered)
         : Effect.map(sqlDriver.execute(rendered), (rows) => ({ rows }))
-      return Effect.mapError(
-        Effect.flatMap(result, ({ rows, ...metadata }) => Effect.try({
+      return result.pipe(
+        Effect.flatMap(({ rows, ...metadata }) => Effect.try({
           try: () => ({
             ...metadata,
             rows: RowDecoder.decodeRows(rendered, plan, rows, options)
           }),
           catch: (error) => error as RowDecodeError
         })),
-        (error) => mapExecutionError(error, rendered, plan)
+        Effect.mapError((error) => mapExecutionError(error, rendered, plan))
       ) as Effect.Effect<any, any, Context>
     },
     stream(plan) {
       const rendered = render(plan)
-      return Stream.mapError(
-        Stream.mapArrayEffect(
-          sqlDriver.stream(rendered),
-          (rows) => Effect.try({
-            try: () => RowDecoder.decodeRows(rendered, plan, rows, options) as never,
-            catch: (error) => error as RowDecodeError
-          })
-        ),
-        (error) => mapExecutionError(error, rendered, plan)
+      return sqlDriver.stream(rendered).pipe(
+        Stream.mapArrayEffect((rows) => Effect.try({
+          try: () => RowDecoder.decodeRows(rendered, plan, rows, options) as never,
+          catch: (error) => error as RowDecodeError
+        })),
+        Stream.mapError((error) => mapExecutionError(error, rendered, plan))
       ) as Stream.Stream<any, any, Context>
     },
     explain(plan, options) {
       const rendered = CoreExecutor.explainQuery(render(plan), options)
-      return Effect.mapError(
-        sqlDriver.execute(rendered),
-        (error) => mapExecutionError(error, rendered, plan)
+      return sqlDriver.execute(rendered).pipe(
+        Effect.mapError((error) => mapExecutionError(error, rendered, plan))
       ) as Effect.Effect<any, any, Context>
     }
   }) as QueryExecutor<Context>
 }
 
+const executeSql = (query: CoreRenderer.RenderedQuery<any, "sqlite">) =>
+  SqlClient.SqlClient.pipe(
+    Effect.flatMap((sql) => sql.unsafe<FlatRow>(query.sql, [...query.params]))
+  )
+
 const sqlClientDriver = (): Driver<any, SqlClient.SqlClient> =>
   driver({
-    execute: (query: CoreRenderer.RenderedQuery<any, "sqlite">) =>
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        sql.unsafe<FlatRow>(query.sql, [...query.params])),
-    stream: (query: CoreRenderer.RenderedQuery<any, "sqlite">) =>
-      Stream.unwrap(
-        Effect.map(
-          Effect.flatMap(SqlClient.SqlClient, (sql) =>
-            sql.unsafe<FlatRow>(query.sql, [...query.params])),
-          (rows) => Stream.fromIterable(rows)
-        )
-      )
+    execute: executeSql,
+    // SQLite reads are buffered; this does not acquire a streaming cursor.
+    stream: (query) => executeSql(query).pipe(Stream.fromIterableEffect)
   })
-
-/**
- * Creates the standard SQLite executor pipeline.
- *
- * By default this uses the built-in SQLite renderer plus the ambient
- * `effect/sql` `SqlClient`. Advanced callers can override the renderer,
- * driver, or both.
- */
-export function make(): QueryExecutor<SqlClient.SqlClient>
-export function make(options: {
-  readonly renderer?: Renderer
-  readonly driverMode?: RowDecoder.DriverMode
-  readonly reportInput?: boolean
-  readonly valueMappings?: ValueMappings
-}): QueryExecutor<SqlClient.SqlClient>
-export function make<Error = never, Context = never>(
-  options: {
-    readonly renderer?: Renderer
-    readonly driver: Driver<Error, Context>
-    readonly driverMode?: RowDecoder.DriverMode
-    readonly reportInput?: boolean
-    readonly valueMappings?: ValueMappings
-  }
-): QueryExecutor<Context>
-export function make<Error = never, Context = never>(
-  options: MakeOptions<Error, Context> = {}
-): QueryExecutor<any> {
-  if (options.driver) {
-    return fromDriver(
-      options.renderer ?? CoreRenderer.makeTrusted("sqlite", (plan) => renderSqlitePlan(plan, { valueMappings: options.valueMappings })),
-      options.driver,
-      options
-    )
-  }
-  return fromDriver(
-    options.renderer ?? CoreRenderer.makeTrusted("sqlite", (plan) => renderSqlitePlan(plan, { valueMappings: options.valueMappings })),
-    sqlClientDriver(),
-    options
-  )
-}
-
-/** Creates a SQLite-specialized executor from a typed implementation callback. */
-export const custom = <
-  Error = never,
-  Context = never
->(
-  execute: <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
-  ) => Effect.Effect<CoreQuery.ResultRows<PlanValue>, Error, Context>
-): Executor<Error, Context> =>
-  CoreExecutor.make("sqlite", execute as any) as Executor<Error, Context>
