@@ -2168,12 +2168,13 @@ type BinaryPredicateExpression<
     segments.every(isExactJsonSegmentValue)
 
   const buildJsonNodeExpression = <
+    const Expressions extends readonly Expression.Any[],
     Runtime,
     Db extends Expression.DbType.Any,
     Nullability extends Expression.Nullability,
     Ast extends ExpressionAst.Any
   >(
-    expressions: readonly Expression.Any[],
+    expressions: Expressions,
     state: {
       readonly runtime: Runtime
       readonly dbType: Db
@@ -2184,25 +2185,25 @@ type BinaryPredicateExpression<
     Runtime,
     Db,
     Nullability,
-    CoreQuery.TupleDialect<typeof expressions>,
-    MergeAggregationTuple<typeof expressions>,
-    CoreQuery.TupleDependencies<typeof expressions>,
+    CoreQuery.TupleDialect<Expressions>,
+    MergeAggregationTuple<Expressions>,
+    CoreQuery.TupleDependencies<Expressions>,
     Ast
   > => CoreQuery.makeExpression({
     runtime: state.runtime,
     dbType: state.dbType,
     nullability: state.nullability,
-    dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as CoreQuery.TupleDialect<typeof expressions>,
-    kind: CoreQuery.mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<typeof expressions>,
+    dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as CoreQuery.TupleDialect<Expressions>,
+    kind: CoreQuery.mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<Expressions>,
 
     dependencies: CoreQuery.mergeManyDependencies(expressions)
   }, ast) as AstBackedExpression<
     Runtime,
     Db,
     Nullability,
-    CoreQuery.TupleDialect<typeof expressions>,
-    MergeAggregationTuple<typeof expressions>,
-    CoreQuery.TupleDependencies<typeof expressions>,
+    CoreQuery.TupleDialect<Expressions>,
+    MergeAggregationTuple<Expressions>,
+    CoreQuery.TupleDependencies<Expressions>,
     Ast
   >
 
@@ -2250,18 +2251,26 @@ type BinaryPredicateExpression<
     }
   )
 
-  const toJsonValueExpression = (
-    value: JsonValueInput,
+  type JsonValueExpression<Value extends JsonValueInput> = Expression.Scalar<
+    JsonOutputOfInput<Value>,
+    Expression.DbType.Json<any, any>,
+    JsonNullabilityOf<JsonOutputOfInput<Value>>,
+    Value extends Expression.Any ? CoreQuery.DialectOf<Value> : Dialect,
+    Value extends Expression.Any ? CoreQuery.KindOf<Value> : "scalar",
+    Value extends Expression.Any ? CoreQuery.DependenciesOf<Value> : never
+  > & { readonly [ExpressionAst.TypeId]: ExpressionAst.Any }
+
+  const toJsonValueExpression = <Value extends JsonValueInput>(
+    value: Value,
     kind: "jsonToJson" | "jsonToJsonb" = "jsonToJson",
     dbType: Expression.DbType.Json<any, any> = jsonDb
-  ): Expression.Any => {
-    if (isJsonExpressionValue(value)) {
-      return value
-    }
-    if (isExpressionValue(value)) {
-      return wrapJsonExpression(value, kind, dbType)
-    }
-    return makeJsonLiteralExpression(value as JsonLiteralInput, dbType)
+  ): JsonValueExpression<Value> => {
+    const expression = isJsonExpressionValue(value)
+      ? value
+      : isExpressionValue(value)
+        ? wrapJsonExpression(value, kind, dbType)
+        : makeJsonLiteralExpression(value as JsonLiteralInput, dbType)
+    return expression as JsonValueExpression<Value>
   }
 
   const jsonQueryExpression = (query: CoreQuery.StringExpressionInput): Expression.Any =>
@@ -2805,7 +2814,7 @@ type BinaryPredicateExpression<
   ) => {
     const entries = Object.entries(shape).map(([key, value]) => ({
       key,
-      value: toJsonValueExpression(value)
+      value: toJsonValueExpression(value as Shape[keyof Shape])
     }))
     return buildJsonNodeExpression(
       entries.map((entry) => entry.value),
@@ -2830,7 +2839,7 @@ type BinaryPredicateExpression<
   >(
     ...values: Values
   ) => {
-    const expressions = values.map((value) => toJsonValueExpression(value))
+    const expressions = values.map((value: Values[number]) => toJsonValueExpression(value))
     return buildJsonNodeExpression(
       expressions,
       {
