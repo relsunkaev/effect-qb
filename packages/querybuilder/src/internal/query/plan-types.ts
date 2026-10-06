@@ -499,8 +499,8 @@ export type TableLike<Name extends string = string, Dialect extends string = str
 
 /** Concrete schema table accepted by DDL builders. */
 export type SchemaTableLike =
-  | Table.TableDefinition<any, any, any, "schema", any>
-  | Table.TableClassStatic<any, any, any, any>
+  | Table.TableDefinition<any, any, any, "schema", any, any>
+  | Table.TableClassStatic<any, any, any, any, any>
 
 /**
  * Wrapper returned by `as(subquery, alias)` for derived-table composition.
