@@ -7,8 +7,8 @@ import {
   type MergeNullabilityTuple,
   type TupleDependencies,
   type TupleDialect
-} from "./query.js"
-import { literal } from "./standard-dsl.js"
+} from "./query/plan.js"
+import { literal } from "../standard/internal/dsl.js"
 import { validateWindowFrame } from "./window-frame.js"
 
 export interface WindowOrderTerm<

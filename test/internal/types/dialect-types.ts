@@ -8,7 +8,7 @@ import * as Postgres from "#postgres"
 import * as Sqlite from "#sqlite"
 import * as Standard from "#standard"
 import * as Executor from "#internal/executor.ts"
-import * as RootQuery from "#internal/query.ts"
+import * as RootQuery from "#internal/query/plan.ts"
 import * as Renderer from "#internal/renderer.ts"
 
 type IsExact<A, B> =

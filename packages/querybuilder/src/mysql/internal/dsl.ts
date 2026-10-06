@@ -1,6 +1,6 @@
 import type { StoredOf, WithoutStoredJson } from "../../internal/json/storage.js"
-import { makeDialectLiteral, makeDialectColumn, type QueryDialectProfile, type DialectLiteralExpression } from "../../internal/dsl-literal.js"
-export type { QueryDialectProfile } from "../../internal/dsl-literal.js"
+import { makeDialectLiteral, makeDialectColumn, type QueryDialectProfile, type DialectLiteralExpression } from "../../internal/query/literal.js"
+export type { QueryDialectProfile } from "../../internal/query/literal.js"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
@@ -20,99 +20,7 @@ import type { CastTargetError, OperandCompatibilityError } from "../../internal/
 import type { RuntimeOfDbType } from "../../internal/coercion/analysis.js"
 import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "../../internal/coercion/rules.js"
 import { normalizeDbValue } from "../../internal/runtime/normalize.js"
-import {
-  currentRequiredList,
-  extractRequiredRuntime,
-  extractSingleSelectedExpressionRuntime,
-  getAst,
-  getQueryState,
-  makeExpression,
-  makePlan,
-  mergeAggregationManyRuntime,
-  mergeAggregationRuntime,
-  mergeDependencies,
-  mergeManyDependencies,
-  mergeNullabilityManyRuntime,
-  type AddAvailable,
-  type AddAvailableMany,
-  type AvailableAfterJoin,
-  type AddExpressionRequired,
-  type AddJoinRequired,
-  type AssumptionsOfPlan,
-  type AvailableOfPlan,
-  type CapabilitiesOfPlan,
-  type CommonSetFacts,
-  type DialectCompatibleNestedPlan,
-  type DependenciesOf,
-  type DependencyRecord,
-  type DialectOf,
-  type DerivedSelectionOf,
-  type DerivedTableCompatiblePlan,
-  type LateralSourceCompatiblePlan,
-  type DerivedSourceCompatiblePlan,
-  type DerivedSource,
-  type CompletePlan,
-  type ExpressionInput,
-  type ExtractDialect,
-  type ExtractRequired,
-  type FactsOfPlan,
-  type GroupByInput,
-  type GroupedOfPlan,
-  type GroupedKeysFromValues,
-  type HavingPredicateInput,
-  type InsertSourceStateOfPlan,
-  type JoinSourceMode,
-  type LiteralValue,
-  type MergeAggregation,
-  type MergeNullabilityTuple,
-  type NumericExpressionInput,
-  type OrderDirection,
-  type OutstandingOfPlan,
-  type PlanDialectOf,
-  type PresenceWitnessKeysOfSource,
-  type PredicateInput,
-  type PredicateStateOfPlan,
-  type KindOf,
-  type QueryPlan,
-  type OutputOfSelection,
-  type ScalarOutputOfPlan,
-  type RequiredFromDependencies,
-  type RequiredOfPlan,
-  type ScopedNamesOfPlan,
-  type SelectionOfPlan,
-  type SelectionShape,
-  type SelectionProjectionAliasCollisionConstraint,
-  type SetCompatiblePlan,
-  type SetCompatibleRightPlan,
-  type SchemaTableLike,
-  type SourceCapabilitiesOf,
-  type SourceRequiredOf,
-  type SourceRequirementError,
-  type TableDialectOf,
-  type StatementOfPlan,
-  type MutationInputOf,
-  type MutationTargetOfPlan,
-  type MergeCapabilities,
-  type MutationValuesInput,
-  type SourceDialectOf,
-  type SourceLike,
-  type SourceNameOf,
-  type AnyValuesInput,
-  type ValuesSource,
-  type ValuesInput,
-  type AnyValuesSource,
-  type AnyUnnestSource,
-  type AnyTableFunctionSource,
-  type UnnestSource,
-  type TableFunctionSource,
-  type StringExpressionInput,
-  type TableLike,
-  type UpdateInputOfTarget,
-  type MutationTargetNamesOf,
-  type TupleDependencies,
-  type TupleDialect,
-  type ResultRow
-} from "../../internal/query.js"
+import * as CoreQuery from "../../internal/query/plan.js"
 import * as ExpressionAst from "../../internal/expression-ast.js"
 import { presenceWitnessesOfSourceLike } from "../../internal/implication-runtime.js"
 import type { JsonNode } from "../../internal/json/ast.js"
@@ -135,16 +43,14 @@ import type {
 import type { AssumePredicateStateTrue, EmptyFacts, PredicateStateFacts, PredicateStateFormula } from "../../internal/predicate/analysis.js"
 import type { FormulaOfPredicate } from "../../internal/predicate/normalize.js"
 import type { TrueFormula } from "../../internal/predicate/formula.js"
-import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "../../internal/predicate/runtime.js"
-import { dedupeGroupedExpressions } from "../../internal/grouping-key.js"
 import { validateWindowFrame } from "../../internal/window-frame.js"
-import { makeDslMutationRuntime } from "../../internal/dsl-mutation-runtime.js"
-import { makeDslPlanRuntime } from "../../internal/dsl-plan-runtime.js"
-import { makeDslQueryRuntime } from "../../internal/dsl-query-runtime.js"
-import { makeDslTransactionDdlRuntime } from "../../internal/dsl-transaction-ddl-runtime.js"
+import { makeDslMutationRuntime } from "../../internal/query/mutations.js"
+import { makeDslPlanRuntime, makeWhere } from "../../internal/query/modifiers.js"
+import { groupBy as groupByRuntime, makeDslQueryRuntime } from "../../internal/query/selection.js"
+import { makeDslTransactionDdlRuntime } from "../../internal/query/statements.js"
 import { makeCteSource, makeDerivedSource, makeLateralSource } from "../../internal/derived-table.js"
 import * as ProjectionAlias from "../../internal/projection-alias.js"
-import * as QueryAst from "../../internal/query-ast.js"
+import * as QueryAst from "../../internal/query/ast.js"
 import { normalizeColumnList } from "../../internal/table-options.js"
 
 type MutationTargetLike = Table.AnyTable<Dialect | "standard">
@@ -153,7 +59,7 @@ type MutationTargetInput = MutationTargetLike | MutationTargetTuple
 
 /** Normalizes a generic scalar input into the expression form used internally. */
 type DialectAsExpression<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -162,7 +68,7 @@ type DialectAsExpression<
   NullDb extends Expression.DbType.Any
 > = Value extends Expression.Any
   ? Value
-  : DialectLiteralExpression<Extract<Value, LiteralValue>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+  : DialectLiteralExpression<Extract<Value, CoreQuery.LiteralValue>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 
 type ProjectionAliasedExpression<
   Value extends Expression.Any,
@@ -173,7 +79,7 @@ type ProjectionAliasedExpression<
 
 /** Normalizes a generic string-capable input into the expression form used internally. */
 type DialectAsStringExpression<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -188,7 +94,7 @@ type DialectAsStringExpression<
 
 /** Normalizes a numeric-clause input into the expression form used internally. */
 type DialectAsNumericExpression<
-  Value extends NumericExpressionInput,
+  Value extends CoreQuery.NumericExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -201,7 +107,7 @@ type DialectAsNumericExpression<
 
 /** Database type carried by a dialect-specialized scalar input. */
 type DialectDbTypeOfInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -212,7 +118,7 @@ type DialectDbTypeOfInput<
 
 type JoinPresenceFormula<
   Kind extends QueryAst.JoinKind,
-  Predicate extends PredicateInput,
+  Predicate extends CoreQuery.PredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -224,8 +130,8 @@ type JoinPresenceFormula<
   : TrueFormula
 
 type ComparableInput<
-  Left extends ExpressionInput,
-  Right extends ExpressionInput,
+  Left extends CoreQuery.ExpressionInput,
+  Right extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -246,7 +152,7 @@ type ComparableInput<
   >
 
 type TextInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -274,7 +180,7 @@ type CastTarget<
 > = Expression.DbType.Any
 
 type CastResult<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Target extends Expression.DbType.Any,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -287,7 +193,7 @@ type CastResult<
   Target,
   Expression.NullabilityOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
   Dialect,
-  KindOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+  CoreQuery.KindOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
   DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 > & {
   readonly [ExpressionAst.TypeId]: ExpressionAst.CastNode<
@@ -297,7 +203,7 @@ type CastResult<
 }
 
 type CastInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Target extends Expression.DbType.Any,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -316,8 +222,8 @@ type CastInput<
   >
 
 type ComparableGuard<
-  Left extends ExpressionInput,
-  Right extends ExpressionInput,
+  Left extends CoreQuery.ExpressionInput,
+  Right extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -360,7 +266,7 @@ type ComparableGuard<
   : never
 
 type TextGuard<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -380,7 +286,7 @@ type TextGuard<
 >
 
 type CastGuard<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Target extends Expression.DbType.Any,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -399,7 +305,7 @@ type CastGuard<
 >
 
 type TextTupleGuard<
-  Values extends readonly ExpressionInput[],
+  Values extends readonly CoreQuery.ExpressionInput[],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -407,7 +313,7 @@ type TextTupleGuard<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any,
   Operator extends string
-> = Values extends readonly [infer Head extends ExpressionInput, ...infer Tail extends readonly ExpressionInput[]]
+> = Values extends readonly [infer Head extends CoreQuery.ExpressionInput, ...infer Tail extends readonly CoreQuery.ExpressionInput[]]
   ? Tail extends readonly []
     ? TextGuard<Head, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>
     : TextGuard<Head, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
@@ -416,7 +322,7 @@ type TextTupleGuard<
   : true
 
 type ComparableTupleGuard<
-  Values extends readonly ExpressionInput[],
+  Values extends readonly CoreQuery.ExpressionInput[],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -424,7 +330,7 @@ type ComparableTupleGuard<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any,
   Operator extends string
-> = Values extends readonly [infer Head extends ExpressionInput, ...infer Tail extends readonly ExpressionInput[]]
+> = Values extends readonly [infer Head extends CoreQuery.ExpressionInput, ...infer Tail extends readonly CoreQuery.ExpressionInput[]]
   ? Tail extends readonly []
     ? true
     : ComparableGuard<Values[0], Head, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator> extends true
@@ -433,8 +339,8 @@ type ComparableTupleGuard<
   : true
 
 type ComparableArgs<
-  Left extends ExpressionInput,
-  Right extends ExpressionInput,
+  Left extends CoreQuery.ExpressionInput,
+  Right extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -448,8 +354,8 @@ type ComparableArgs<
 ]
 
 type ContainmentGuard<
-  Left extends ExpressionInput,
-  Right extends ExpressionInput,
+  Left extends CoreQuery.ExpressionInput,
+  Right extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -470,8 +376,8 @@ type ContainmentGuard<
 >
 
 type ContainmentArgs<
-  Left extends ExpressionInput,
-  Right extends ExpressionInput,
+  Left extends CoreQuery.ExpressionInput,
+  Right extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -484,8 +390,8 @@ type ContainmentArgs<
   : readonly [ContainmentGuard<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
 
 type TextArgs<
-  Left extends ExpressionInput,
-  Right extends ExpressionInput,
+  Left extends CoreQuery.ExpressionInput,
+  Right extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -499,7 +405,7 @@ type TextArgs<
 ]
 
 type MembershipArgs<
-  Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]],
+  Values extends readonly [CoreQuery.ExpressionInput, CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -512,9 +418,9 @@ type MembershipArgs<
   : readonly [ComparableTupleGuard<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, Operator>]
 
 type BetweenArgs<
-  Value extends ExpressionInput,
-  Lower extends ExpressionInput,
-  Upper extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
+  Lower extends CoreQuery.ExpressionInput,
+  Upper extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -569,62 +475,62 @@ type BetweenArgs<
 
 /** Dialect carried by a dialect-specialized scalar input. */
 type DialectOfDialectInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = DialectOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> = CoreQuery.DialectOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 /** Dependency map carried by a dialect-specialized scalar input. */
 type DependenciesOfDialectInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = DependenciesOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> = CoreQuery.DependenciesOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 /** Required source names carried by a dialect-specialized scalar input. */
 type RequiredFromDialectInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = RequiredFromDependencies<DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> = CoreQuery.RequiredFromDependencies<DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 /** Dialect carried by a dialect-specialized string input. */
 type DialectOfDialectStringInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = DialectOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> = CoreQuery.DialectOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 /** Dependency map carried by a dialect-specialized string input. */
 type DependenciesOfDialectStringInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = DependenciesOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> = CoreQuery.DependenciesOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 /** Intrinsic nullability carried by a dialect-specialized string input. */
 type NullabilityOfDialectStringInput<
-  Value extends ExpressionInput,
+  Value extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -635,17 +541,17 @@ type NullabilityOfDialectStringInput<
 
 /** Dialect carried by a numeric-clause input after coercion. */
 type DialectOfDialectNumericInput<
-  Value extends NumericExpressionInput,
+  Value extends CoreQuery.NumericExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = DialectOf<DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> = CoreQuery.DialectOf<DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type NumericExpressionDialectInput<
-  Value extends NumericExpressionInput,
+  Value extends CoreQuery.NumericExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -661,32 +567,32 @@ type NumericExpressionDialectInput<
 
 /** Dependency map carried by a numeric-clause input after coercion. */
 type DependenciesOfDialectNumericInput<
-  Value extends NumericExpressionInput,
+  Value extends CoreQuery.NumericExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = DependenciesOf<DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> = CoreQuery.DependenciesOf<DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 /** Required source names carried by a numeric-clause input after coercion. */
 type RequiredFromDialectNumericInput<
-  Value extends NumericExpressionInput,
+  Value extends CoreQuery.NumericExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = RequiredFromDependencies<DependenciesOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+> = CoreQuery.RequiredFromDependencies<DependenciesOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 /** Folds aggregation kinds across a tuple of expressions. */
 type MergeAggregationTuple<
   Values extends readonly Expression.Any[],
   Current extends Expression.ScalarKind = "scalar"
 > = Values extends readonly [infer Head extends Expression.Any, ...infer Tail extends readonly Expression.Any[]]
-  ? MergeAggregationTuple<Tail, MergeAggregation<Current, KindOf<Head>>>
+  ? MergeAggregationTuple<Tail, CoreQuery.MergeAggregation<Current, CoreQuery.KindOf<Head>>>
   : Current
 
 /** Result nullability for binary `coalesce(...)`. */
@@ -722,7 +628,7 @@ type CoalesceRuntimeTuple<
 
 /** Normalized expression tuple for generic scalar operator inputs. */
 type DialectExpressionTuple<
-  Values extends readonly ExpressionInput[],
+  Values extends readonly CoreQuery.ExpressionInput[],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -734,7 +640,7 @@ type DialectExpressionTuple<
 }
 
 type DialectExpressionArray<
-  Values extends readonly ExpressionInput[],
+  Values extends readonly CoreQuery.ExpressionInput[],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -746,7 +652,7 @@ type DialectExpressionArray<
   : never
 
 type ExtractFunctionFieldInput<
-  Value extends ExpressionInput
+  Value extends CoreQuery.ExpressionInput
 > = Value extends string
   ? SafeSqlIdentifierInput<Value>
   : Value extends { readonly [ExpressionAst.TypeId]: ExpressionAst.LiteralNode<infer Field extends string> }
@@ -758,17 +664,17 @@ type GenericFunctionNameInput<Name extends string> =
 
 type FunctionCallApi = {
   (name: "current_date"): Expression.Any
-  <Field extends string, Source extends ExpressionInput>(
+  <Field extends string, Source extends CoreQuery.ExpressionInput>(
     name: "extract",
     field: SafeSqlIdentifierInput<Field>,
     source: Source
   ): Expression.Any
-  <Field extends Expression.Any, Source extends ExpressionInput>(
+  <Field extends Expression.Any, Source extends CoreQuery.ExpressionInput>(
     name: "extract",
     field: Field & ExtractFunctionFieldInput<Field>,
     source: Source
   ): Expression.Any
-  <Name extends string, Args extends readonly ExpressionInput[]>(
+  <Name extends string, Args extends readonly CoreQuery.ExpressionInput[]>(
     name: GenericFunctionNameInput<Name>,
     ...args: Args
   ): Expression.Any
@@ -776,7 +682,7 @@ type FunctionCallApi = {
 
 /** Normalized expression tuple for generic string operator inputs. */
 type DialectStringExpressionTuple<
-  Values extends readonly ExpressionInput[],
+  Values extends readonly CoreQuery.ExpressionInput[],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -791,8 +697,8 @@ type DialectStringExpressionTuple<
 type AvailableNames<Available extends Record<string, Plan.AnySource>> = Extract<keyof Available, string>
 
 type PlanPredicateStateAfterWhere<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends PredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.PredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -800,13 +706,13 @@ type PlanPredicateStateAfterWhere<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = AssumePredicateStateTrue<
-  PredicateStateOfPlan<PlanValue>,
+  CoreQuery.PredicateStateOfPlan<PlanValue>,
   DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 >
 
 type PlanAssumptionsAfterWhere<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends PredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.PredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -816,8 +722,8 @@ type PlanAssumptionsAfterWhere<
 > = PredicateStateFormula<PlanPredicateStateAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanFactsAfterWhere<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends PredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.PredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -827,8 +733,8 @@ type PlanFactsAfterWhere<
 > = PredicateStateFacts<PlanPredicateStateAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanPredicateStateAfterHaving<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends HavingPredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.HavingPredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -836,13 +742,13 @@ type PlanPredicateStateAfterHaving<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = AssumePredicateStateTrue<
-  PredicateStateOfPlan<PlanValue>,
+  CoreQuery.PredicateStateOfPlan<PlanValue>,
   DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 >
 
 type PlanAssumptionsAfterHaving<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends HavingPredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.HavingPredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -852,8 +758,8 @@ type PlanAssumptionsAfterHaving<
 > = PredicateStateFormula<PlanPredicateStateAfterHaving<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanFactsAfterHaving<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends HavingPredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.HavingPredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -863,8 +769,8 @@ type PlanFactsAfterHaving<
 > = PredicateStateFacts<PlanPredicateStateAfterHaving<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanPredicateStateAfterJoin<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends PredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.PredicateInput,
   Kind extends QueryAst.JoinKind,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -874,14 +780,14 @@ type PlanPredicateStateAfterJoin<
   NullDb extends Expression.DbType.Any
 > = Kind extends "inner"
   ? AssumePredicateStateTrue<
-      PredicateStateOfPlan<PlanValue>,
+      CoreQuery.PredicateStateOfPlan<PlanValue>,
       DialectAsExpression<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >
-  : PredicateStateOfPlan<PlanValue>
+  : CoreQuery.PredicateStateOfPlan<PlanValue>
 
 type PlanAssumptionsAfterJoin<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends PredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.PredicateInput,
   Kind extends QueryAst.JoinKind,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -892,8 +798,8 @@ type PlanAssumptionsAfterJoin<
 > = PredicateStateFormula<PlanPredicateStateAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanFactsAfterJoin<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Predicate extends PredicateInput,
+  PlanValue extends CoreQuery.Plan.Any,
+  Predicate extends CoreQuery.PredicateInput,
   Kind extends QueryAst.JoinKind,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -904,10 +810,10 @@ type PlanFactsAfterJoin<
 > = PredicateStateFacts<PlanPredicateStateAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type ScalarSubqueryInput<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   EngineDialect extends string
-> = PlanValue & DialectCompatibleNestedPlan<PlanValue, EngineDialect> & (
-  ScalarOutputOfPlan<PlanValue> extends never ? never : unknown
+> = PlanValue & CoreQuery.DialectCompatibleNestedPlan<PlanValue, EngineDialect> & (
+  CoreQuery.ScalarOutputOfPlan<PlanValue> extends never ? never : unknown
 )
 
 type AstBackedExpression<
@@ -931,7 +837,7 @@ type AstBackedExpression<
 
 type AppendDialectExpressionTuple<
   Current extends readonly Expression.Any[],
-  More extends readonly ExpressionInput[],
+  More extends readonly CoreQuery.ExpressionInput[],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -955,13 +861,13 @@ type VariadicBooleanExpression<
 > = AstBackedExpression<
   boolean,
   BoolDb,
-  MergeNullabilityTuple<Values>,
-  TupleDialect<Values>,
+  CoreQuery.MergeNullabilityTuple<Values>,
+  CoreQuery.TupleDialect<Values>,
   "scalar",
-  TupleDependencies<Values>,
+  CoreQuery.TupleDependencies<Values>,
   ExpressionAst.VariadicNode<Kind, Values>
 > & {
-  pipe<More extends readonly [ExpressionInput, ...ExpressionInput[]]>(
+  pipe<More extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]>(
     ...values: More
   ): VariadicBooleanExpression<
     Kind,
@@ -1038,7 +944,7 @@ type JsonValueInput = JsonLiteralInput | Expression.Any
 
 type JsonPathInput = JsonPath.Path<any> | JsonPath.CanonicalSegment
 
-type JsonQueryInput = JsonPath.Path<any> | StringExpressionInput
+type JsonQueryInput = JsonPath.Path<any> | CoreQuery.StringExpressionInput
 
 type JsonQueryValue<Query extends JsonQueryInput> =
   Query extends string ? LiteralStringInput<Query> : Query
@@ -1183,27 +1089,9 @@ type CasePredicateUnion<Branches extends readonly CaseBranch[]> =
 type CaseResultUnion<Branches extends readonly CaseBranch[]> =
   Branches[number] extends CaseBranch<any, infer Then extends Expression.Any> ? Then : never
 
-type CasePredicateTuple<Branches extends readonly CaseBranch[]> = {
-  readonly [K in keyof Branches]: Branches[K] extends CaseBranch<infer Predicate extends Expression.Any, any> ? Predicate : never
-} & readonly Expression.Any[]
-
-type CaseResultTuple<Branches extends readonly CaseBranch[]> = {
-  readonly [K in keyof Branches]: Branches[K] extends CaseBranch<any, infer Then extends Expression.Any> ? Then : never
-} & readonly Expression.Any[]
-
-type CaseAllTuple<
-  Branches extends readonly CaseBranch[],
-  Else extends Expression.Any
-> = [...CasePredicateTuple<Branches>, ...CaseResultTuple<Branches>, Else]
-
-type CaseResultTupleWithElse<
-  Branches extends readonly CaseBranch[],
-  Else extends Expression.Any
-> = [...CaseResultTuple<Branches>, Else]
-
 type MergeAggregationUnion<Value extends Expression.Any> =
-  Extract<KindOf<Value>, "window"> extends never
-    ? Extract<KindOf<Value>, "aggregate"> extends never ? "scalar" : "aggregate"
+  Extract<CoreQuery.KindOf<Value>, "window"> extends never
+    ? Extract<CoreQuery.KindOf<Value>, "aggregate"> extends never ? "scalar" : "aggregate"
     : "window"
 
 type CaseNullabilityOfUnion<Value extends Expression.Any> =
@@ -1219,6 +1107,23 @@ type CaseAstBranches<
     : never
 } & readonly ExpressionAst.CaseBranchNode[]
 
+type CaseResults<Branches extends readonly CaseBranch[], Else extends Expression.Any> =
+  CaseResultUnion<Branches> | Else
+
+type CaseInputs<Branches extends readonly CaseBranch[], Else extends Expression.Any> =
+  CasePredicateUnion<Branches> | CaseResults<Branches, Else>
+
+type CaseExpression<Branches extends readonly CaseBranch[], Else extends Expression.Any> = AstBackedExpression<
+  Expression.RuntimeOf<CaseResults<Branches, Else>> |
+    (CaseNullabilityOfUnion<CaseResults<Branches, Else>> extends "never" ? never : null),
+  Expression.DbTypeOf<CaseResults<Branches, Else>>,
+  CaseNullabilityOfUnion<CaseResults<Branches, Else>>,
+  CoreQuery.NormalizeDialect<CoreQuery.DialectOf<CaseInputs<Branches, Else>>>,
+  MergeAggregationUnion<CaseInputs<Branches, Else>>,
+  CoreQuery.DependenciesOf<CaseInputs<Branches, Else>>,
+  ExpressionAst.CaseNode<CaseAstBranches<Branches>, Else>
+>
+
 type CaseBuilder<
   Branches extends readonly [CaseBranch<any, any>, ...CaseBranch<any, any>[]],
   Dialect extends string,
@@ -1228,7 +1133,7 @@ type CaseBuilder<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = {
-  when<Predicate extends HavingPredicateInput, Then extends ExpressionInput>(
+  when<Predicate extends CoreQuery.HavingPredicateInput, Then extends CoreQuery.ExpressionInput>(
     predicate: Predicate,
     result: Then
   ): CaseBuilder<
@@ -1243,21 +1148,16 @@ type CaseBuilder<
     TimestampDb,
     NullDb
   >
-  else<Else extends ExpressionInput>(
+  else<Else extends CoreQuery.ExpressionInput>(
     fallback: Else
-  ): AstBackedExpression<
-    Expression.RuntimeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    Expression.DbTypeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    CaseNullabilityOfUnion<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    TupleDialect<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    MergeAggregationTuple<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    TupleDependencies<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    ExpressionAst.CaseNode<CaseAstBranches<Branches>, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+  ): CaseExpression<
+    Branches,
+    DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   >
 }
 
 type MatchBuilder<
-  Subject extends ExpressionInput,
+  Subject extends CoreQuery.ExpressionInput,
   Branches extends readonly [CaseBranch<any, any>, ...CaseBranch<any, any>[]],
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -1266,13 +1166,19 @@ type MatchBuilder<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = {
-  when<Compare extends ExpressionInput, Then extends ExpressionInput>(
+  when<Compare extends CoreQuery.ExpressionInput, Then extends CoreQuery.ExpressionInput>(
     compare: Compare & ComparableInput<NoInfer<Subject>, NoInfer<Compare>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
     result: Then
   ): MatchBuilder<
     Subject,
     [...Branches, CaseBranch<
-      Expression.Any,
+      BinaryPredicateExpression<
+        Subject, Compare, "eq", "maybe",
+        MergeAggregationUnion<
+          DialectAsExpression<Subject, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> |
+          DialectAsExpression<Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+        >
+      >,
       DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >],
     Dialect,
@@ -1282,16 +1188,11 @@ type MatchBuilder<
     TimestampDb,
     NullDb
   >
-  else<Else extends ExpressionInput>(
+  else<Else extends CoreQuery.ExpressionInput>(
     fallback: Else
-  ): AstBackedExpression<
-    Expression.RuntimeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    Expression.DbTypeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    CaseNullabilityOfUnion<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    TupleDialect<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    MergeAggregationTuple<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    TupleDependencies<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    ExpressionAst.CaseNode<CaseAstBranches<Branches>, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+  ): CaseExpression<
+    Branches,
+    DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   >
 }
 
@@ -1303,7 +1204,7 @@ type CaseStarter<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = {
-  when<Predicate extends HavingPredicateInput, Then extends ExpressionInput>(
+  when<Predicate extends CoreQuery.HavingPredicateInput, Then extends CoreQuery.ExpressionInput>(
     predicate: Predicate,
     result: Then
   ): CaseBuilder<
@@ -1321,7 +1222,7 @@ type CaseStarter<
 }
 
 type MatchStarter<
-  Subject extends ExpressionInput,
+  Subject extends CoreQuery.ExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -1329,13 +1230,19 @@ type MatchStarter<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = {
-  when<Compare extends ExpressionInput, Then extends ExpressionInput>(
+  when<Compare extends CoreQuery.ExpressionInput, Then extends CoreQuery.ExpressionInput>(
     compare: Compare & ComparableInput<NoInfer<Subject>, NoInfer<Compare>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "match">,
     result: Then
   ): MatchBuilder<
     Subject,
     [CaseBranch<
-      Expression.Any,
+      BinaryPredicateExpression<
+        Subject, Compare, "eq", "maybe",
+        MergeAggregationUnion<
+          DialectAsExpression<Subject, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> |
+          DialectAsExpression<Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+        >
+      >,
       DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >],
     Dialect,
@@ -1360,7 +1267,7 @@ type WindowOrderInput = WindowPartitionInput
 
 type WindowOrderTermInput<Value extends WindowOrderInput = WindowOrderInput> = {
   readonly value: Value
-  readonly direction?: OrderDirection
+  readonly direction?: CoreQuery.OrderDirection
 }
 
 type NonEmptyWindowOrderTerms = readonly [
@@ -1412,29 +1319,29 @@ type WindowDialectOf<
   Value extends Expression.Any,
   PartitionBy extends readonly WindowPartitionInput[],
   OrderBy extends readonly WindowOrderTermInput[]
-> = DialectOf<Value> | TupleDialect<PartitionBy> | TupleDialect<WindowOrderExpressionTuple<OrderBy>>
+> = CoreQuery.DialectOf<Value> | CoreQuery.TupleDialect<PartitionBy> | CoreQuery.TupleDialect<WindowOrderExpressionTuple<OrderBy>>
 
 type WindowDependenciesOf<
   Value extends Expression.Any,
   PartitionBy extends readonly WindowPartitionInput[],
   OrderBy extends readonly WindowOrderTermInput[]
-> = DependencyRecord<
-  RequiredFromDependencies<DependenciesOf<Value>>
-  | RequiredFromDependencies<TupleDependencies<PartitionBy>>
-  | RequiredFromDependencies<TupleDependencies<WindowOrderExpressionTuple<OrderBy>>>
+> = CoreQuery.DependencyRecord<
+  CoreQuery.RequiredFromDependencies<CoreQuery.DependenciesOf<Value>>
+  | CoreQuery.RequiredFromDependencies<CoreQuery.TupleDependencies<PartitionBy>>
+  | CoreQuery.RequiredFromDependencies<CoreQuery.TupleDependencies<WindowOrderExpressionTuple<OrderBy>>>
 >
 
 type NumberWindowDialectOf<
   PartitionBy extends readonly WindowPartitionInput[],
   OrderBy extends readonly WindowOrderTermInput[]
-> = TupleDialect<PartitionBy> | TupleDialect<WindowOrderExpressionTuple<OrderBy>>
+> = CoreQuery.TupleDialect<PartitionBy> | CoreQuery.TupleDialect<WindowOrderExpressionTuple<OrderBy>>
 
 type NumberWindowDependenciesOf<
   PartitionBy extends readonly WindowPartitionInput[],
   OrderBy extends readonly WindowOrderTermInput[]
-> = DependencyRecord<
-  RequiredFromDependencies<TupleDependencies<PartitionBy>>
-  | RequiredFromDependencies<TupleDependencies<WindowOrderExpressionTuple<OrderBy>>>
+> = CoreQuery.DependencyRecord<
+  CoreQuery.RequiredFromDependencies<CoreQuery.TupleDependencies<PartitionBy>>
+  | CoreQuery.RequiredFromDependencies<CoreQuery.TupleDependencies<WindowOrderExpressionTuple<OrderBy>>>
 >
 
 type WindowedExpression<
@@ -1507,19 +1414,19 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     }
   }
 
-  const literal = <const Value extends LiteralValue>(value: Value): DialectLiteralExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
+  const literal = <const Value extends CoreQuery.LiteralValue>(value: Value): DialectLiteralExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
     makeDialectLiteral(profile, value)
 
   const column = <Name extends string, Db extends Expression.DbType.Any>(name: Name, dbType: Db, nullable = false) =>
     makeDialectColumn(profile.dialect, name, dbType, nullable)
 
-  const toDialectExpression = <Value extends ExpressionInput>(
+  const toDialectExpression = <Value extends CoreQuery.ExpressionInput>(
     value: Value
   ): DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
     if (value !== null && typeof value === "object" && Expression.TypeId in value) {
       return value as DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     }
-    return literal(value as Extract<Value, LiteralValue>) as unknown as DialectAsExpression<
+    return literal(value as Extract<Value, CoreQuery.LiteralValue>) as unknown as DialectAsExpression<
       Value,
       Dialect,
       TextDb,
@@ -1539,7 +1446,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
       return value
     }
     const targetState = target[Expression.TypeId]
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: value[Expression.TypeId].runtime,
       dbType: targetState.dbType,
       runtimeSchema: targetState.runtimeSchema,
@@ -1566,14 +1473,14 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     return [left, right]
   }
 
-  const toDialectStringExpression = <Value extends StringExpressionInput>(
+  const toDialectStringExpression = <Value extends CoreQuery.StringExpressionInput>(
     value: Value
   ): DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
     (typeof value === "string"
       ? literal(value)
       : value) as DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 
-  const toDialectNumericExpression = <Value extends NumericExpressionInput>(
+  const toDialectNumericExpression = <Value extends CoreQuery.NumericExpressionInput>(
     value: Value
   ): DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> =>
     (typeof value === "number"
@@ -1607,14 +1514,14 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     values: Values
   ): VariadicBooleanExpression<Kind, Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
     const expressions = flattenVariadicBooleanExpressions(kind, values) as Values
-    const expression = makeExpression({
+    const expression = CoreQuery.makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
-      nullability: mergeNullabilityManyRuntime(expressions) as MergeNullabilityTuple<Values>,
-      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as TupleDialect<Values>,
+      nullability: CoreQuery.mergeNullabilityManyRuntime(expressions) as CoreQuery.MergeNullabilityTuple<Values>,
+      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as CoreQuery.TupleDialect<Values>,
       kind: "scalar",
 
-      dependencies: mergeManyDependencies(expressions)
+      dependencies: CoreQuery.mergeManyDependencies(expressions)
     }, {
       kind,
       values: expressions
@@ -1629,7 +1536,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
         }
         const operations = Array.from(arguments)
         if (operations.every((operation) => typeof operation !== "function")) {
-          const appended = operations.map((operation) => toDialectExpression(operation as ExpressionInput)) as readonly Expression.Any[]
+          const appended = operations.map((operation) => toDialectExpression(operation as CoreQuery.ExpressionInput)) as readonly Expression.Any[]
           return makeVariadicBooleanExpression(kind, [...expressions, ...appended] as const)
         }
         if (operations.every((operation) => typeof operation === "function")) {
@@ -1658,7 +1565,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
           }
           current = makeVariadicBooleanExpression(
             kind,
-            [...valuesForMixedPipe(current), toDialectExpression(operation as ExpressionInput)] as const
+            [...valuesForMixedPipe(current), toDialectExpression(operation as CoreQuery.ExpressionInput)] as const
           )
         }
         return current
@@ -1668,7 +1575,7 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     return expression
   }
 
-  const extractRequiredFromDialectInputRuntime = (value: ExpressionInput): readonly string[] => {
+  const extractRequiredFromDialectInputRuntime = (value: CoreQuery.ExpressionInput): readonly string[] => {
     const expression = toDialectExpression(value)
     return Object.keys(expression[Expression.TypeId].dependencies)
   }
@@ -1689,9 +1596,9 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
       }
     }) as {
       readonly [K in keyof OrderBy]: OrderBy[K] extends WindowOrderTermInput<infer Value extends WindowOrderInput>
-        ? { readonly value: Value; readonly direction: OrderDirection }
+        ? { readonly value: Value; readonly direction: CoreQuery.OrderDirection }
         : never
-    } & readonly { readonly value: WindowOrderInput; readonly direction: OrderDirection }[]
+    } & readonly { readonly value: WindowOrderInput; readonly direction: CoreQuery.OrderDirection }[]
     return {
       partitionBy,
       orderBy,
@@ -1707,23 +1614,24 @@ const profile: QueryDialectProfile<Dialect, TextDb, NumericDb, BoolDb, Timestamp
     ? [...partitionBy, ...orderBy.map((term) => term.value)]
     : [value, ...partitionBy, ...orderBy.map((term) => term.value)]
 
-  const extractRequiredFromDialectNumericInputRuntime = (value: NumericExpressionInput): readonly string[] => {
+  const extractRequiredFromDialectNumericInputRuntime = (value: CoreQuery.NumericExpressionInput): readonly string[] => {
     const expression = toDialectNumericExpression(value)
     return Object.keys(expression[Expression.TypeId].dependencies)
   }
 
 type BinaryPredicateExpression<
-  Left extends ExpressionInput,
-  Right extends ExpressionInput,
+  Left extends CoreQuery.ExpressionInput,
+  Right extends CoreQuery.ExpressionInput,
   Kind extends ExpressionAst.BinaryKind,
-  Nullability extends Expression.Nullability = "maybe"
+  Nullability extends Expression.Nullability = "maybe",
+  Aggregation extends Expression.ScalarKind = "scalar"
 > = AstBackedExpression<
   boolean,
   BoolDb,
   Nullability,
   DialectOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-  "scalar",
-  DependencyRecord<
+  Aggregation,
+  CoreQuery.DependencyRecord<
     RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> |
     RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   >,
@@ -1750,21 +1658,21 @@ type BinaryPredicateExpression<
   >
 
   type VariadicPredicateExpression<
-    Values extends readonly ExpressionInput[],
+    Values extends readonly CoreQuery.ExpressionInput[],
     Kind extends ExpressionAst.VariadicKind
 > = AstBackedExpression<
   boolean,
   BoolDb,
   "maybe",
-  TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+  CoreQuery.TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
   "scalar",
-  TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+  CoreQuery.TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
   ExpressionAst.VariadicNode<Kind, DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 >
 
   const buildBinaryPredicate = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput,
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput,
     Kind extends ExpressionAst.BinaryKind,
     Nullability extends Expression.Nullability = "maybe",
     SourceNullability extends string = "propagate"
@@ -1773,18 +1681,19 @@ type BinaryPredicateExpression<
     right: Right,
     kind: Kind,
     nullability: Nullability = "maybe" as Nullability,
+    aggregation: Expression.ScalarKind = "scalar"
   ): any => {
     const [leftExpression, rightExpression] = alignBinaryPredicateExpressions(
       toDialectExpression(left),
       toDialectExpression(right)
     )
-    return (makeExpression as any)({
+    return (CoreQuery.makeExpression as any)({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability,
       dialect: (leftExpression[Expression.TypeId].dialect ?? rightExpression[Expression.TypeId].dialect) as DialectOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      kind: "scalar",
-      dependencies: mergeDependencies(
+      kind: aggregation,
+      dependencies: CoreQuery.mergeDependencies(
         leftExpression[Expression.TypeId].dependencies,
         rightExpression[Expression.TypeId].dependencies
       )
@@ -1796,7 +1705,7 @@ type BinaryPredicateExpression<
   }
 
   const buildVariadicPredicate = (
-    values: readonly ExpressionInput[],
+    values: readonly CoreQuery.ExpressionInput[],
     kind: ExpressionAst.VariadicKind
   ): Expression.Any => {
     const expressions = values.map((value) => toDialectExpression(value as any)) as readonly Expression.Any[]
@@ -1804,14 +1713,14 @@ type BinaryPredicateExpression<
     const alignedExpressions = (head !== undefined && (kind === "in" || kind === "notIn" || kind === "between"))
       ? [head, ...tail.map((value) => retargetLiteralExpression(value, head))]
       : expressions
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability: "maybe",
       dialect: (alignedExpressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
       kind: "scalar",
 
-      dependencies: mergeManyDependencies(alignedExpressions)
+      dependencies: CoreQuery.mergeManyDependencies(alignedExpressions)
     }, {
       kind,
       values: alignedExpressions
@@ -1819,160 +1728,160 @@ type BinaryPredicateExpression<
   }
 
   const eq = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "eq">
   ): BinaryPredicateExpression<Left, Right, "eq"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "eq")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "eq")
   }
 
   const neq = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "neq">
   ): BinaryPredicateExpression<Left, Right, "neq"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "neq")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "neq")
   }
 
   const lt = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "lt">
   ): BinaryPredicateExpression<Left, Right, "lt"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "lt")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "lt")
   }
 
   const lte = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "lte">
   ): BinaryPredicateExpression<Left, Right, "lte"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "lte")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "lte")
   }
 
   const gt = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "gt">
   ): BinaryPredicateExpression<Left, Right, "gt"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "gt")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "gt")
   }
 
   const gte = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "gte">
   ): BinaryPredicateExpression<Left, Right, "gte"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "gte")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "gte")
   }
 
   const like = <
-    Left extends StringExpressionInput,
-    Right extends StringExpressionInput
+    Left extends CoreQuery.StringExpressionInput,
+    Right extends CoreQuery.StringExpressionInput
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "like">
   ): BinaryPredicateExpression<Left, Right, "like"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "like")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "like")
   }
 
   const ilike = <
-    Left extends StringExpressionInput,
-    Right extends StringExpressionInput
+    Left extends CoreQuery.StringExpressionInput,
+    Right extends CoreQuery.StringExpressionInput
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "ilike">
   ): BinaryPredicateExpression<Left, Right, "ilike"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "ilike")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "ilike")
   }
 
   const regexMatch = <
-    Left extends StringExpressionInput,
-    Right extends StringExpressionInput
+    Left extends CoreQuery.StringExpressionInput,
+    Right extends CoreQuery.StringExpressionInput
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexMatch">
   ): BinaryPredicateExpression<Left, Right, "regexMatch"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexMatch")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "regexMatch")
   }
 
   const regexIMatch = <
-    Left extends StringExpressionInput,
-    Right extends StringExpressionInput
+    Left extends CoreQuery.StringExpressionInput,
+    Right extends CoreQuery.StringExpressionInput
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexIMatch">
   ): BinaryPredicateExpression<Left, Right, "regexIMatch"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexIMatch")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "regexIMatch")
   }
 
   const regexNotMatch = <
-    Left extends StringExpressionInput,
-    Right extends StringExpressionInput
+    Left extends CoreQuery.StringExpressionInput,
+    Right extends CoreQuery.StringExpressionInput
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexNotMatch">
   ): BinaryPredicateExpression<Left, Right, "regexNotMatch"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexNotMatch")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "regexNotMatch")
   }
 
   const regexNotIMatch = <
-    Left extends StringExpressionInput,
-    Right extends StringExpressionInput
+    Left extends CoreQuery.StringExpressionInput,
+    Right extends CoreQuery.StringExpressionInput
   >(
     ...args: TextArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "regexNotIMatch">
   ): BinaryPredicateExpression<Left, Right, "regexNotIMatch"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "regexNotIMatch")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "regexNotIMatch")
   }
 
   const isDistinctFrom = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "isDistinctFrom">
   ): BinaryPredicateExpression<Left, Right, "isDistinctFrom", "never"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "isDistinctFrom", "never")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "isDistinctFrom", "never")
   }
 
   const isNotDistinctFrom = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ComparableArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "isNotDistinctFrom">
   ): BinaryPredicateExpression<Left, Right, "isNotDistinctFrom", "never"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "isNotDistinctFrom", "never")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "isNotDistinctFrom", "never")
   }
 
-  const isNull = <Value extends ExpressionInput>(
+  const isNull = <Value extends CoreQuery.ExpressionInput>(
     value: Value
   ): AstBackedExpression<
     boolean,
@@ -1984,7 +1893,7 @@ type BinaryPredicateExpression<
     ExpressionAst.UnaryNode<"isNull", DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectExpression(value)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability: "never",
@@ -1998,7 +1907,7 @@ type BinaryPredicateExpression<
     })
   }
 
-  const isNotNull = <Value extends ExpressionInput>(
+  const isNotNull = <Value extends CoreQuery.ExpressionInput>(
     value: Value
   ): AstBackedExpression<
     boolean,
@@ -2010,7 +1919,7 @@ type BinaryPredicateExpression<
     ExpressionAst.UnaryNode<"isNotNull", DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectExpression(value)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability: "never",
@@ -2024,7 +1933,7 @@ type BinaryPredicateExpression<
     })
   }
 
-  const upper = <Value extends ExpressionInput>(
+  const upper = <Value extends CoreQuery.ExpressionInput>(
     value: Value & FunctionConstraint.CaseConversionInput<
       NoInfer<Value>,
       DialectDbTypeOfInput<NoInfer<Value>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -2036,17 +1945,17 @@ type BinaryPredicateExpression<
     TextDb,
     NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Dialect,
-    KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     ExpressionAst.UnaryNode<"upper", DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectStringExpression(value as any)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: "" as string,
       dbType: profile.textDb as TextDb,
       nullability: expression[Expression.TypeId].nullability as NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       dialect: profile.dialect as Dialect,
-      kind: expression[Expression.TypeId].kind as KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      kind: expression[Expression.TypeId].kind as CoreQuery.KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
 
       dependencies: expression[Expression.TypeId].dependencies
     }, {
@@ -2055,7 +1964,7 @@ type BinaryPredicateExpression<
     })
   }
 
-  const lower = <Value extends ExpressionInput>(
+  const lower = <Value extends CoreQuery.ExpressionInput>(
     value: Value & FunctionConstraint.CaseConversionInput<
       NoInfer<Value>,
       DialectDbTypeOfInput<NoInfer<Value>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
@@ -2067,17 +1976,17 @@ type BinaryPredicateExpression<
     TextDb,
     NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Dialect,
-    KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     DependenciesOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     ExpressionAst.UnaryNode<"lower", DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectStringExpression(value as any)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: "" as string,
       dbType: profile.textDb as TextDb,
       nullability: expression[Expression.TypeId].nullability as NullabilityOfDialectStringInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       dialect: profile.dialect as Dialect,
-      kind: expression[Expression.TypeId].kind as KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      kind: expression[Expression.TypeId].kind as CoreQuery.KindOf<DialectAsStringExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
 
       dependencies: expression[Expression.TypeId].dependencies
     }, {
@@ -2087,7 +1996,7 @@ type BinaryPredicateExpression<
   }
 
   const cast = <
-    Value extends ExpressionInput,
+    Value extends CoreQuery.ExpressionInput,
     Target extends CastTarget<Dialect, TextDb, NumericDb, BoolDb, TimestampDb>
   >(
     value: Value,
@@ -2103,7 +2012,7 @@ type BinaryPredicateExpression<
     NullDb
   > => {
     const expression = toDialectExpression(value as any)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: undefined as unknown as RuntimeOfDbType<Target>,
       dbType: target as Target,
       runtimeSchema: undefined,
@@ -2241,12 +2150,13 @@ type BinaryPredicateExpression<
     segments.every(isExactJsonSegmentValue)
 
   const buildJsonNodeExpression = <
+    const Expressions extends readonly Expression.Any[],
     Runtime,
     Db extends Expression.DbType.Any,
     Nullability extends Expression.Nullability,
     Ast extends ExpressionAst.Any
   >(
-    expressions: readonly Expression.Any[],
+    expressions: Expressions,
     state: {
       readonly runtime: Runtime
       readonly dbType: Db
@@ -2257,25 +2167,25 @@ type BinaryPredicateExpression<
     Runtime,
     Db,
     Nullability,
-    TupleDialect<typeof expressions>,
-    MergeAggregationTuple<typeof expressions>,
-    TupleDependencies<typeof expressions>,
+    CoreQuery.TupleDialect<Expressions>,
+    MergeAggregationTuple<Expressions>,
+    CoreQuery.TupleDependencies<Expressions>,
     Ast
-  > => makeExpression({
+  > => CoreQuery.makeExpression({
     runtime: state.runtime,
     dbType: state.dbType,
     nullability: state.nullability,
-    dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as TupleDialect<typeof expressions>,
-    kind: mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<typeof expressions>,
+    dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as CoreQuery.TupleDialect<Expressions>,
+    kind: CoreQuery.mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<Expressions>,
 
-    dependencies: mergeManyDependencies(expressions)
+    dependencies: CoreQuery.mergeManyDependencies(expressions)
   }, ast) as AstBackedExpression<
     Runtime,
     Db,
     Nullability,
-    TupleDialect<typeof expressions>,
-    MergeAggregationTuple<typeof expressions>,
-    TupleDependencies<typeof expressions>,
+    CoreQuery.TupleDialect<Expressions>,
+    MergeAggregationTuple<Expressions>,
+    CoreQuery.TupleDependencies<Expressions>,
     Ast
   >
 
@@ -2293,7 +2203,7 @@ type BinaryPredicateExpression<
   const makeJsonLiteralExpression = <Value extends JsonLiteralInput>(
     value: Value,
     dbType: Expression.DbType.Json<any, any> = jsonDb
-  ) => makeExpression({
+  ) => CoreQuery.makeExpression({
     runtime: value as JsonRuntime<Value>,
     dbType,
     nullability: (value === null ? "always" : "never") as JsonNullabilityOf<Value>,
@@ -2323,21 +2233,29 @@ type BinaryPredicateExpression<
     }
   )
 
-  const toJsonValueExpression = (
-    value: JsonValueInput,
+  type JsonValueExpression<Value extends JsonValueInput> = Expression.Scalar<
+    JsonOutputOfInput<Value>,
+    Expression.DbType.Json<any, any>,
+    JsonNullabilityOf<JsonOutputOfInput<Value>>,
+    Value extends Expression.Any ? CoreQuery.DialectOf<Value> : Dialect,
+    Value extends Expression.Any ? CoreQuery.KindOf<Value> : "scalar",
+    Value extends Expression.Any ? CoreQuery.DependenciesOf<Value> : never
+  > & { readonly [ExpressionAst.TypeId]: ExpressionAst.Any }
+
+  const toJsonValueExpression = <Value extends JsonValueInput>(
+    value: Value,
     kind: "jsonToJson" | "jsonToJsonb" = "jsonToJson",
     dbType: Expression.DbType.Json<any, any> = jsonDb
-  ): Expression.Any => {
-    if (isJsonExpressionValue(value)) {
-      return value
-    }
-    if (isExpressionValue(value)) {
-      return wrapJsonExpression(value, kind, dbType)
-    }
-    return makeJsonLiteralExpression(value as JsonLiteralInput, dbType)
+  ): JsonValueExpression<Value> => {
+    const expression = isJsonExpressionValue(value)
+      ? value
+      : isExpressionValue(value)
+        ? wrapJsonExpression(value, kind, dbType)
+        : makeJsonLiteralExpression(value as JsonLiteralInput, dbType)
+    return expression as JsonValueExpression<Value>
   }
 
-  const jsonQueryExpression = (query: StringExpressionInput): Expression.Any =>
+  const jsonQueryExpression = (query: CoreQuery.StringExpressionInput): Expression.Any =>
     toDialectStringExpression(query as any)
 
   const jsonGet = <
@@ -2350,9 +2268,9 @@ type BinaryPredicateExpression<
     JsonPathOutputOf<StoredOf<Base>, Target, "json.get">,
     JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.get">>,
-    DialectOf<Base>,
-    KindOf<Base>,
-    DependenciesOf<Base>,
+    CoreQuery.DialectOf<Base>,
+    CoreQuery.KindOf<Base>,
+    CoreQuery.DependenciesOf<Base>,
     JsonNode
   > => {
     const segments = normalizeJsonPathInput(target)
@@ -2375,9 +2293,9 @@ type BinaryPredicateExpression<
       JsonPathOutputOf<StoredOf<Base>, Target, "json.get">,
       JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.get">>,
-      DialectOf<Base>,
-      KindOf<Base>,
-      DependenciesOf<Base>,
+      CoreQuery.DialectOf<Base>,
+      CoreQuery.KindOf<Base>,
+      CoreQuery.DependenciesOf<Base>,
       JsonNode
     >
   }
@@ -2393,9 +2311,9 @@ type BinaryPredicateExpression<
       (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.text"> ? null : never),
     TextDb,
     JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">>,
-    DialectOf<Base>,
-    KindOf<Base>,
-    DependenciesOf<Base>,
+    CoreQuery.DialectOf<Base>,
+    CoreQuery.KindOf<Base>,
+    CoreQuery.DependenciesOf<Base>,
     JsonNode
   > => {
     const segments = normalizeJsonPathInput(target)
@@ -2420,9 +2338,9 @@ type BinaryPredicateExpression<
         (null extends JsonPathOutputOf<StoredOf<Base>, Target, "json.text"> ? null : never),
       TextDb,
       JsonNullabilityOf<JsonPathOutputOf<StoredOf<Base>, Target, "json.text">>,
-      DialectOf<Base>,
-      KindOf<Base>,
-      DependenciesOf<Base>,
+      CoreQuery.DialectOf<Base>,
+      CoreQuery.KindOf<Base>,
+      CoreQuery.DependenciesOf<Base>,
       JsonNode
     >
   }
@@ -2607,9 +2525,9 @@ type BinaryPredicateExpression<
     JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">,
     JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">>,
-    DialectOf<Base>,
-    KindOf<Base>,
-    DependenciesOf<Base>,
+    CoreQuery.DialectOf<Base>,
+    CoreQuery.KindOf<Base>,
+    CoreQuery.DependenciesOf<Base>,
     JsonNode
   > => {
     const segments = normalizeJsonPathInput(target)
@@ -2629,9 +2547,9 @@ type BinaryPredicateExpression<
       JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">,
       JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.delete">>,
-      DialectOf<Base>,
-      KindOf<Base>,
-      DependenciesOf<Base>,
+      CoreQuery.DialectOf<Base>,
+      CoreQuery.KindOf<Base>,
+      CoreQuery.DependenciesOf<Base>,
       JsonNode
     >
   }
@@ -2646,9 +2564,9 @@ type BinaryPredicateExpression<
     JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">,
     JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">>,
-    DialectOf<Base>,
-    KindOf<Base>,
-    DependenciesOf<Base>,
+    CoreQuery.DialectOf<Base>,
+    CoreQuery.KindOf<Base>,
+    CoreQuery.DependenciesOf<Base>,
     JsonNode
   > => {
     const segments = normalizeJsonPathInput(target)
@@ -2668,9 +2586,9 @@ type BinaryPredicateExpression<
       JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">,
       JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonDeleteOutputOf<StoredOf<Base>, Target, "json.remove">>,
-      DialectOf<Base>,
-      KindOf<Base>,
-      DependenciesOf<Base>,
+      CoreQuery.DialectOf<Base>,
+      CoreQuery.KindOf<Base>,
+      CoreQuery.DependenciesOf<Base>,
       JsonNode
     >
   }
@@ -2691,9 +2609,9 @@ type BinaryPredicateExpression<
     JsonSetOutputWithCreateMissing<StoredOf<Base>, Target, Next, "json.set", CreateMissing>,
     JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonSetOutputWithCreateMissing<StoredOf<Base>, Target, Next, "json.set", CreateMissing>>,
-    DialectOf<Base>,
-    KindOf<Base>,
-    DependenciesOf<Base>,
+    CoreQuery.DialectOf<Base>,
+    CoreQuery.KindOf<Base>,
+    CoreQuery.DependenciesOf<Base>,
     JsonNode
   > => {
     const segments = normalizeJsonPathInput(target)
@@ -2716,9 +2634,9 @@ type BinaryPredicateExpression<
       JsonSetOutputWithCreateMissing<StoredOf<Base>, Target, Next, "json.set", CreateMissing>,
       JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonSetOutputWithCreateMissing<StoredOf<Base>, Target, Next, "json.set", CreateMissing>>,
-      DialectOf<Base>,
-      KindOf<Base>,
-      DependenciesOf<Base>,
+      CoreQuery.DialectOf<Base>,
+      CoreQuery.KindOf<Base>,
+      CoreQuery.DependenciesOf<Base>,
       JsonNode
     >
   }
@@ -2739,9 +2657,9 @@ type BinaryPredicateExpression<
     JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">,
     JsonDbOfExpression<Base>,
     JsonNullabilityOf<JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">>,
-    DialectOf<Base>,
-    KindOf<Base>,
-    DependenciesOf<Base>,
+    CoreQuery.DialectOf<Base>,
+    CoreQuery.KindOf<Base>,
+    CoreQuery.DependenciesOf<Base>,
     JsonNode
   > => {
     const segments = normalizeJsonPathInput(target)
@@ -2765,9 +2683,9 @@ type BinaryPredicateExpression<
       JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">,
       JsonDbOfExpression<Base>,
       JsonNullabilityOf<JsonInsertOutputOf<StoredOf<Base>, Target, Next, InsertAfter, "json.insert">>,
-      DialectOf<Base>,
-      KindOf<Base>,
-      DependenciesOf<Base>,
+      CoreQuery.DialectOf<Base>,
+      CoreQuery.KindOf<Base>,
+      CoreQuery.DependenciesOf<Base>,
       JsonNode
     >
   }
@@ -2878,7 +2796,7 @@ type BinaryPredicateExpression<
   ) => {
     const entries = Object.entries(shape).map(([key, value]) => ({
       key,
-      value: toJsonValueExpression(value)
+      value: toJsonValueExpression(value as Shape[keyof Shape])
     }))
     return buildJsonNodeExpression(
       entries.map((entry) => entry.value),
@@ -2903,7 +2821,7 @@ type BinaryPredicateExpression<
   >(
     ...values: Values
   ) => {
-    const expressions = values.map((value) => toJsonValueExpression(value))
+    const expressions = values.map((value: Values[number]) => toJsonValueExpression(value))
     return buildJsonNodeExpression(
       expressions,
       {
@@ -3014,7 +2932,7 @@ type BinaryPredicateExpression<
         }
       )
     }
-    const queryExpression = jsonQueryExpression(query as StringExpressionInput)
+    const queryExpression = jsonQueryExpression(query as CoreQuery.StringExpressionInput)
     return buildJsonNodeExpression(
       [base, queryExpression] as const,
       {
@@ -3067,7 +2985,7 @@ type BinaryPredicateExpression<
         }
       )
     }
-    const queryExpression = jsonQueryExpression(query as StringExpressionInput)
+    const queryExpression = jsonQueryExpression(query as CoreQuery.StringExpressionInput)
     return buildJsonNodeExpression(
       [base, queryExpression] as const,
       {
@@ -3157,7 +3075,7 @@ type BinaryPredicateExpression<
   }
 
   const and = <
-    const Values extends readonly [ExpressionInput, ...ExpressionInput[]]
+    const Values extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]
   >(
     ...values: Values
   ): VariadicBooleanExpression<
@@ -3176,7 +3094,7 @@ type BinaryPredicateExpression<
     )
 
   const or = <
-    const Values extends readonly [ExpressionInput, ...ExpressionInput[]]
+    const Values extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]
   >(
     ...values: Values
   ): VariadicBooleanExpression<
@@ -3194,24 +3112,24 @@ type BinaryPredicateExpression<
       values.map((value) => toDialectExpression(value)) as unknown as DialectExpressionArray<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     )
 
-  const not = <Value extends ExpressionInput>(
+  const not = <Value extends CoreQuery.ExpressionInput>(
     value: Value
   ): AstBackedExpression<
     boolean,
     BoolDb,
     Expression.NullabilityOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    KindOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.KindOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     DependenciesOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     ExpressionAst.UnaryNode<"not", DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectExpression(value)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability: expression[Expression.TypeId].nullability as Expression.NullabilityOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       dialect: expression[Expression.TypeId].dialect,
-      kind: expression[Expression.TypeId].kind as KindOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      kind: expression[Expression.TypeId].kind as CoreQuery.KindOf<DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
 
       dependencies: expression[Expression.TypeId].dependencies
     }, {
@@ -3221,8 +3139,8 @@ type BinaryPredicateExpression<
   }
 
   const in_ = <
-    Head extends ExpressionInput,
-    Tail extends readonly [ExpressionInput, ...ExpressionInput[]]
+    Head extends CoreQuery.ExpressionInput,
+    Tail extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]
   >(
     head: Head,
     ...tail: {
@@ -3242,8 +3160,8 @@ type BinaryPredicateExpression<
     buildVariadicPredicate([head, ...tail] as any, "in") as VariadicPredicateExpression<[Head, ...Tail], "in">
 
   const notIn = <
-    Head extends ExpressionInput,
-    Tail extends readonly [ExpressionInput, ...ExpressionInput[]]
+    Head extends CoreQuery.ExpressionInput,
+    Tail extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]
   >(
     head: Head,
     ...tail: {
@@ -3263,96 +3181,96 @@ type BinaryPredicateExpression<
     buildVariadicPredicate([head, ...tail] as any, "notIn") as VariadicPredicateExpression<[Head, ...Tail], "notIn">
 
   const between = <
-    Value extends ExpressionInput,
-    Lower extends ExpressionInput,
-    Upper extends ExpressionInput
+    Value extends CoreQuery.ExpressionInput,
+    Lower extends CoreQuery.ExpressionInput,
+    Upper extends CoreQuery.ExpressionInput
   >(
     ...values: BetweenArgs<Value, Lower, Upper, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   ): VariadicPredicateExpression<[Value, Lower, Upper], "between"> =>
     buildVariadicPredicate(values as any, "between") as VariadicPredicateExpression<[Value, Lower, Upper], "between">
 
   const contains = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ContainmentArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "contains">
   ): BinaryPredicateExpression<Left, Right, "contains"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "contains")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "contains")
   }
 
   const containedBy = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ContainmentArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "containedBy">
   ): BinaryPredicateExpression<Left, Right, "containedBy"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "containedBy")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "containedBy")
   }
 
   const overlaps = <
-    Left extends ExpressionInput,
-    Right extends ExpressionInput
+    Left extends CoreQuery.ExpressionInput,
+    Right extends CoreQuery.ExpressionInput
   >(
     ...args: ContainmentArgs<Left, Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb, "overlaps">
   ): BinaryPredicateExpression<Left, Right, "overlaps"> => {
     const left = args[0] as Left
     const right = args[1] as Right
-    return buildBinaryPredicate(left as ExpressionInput, right as ExpressionInput, "overlaps")
+    return buildBinaryPredicate(left as CoreQuery.ExpressionInput, right as CoreQuery.ExpressionInput, "overlaps")
   }
 
   const concat = <
-    Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
+    Values extends readonly [CoreQuery.ExpressionInput, CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]
   >(
     ...values: Values
   ): AstBackedExpression<
     string,
     TextDb,
-    MergeNullabilityTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-    TupleDialect<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.MergeNullabilityTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.TupleDialect<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     MergeAggregationTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-    TupleDependencies<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.TupleDependencies<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     ExpressionAst.VariadicNode<"concat", DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expressions = values.map((value) => toDialectStringExpression(value as any)) as readonly Expression.Any[]
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: "" as string,
       dbType: profile.textDb as TextDb,
-      nullability: mergeNullabilityManyRuntime(expressions) as MergeNullabilityTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as TupleDialect<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      kind: mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      nullability: CoreQuery.mergeNullabilityManyRuntime(expressions) as CoreQuery.MergeNullabilityTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as CoreQuery.TupleDialect<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      kind: CoreQuery.mergeAggregationManyRuntime(expressions) as MergeAggregationTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
 
-      dependencies: mergeManyDependencies(expressions)
+      dependencies: CoreQuery.mergeManyDependencies(expressions)
     }, {
       kind: "concat",
       values: expressions
     }) as AstBackedExpression<
       string,
       TextDb,
-      MergeNullabilityTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      TupleDialect<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.MergeNullabilityTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.TupleDialect<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       MergeAggregationTuple<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      TupleDependencies<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.TupleDependencies<DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       ExpressionAst.VariadicNode<"concat", DialectStringExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
     >
   }
 
   const all_ = <
-    Values extends readonly [ExpressionInput, ...ExpressionInput[]]
+    Values extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]
   >(
     ...values: Values
   ) => and(...values)
 
   const any_ = <
-    Values extends readonly [ExpressionInput, ...ExpressionInput[]]
+    Values extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]
   >(
     ...values: Values
   ) => or(...values)
 
-  const count = <Value extends ExpressionInput>(
+  const count = <Value extends CoreQuery.ExpressionInput>(
     value: Value
   ): AstBackedExpression<
     RuntimeOfDbType<ReturnType<typeof mysqlDatatypes.bigint>>,
@@ -3364,7 +3282,7 @@ type BinaryPredicateExpression<
     ExpressionAst.UnaryNode<"count", DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expression = toDialectExpression(value)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: undefined as unknown as RuntimeOfDbType<ReturnType<typeof mysqlDatatypes.bigint>>,
       dbType: mysqlDatatypes.bigint(),
       nullability: "never",
@@ -3379,22 +3297,22 @@ type BinaryPredicateExpression<
   }
 
   const exists = <
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    PlanValue extends CoreQuery.Plan.Any
   >(
-    plan: DialectCompatibleNestedPlan<PlanValue, Dialect>
+    plan: CoreQuery.DialectCompatibleNestedPlan<PlanValue, Dialect>
   ): AstBackedExpression<
     boolean,
     BoolDb,
     "never",
     Dialect,
     "scalar",
-    DependencyRecord<OutstandingOfPlan<PlanValue>>,
+    CoreQuery.DependencyRecord<CoreQuery.OutstandingOfPlan<PlanValue>>,
     ExpressionAst.ExistsNode<PlanValue>
   > => {
     const dependencies = Object.fromEntries(
-      currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
-    ) as DependencyRecord<OutstandingOfPlan<PlanValue>>
-    return makeExpression({
+      CoreQuery.currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
+    ) as CoreQuery.DependencyRecord<CoreQuery.OutstandingOfPlan<PlanValue>>
+    return CoreQuery.makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability: "never",
@@ -3409,25 +3327,25 @@ type BinaryPredicateExpression<
   }
 
   const scalar = <
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    PlanValue extends CoreQuery.Plan.Any
   >(
     plan: ScalarSubqueryInput<PlanValue, Dialect>
   ): AstBackedExpression<
-    Expression.RuntimeOf<ScalarOutputOfPlan<PlanValue>> | null,
-    Expression.DbTypeOf<ScalarOutputOfPlan<PlanValue>>,
+    Expression.RuntimeOf<CoreQuery.ScalarOutputOfPlan<PlanValue>> | null,
+    Expression.DbTypeOf<CoreQuery.ScalarOutputOfPlan<PlanValue>>,
     "maybe",
     Dialect,
     "scalar",
-    DependencyRecord<OutstandingOfPlan<PlanValue>>,
+    CoreQuery.DependencyRecord<CoreQuery.OutstandingOfPlan<PlanValue>>,
     ExpressionAst.ScalarSubqueryNode<PlanValue>
   > => {
     const dependencies = Object.fromEntries(
-      currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
-    ) as DependencyRecord<OutstandingOfPlan<PlanValue>>
-    const expression = extractSingleSelectedExpressionRuntime(plan[Plan.TypeId].selection as SelectionShape)
-    return makeExpression({
-      runtime: undefined as Expression.RuntimeOf<ScalarOutputOfPlan<PlanValue>> | null,
-      dbType: expression[Expression.TypeId].dbType as Expression.DbTypeOf<ScalarOutputOfPlan<PlanValue>>,
+      CoreQuery.currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
+    ) as CoreQuery.DependencyRecord<CoreQuery.OutstandingOfPlan<PlanValue>>
+    const expression = CoreQuery.extractSingleSelectedExpressionRuntime(plan[Plan.TypeId].selection as CoreQuery.SelectionShape)
+    return CoreQuery.makeExpression({
+      runtime: undefined as Expression.RuntimeOf<CoreQuery.ScalarOutputOfPlan<PlanValue>> | null,
+      dbType: expression[Expression.TypeId].dbType as Expression.DbTypeOf<CoreQuery.ScalarOutputOfPlan<PlanValue>>,
       runtimeSchema: expression[Expression.TypeId].runtimeSchema,
       driverValueMapping: expression[Expression.TypeId].driverValueMapping,
       nullability: "maybe",
@@ -3442,14 +3360,14 @@ type BinaryPredicateExpression<
   }
 
   const inSubquery = <
-    Left extends ExpressionInput,
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    Left extends CoreQuery.ExpressionInput,
+    PlanValue extends CoreQuery.Plan.Any
   >(
     left: Left,
     plan: ScalarSubqueryInput<PlanValue, Dialect> & (
       ComparableInput<
         Left,
-        ScalarOutputOfPlan<PlanValue>,
+        CoreQuery.ScalarOutputOfPlan<PlanValue>,
         Dialect,
         TextDb,
         NumericDb,
@@ -3457,9 +3375,9 @@ type BinaryPredicateExpression<
         TimestampDb,
         NullDb,
         "in"
-      > extends ExpressionInput ? unknown : ComparableInput<
+      > extends CoreQuery.ExpressionInput ? unknown : ComparableInput<
         Left,
-        ScalarOutputOfPlan<PlanValue>,
+        CoreQuery.ScalarOutputOfPlan<PlanValue>,
         Dialect,
         TextDb,
         NumericDb,
@@ -3471,8 +3389,8 @@ type BinaryPredicateExpression<
     )
   ): SubqueryPredicateExpression<
     Dialect,
-    KindOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-    DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | OutstandingOfPlan<PlanValue>>,
+    CoreQuery.KindOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.DependencyRecord<RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | CoreQuery.OutstandingOfPlan<PlanValue>>,
     ExpressionAst.InSubqueryNode<
       DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       PlanValue
@@ -3480,16 +3398,16 @@ type BinaryPredicateExpression<
   > => {
     const leftExpression = toDialectExpression(left)
     const dependencies = Object.fromEntries(
-      currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
-    ) as DependencyRecord<OutstandingOfPlan<PlanValue>>
-    return makeExpression({
+      CoreQuery.currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
+    ) as CoreQuery.DependencyRecord<CoreQuery.OutstandingOfPlan<PlanValue>>
+    return CoreQuery.makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability: "maybe",
       dialect: (leftExpression[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
-      kind: leftExpression[Expression.TypeId].kind as KindOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      kind: leftExpression[Expression.TypeId].kind as CoreQuery.KindOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
 
-      dependencies: mergeDependencies(leftExpression[Expression.TypeId].dependencies, dependencies)
+      dependencies: CoreQuery.mergeDependencies(leftExpression[Expression.TypeId].dependencies, dependencies)
     }, {
       kind: "inSubquery",
       left: leftExpression,
@@ -3498,8 +3416,8 @@ type BinaryPredicateExpression<
   }
 
   const quantifiedComparison = <
-    Left extends ExpressionInput,
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    Left extends CoreQuery.ExpressionInput,
+    PlanValue extends CoreQuery.Plan.Any,
     Operator extends QuantifiedComparisonOperator,
     Quantifier extends "any" | "all"
   >(
@@ -3510,16 +3428,16 @@ type BinaryPredicateExpression<
   ): Expression.Any => {
     const leftExpression = toDialectExpression(left)
     const dependencies = Object.fromEntries(
-      currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
-    ) as DependencyRecord<OutstandingOfPlan<PlanValue>>
-    return makeExpression({
+      CoreQuery.currentRequiredList(plan[Plan.TypeId].required).map((name) => [name, true] as const)
+    ) as CoreQuery.DependencyRecord<CoreQuery.OutstandingOfPlan<PlanValue>>
+    return CoreQuery.makeExpression({
       runtime: true as boolean,
       dbType: profile.boolDb as BoolDb,
       nullability: "maybe",
       dialect: (leftExpression[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
-      kind: leftExpression[Expression.TypeId].kind as KindOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      kind: leftExpression[Expression.TypeId].kind as CoreQuery.KindOf<DialectAsExpression<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
 
-      dependencies: mergeDependencies(leftExpression[Expression.TypeId].dependencies, dependencies)
+      dependencies: CoreQuery.mergeDependencies(leftExpression[Expression.TypeId].dependencies, dependencies)
     }, renderQuantifiedComparisonAst(leftExpression, plan, operator, quantifier) as ExpressionAst.QuantifiedComparisonNode<
       Quantifier extends "any" ? "comparisonAny" : "comparisonAll",
       Operator,
@@ -3529,8 +3447,8 @@ type BinaryPredicateExpression<
   }
 
   const compareAny = <
-    Left extends ExpressionInput,
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    Left extends CoreQuery.ExpressionInput,
+    PlanValue extends CoreQuery.Plan.Any,
     Operator extends QuantifiedComparisonOperator
   >(
     left: Left,
@@ -3539,8 +3457,8 @@ type BinaryPredicateExpression<
   ): Expression.Any => quantifiedComparison(left, plan, operator, "any") as Expression.Any
 
   const compareAll = <
-    Left extends ExpressionInput,
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    Left extends CoreQuery.ExpressionInput,
+    PlanValue extends CoreQuery.Plan.Any,
     Operator extends QuantifiedComparisonOperator
   >(
     left: Left,
@@ -3565,14 +3483,14 @@ type BinaryPredicateExpression<
   ): WindowedExpression<Value, PartitionBy, OrderBy> => {
     const normalized = normalizeWindowSpec(spec)
     const expressions = mergeWindowExpressions(value, normalized.partitionBy, normalized.orderBy)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: undefined as Expression.RuntimeOf<Value>,
       dbType: value[Expression.TypeId].dbType as Expression.DbTypeOf<Value>,
       nullability: value[Expression.TypeId].nullability as Expression.NullabilityOf<Value>,
       dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as WindowDialectOf<Value, PartitionBy, OrderBy>,
       kind: "window",
 
-      dependencies: mergeManyDependencies(expressions)
+      dependencies: CoreQuery.mergeManyDependencies(expressions)
     }, {
       kind: "window",
       function: "over",
@@ -3593,14 +3511,14 @@ type BinaryPredicateExpression<
   ): NumberWindowExpression<Kind, PartitionBy, OrderBy> => {
     const normalized = normalizeWindowSpec(spec)
     const expressions = mergeWindowExpressions(undefined, normalized.partitionBy, normalized.orderBy)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: undefined as unknown as RuntimeOfDbType<ReturnType<typeof mysqlDatatypes.bigint>>,
       dbType: mysqlDatatypes.bigint(),
       nullability: "never",
       dialect: (expressions.find((expression) => expression[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as NumberWindowDialectOf<PartitionBy, OrderBy>,
       kind: "window",
 
-      dependencies: mergeManyDependencies(expressions)
+      dependencies: CoreQuery.mergeManyDependencies(expressions)
     }, {
       kind: "window",
       function: kind,
@@ -3640,12 +3558,12 @@ type BinaryPredicateExpression<
     Expression.RuntimeOf<Value>,
     Expression.DbTypeOf<Value>,
     "maybe",
-    DialectOf<Value>,
+    CoreQuery.DialectOf<Value>,
     "aggregate",
-    DependenciesOf<Value>,
+    CoreQuery.DependenciesOf<Value>,
     ExpressionAst.UnaryNode<"max", Value>
   > =>
-    makeExpression({
+    CoreQuery.makeExpression({
       runtime: undefined as Expression.RuntimeOf<Value>,
       dbType: value[Expression.TypeId].dbType as Expression.DbTypeOf<Value>,
       nullability: "maybe",
@@ -3664,12 +3582,12 @@ type BinaryPredicateExpression<
     Expression.RuntimeOf<Value>,
     Expression.DbTypeOf<Value>,
     "maybe",
-    DialectOf<Value>,
+    CoreQuery.DialectOf<Value>,
     "aggregate",
-    DependenciesOf<Value>,
+    CoreQuery.DependenciesOf<Value>,
     ExpressionAst.UnaryNode<"min", Value>
   > =>
-    makeExpression({
+    CoreQuery.makeExpression({
       runtime: undefined as Expression.RuntimeOf<Value>,
       dbType: value[Expression.TypeId].dbType as Expression.DbTypeOf<Value>,
       nullability: "maybe",
@@ -3692,29 +3610,29 @@ type BinaryPredicateExpression<
         : "always"
 
   const coalesce = <
-    Values extends readonly [ExpressionInput, ExpressionInput, ...ExpressionInput[]]
+    Values extends readonly [CoreQuery.ExpressionInput, CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]
   >(
     ...values: Values & FunctionConstraint.CoalesceConstraint<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>, Dialect>
   ): AstBackedExpression<
     CoalesceRuntimeTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     Expression.DbTypeOf<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>[number]>,
     CoalesceNullabilityTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-    TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     MergeAggregationTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-    TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+    CoreQuery.TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
     ExpressionAst.VariadicNode<"coalesce", DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
   > => {
     const expressions = values.map((value) => toDialectExpression(value)) as readonly Expression.Any[]
     const representative = expressions.find((value) =>
       value[Expression.TypeId].nullability !== "always") ?? expressions[0]!
-    return (makeExpression as any)({
+    return (CoreQuery.makeExpression as any)({
       runtime: undefined as any,
       dbType: representative[Expression.TypeId].dbType as any,
       nullability: resolveCoalesceNullabilityRuntime(expressions) as any,
       dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as any,
-      kind: mergeAggregationManyRuntime(expressions) as any,
+      kind: CoreQuery.mergeAggregationManyRuntime(expressions) as any,
 
-      dependencies: mergeManyDependencies(expressions)
+      dependencies: CoreQuery.mergeManyDependencies(expressions)
     }, {
       kind: "coalesce",
       values: expressions
@@ -3722,26 +3640,26 @@ type BinaryPredicateExpression<
       CoalesceRuntimeTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       Expression.DbTypeOf<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>[number]>,
       CoalesceNullabilityTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.TupleDialect<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       MergeAggregationTuple<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.TupleDependencies<DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
       ExpressionAst.VariadicNode<"coalesce", DialectExpressionTuple<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
     >
   }
 
   const call: FunctionCallApi = (
     name: string,
-    ...args: readonly ExpressionInput[]
+    ...args: readonly CoreQuery.ExpressionInput[]
   ): Expression.Any => {
     const expressions = args.map((value) => toDialectExpression(value)) as readonly Expression.Any[]
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: undefined as never,
       dbType: profile.textDb,
       nullability: "maybe",
       dialect: (expressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect) as Dialect,
-      kind: mergeAggregationManyRuntime(expressions),
+      kind: CoreQuery.mergeAggregationManyRuntime(expressions),
 
-      dependencies: mergeManyDependencies(expressions)
+      dependencies: CoreQuery.mergeManyDependencies(expressions)
     }, {
       kind: "function",
       name,
@@ -3758,7 +3676,7 @@ type BinaryPredicateExpression<
     never
   > & {
     readonly [ExpressionAst.TypeId]: ExpressionAst.FunctionCallNode<"uuid_generate_v4", readonly []>
-  } => makeExpression({
+  } => CoreQuery.makeExpression({
     runtime: undefined as unknown as string,
     dbType: mysqlDatatypes.uuid(),
     nullability: "never",
@@ -3772,7 +3690,7 @@ type BinaryPredicateExpression<
     args: []
   })
 
-  const nextVal = <Value extends ExpressionInput>(
+  const nextVal = <Value extends CoreQuery.ExpressionInput>(
     value: Value
   ): Expression.Scalar<
     Expression.RuntimeOfDbType<Expression.DbType.Base<"mysql", "bigint">>,
@@ -3783,7 +3701,7 @@ type BinaryPredicateExpression<
     never
   > & {
     readonly [ExpressionAst.TypeId]: ExpressionAst.FunctionCallNode<"nextval", readonly [Expression.Any]>
-  } => makeExpression({
+  } => CoreQuery.makeExpression({
     runtime: undefined as unknown as Expression.RuntimeOfDbType<Expression.DbType.Base<"mysql", "bigint">>,
     dbType: mysqlDatatypes.bigint(),
     nullability: "never",
@@ -3834,14 +3752,14 @@ type BinaryPredicateExpression<
     const allExpressions = [...branches.flatMap((branch) => [branch.when, branch.then]), fallback]
     const representative = resultExpressions.find((value) =>
       value[Expression.TypeId].nullability !== "always") ?? fallback
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: undefined as never,
       dbType: representative[Expression.TypeId].dbType,
       nullability: resolveCaseNullabilityRuntime(resultExpressions),
       dialect: (allExpressions.find((value) => value[Expression.TypeId].dialect !== undefined)?.[Expression.TypeId].dialect ?? profile.dialect),
-      kind: mergeAggregationManyRuntime(allExpressions),
+      kind: CoreQuery.mergeAggregationManyRuntime(allExpressions),
 
-      dependencies: mergeManyDependencies(allExpressions)
+      dependencies: CoreQuery.mergeManyDependencies(allExpressions)
     }, {
       kind: "case",
       branches: branches.map((branch) => ({
@@ -3856,8 +3774,8 @@ type BinaryPredicateExpression<
     const build = (
       branches: readonly RuntimeCaseBranch[]
     ): {
-      when: (predicate: HavingPredicateInput, result: ExpressionInput) => unknown
-      else: (fallback: ExpressionInput) => Expression.Any
+      when: (predicate: CoreQuery.HavingPredicateInput, result: CoreQuery.ExpressionInput) => unknown
+      else: (fallback: CoreQuery.ExpressionInput) => Expression.Any
     } => ({
       when(predicate, result) {
         return build([
@@ -3874,7 +3792,7 @@ type BinaryPredicateExpression<
     })
 
     return {
-      when<Predicate extends HavingPredicateInput, Then extends ExpressionInput>(predicate: Predicate, result: Then) {
+      when<Predicate extends CoreQuery.HavingPredicateInput, Then extends CoreQuery.ExpressionInput>(predicate: Predicate, result: Then) {
         return build([{
           when: toDialectExpression(predicate),
           then: toDialectExpression(result)
@@ -3894,21 +3812,26 @@ type BinaryPredicateExpression<
     } as any
   }
 
-  const match = <Value extends ExpressionInput>(
+  const match = <Value extends CoreQuery.ExpressionInput>(
     value: Value
   ): MatchStarter<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
     const subject = toDialectExpression(value)
+    const compareSubject = (compare: CoreQuery.ExpressionInput) => {
+      const candidate = toDialectExpression(compare)
+      return buildBinaryPredicate(subject, candidate, "eq", "maybe",
+        CoreQuery.mergeAggregationManyRuntime([subject, candidate]))
+    }
     const build = (
       branches: readonly RuntimeCaseBranch[]
     ): {
-      when(compare: ExpressionInput, result: ExpressionInput): unknown
-      else: (fallback: ExpressionInput) => Expression.Any
+      when(compare: CoreQuery.ExpressionInput, result: CoreQuery.ExpressionInput): unknown
+      else: (fallback: CoreQuery.ExpressionInput) => Expression.Any
     } => ({
       when(compare, result) {
         return build([
           ...branches,
           {
-            when: buildBinaryPredicate(subject as ExpressionInput, compare as ExpressionInput, "eq"),
+            when: compareSubject(compare),
             then: toDialectExpression(result)
           }
         ])
@@ -3919,11 +3842,11 @@ type BinaryPredicateExpression<
     })
 
     return {
-      when<Then extends ExpressionInput>(
-        compare: ExpressionInput,
+      when<Then extends CoreQuery.ExpressionInput>(
+        compare: CoreQuery.ExpressionInput,
         result: Then
       ) {
-        const predicate = buildBinaryPredicate(subject as ExpressionInput, compare as ExpressionInput, "eq")
+        const predicate = compareSubject(compare)
         return build([{
           when: predicate,
           then: toDialectExpression(result)
@@ -3967,7 +3890,7 @@ type BinaryPredicateExpression<
     ExpressionAst.ExcludedNode<AstOf<Value> extends ExpressionAst.ColumnNode<any, infer ColumnName extends string> ? ColumnName : string>
   > => {
     const ast = ((value as unknown) as Expression.Any & { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: undefined as Expression.RuntimeOf<Value>,
       dbType: value[Expression.TypeId].dbType as Expression.DbTypeOf<Value>,
       runtimeSchema: value[Expression.TypeId].runtimeSchema,
@@ -4015,7 +3938,7 @@ type BinaryPredicateExpression<
       const ast = (expression as Expression.Any & { readonly [ExpressionAst.TypeId]: ExpressionAst.Any })[ExpressionAst.TypeId]
       if (ast.kind === "literal") {
         const normalizedValue = normalizeMutationValue(ast.value)
-        return makeExpression({
+        return CoreQuery.makeExpression({
           runtime: normalizedValue,
           dbType: columnState.dbType,
           runtimeSchema: columnState.runtimeSchema,
@@ -4032,7 +3955,7 @@ type BinaryPredicateExpression<
       return retargetLiteralExpression(value as unknown as Expression.Any, column)
     }
     const normalizedValue = normalizeMutationValue(value)
-    return makeExpression({
+    return CoreQuery.makeExpression({
       runtime: normalizedValue as Value,
       dbType: columnState.dbType,
       runtimeSchema: columnState.runtimeSchema,
@@ -4052,14 +3975,14 @@ type BinaryPredicateExpression<
 
   const renderQuantifiedComparisonAst = (
     left: Expression.Any,
-    plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    plan: CoreQuery.Plan.Any,
     operator: QuantifiedComparisonOperator,
     quantifier: "any" | "all"
   ): ExpressionAst.QuantifiedComparisonNode<
     "comparisonAny" | "comparisonAll",
     QuantifiedComparisonOperator,
     Expression.Any,
-    QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    CoreQuery.Plan.Any
   > => ({
     kind: quantifier === "any" ? "comparisonAny" : "comparisonAll",
     operator,
@@ -4080,18 +4003,18 @@ type BinaryPredicateExpression<
               ? ">"
               : ">="
 
-  const targetSourceDetails = (table: MutationTargetLike | SchemaTableLike) => {
-    const sourceName = (table as TableLike)[Table.TypeId].name
-    const sourceBaseName = (table as TableLike)[Table.TypeId].baseName
+  const targetSourceDetails = (table: MutationTargetLike | CoreQuery.SchemaTableLike) => {
+    const sourceName = (table as CoreQuery.TableLike)[Table.TypeId].name
+    const sourceBaseName = (table as CoreQuery.TableLike)[Table.TypeId].baseName
     return {
       sourceName,
       sourceBaseName
     }
   }
 
-  const sourceDetails = (source: SourceLike) => {
+  const sourceDetails = (source: CoreQuery.SourceLike) => {
     if (Table.TypeId in (source as object)) {
-      return targetSourceDetails(source as MutationTargetLike | SchemaTableLike)
+      return targetSourceDetails(source as MutationTargetLike | CoreQuery.SchemaTableLike)
     }
     const record = source as { readonly name: string; readonly baseName: string }
     return {
@@ -4103,11 +4026,11 @@ type BinaryPredicateExpression<
   const makeColumnReferenceSelection = <Alias extends string, Selection extends Record<string, Expression.Any>>(
     alias: Alias,
     selection: Selection
-  ): DerivedSelectionOf<Selection, Alias> => {
+  ): CoreQuery.DerivedSelectionOf<Selection, Alias> => {
     const columns: Record<string, unknown> = {}
     for (const [columnName, expression] of Object.entries(selection)) {
       const state = expression[Expression.TypeId]
-      columns[columnName] = makeExpression({
+      columns[columnName] = CoreQuery.makeExpression({
         runtime: undefined as never,
         dbType: state.dbType,
         runtimeSchema: state.runtimeSchema,
@@ -4124,7 +4047,7 @@ type BinaryPredicateExpression<
         columnName
       } as ExpressionAst.ColumnNode<Alias, string>)
     }
-    return columns as DerivedSelectionOf<Selection, Alias>
+    return columns as CoreQuery.DerivedSelectionOf<Selection, Alias>
   }
 
   const makeAliasedValuesSource = <
@@ -4134,7 +4057,7 @@ type BinaryPredicateExpression<
     rows: readonly [Record<string, Expression.Any>, ...Record<string, Expression.Any>[]],
     selection: ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     alias: Alias
-  ): ValuesSource<
+  ): CoreQuery.ValuesSource<
     Rows,
     ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Alias,
@@ -4157,7 +4080,7 @@ type BinaryPredicateExpression<
       rows,
       columns
     }
-    return Object.assign(source, columns) as unknown as ValuesSource<
+    return Object.assign(source, columns) as unknown as CoreQuery.ValuesSource<
       Rows,
       ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       Alias,
@@ -4213,7 +4136,7 @@ type BinaryPredicateExpression<
         }
       ] as const
     })
-  ) as unknown as AddAvailableMany<{}, MutationTargetNamesOf<Target>, Mode>
+  ) as unknown as CoreQuery.AddAvailableMany<{}, CoreQuery.MutationTargetNamesOf<Target>, Mode>
 
   const getMutationColumn = (
     columns: Record<string, unknown>,
@@ -4234,7 +4157,7 @@ type BinaryPredicateExpression<
     }
     const valueMap = values as Record<string, Record<string, unknown> | undefined>
     return targets.flatMap((table) => {
-      const targetName = (table as TableLike)[Table.TypeId].name
+      const targetName = (table as CoreQuery.TableLike)[Table.TypeId].name
       const scopedValues = valueMap[targetName] ?? {}
       const columns = table as unknown as Record<string, Expression.Any>
       return Object.entries(scopedValues).map(([columnName, value]) => ({
@@ -4315,7 +4238,7 @@ type BinaryPredicateExpression<
 
   const buildConflictTarget = <Target extends MutationTargetLike>(
     target: Target,
-    input: string | readonly string[] | { readonly columns: string | readonly string[]; readonly where?: PredicateInput } | { readonly constraint: string }
+    input: string | readonly string[] | { readonly columns: string | readonly string[]; readonly where?: CoreQuery.PredicateInput } | { readonly constraint: string }
   ): QueryAst.ConflictTargetClause => {
     if (typeof input === "string" || Array.isArray(input)) {
       return {
@@ -4331,7 +4254,7 @@ type BinaryPredicateExpression<
     }
     const columnTarget = input as {
       readonly columns: string | readonly string[]
-      readonly where?: PredicateInput
+      readonly where?: CoreQuery.PredicateInput
     }
     return {
       kind: "columns",
@@ -4366,15 +4289,15 @@ type NormalizeDdlColumns<Columns extends DdlColumnInput> =
         ? readonly [Columns]
         : never
 
-type SchemaColumnNames<Target extends SchemaTableLike> = Extract<keyof Target[typeof Table.TypeId]["fields"], string>
+type SchemaColumnNames<Target extends CoreQuery.SchemaTableLike> = Extract<keyof Target[typeof Table.TypeId]["fields"], string>
 
 type ValidateDdlColumns<
-  Target extends SchemaTableLike,
+  Target extends CoreQuery.SchemaTableLike,
   Columns extends readonly string[]
 > = Exclude<Columns[number], SchemaColumnNames<Target>> extends never ? Columns : never
 
 type ValidateDdlColumnInput<
-  Target extends SchemaTableLike,
+  Target extends CoreQuery.SchemaTableLike,
   Columns extends DdlColumnInput
 > = ValidateDdlColumns<Target, NormalizeDdlColumns<Columns>> extends never ? never : Columns
 
@@ -4512,9 +4435,9 @@ type RequiredKeys<Shape> = Extract<{
   [K in keyof Shape]-?: {} extends Pick<Shape, K> ? never : K
 }[keyof Shape], string>
 
-type InsertRowInput<Target extends MutationTargetLike> = MutationInputOf<Table.InsertOf<Target>>
+type InsertRowInput<Target extends MutationTargetLike> = CoreQuery.MutationInputOf<Table.InsertOf<Target>>
 
-type ValuesRowInput = Record<string, ExpressionInput>
+type ValuesRowInput = Record<string, CoreQuery.ExpressionInput>
 type ValuesRowsInput = readonly [ValuesRowInput, ...ValuesRowInput[]]
 
 type ValuesColumnInput<Row, Key extends PropertyKey> =
@@ -4564,7 +4487,7 @@ type ValuesRowsDialect<
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = Rows[number][keyof Rows[number]] extends infer Value extends ExpressionInput
+> = Rows[number][keyof Rows[number]] extends infer Value extends CoreQuery.ExpressionInput
   ? DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   : never
 
@@ -4583,7 +4506,7 @@ type ValuesRowsDialectInput<
       readonly __effect_qb_dialect__: ValuesRowsDialect<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     }
 
-type UnnestColumnsInput = Record<string, readonly [ExpressionInput, ...ExpressionInput[]]>
+type UnnestColumnsInput = Record<string, readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]>
 
 type IsNever<Value> = [Value] extends [never] ? true : false
 
@@ -4619,7 +4542,7 @@ type UnnestColumnsDialect<
   BoolDb extends Expression.DbType.Any,
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
-> = Columns[UnnestColumnKeys<Columns>][number] extends infer Value extends ExpressionInput
+> = Columns[UnnestColumnKeys<Columns>][number] extends infer Value extends CoreQuery.ExpressionInput
   ? DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   : never
 
@@ -4667,7 +4590,7 @@ type UnnestOutputShape<
 }
 
 type GenerateSeriesOutputShape<
-  Start extends NumericExpressionInput,
+  Start extends CoreQuery.NumericExpressionInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
   NumericDb extends Expression.DbType.Any,
@@ -4696,57 +4619,51 @@ type FullJoinUnsupportedError<Dialect extends string> = {
   readonly __effect_qb_hint__: "Use leftJoin/rightJoin with nullable handling or switch to postgres.Query.fullJoin(...)"
 }
 
-type ReturningUnsupportedError<Dialect extends string> = {
-  readonly __effect_qb_error__: "effect-qb: returning(...) is only supported by the postgres dialect"
-  readonly __effect_qb_dialect__: Dialect
-  readonly __effect_qb_hint__: "Use postgres.Query.returning(...) or run a follow-up select after MySQL mutations"
-}
-
-type MysqlCteStatementError<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+type MysqlCteStatementError<PlanValue extends CoreQuery.Plan.Any> =
   PlanValue & {
     readonly __effect_qb_error__: "effect-qb: mysql cte sources only accept select-like query plans"
-    readonly __effect_qb_statement__: StatementOfPlan<PlanValue>
+    readonly __effect_qb_statement__: CoreQuery.StatementOfPlan<PlanValue>
     readonly __effect_qb_hint__: "Use select(...) or a set operator before wrapping a MySQL plan in with(...)"
   }
 
 type MysqlCteCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
-> = StatementOfPlan<PlanValue> extends "select" | "set"
-  ? DerivedSourceCompatiblePlan<PlanValue>
+  PlanValue extends CoreQuery.Plan.Any
+> = CoreQuery.StatementOfPlan<PlanValue> extends "select" | "set"
+  ? CoreQuery.DerivedSourceCompatiblePlan<PlanValue>
   : MysqlCteStatementError<PlanValue>
 
 type DistinctOnApi<Dialect extends string> = Dialect extends "postgres"
-  ? <Values extends readonly [ExpressionInput, ...ExpressionInput[]]>(
+  ? <Values extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]>(
       ...values: Values
-    ) => <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    ) => <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue> | DialectOfDialectInput<Values[number], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Values[number]>,
-      AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, Values[number]>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue> | DialectOfDialectInput<Values[number], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, Values[number]>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>
     >
   : DistinctOnUnsupportedError<Dialect>
 
 type InsertPlanStatementError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends CoreQuery.Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: insert sources only accept select-like query plans"
-  readonly __effect_qb_statement__: StatementOfPlan<PlanValue>
+  readonly __effect_qb_statement__: CoreQuery.StatementOfPlan<PlanValue>
   readonly __effect_qb_hint__: "Use select(...), a set operator, or a CTE/subquery built from them"
 }
 
 type InsertPlanSelectionShapeError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends CoreQuery.Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: insert sources require a flat selection object"
-  readonly __effect_qb_selection__: SelectionOfPlan<PlanValue>
+  readonly __effect_qb_selection__: CoreQuery.SelectionOfPlan<PlanValue>
   readonly __effect_qb_hint__: "Project a flat object like select({ id: ..., email: ... }) with column-name keys"
 }
 
@@ -4803,13 +4720,13 @@ type InsertShapeCompatibilityError<
 
 type InsertUnnestSourceInput<
   Target extends MutationTargetLike,
-  Source extends AnyUnnestSource
+  Source extends CoreQuery.AnyUnnestSource
 > = IsInsertShapeCompatible<
   Target,
-  OutputOfSelection<Source["columns"], AddAvailable<{}, SourceNameOf<Source>>, TrueFormula>
+  CoreQuery.OutputOfSelection<Source["columns"], CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Source>>, TrueFormula>
 > extends true ? Source : InsertShapeCompatibilityError<
   Target,
-  OutputOfSelection<Source["columns"], AddAvailable<{}, SourceNameOf<Source>>, TrueFormula>
+  CoreQuery.OutputOfSelection<Source["columns"], CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Source>>, TrueFormula>
 >
 
 type IsInsertShapeCompatible<Target extends MutationTargetLike, SourceShape> =
@@ -4834,49 +4751,49 @@ type IsFlatExpressionSelection<Selection> = Selection extends Record<string, any
 
 type InsertSelectSource<
   Target extends MutationTargetLike,
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Dialect extends string
-> = StatementOfPlan<PlanValue> extends "select" | "set"
-  ? IsFlatExpressionSelection<SelectionOfPlan<PlanValue>> extends true
-    ? IsInsertShapeCompatible<Target, ResultRow<PlanValue>> extends true
-      ? CompletePlan<PlanValue>
-      : InsertShapeCompatibilityError<Target, ResultRow<PlanValue>>
+> = CoreQuery.StatementOfPlan<PlanValue> extends "select" | "set"
+  ? IsFlatExpressionSelection<CoreQuery.SelectionOfPlan<PlanValue>> extends true
+    ? IsInsertShapeCompatible<Target, CoreQuery.ResultRow<PlanValue>> extends true
+      ? CoreQuery.CompletePlan<PlanValue>
+      : InsertShapeCompatibilityError<Target, CoreQuery.ResultRow<PlanValue>>
     : InsertPlanSelectionShapeError<PlanValue>
   : InsertPlanStatementError<PlanValue>
 
 type InsertSourceInput<
   Target extends MutationTargetLike,
   Dialect extends string,
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> = QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends CoreQuery.Plan.Any = CoreQuery.Plan.Any
 > =
-  | AnyValuesInput
-  | AnyValuesSource
-  | InsertUnnestSourceInput<Target, AnyUnnestSource>
+  | CoreQuery.AnyValuesInput
+  | CoreQuery.AnyValuesSource
+  | InsertUnnestSourceInput<Target, CoreQuery.AnyUnnestSource>
   | InsertSelectSource<Target, PlanValue, Dialect>
 
 type InsertSourceOfPlanInput<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Source,
   Dialect extends string
-> = MutationTargetOfPlan<PlanValue> extends infer Target extends MutationTargetLike
-  ? Source extends AnyValuesInput | AnyValuesSource
+> = CoreQuery.MutationTargetOfPlan<PlanValue> extends infer Target extends MutationTargetLike
+  ? Source extends CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource
     ? Source
-    : Source extends AnyUnnestSource
+    : Source extends CoreQuery.AnyUnnestSource
       ? InsertUnnestSourceInput<Target, Source>
-      : Source extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+      : Source extends CoreQuery.Plan.Any
         ? InsertSelectSource<Target, Source, Dialect>
         : never
   : never
 
 type InsertSourceRequired<Source> =
-  Source extends AnyValuesInput | AnyValuesSource ? NestedMutationRequiredFromValues<Source["rows"][number]> :
-    Source extends UnnestSource<any, any, any> ? never :
-      Source extends QueryPlan<any, any, any, any, any, any, any, any, any, any> ? RequiredOfPlan<Source> :
+  Source extends CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource ? NestedMutationRequiredFromValues<Source["rows"][number]> :
+    Source extends CoreQuery.UnnestSource<any, any, any> ? never :
+      Source extends CoreQuery.Plan.Any ? CoreQuery.RequiredOfPlan<Source> :
         never
 
 type InsertSourceDialect<Source> =
-  Source extends QueryPlan<any, any, any, any, any, any, any, any, any, any> ? PlanDialectOf<Source> :
-    Source extends SourceLike ? SourceDialectOf<Source> :
+  Source extends CoreQuery.Plan.Any ? CoreQuery.PlanDialectOf<Source> :
+    Source extends CoreQuery.SourceLike ? CoreQuery.SourceDialectOf<Source> :
       never
 
 type ConflictColumnTarget<
@@ -4893,13 +4810,13 @@ type ConflictTargetInput<
   | (Dialect extends "postgres"
       ? {
           readonly columns: ConflictColumnTarget<Target, Columns>
-          readonly where?: PredicateInput
+          readonly where?: CoreQuery.PredicateInput
         } | {
           readonly constraint: string
         }
       : MysqlConflictTargetError<{
           readonly columns?: ConflictColumnTarget<Target, Columns>
-          readonly where?: PredicateInput
+          readonly where?: CoreQuery.PredicateInput
           readonly constraint?: string
         }>)
 
@@ -4909,7 +4826,7 @@ type ConflictConstraintNameConstraint<Target> =
     : unknown
 
 type ConflictTargetHasPredicate<Target> =
-  Target extends { readonly where: PredicateInput } ? true : false
+  Target extends { readonly where: CoreQuery.PredicateInput } ? true : false
 
 type ConflictTargetPlanConstraint<
   Target extends MutationTargetLike,
@@ -4926,10 +4843,10 @@ type ConflictTargetPlanConstraint<
 type ConflictActionInput<
   Target extends MutationTargetLike,
   Dialect extends string,
-  UpdateValues extends MutationInputOf<Table.UpdateOf<Target>> | undefined = MutationInputOf<Table.UpdateOf<Target>> | undefined
+  UpdateValues extends CoreQuery.MutationInputOf<Table.UpdateOf<Target>> | undefined = CoreQuery.MutationInputOf<Table.UpdateOf<Target>> | undefined
 > = {
   readonly update?: UpdateValues
-  readonly where?: Dialect extends "postgres" ? PredicateInput : MysqlConflictWhereError<PredicateInput>
+  readonly where?: Dialect extends "postgres" ? CoreQuery.PredicateInput : MysqlConflictWhereError<CoreQuery.PredicateInput>
 }
 
 type ConflictActionUpdateNonEmptyConstraint<Options> =
@@ -4938,10 +4855,10 @@ type ConflictActionUpdateNonEmptyConstraint<Options> =
     : unknown
 
 type ConflictTargetPredicate<Target> =
-  Target extends { readonly where?: infer Predicate } ? Extract<Predicate, PredicateInput> : never
+  Target extends { readonly where?: infer Predicate } ? Extract<Predicate, CoreQuery.PredicateInput> : never
 
 type ConflictActionPredicate<Options> =
-  Options extends { readonly where?: infer Predicate } ? Extract<Predicate, PredicateInput> : never
+  Options extends { readonly where?: infer Predicate } ? Extract<Predicate, CoreQuery.PredicateInput> : never
 
 type MutationDialectFromValues<
   Values extends Record<string, unknown>,
@@ -4952,13 +4869,13 @@ type MutationDialectFromValues<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > = {
-  [K in keyof Values]: Values[K] extends ExpressionInput
+  [K in keyof Values]: Values[K] extends CoreQuery.ExpressionInput
     ? DialectOfDialectInput<Values[K], Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     : never
 }[keyof Values]
 
 type ConflictRequired<
-  UpdateValues extends MutationInputOf<any> | undefined,
+  UpdateValues extends CoreQuery.MutationInputOf<any> | undefined,
   Options,
   ConflictTarget
 > =
@@ -4967,7 +4884,7 @@ type ConflictRequired<
   | RequiredFromInput<ConflictTargetPredicate<ConflictTarget>>
 
 type ConflictDialect<
-  UpdateValues extends MutationInputOf<any> | undefined,
+  UpdateValues extends CoreQuery.MutationInputOf<any> | undefined,
   Options,
   ConflictTarget,
   Dialect extends string,
@@ -4982,7 +4899,7 @@ type ConflictDialect<
   | DialectOfDialectInput<ConflictTargetPredicate<ConflictTarget>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
 
 type MergeWhenMatchedDelete<
-  Predicate extends PredicateInput | undefined = undefined
+  Predicate extends CoreQuery.PredicateInput | undefined = undefined
 > = {
   readonly delete: true
   readonly predicate?: Predicate
@@ -4991,8 +4908,8 @@ type MergeWhenMatchedDelete<
 
 type MergeWhenMatchedUpdate<
   Target extends MutationTargetLike,
-  Values extends MutationInputOf<Table.UpdateOf<Target>>,
-  Predicate extends PredicateInput | undefined = undefined
+  Values extends CoreQuery.MutationInputOf<Table.UpdateOf<Target>>,
+  Predicate extends CoreQuery.PredicateInput | undefined = undefined
 > = {
   readonly update: Values
   readonly predicate?: Predicate
@@ -5001,8 +4918,8 @@ type MergeWhenMatchedUpdate<
 
 type MergeWhenNotMatched<
   Target extends MutationTargetLike,
-  Values extends MutationInputOf<Table.InsertOf<Target>>,
-  Predicate extends PredicateInput | undefined = undefined
+  Values extends CoreQuery.MutationInputOf<Table.InsertOf<Target>>,
+  Predicate extends CoreQuery.PredicateInput | undefined = undefined
 > = {
   readonly values: Values
   readonly predicate?: Predicate
@@ -5010,22 +4927,22 @@ type MergeWhenNotMatched<
 
 type MergeMatchedOption<
   Target extends MutationTargetLike,
-  MatchedValues extends MutationInputOf<Table.UpdateOf<Target>>,
-  MatchedPredicate extends PredicateInput | undefined = undefined
+  MatchedValues extends CoreQuery.MutationInputOf<Table.UpdateOf<Target>>,
+  MatchedPredicate extends CoreQuery.PredicateInput | undefined = undefined
 > = MergeWhenMatchedDelete<MatchedPredicate> | MergeWhenMatchedUpdate<Target, MatchedValues, MatchedPredicate>
 
 type MergeNotMatchedOption<
   Target extends MutationTargetLike,
-  InsertValues extends MutationInputOf<Table.InsertOf<Target>>,
-  NotMatchedPredicate extends PredicateInput | undefined = undefined
+  InsertValues extends CoreQuery.MutationInputOf<Table.InsertOf<Target>>,
+  NotMatchedPredicate extends CoreQuery.PredicateInput | undefined = undefined
 > = MergeWhenNotMatched<Target, InsertValues, NotMatchedPredicate>
 
 type MergeOptions<
   Target extends MutationTargetLike,
-  MatchedValues extends MutationInputOf<Table.UpdateOf<Target>>,
-  InsertValues extends MutationInputOf<Table.InsertOf<Target>>,
-  MatchedPredicate extends PredicateInput | undefined = undefined,
-  NotMatchedPredicate extends PredicateInput | undefined = undefined
+  MatchedValues extends CoreQuery.MutationInputOf<Table.UpdateOf<Target>>,
+  InsertValues extends CoreQuery.MutationInputOf<Table.InsertOf<Target>>,
+  MatchedPredicate extends CoreQuery.PredicateInput | undefined = undefined,
+  NotMatchedPredicate extends CoreQuery.PredicateInput | undefined = undefined
 > =
   | {
     readonly whenMatched: MergeMatchedOption<Target, MatchedValues, MatchedPredicate>
@@ -5036,51 +4953,51 @@ type MergeOptions<
     readonly whenNotMatched: MergeNotMatchedOption<Target, InsertValues, NotMatchedPredicate>
   }
 
-type RequireSelectStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  StatementOfPlan<PlanValue> extends "select" ? unknown : never
+type RequireSelectStatement<PlanValue extends CoreQuery.Plan.Any> =
+  CoreQuery.StatementOfPlan<PlanValue> extends "select" ? unknown : never
 
-type RequirePendingInsertStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  StatementOfPlan<PlanValue> extends "insert"
-    ? InsertSourceStateOfPlan<PlanValue> extends "missing" ? unknown : never
+type RequirePendingInsertStatement<PlanValue extends CoreQuery.Plan.Any> =
+  CoreQuery.StatementOfPlan<PlanValue> extends "insert"
+    ? CoreQuery.InsertSourceStateOfPlan<PlanValue> extends "missing" ? unknown : never
     : never
 
-type RequireWhereStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
+type RequireWhereStatement<PlanValue extends CoreQuery.Plan.Any> =
+  CoreQuery.StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
 
-type RequireMutationStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  StatementOfPlan<PlanValue> extends MutationStatement ? unknown : never
+type RequireMutationStatement<PlanValue extends CoreQuery.Plan.Any> =
+  CoreQuery.StatementOfPlan<PlanValue> extends MutationStatement ? unknown : never
 
-type RequireInsertStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  StatementOfPlan<PlanValue> extends "insert" ? unknown : never
+type RequireInsertStatement<PlanValue extends CoreQuery.Plan.Any> =
+  CoreQuery.StatementOfPlan<PlanValue> extends "insert" ? unknown : never
 
-type RequireJoinStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
+type RequireJoinStatement<PlanValue extends CoreQuery.Plan.Any> =
+  CoreQuery.StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
 
-type RequireUpdateFromStatement<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
-  StatementOfPlan<PlanValue> extends "update" ? unknown : never
+type RequireUpdateFromStatement<PlanValue extends CoreQuery.Plan.Any> =
+  CoreQuery.StatementOfPlan<PlanValue> extends "update" ? unknown : never
 
-type MutationOrderLimitSupported<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>, Dialect extends string> =
-  StatementOfPlan<PlanValue> extends "select"
+type MutationOrderLimitSupported<PlanValue extends CoreQuery.Plan.Any, Dialect extends string> =
+  CoreQuery.StatementOfPlan<PlanValue> extends "select"
     ? unknown
     : Dialect extends "mysql"
-      ? StatementOfPlan<PlanValue> extends "update" | "delete" ? unknown : never
+      ? CoreQuery.StatementOfPlan<PlanValue> extends "update" | "delete" ? unknown : never
       : never
 
 type MutationTargetTupleDialectConstraint<
   Targets extends MutationTargetTuple,
   Dialect extends string
-> = Exclude<TableDialectOf<Targets[number]>, Dialect | "standard"> extends never ? unknown : never
+> = Exclude<CoreQuery.TableDialectOf<Targets[number]>, Dialect | "standard"> extends never ? unknown : never
 
 type TableDialectConstraint<
-  Target extends TableLike,
+  Target extends CoreQuery.TableLike,
   Dialect extends string
-> = Exclude<TableDialectOf<Target>, Dialect> extends never ? unknown : never
+> = Exclude<CoreQuery.TableDialectOf<Target>, Dialect> extends never ? unknown : never
 
 type DuplicateMutationTargetSourceName<
   Targets extends readonly MutationTargetLike[],
   Seen extends string = never
 > = Targets extends readonly [infer Head extends MutationTargetLike, ...infer Tail extends readonly MutationTargetLike[]]
-  ? SourceNameOf<Head> extends infer Name extends string
+  ? CoreQuery.SourceNameOf<Head> extends infer Name extends string
     ? string extends Name
       ? DuplicateMutationTargetSourceName<Tail, Seen>
       : Name extends Seen
@@ -5104,12 +5021,12 @@ type MutationTargetTupleUniqueNamesConstraint<
   : unknown
 
 type MutationRequiredFromValues<Values extends Record<string, unknown>> = {
-  [K in keyof Values]: Values[K] extends Expression.Any ? RequiredFromDependencies<DependenciesOf<Values[K]>> : never
+  [K in keyof Values]: Values[K] extends Expression.Any ? CoreQuery.RequiredFromDependencies<CoreQuery.DependenciesOf<Values[K]>> : never
 }[keyof Values]
 
 type NestedMutationRequiredFromValues<Values> =
   Values extends Expression.Any
-    ? RequiredFromDependencies<DependenciesOf<Values>>
+    ? CoreQuery.RequiredFromDependencies<CoreQuery.DependenciesOf<Values>>
     : Values extends Record<string, unknown>
       ? {
           [K in keyof Values]: NestedMutationRequiredFromValues<Values[K]>
@@ -5125,7 +5042,7 @@ type NestedMutationDialectFromValues<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > =
-  Values extends ExpressionInput
+  Values extends CoreQuery.ExpressionInput
     ? DialectOfDialectInput<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     : Values extends Record<string, unknown>
       ? {
@@ -5178,9 +5095,9 @@ type AstOf<Value extends Expression.Any> =
     ? Ast
     : never
 
-type RequiredFromInput<Value extends ExpressionInput> =
+type RequiredFromInput<Value extends CoreQuery.ExpressionInput> =
   Value extends Expression.Any
-    ? RequiredFromDependencies<DependenciesOf<Value>>
+    ? CoreQuery.RequiredFromDependencies<CoreQuery.DependenciesOf<Value>>
     : never
 
 type MutationLockModeForStatement<
@@ -5197,57 +5114,57 @@ type MutationLockModeForStatement<
       : never
 
 type InsertDirectSource =
-  | AnyValuesInput
-  | QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  | CoreQuery.AnyValuesInput
+  | CoreQuery.Plan.Any
 
-type FromInput = SourceLike | InsertDirectSource
+type FromInput = CoreQuery.SourceLike | InsertDirectSource
 
 type SourceDialectConstraint<
-  CurrentSource extends SourceLike,
+  CurrentSource extends CoreQuery.SourceLike,
   Dialect extends string
-> = [SourceDialectOf<CurrentSource>] extends [never]
+> = [CoreQuery.SourceDialectOf<CurrentSource>] extends [never]
   ? unknown
-  : Exclude<SourceDialectOf<CurrentSource>, Dialect | "standard"> extends never
+  : Exclude<CoreQuery.SourceDialectOf<CurrentSource>, Dialect | "standard"> extends never
     ? unknown
     : Dialect extends "standard"
       ? unknown
       : never
 
 type SourceRequirementConstraint<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  CurrentSource extends SourceLike
-> = [SourceRequiredOf<CurrentSource>] extends [never]
+  PlanValue extends CoreQuery.Plan.Any,
+  CurrentSource extends CoreQuery.SourceLike
+> = [CoreQuery.SourceRequiredOf<CurrentSource>] extends [never]
   ? unknown
-  : Exclude<SourceRequiredOf<CurrentSource>, ScopedNamesOfPlan<PlanValue>> extends never
+  : Exclude<CoreQuery.SourceRequiredOf<CurrentSource>, CoreQuery.ScopedNamesOfPlan<PlanValue>> extends never
     ? unknown
-    : SourceRequirementError<CurrentSource>
+    : CoreQuery.SourceRequirementError<CurrentSource>
 
 type SelectFromConstraint<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  CurrentSource extends SourceLike
+  PlanValue extends CoreQuery.Plan.Any,
+  CurrentSource extends CoreQuery.SourceLike
 > =
   RequireSelectStatement<PlanValue> &
   (
-    SourceNameOf<CurrentSource> extends OutstandingOfPlan<PlanValue>
+    CoreQuery.SourceNameOf<CurrentSource> extends CoreQuery.OutstandingOfPlan<PlanValue>
       ? unknown
-      : [OutstandingOfPlan<PlanValue>] extends [never]
-        ? [ScopedNamesOfPlan<PlanValue>] extends [never]
+      : [CoreQuery.OutstandingOfPlan<PlanValue>] extends [never]
+        ? [CoreQuery.ScopedNamesOfPlan<PlanValue>] extends [never]
           ? unknown
           : never
         : never
   ) &
-  (SourceRequiredOf<CurrentSource> extends never ? unknown : SourceRequirementError<CurrentSource>)
+  (CoreQuery.SourceRequiredOf<CurrentSource> extends never ? unknown : CoreQuery.SourceRequirementError<CurrentSource>)
 
 type UpdateFromConstraint<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  CurrentSource extends SourceLike
+  PlanValue extends CoreQuery.Plan.Any,
+  CurrentSource extends CoreQuery.SourceLike
 > =
   RequireUpdateFromStatement<PlanValue> &
-  (SourceNameOf<CurrentSource> extends ScopedNamesOfPlan<PlanValue> ? never : unknown) &
-  (SourceRequiredOf<CurrentSource> extends never ? unknown : SourceRequirementError<CurrentSource>)
+  (CoreQuery.SourceNameOf<CurrentSource> extends CoreQuery.ScopedNamesOfPlan<PlanValue> ? never : unknown) &
+  (CoreQuery.SourceRequiredOf<CurrentSource> extends never ? unknown : CoreQuery.SourceRequirementError<CurrentSource>)
 
 type InsertFromConstraint<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource,
   Dialect extends string
 > =
@@ -5257,199 +5174,199 @@ type InsertFromConstraint<
     : InsertSourceOfPlanInput<PlanValue, CurrentSource, Dialect>)
 
 type SelectFromResult<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  CurrentSource extends SourceLike
-> = QueryPlan<
-  SelectionOfPlan<PlanValue>,
-  Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-  AddAvailable<{}, SourceNameOf<CurrentSource>, "required", TrueFormula, PresenceWitnessKeysOfSource<CurrentSource>>,
-  PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
-  GroupedOfPlan<PlanValue>,
-  SourceNameOf<CurrentSource>,
-  Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-  AssumptionsOfPlan<PlanValue>,
-  MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentSource>>,
-  StatementOfPlan<PlanValue>,
-  MutationTargetOfPlan<PlanValue>,
-  InsertSourceStateOfPlan<PlanValue>,
-  FactsOfPlan<PlanValue>
+  PlanValue extends CoreQuery.Plan.Any,
+  CurrentSource extends CoreQuery.SourceLike
+> = CoreQuery.QueryPlan<
+  CoreQuery.SelectionOfPlan<PlanValue>,
+  Exclude<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+  CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<CurrentSource>, "required", TrueFormula, CoreQuery.PresenceWitnessKeysOfSource<CurrentSource>>,
+  CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.SourceDialectOf<CurrentSource>,
+  CoreQuery.GroupedOfPlan<PlanValue>,
+  CoreQuery.SourceNameOf<CurrentSource>,
+  Exclude<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+  CoreQuery.AssumptionsOfPlan<PlanValue>,
+  CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.SourceCapabilitiesOf<CurrentSource>>,
+  CoreQuery.StatementOfPlan<PlanValue>,
+  CoreQuery.MutationTargetOfPlan<PlanValue>,
+  CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+  CoreQuery.FactsOfPlan<PlanValue>
 >
 
 type UpdateFromResult<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  CurrentSource extends SourceLike
-> = QueryPlan<
-  SelectionOfPlan<PlanValue>,
-  Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-  AddAvailable<
-    AvailableOfPlan<PlanValue>,
-    SourceNameOf<CurrentSource>,
+  PlanValue extends CoreQuery.Plan.Any,
+  CurrentSource extends CoreQuery.SourceLike
+> = CoreQuery.QueryPlan<
+  CoreQuery.SelectionOfPlan<PlanValue>,
+  Exclude<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+  CoreQuery.AddAvailable<
+    CoreQuery.AvailableOfPlan<PlanValue>,
+    CoreQuery.SourceNameOf<CurrentSource>,
     "required",
     TrueFormula,
-    PresenceWitnessKeysOfSource<CurrentSource>
+    CoreQuery.PresenceWitnessKeysOfSource<CurrentSource>
   >,
-  PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
-  GroupedOfPlan<PlanValue>,
-  ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentSource>,
-  Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-  AssumptionsOfPlan<PlanValue>,
-  MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentSource>>,
-  StatementOfPlan<PlanValue>,
-  MutationTargetOfPlan<PlanValue>,
-  InsertSourceStateOfPlan<PlanValue>,
-  FactsOfPlan<PlanValue>
+  CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.SourceDialectOf<CurrentSource>,
+  CoreQuery.GroupedOfPlan<PlanValue>,
+  CoreQuery.ScopedNamesOfPlan<PlanValue> | CoreQuery.SourceNameOf<CurrentSource>,
+  Exclude<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+  CoreQuery.AssumptionsOfPlan<PlanValue>,
+  CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.SourceCapabilitiesOf<CurrentSource>>,
+  CoreQuery.StatementOfPlan<PlanValue>,
+  CoreQuery.MutationTargetOfPlan<PlanValue>,
+  CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+  CoreQuery.FactsOfPlan<PlanValue>
 >
 
 type InsertFromResult<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource,
   Dialect extends string
-> = QueryPlan<
-  SelectionOfPlan<PlanValue>,
+> = CoreQuery.QueryPlan<
+  CoreQuery.SelectionOfPlan<PlanValue>,
   InsertSourceRequired<CurrentSource>,
-  AvailableOfPlan<PlanValue>,
-  PlanDialectOf<PlanValue> | InsertSourceDialect<CurrentSource>,
-  GroupedOfPlan<PlanValue>,
-  ScopedNamesOfPlan<PlanValue>,
+  CoreQuery.AvailableOfPlan<PlanValue>,
+  CoreQuery.PlanDialectOf<PlanValue> | InsertSourceDialect<CurrentSource>,
+  CoreQuery.GroupedOfPlan<PlanValue>,
+  CoreQuery.ScopedNamesOfPlan<PlanValue>,
   InsertSourceRequired<CurrentSource>,
-  AssumptionsOfPlan<PlanValue>,
-  CurrentSource extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
-    ? MergeCapabilities<CapabilitiesOfPlan<PlanValue>, CapabilitiesOfPlan<CurrentSource>>
-    : CapabilitiesOfPlan<PlanValue>,
-  StatementOfPlan<PlanValue>,
-  MutationTargetOfPlan<PlanValue>,
+  CoreQuery.AssumptionsOfPlan<PlanValue>,
+  CurrentSource extends CoreQuery.Plan.Any
+    ? CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.CapabilitiesOfPlan<CurrentSource>>
+    : CoreQuery.CapabilitiesOfPlan<PlanValue>,
+  CoreQuery.StatementOfPlan<PlanValue>,
+  CoreQuery.MutationTargetOfPlan<PlanValue>,
   "ready",
-  FactsOfPlan<PlanValue>
+  CoreQuery.FactsOfPlan<PlanValue>
 >
 
 type FromPlanConstraint<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends FromInput,
   Dialect extends string
 > =
-  CurrentSource extends SourceLike
+  CurrentSource extends CoreQuery.SourceLike
     ? SourceDialectConstraint<CurrentSource, Dialect> & (
-        StatementOfPlan<PlanValue> extends "select"
+        CoreQuery.StatementOfPlan<PlanValue> extends "select"
           ? SelectFromConstraint<PlanValue, CurrentSource>
-          : StatementOfPlan<PlanValue> extends "update"
+          : CoreQuery.StatementOfPlan<PlanValue> extends "update"
             ? UpdateFromConstraint<PlanValue, CurrentSource>
-            : StatementOfPlan<PlanValue> extends "insert"
-              ? CurrentSource extends AnyValuesSource | AnyUnnestSource
+            : CoreQuery.StatementOfPlan<PlanValue> extends "insert"
+              ? CurrentSource extends CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource
                 ? InsertFromConstraint<PlanValue, CurrentSource, Dialect>
                 : never
               : never
       )
     : CurrentSource extends InsertDirectSource
-      ? StatementOfPlan<PlanValue> extends "insert"
+      ? CoreQuery.StatementOfPlan<PlanValue> extends "insert"
         ? InsertFromConstraint<PlanValue, CurrentSource, Dialect>
         : never
       : never
 
 type FromPlanResult<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends FromInput,
   Dialect extends string
 > =
-  CurrentSource extends SourceLike
-    ? StatementOfPlan<PlanValue> extends "select"
+  CurrentSource extends CoreQuery.SourceLike
+    ? CoreQuery.StatementOfPlan<PlanValue> extends "select"
       ? SelectFromResult<PlanValue, CurrentSource>
-      : StatementOfPlan<PlanValue> extends "update"
+      : CoreQuery.StatementOfPlan<PlanValue> extends "update"
         ? UpdateFromResult<PlanValue, CurrentSource>
-        : StatementOfPlan<PlanValue> extends "insert"
-          ? CurrentSource extends AnyValuesSource | AnyUnnestSource
+        : CoreQuery.StatementOfPlan<PlanValue> extends "insert"
+          ? CurrentSource extends CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource
             ? InsertFromResult<PlanValue, CurrentSource, Dialect>
             : never
           : never
     : CurrentSource extends InsertDirectSource
-      ? StatementOfPlan<PlanValue> extends "insert"
+      ? CoreQuery.StatementOfPlan<PlanValue> extends "insert"
         ? InsertFromResult<PlanValue, CurrentSource, Dialect>
         : never
       : never
 
 export type PublicStructuredFromConstraint<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  CurrentSource extends AnyValuesSource | AnyUnnestSource | AnyTableFunctionSource,
+  PlanValue extends CoreQuery.Plan.Any,
+  CurrentSource extends CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.AnyTableFunctionSource,
   Dialect extends string
 > =
-  StatementOfPlan<PlanValue> extends "insert"
-    ? CurrentSource extends AnyValuesSource | AnyUnnestSource
+  CoreQuery.StatementOfPlan<PlanValue> extends "insert"
+    ? CurrentSource extends CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource
       ? RequirePendingInsertStatement<PlanValue>
       : FromPlanConstraint<PlanValue, CurrentSource, Dialect>
     : FromPlanConstraint<PlanValue, CurrentSource, Dialect>
 
 export type PublicStructuredFromResult<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  CurrentSource extends AnyValuesSource | AnyUnnestSource | AnyTableFunctionSource,
+  PlanValue extends CoreQuery.Plan.Any,
+  CurrentSource extends CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.AnyTableFunctionSource,
   Dialect extends string
 > =
-  StatementOfPlan<PlanValue> extends "select"
-    ? QueryPlan<
-        SelectionOfPlan<PlanValue>,
-        Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-        AddAvailable<{}, SourceNameOf<CurrentSource>>,
-        PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
-        GroupedOfPlan<PlanValue>,
-        SourceNameOf<CurrentSource>,
-        Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-        AssumptionsOfPlan<PlanValue>,
-        MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentSource>>,
-        StatementOfPlan<PlanValue>,
-        MutationTargetOfPlan<PlanValue>,
-        InsertSourceStateOfPlan<PlanValue>,
-        FactsOfPlan<PlanValue>
+  CoreQuery.StatementOfPlan<PlanValue> extends "select"
+    ? CoreQuery.QueryPlan<
+        CoreQuery.SelectionOfPlan<PlanValue>,
+        Exclude<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+        CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<CurrentSource>>,
+        CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.SourceDialectOf<CurrentSource>,
+        CoreQuery.GroupedOfPlan<PlanValue>,
+        CoreQuery.SourceNameOf<CurrentSource>,
+        Exclude<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+        CoreQuery.AssumptionsOfPlan<PlanValue>,
+        CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.SourceCapabilitiesOf<CurrentSource>>,
+        CoreQuery.StatementOfPlan<PlanValue>,
+        CoreQuery.MutationTargetOfPlan<PlanValue>,
+        CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+        CoreQuery.FactsOfPlan<PlanValue>
       >
-    : StatementOfPlan<PlanValue> extends "update"
-      ? QueryPlan<
-          SelectionOfPlan<PlanValue>,
-          Exclude<RequiredOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-          AddAvailable<AvailableOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-          PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
-          GroupedOfPlan<PlanValue>,
-          ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentSource>,
-          Exclude<OutstandingOfPlan<PlanValue>, SourceNameOf<CurrentSource>>,
-          AssumptionsOfPlan<PlanValue>,
-          MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentSource>>,
-          StatementOfPlan<PlanValue>,
-          MutationTargetOfPlan<PlanValue>,
-          InsertSourceStateOfPlan<PlanValue>,
-          FactsOfPlan<PlanValue>
+    : CoreQuery.StatementOfPlan<PlanValue> extends "update"
+      ? CoreQuery.QueryPlan<
+          CoreQuery.SelectionOfPlan<PlanValue>,
+          Exclude<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+          CoreQuery.AddAvailable<CoreQuery.AvailableOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+          CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.SourceDialectOf<CurrentSource>,
+          CoreQuery.GroupedOfPlan<PlanValue>,
+          CoreQuery.ScopedNamesOfPlan<PlanValue> | CoreQuery.SourceNameOf<CurrentSource>,
+          Exclude<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentSource>>,
+          CoreQuery.AssumptionsOfPlan<PlanValue>,
+          CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.SourceCapabilitiesOf<CurrentSource>>,
+          CoreQuery.StatementOfPlan<PlanValue>,
+          CoreQuery.MutationTargetOfPlan<PlanValue>,
+          CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+          CoreQuery.FactsOfPlan<PlanValue>
         >
-      : StatementOfPlan<PlanValue> extends "insert"
-      ? CurrentSource extends AnyValuesSource | AnyUnnestSource
-        ? QueryPlan<
-            SelectionOfPlan<PlanValue>,
+      : CoreQuery.StatementOfPlan<PlanValue> extends "insert"
+      ? CurrentSource extends CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource
+        ? CoreQuery.QueryPlan<
+            CoreQuery.SelectionOfPlan<PlanValue>,
             never,
-            AvailableOfPlan<PlanValue>,
-            PlanDialectOf<PlanValue> | SourceDialectOf<CurrentSource>,
-            GroupedOfPlan<PlanValue>,
-            ScopedNamesOfPlan<PlanValue>,
+            CoreQuery.AvailableOfPlan<PlanValue>,
+            CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.SourceDialectOf<CurrentSource>,
+            CoreQuery.GroupedOfPlan<PlanValue>,
+            CoreQuery.ScopedNamesOfPlan<PlanValue>,
             never,
-            AssumptionsOfPlan<PlanValue>,
-            CapabilitiesOfPlan<PlanValue>,
-            StatementOfPlan<PlanValue>,
-            MutationTargetOfPlan<PlanValue>,
+            CoreQuery.AssumptionsOfPlan<PlanValue>,
+            CoreQuery.CapabilitiesOfPlan<PlanValue>,
+            CoreQuery.StatementOfPlan<PlanValue>,
+            CoreQuery.MutationTargetOfPlan<PlanValue>,
             "ready",
-            FactsOfPlan<PlanValue>
+            CoreQuery.FactsOfPlan<PlanValue>
           >
         : FromPlanResult<PlanValue, CurrentSource, Dialect>
       : FromPlanResult<PlanValue, CurrentSource, Dialect>
 
-export type PublicNonStructuredFromApi = <CurrentSource extends Exclude<FromInput, AnyValuesSource | AnyUnnestSource | AnyTableFunctionSource>>(
+export type PublicNonStructuredFromApi = <CurrentSource extends Exclude<FromInput, CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.AnyTableFunctionSource>>(
   source: CurrentSource
 ) =>
-  <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  <PlanValue extends CoreQuery.Plan.Any>(
     plan: PlanValue & FromPlanConstraint<PlanValue, CurrentSource, Dialect>
   ) => FromPlanResult<PlanValue, CurrentSource, Dialect>
 
 type MergeRequiredFromPredicate<
-  Predicate extends PredicateInput | undefined,
+  Predicate extends CoreQuery.PredicateInput | undefined,
   Available extends Record<string, Plan.AnySource>
-> = Predicate extends PredicateInput ? AddExpressionRequired<never, Available, Predicate> : never
+> = Predicate extends CoreQuery.PredicateInput ? CoreQuery.AddExpressionRequired<never, Available, Predicate> : never
 
 type AsCurriedInput<Dialect extends string> =
-  | ExpressionInput
-  | ValuesInput<any, any, Dialect>
-  | CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+  | CoreQuery.ExpressionInput
+  | CoreQuery.ValuesInput<any, any, Dialect>
+  | CoreQuery.CompletePlan<CoreQuery.Plan.Any>
 
 type AsCurriedResult<
   Value,
@@ -5461,14 +5378,14 @@ type AsCurriedResult<
   TimestampDb extends Expression.DbType.Any,
   NullDb extends Expression.DbType.Any
 > =
-  Value extends ValuesInput<
+  Value extends CoreQuery.ValuesInput<
     infer Rows extends ValuesRowsInput,
-    infer Selection extends SelectionShape,
+    infer Selection extends CoreQuery.SelectionShape,
     Dialect
-  > ? ValuesSource<Rows, Selection, Alias, Dialect>
-    : Value extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
-      ? DerivedSource<Value, Alias>
-      : Value extends ExpressionInput
+  > ? CoreQuery.ValuesSource<Rows, Selection, Alias, Dialect>
+    : Value extends CoreQuery.Plan.Any
+      ? CoreQuery.DerivedSource<Value, Alias>
+      : Value extends CoreQuery.ExpressionInput
         ? DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
         : never
 
@@ -5480,7 +5397,7 @@ type AsCurriedResult<
     value: Value
   ) => AsCurriedResult<Value, Alias, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   function as<
-    Value extends ExpressionInput,
+    Value extends CoreQuery.ExpressionInput,
     Alias extends string
   >(
     value: Value,
@@ -5490,25 +5407,25 @@ type AsCurriedResult<
     Rows extends ValuesRowsInput,
     Alias extends string
   >(
-    value: ValuesInput<
+    value: CoreQuery.ValuesInput<
       Rows,
       ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       Dialect
     >,
     alias: LiteralStringInput<Alias>
-  ): ValuesSource<
+  ): CoreQuery.ValuesSource<
     Rows,
     ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Alias,
     Dialect
   >
   function as<
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Alias extends string
   >(
-    value: DerivedTableCompatiblePlan<PlanValue>,
+    value: CoreQuery.DerivedTableCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): DerivedSource<PlanValue, Alias>
+  ): CoreQuery.DerivedSource<PlanValue, Alias>
   function as(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => as(value as any, valueOrAlias as never)
@@ -5516,7 +5433,7 @@ type AsCurriedResult<
     const resolvedAlias = alias
     const value = valueOrAlias
     if (typeof value !== "object" || value === null || Expression.TypeId in value) {
-      const expression = toDialectExpression(value as ExpressionInput)
+      const expression = toDialectExpression(value as CoreQuery.ExpressionInput)
       const projected = Object.create(Object.getPrototypeOf(expression)) as {
         [Expression.TypeId]: Expression.State<any, any, any, any, any, any>
         [ExpressionAst.TypeId]: ExpressionAst.Any
@@ -5538,36 +5455,36 @@ type AsCurriedResult<
       return projected
     }
     if ("kind" in value && value.kind === "values" && !("name" in value)) {
-      const valuesInput = value as AnyValuesInput
+      const valuesInput = value as CoreQuery.AnyValuesInput
       return makeAliasedValuesSource(
         valuesInput.rows as readonly [Record<string, Expression.Any>, ...Record<string, Expression.Any>[]],
         valuesInput.selection as any,
         resolvedAlias
       ) as unknown
     }
-    return makeDerivedSource(value as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>, resolvedAlias)
+    return makeDerivedSource(value as CoreQuery.CompletePlan<CoreQuery.Plan.Any>, resolvedAlias)
   }
 
   function with_<
     Alias extends string
   >(
     alias: LiteralStringInput<Alias>
-  ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  ): <PlanValue extends CoreQuery.Plan.Any>(
     value: MysqlCteCompatiblePlan<PlanValue>
-  ) => import("../../internal/query.js").CteSource<PlanValue, Alias>
+  ) => import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function with_<
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Alias extends string
   >(
     value: MysqlCteCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("../../internal/query.js").CteSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function with_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => with_(value as any, valueOrAlias as never)
     }
     return makeCteSource(
-      valueOrAlias as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
+      valueOrAlias as CoreQuery.CompletePlan<CoreQuery.Plan.Any>,
       alias
     )
   }
@@ -5576,22 +5493,22 @@ type AsCurriedResult<
     Alias extends string
   >(
     alias: LiteralStringInput<Alias>
-  ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  ): <PlanValue extends CoreQuery.Plan.Any>(
     value: MysqlCteCompatiblePlan<PlanValue>
-  ) => import("../../internal/query.js").CteSource<PlanValue, Alias>
+  ) => import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function withRecursive_<
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Alias extends string
   >(
     value: MysqlCteCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("../../internal/query.js").CteSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function withRecursive_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => withRecursive_(value as any, valueOrAlias as never)
     }
     return makeCteSource(
-      valueOrAlias as CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
+      valueOrAlias as CoreQuery.CompletePlan<CoreQuery.Plan.Any>,
       alias,
       true
     )
@@ -5601,22 +5518,22 @@ type AsCurriedResult<
     Alias extends string
   >(
     alias: LiteralStringInput<Alias>
-  ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-    value: LateralSourceCompatiblePlan<PlanValue>
-  ) => import("../../internal/query.js").LateralSource<PlanValue, Alias>
+  ): <PlanValue extends CoreQuery.Plan.Any>(
+    value: CoreQuery.LateralSourceCompatiblePlan<PlanValue>
+  ) => import("../../internal/query/plan.js").LateralSource<PlanValue, Alias>
   function lateral<
-    PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Alias extends string
   >(
-    value: LateralSourceCompatiblePlan<PlanValue>,
+    value: CoreQuery.LateralSourceCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("../../internal/query.js").LateralSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").LateralSource<PlanValue, Alias>
   function lateral(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => lateral(value as any, valueOrAlias as never)
     }
     return makeLateralSource(
-      valueOrAlias as QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+      valueOrAlias as CoreQuery.Plan.Any,
       alias
     )
   }
@@ -5627,7 +5544,7 @@ type AsCurriedResult<
     rows: Rows
       & ValuesRowsShapeInput<Rows>
       & ValuesRowsDialectInput<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
-  ) => ValuesInput<
+  ) => CoreQuery.ValuesInput<
     Rows,
     ValuesOutputShape<Rows, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Dialect
@@ -5641,24 +5558,24 @@ type AsCurriedResult<
       & UnnestColumnsShapeInput<Columns>
       & UnnestColumnsDialectInput<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     alias: LiteralStringInput<Alias>
-  ) => UnnestSource<
+  ) => CoreQuery.UnnestSource<
     UnnestOutputShape<Columns, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     Alias,
     Dialect
   >
 
   export type GenerateSeriesApi = <
-    Start extends NumericExpressionInput,
-    Stop extends NumericExpressionInput,
-    Step extends NumericExpressionInput | undefined = undefined,
+    Start extends CoreQuery.NumericExpressionInput,
+    Stop extends CoreQuery.NumericExpressionInput,
+    Step extends CoreQuery.NumericExpressionInput | undefined = undefined,
     Alias extends string = "series"
   >(
     start: Start & NumericExpressionDialectInput<Start, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     stop: Stop & NumericExpressionDialectInput<Stop, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-    step?: Step & (Step extends NumericExpressionInput ? NumericExpressionDialectInput<Step, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> : unknown),
+    step?: Step & (Step extends CoreQuery.NumericExpressionInput ? NumericExpressionDialectInput<Step, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> : unknown),
     alias?: LiteralStringInput<Alias>
   ) => Dialect extends "postgres"
-    ? TableFunctionSource<
+    ? CoreQuery.TableFunctionSource<
         GenerateSeriesOutputShape<Start, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
         Alias,
         Dialect,
@@ -5703,16 +5620,16 @@ type AsCurriedResult<
       ? SelectSelectionNonEmptyError<Selection>
       : unknown
 
-  export type SelectApi = <const Selection extends SelectionShape>(
-    selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & SelectSelectionNonEmptyConstraint<Selection> & SelectionProjectionAliasCollisionConstraint<Selection>
-  ) => QueryPlan<
+  export type SelectApi = <const Selection extends CoreQuery.SelectionShape>(
+    selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & SelectSelectionNonEmptyConstraint<Selection> & CoreQuery.SelectionProjectionAliasCollisionConstraint<Selection>
+  ) => CoreQuery.QueryPlan<
     Selection,
-    ExtractRequired<Selection>,
+    CoreQuery.ExtractRequired<Selection>,
     {},
-    ExtractDialect<Selection> extends never ? Dialect : ExtractDialect<Selection>,
+    CoreQuery.ExtractDialect<Selection> extends never ? Dialect : CoreQuery.ExtractDialect<Selection>,
     never,
     never,
-    ExtractRequired<Selection>,
+    CoreQuery.ExtractRequired<Selection>,
     TrueFormula,
     "read",
     "select",
@@ -5725,9 +5642,7 @@ type AsCurriedResult<
     values,
     unnest,
     generateSeries,
-    select,
-    groupBy,
-    returning
+    select
   } = makeDslQueryRuntime({
     profile,
     ValuesInputProto,
@@ -5735,336 +5650,329 @@ type AsCurriedResult<
     normalizeUnnestColumns,
     makeColumnReferenceSelection,
     toDialectNumericExpression,
-    extractRequiredRuntime,
-    makePlan,
-    getAst,
-    getQueryState,
-    currentRequiredList,
-    dedupeGroupedExpressions
   }) as unknown as {
     readonly values: ValuesApi
     readonly unnest: UnnestApi
     readonly generateSeries: GenerateSeriesApi
     readonly select: SelectApi
-    readonly groupBy: GroupByApi
-    readonly returning: ReturningApi
   }
 
   type SetOperationResult<
-    LeftPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-    RightPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
-  > = QueryPlan<
-    SelectionOfPlan<LeftPlanValue>,
+    LeftPlanValue extends CoreQuery.Plan.Any,
+    RightPlanValue extends CoreQuery.Plan.Any
+  > = CoreQuery.QueryPlan<
+    CoreQuery.SelectionOfPlan<LeftPlanValue>,
     never,
     {},
-    PlanDialectOf<LeftPlanValue> | PlanDialectOf<RightPlanValue>,
-    GroupedOfPlan<LeftPlanValue>,
+    CoreQuery.PlanDialectOf<LeftPlanValue> | CoreQuery.PlanDialectOf<RightPlanValue>,
+    CoreQuery.GroupedOfPlan<LeftPlanValue>,
     never,
     never,
     TrueFormula,
-    CapabilitiesOfPlan<LeftPlanValue> | CapabilitiesOfPlan<RightPlanValue>,
+    CoreQuery.CapabilitiesOfPlan<LeftPlanValue> | CoreQuery.CapabilitiesOfPlan<RightPlanValue>,
     "set",
     any,
     "ready",
-    CommonSetFacts<LeftPlanValue, RightPlanValue>
+    CoreQuery.CommonSetFacts<LeftPlanValue, RightPlanValue>
   >
 
   type SetOperationApi = <
-    LeftPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-    RightPlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    LeftPlanValue extends CoreQuery.Plan.Any,
+    RightPlanValue extends CoreQuery.Plan.Any
   >(
-    left: SetCompatiblePlan<LeftPlanValue, Dialect>,
-    right: SetCompatibleRightPlan<LeftPlanValue, RightPlanValue, Dialect>
+    left: CoreQuery.SetCompatiblePlan<LeftPlanValue, Dialect>,
+    right: CoreQuery.SetCompatibleRightPlan<LeftPlanValue, RightPlanValue, Dialect>
   ) => SetOperationResult<LeftPlanValue, RightPlanValue>
 
-  type WhereApi = <Predicate extends PredicateInput>(
+  type WhereApi = <Predicate extends CoreQuery.PredicateInput>(
     predicate: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireWhereStatement<PlanValue>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, Predicate>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, Predicate>,
       PlanAssumptionsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
       PlanFactsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >
+
+  const where: WhereApi = makeWhere(toDialectExpression)
 
   export type FromApi = <CurrentSource extends FromInput>(
     source: CurrentSource
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & FromPlanConstraint<PlanValue, CurrentSource, Dialect>
     ) => FromPlanResult<PlanValue, CurrentSource, Dialect>
 
-  type HavingApi = <Predicate extends HavingPredicateInput>(
+  type HavingApi = <Predicate extends CoreQuery.HavingPredicateInput>(
     predicate: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Predicate>,
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, Predicate>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, Predicate>,
       PlanAssumptionsAfterHaving<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
       PlanFactsAfterHaving<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >
 
-  type CrossJoinApi = <CurrentTable extends SourceLike>(
+  type CrossJoinApi = <CurrentTable extends CoreQuery.SourceLike>(
     table: CurrentTable
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireJoinStatement<PlanValue> & (
-        keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
+        keyof CoreQuery.AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
-        SourceNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
+        CoreQuery.SourceNameOf<CurrentTable> extends CoreQuery.ScopedNamesOfPlan<PlanValue> ? never : unknown
       ) & SourceRequirementConstraint<PlanValue, CurrentTable> & SourceDialectConstraint<CurrentTable, Dialect>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross", SourceRequiredOf<CurrentTable>>,
-      AddAvailable<
-        AvailableOfPlan<PlanValue>,
-        SourceNameOf<CurrentTable>,
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddJoinRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentTable>, never, "cross", CoreQuery.SourceRequiredOf<CurrentTable>>,
+      CoreQuery.AddAvailable<
+        CoreQuery.AvailableOfPlan<PlanValue>,
+        CoreQuery.SourceNameOf<CurrentTable>,
         "required",
         TrueFormula,
-        PresenceWitnessKeysOfSource<CurrentTable>
+        CoreQuery.PresenceWitnessKeysOfSource<CurrentTable>
       >,
-      PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
-      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, never, "cross", SourceRequiredOf<CurrentTable>>,
-      AssumptionsOfPlan<PlanValue>,
-      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+      CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.SourceDialectOf<CurrentTable>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue> | CoreQuery.SourceNameOf<CurrentTable>,
+      CoreQuery.AddJoinRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentTable>, never, "cross", CoreQuery.SourceRequiredOf<CurrentTable>>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.SourceCapabilitiesOf<CurrentTable>>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
 
   type JoinApi = <
     Kind extends QueryAst.JoinKind,
-    CurrentTable extends SourceLike,
-    Predicate extends PredicateInput
+    CurrentTable extends CoreQuery.SourceLike,
+    Predicate extends CoreQuery.PredicateInput
   >(
     kind: Kind,
     table: CurrentTable,
     on: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireJoinStatement<PlanValue> & (
-        keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
+        keyof CoreQuery.AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
-        SourceNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
+        CoreQuery.SourceNameOf<CurrentTable> extends CoreQuery.ScopedNamesOfPlan<PlanValue> ? never : unknown
       ) & SourceRequirementConstraint<PlanValue, CurrentTable> & SourceDialectConstraint<CurrentTable, Dialect>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind, SourceRequiredOf<CurrentTable>>,
-      AvailableAfterJoin<
-        AvailableOfPlan<PlanValue>,
-        SourceNameOf<CurrentTable>,
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddJoinRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentTable>, Predicate, Kind, CoreQuery.SourceRequiredOf<CurrentTable>>,
+      CoreQuery.AvailableAfterJoin<
+        CoreQuery.AvailableOfPlan<PlanValue>,
+        CoreQuery.SourceNameOf<CurrentTable>,
         Kind,
         JoinPresenceFormula<Kind, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-        PresenceWitnessKeysOfSource<CurrentTable>
+        CoreQuery.PresenceWitnessKeysOfSource<CurrentTable>
       >,
-      PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
-      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind, SourceRequiredOf<CurrentTable>>,
+      CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue> | CoreQuery.SourceNameOf<CurrentTable>,
+      CoreQuery.AddJoinRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentTable>, Predicate, Kind, CoreQuery.SourceRequiredOf<CurrentTable>>,
       PlanAssumptionsAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.SourceCapabilitiesOf<CurrentTable>>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
       PlanFactsAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >
 
   type BinaryJoinApi<Kind extends QueryAst.JoinKind> = <
-    CurrentTable extends SourceLike,
-    Predicate extends PredicateInput
+    CurrentTable extends CoreQuery.SourceLike,
+    Predicate extends CoreQuery.PredicateInput
   >(
     table: CurrentTable,
     on: Predicate
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireJoinStatement<PlanValue> & (
-        keyof AvailableOfPlan<PlanValue> extends never ? never : unknown
+        keyof CoreQuery.AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
-        SourceNameOf<CurrentTable> extends ScopedNamesOfPlan<PlanValue> ? never : unknown
+        CoreQuery.SourceNameOf<CurrentTable> extends CoreQuery.ScopedNamesOfPlan<PlanValue> ? never : unknown
       ) & SourceRequirementConstraint<PlanValue, CurrentTable> & SourceDialectConstraint<CurrentTable, Dialect>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddJoinRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind, SourceRequiredOf<CurrentTable>>,
-      AvailableAfterJoin<
-        AvailableOfPlan<PlanValue>,
-        SourceNameOf<CurrentTable>,
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddJoinRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentTable>, Predicate, Kind, CoreQuery.SourceRequiredOf<CurrentTable>>,
+      CoreQuery.AvailableAfterJoin<
+        CoreQuery.AvailableOfPlan<PlanValue>,
+        CoreQuery.SourceNameOf<CurrentTable>,
         Kind,
         JoinPresenceFormula<Kind, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-        PresenceWitnessKeysOfSource<CurrentTable>
+        CoreQuery.PresenceWitnessKeysOfSource<CurrentTable>
       >,
-      PlanDialectOf<PlanValue> | SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue> | SourceNameOf<CurrentTable>,
-      AddJoinRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, SourceNameOf<CurrentTable>, Predicate, Kind, SourceRequiredOf<CurrentTable>>,
+      CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.SourceDialectOf<CurrentTable> | DialectOfDialectInput<Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue> | CoreQuery.SourceNameOf<CurrentTable>,
+      CoreQuery.AddJoinRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, CoreQuery.SourceNameOf<CurrentTable>, Predicate, Kind, CoreQuery.SourceRequiredOf<CurrentTable>>,
       PlanAssumptionsAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, SourceCapabilitiesOf<CurrentTable>>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.SourceCapabilitiesOf<CurrentTable>>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
       PlanFactsAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >
 
   type FullJoinApi = Dialect extends "postgres" ? BinaryJoinApi<"full"> : FullJoinUnsupportedError<Dialect>
 
-  type OrderByApi = <Value extends ExpressionInput>(
+  type OrderByApi = <Value extends CoreQuery.ExpressionInput>(
     value: Value,
-    direction?: OrderDirection
+    direction?: CoreQuery.OrderDirection
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & MutationOrderLimitSupported<PlanValue, Dialect>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Value>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue> | DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, Value>,
-      AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, Value>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue> | DialectOfDialectInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, Value>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
 
   interface LockApi {
-    (mode: "update" | "share", options?: LockOptions): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-      plan: PlanValue & (StatementOfPlan<PlanValue> extends "select" ? unknown : never)
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      RequiredOfPlan<PlanValue>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      OutstandingOfPlan<PlanValue>,
-      AssumptionsOfPlan<PlanValue>,
-      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, "transaction">,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+    (mode: "update" | "share", options?: LockOptions): <PlanValue extends CoreQuery.Plan.Any>(
+      plan: PlanValue & (CoreQuery.StatementOfPlan<PlanValue> extends "select" ? unknown : never)
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.RequiredOfPlan<PlanValue>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.OutstandingOfPlan<PlanValue>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, "transaction">,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
     <Mode extends Dialect extends "mysql" ? "lowPriority" | "ignore" | "quick" : never>(
       mode: Mode,
       options?: LockOptions
-    ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    ): <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & (
         Dialect extends "mysql"
-          ? StatementOfPlan<PlanValue> extends "update"
+          ? CoreQuery.StatementOfPlan<PlanValue> extends "update"
             ? Mode extends MutationLockModeForStatement<"update", Dialect> ? unknown : never
-            : StatementOfPlan<PlanValue> extends "delete"
+            : CoreQuery.StatementOfPlan<PlanValue> extends "delete"
               ? Mode extends MutationLockModeForStatement<"delete", Dialect> ? unknown : never
               : never
           : never
       )
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      RequiredOfPlan<PlanValue>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      OutstandingOfPlan<PlanValue>,
-      AssumptionsOfPlan<PlanValue>,
-      MergeCapabilities<CapabilitiesOfPlan<PlanValue>, "transaction">,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.RequiredOfPlan<PlanValue>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.OutstandingOfPlan<PlanValue>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, "transaction">,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
   }
 
   type DistinctApi = () =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      RequiredOfPlan<PlanValue>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      OutstandingOfPlan<PlanValue>,
-      AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.RequiredOfPlan<PlanValue>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.OutstandingOfPlan<PlanValue>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
 
-  type LimitApi = <Value extends NumericExpressionInput>(
+  type LimitApi = <Value extends CoreQuery.NumericExpressionInput>(
     value: Value
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & MutationOrderLimitSupported<PlanValue, Dialect>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue> | DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue> | DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
 
-  type OffsetApi = <Value extends NumericExpressionInput>(
+  type OffsetApi = <Value extends CoreQuery.NumericExpressionInput>(
     value: Value
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      AddExpressionRequired<RequiredOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue> | DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      AddExpressionRequired<OutstandingOfPlan<PlanValue>, AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
-      AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.RequiredOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue> | DialectOfDialectNumericInput<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      CoreQuery.AddExpressionRequired<CoreQuery.OutstandingOfPlan<PlanValue>, CoreQuery.AvailableOfPlan<PlanValue>, DialectAsNumericExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
 
   const {
     buildSetOperation,
-    where,
     from,
     having,
     crossJoin,
@@ -6076,23 +5984,15 @@ type AsCurriedResult<
     offset
   } = makeDslPlanRuntime({
     profile,
-    makePlan,
-    getAst,
-    getQueryState,
-    currentRequiredList,
     toDialectExpression,
     toDialectNumericExpression,
     extractRequiredFromDialectInputRuntime,
     extractRequiredFromDialectNumericInputRuntime,
-    formulaOfExpressionRuntime,
-    assumeFormulaTrue,
-    trueFormula,
     sourceDetails,
     presenceWitnessesOfSourceLike,
     attachInsertSource: (...args) => attachInsertSource(args[0], args[1])
   }) as {
     readonly buildSetOperation: (kind: QueryAst.SetOperatorKind, all: boolean, left: any, right: any) => any
-    readonly where: WhereApi
     readonly from: FromApi
     readonly having: HavingApi
     readonly crossJoin: CrossJoinApi
@@ -6136,71 +6036,39 @@ type AsCurriedResult<
     __effect_qb_hint__: "Use postgres.Query.distinctOn(...) or regular distinct()/grouping logic"
   } as DistinctOnApi<Dialect>
 
-  type GroupByApi = <Values extends readonly [GroupByInput, ...GroupByInput[]]>(
+  type GroupByApi = <Values extends readonly [CoreQuery.GroupByInput, ...CoreQuery.GroupByInput[]]>(
     ...values: Values
   ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      Exclude<RequiredOfPlan<PlanValue> | RequiredFromDependencies<TupleDependencies<Values>>, AvailableNames<AvailableOfPlan<PlanValue>>>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue> | TupleDialect<Values>,
-      GroupedOfPlan<PlanValue> | GroupedKeysFromValues<Values>,
-      ScopedNamesOfPlan<PlanValue>,
-      Exclude<OutstandingOfPlan<PlanValue> | RequiredFromDependencies<TupleDependencies<Values>>, AvailableNames<AvailableOfPlan<PlanValue>>>,
-      AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      Exclude<CoreQuery.RequiredOfPlan<PlanValue> | CoreQuery.RequiredFromDependencies<CoreQuery.TupleDependencies<Values>>, AvailableNames<CoreQuery.AvailableOfPlan<PlanValue>>>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.TupleDialect<Values>,
+      CoreQuery.GroupedOfPlan<PlanValue> | CoreQuery.GroupedKeysFromValues<Values>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      Exclude<CoreQuery.OutstandingOfPlan<PlanValue> | CoreQuery.RequiredFromDependencies<CoreQuery.TupleDependencies<Values>>, AvailableNames<CoreQuery.AvailableOfPlan<PlanValue>>>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
 
-  type ReturningSelectionNonEmptyError<Selection> = Selection & {
-    readonly __effect_qb_error__: "effect-qb: returning(...) requires at least one selected expression"
-  }
-
-  type ReturningSelectionNonEmptyConstraint<Selection> =
-    Selection extends Expression.Any
-      ? unknown
-      : [Extract<keyof Selection, string>] extends [never]
-        ? ReturningSelectionNonEmptyError<Selection>
-        : unknown
-
-  type ReturningApi = Dialect extends "postgres"
-    ? <const Selection extends SelectionShape>(
-        selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & ReturningSelectionNonEmptyConstraint<Selection> & SelectionProjectionAliasCollisionConstraint<Selection>
-      ) =>
-        <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-          plan: PlanValue & RequireMutationStatement<PlanValue>
-        ) => QueryPlan<
-          Selection,
-          Exclude<RequiredOfPlan<PlanValue> | ExtractRequired<Selection>, AvailableNames<AvailableOfPlan<PlanValue>>>,
-          AvailableOfPlan<PlanValue>,
-          PlanDialectOf<PlanValue> | ExtractDialect<Selection>,
-          GroupedOfPlan<PlanValue>,
-          ScopedNamesOfPlan<PlanValue>,
-          Exclude<OutstandingOfPlan<PlanValue> | ExtractRequired<Selection>, AvailableNames<AvailableOfPlan<PlanValue>>>,
-          AssumptionsOfPlan<PlanValue>,
-          CapabilitiesOfPlan<PlanValue>,
-          StatementOfPlan<PlanValue>,
-          MutationTargetOfPlan<PlanValue>,
-          InsertSourceStateOfPlan<PlanValue>,
-          FactsOfPlan<PlanValue>
-        >
-    : ReturningUnsupportedError<Dialect>
+  const groupBy: GroupByApi = groupByRuntime
 
   export interface InsertApi {
     <Target extends MutationTargetLike>(
       target: Target & TableDialectConstraint<Target, Dialect>
-    ): QueryPlan<
+    ): CoreQuery.QueryPlan<
       {},
       never,
-      AddAvailable<{}, SourceNameOf<Target>>,
-      TableDialectOf<Target>,
+      CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>,
+      CoreQuery.TableDialectOf<Target>,
       never,
-      SourceNameOf<Target>,
+      CoreQuery.SourceNameOf<Target>,
       never,
       TrueFormula,
       "write",
@@ -6211,15 +6079,15 @@ type AsCurriedResult<
     >
     <Target extends MutationTargetLike, Values extends Record<string, unknown>>(
       target: Target & TableDialectConstraint<Target, Dialect>,
-      values: MutationValuesInput<"insert", Target, Values> & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
-    ): QueryPlan<
+      values: CoreQuery.MutationValuesInput<"insert", Target, Values> & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    ): CoreQuery.QueryPlan<
       {},
-      Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
-      AddAvailable<{}, SourceNameOf<Target>>,
-      TableDialectOf<Target> | KnownMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Exclude<MutationRequiredFromValues<Values>, CoreQuery.SourceNameOf<Target>>,
+      CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>,
+      CoreQuery.TableDialectOf<Target> | KnownMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       never,
-      SourceNameOf<Target>,
-      Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
+      CoreQuery.SourceNameOf<Target>,
+      Exclude<MutationRequiredFromValues<Values>, CoreQuery.SourceNameOf<Target>>,
       TrueFormula,
       "write",
       "insert",
@@ -6230,50 +6098,50 @@ type AsCurriedResult<
   }
 
   type AttachInsertSourceApi = (
-    plan: QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
-    source: AnyValuesInput | AnyValuesSource | AnyUnnestSource | CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
-  ) => QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "ready">
+    plan: CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
+    source: CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.CompletePlan<CoreQuery.Plan.Any>
+  ) => CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "ready">
 
   type OnConflictApi = <
     Target extends MutationTargetLike,
     const Columns extends DdlColumnInput,
-    UpdateValues extends MutationInputOf<Table.UpdateOf<Target>> | undefined = MutationInputOf<Table.UpdateOf<Target>> | undefined,
+    UpdateValues extends CoreQuery.MutationInputOf<Table.UpdateOf<Target>> | undefined = CoreQuery.MutationInputOf<Table.UpdateOf<Target>> | undefined,
     Options extends ConflictActionInput<Target, Dialect, UpdateValues> = ConflictActionInput<Target, Dialect, UpdateValues>,
     const ConflictTarget extends ConflictTargetInput<Target, Dialect, Columns> = ConflictTargetInput<Target, Dialect, Columns>
   >(
     target: ConflictTarget & ConflictConstraintNameConstraint<ConflictTarget>,
     options?: Options & ConflictActionUpdateNonEmptyConstraint<Options>
 	  ) =>
-    <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
-      plan: PlanValue & RequireInsertStatement<PlanValue> & ConflictTargetPlanConstraint<MutationTargetOfPlan<PlanValue>, ConflictTarget>
-    ) => QueryPlan<
-      SelectionOfPlan<PlanValue>,
-      Exclude<RequiredOfPlan<PlanValue> | ConflictRequired<UpdateValues, Options, ConflictTarget>, AvailableNames<AvailableOfPlan<PlanValue>>>,
-      AvailableOfPlan<PlanValue>,
-      PlanDialectOf<PlanValue> | ConflictDialect<UpdateValues, Options, ConflictTarget, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      GroupedOfPlan<PlanValue>,
-      ScopedNamesOfPlan<PlanValue>,
-      Exclude<OutstandingOfPlan<PlanValue> | ConflictRequired<UpdateValues, Options, ConflictTarget>, AvailableNames<AvailableOfPlan<PlanValue>>>,
-      AssumptionsOfPlan<PlanValue>,
-      CapabilitiesOfPlan<PlanValue>,
-      StatementOfPlan<PlanValue>,
-      MutationTargetOfPlan<PlanValue>,
-      InsertSourceStateOfPlan<PlanValue>,
-      FactsOfPlan<PlanValue>
+    <PlanValue extends CoreQuery.Plan.Any>(
+      plan: PlanValue & RequireInsertStatement<PlanValue> & ConflictTargetPlanConstraint<CoreQuery.MutationTargetOfPlan<PlanValue>, ConflictTarget>
+    ) => CoreQuery.QueryPlan<
+      CoreQuery.SelectionOfPlan<PlanValue>,
+      Exclude<CoreQuery.RequiredOfPlan<PlanValue> | ConflictRequired<UpdateValues, Options, ConflictTarget>, AvailableNames<CoreQuery.AvailableOfPlan<PlanValue>>>,
+      CoreQuery.AvailableOfPlan<PlanValue>,
+      CoreQuery.PlanDialectOf<PlanValue> | ConflictDialect<UpdateValues, Options, ConflictTarget, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      CoreQuery.GroupedOfPlan<PlanValue>,
+      CoreQuery.ScopedNamesOfPlan<PlanValue>,
+      Exclude<CoreQuery.OutstandingOfPlan<PlanValue> | ConflictRequired<UpdateValues, Options, ConflictTarget>, AvailableNames<CoreQuery.AvailableOfPlan<PlanValue>>>,
+      CoreQuery.AssumptionsOfPlan<PlanValue>,
+      CoreQuery.CapabilitiesOfPlan<PlanValue>,
+      CoreQuery.StatementOfPlan<PlanValue>,
+      CoreQuery.MutationTargetOfPlan<PlanValue>,
+      CoreQuery.InsertSourceStateOfPlan<PlanValue>,
+      CoreQuery.FactsOfPlan<PlanValue>
     >
 
   interface UpdateApi {
-    <Targets extends MutationTargetTuple, Values extends UpdateInputOfTarget<Targets>>(
+    <Targets extends MutationTargetTuple, Values extends CoreQuery.UpdateInputOfTarget<Targets>>(
       target: Dialect extends "mysql" ? Targets & MutationTargetTupleDialectConstraint<Targets, Dialect> & MutationTargetTupleUniqueNamesConstraint<Targets> : never,
       values: Values & NestedUpdateValuesNonEmptyConstraint<Values> & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
-    ): QueryPlan<
+    ): CoreQuery.QueryPlan<
       {},
-      Exclude<NestedMutationRequiredFromValues<Values>, MutationTargetNamesOf<Targets>>,
-      AddAvailableMany<{}, MutationTargetNamesOf<Targets>>,
-      TableDialectOf<Targets[0]> | KnownMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Exclude<NestedMutationRequiredFromValues<Values>, CoreQuery.MutationTargetNamesOf<Targets>>,
+      CoreQuery.AddAvailableMany<{}, CoreQuery.MutationTargetNamesOf<Targets>>,
+      CoreQuery.TableDialectOf<Targets[0]> | KnownMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       never,
-      MutationTargetNamesOf<Targets>,
-      Exclude<NestedMutationRequiredFromValues<Values>, MutationTargetNamesOf<Targets>>,
+      CoreQuery.MutationTargetNamesOf<Targets>,
+      Exclude<NestedMutationRequiredFromValues<Values>, CoreQuery.MutationTargetNamesOf<Targets>>,
       TrueFormula,
       "write",
       "update",
@@ -6283,15 +6151,15 @@ type AsCurriedResult<
     >
     <Target extends MutationTargetLike, Values extends Record<string, unknown>>(
       target: Target & TableDialectConstraint<Target, Dialect>,
-      values: MutationValuesInput<"update", Target, Values> & UpdateValuesNonEmptyConstraint<Values> & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
-    ): QueryPlan<
+      values: CoreQuery.MutationValuesInput<"update", Target, Values> & UpdateValuesNonEmptyConstraint<Values> & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+    ): CoreQuery.QueryPlan<
       {},
-      Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
-      AddAvailable<{}, SourceNameOf<Target>>,
-      TableDialectOf<Target> | KnownMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
+      Exclude<MutationRequiredFromValues<Values>, CoreQuery.SourceNameOf<Target>>,
+      CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>,
+      CoreQuery.TableDialectOf<Target> | KnownMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
       never,
-      SourceNameOf<Target>,
-      Exclude<MutationRequiredFromValues<Values>, SourceNameOf<Target>>,
+      CoreQuery.SourceNameOf<Target>,
+      Exclude<MutationRequiredFromValues<Values>, CoreQuery.SourceNameOf<Target>>,
       TrueFormula,
       "write",
       "update",
@@ -6303,24 +6171,24 @@ type AsCurriedResult<
 
   type UpsertApi = <
     Target extends MutationTargetLike,
-    Values extends MutationInputOf<Table.InsertOf<Target>>,
+    Values extends CoreQuery.MutationInputOf<Table.InsertOf<Target>>,
     const Columns extends DdlColumnInput,
-    UpdateValues extends MutationInputOf<Table.UpdateOf<Target>> | undefined = undefined
+    UpdateValues extends CoreQuery.MutationInputOf<Table.UpdateOf<Target>> | undefined = undefined
   >(
     target: Target & TableDialectConstraint<Target, Dialect>,
     values: Values & MutationValuesDialectConstraint<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     conflictColumns: ValidateConflictColumnInput<Target, Columns, false>,
     updateValues?: UpdateValues & UpdateValuesNonEmptyConstraint<Exclude<UpdateValues, undefined>> & MutationValuesDialectConstraint<Exclude<UpdateValues, undefined>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
-  ) => QueryPlan<
+  ) => CoreQuery.QueryPlan<
     {},
-    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<Exclude<UpdateValues, undefined>>, SourceNameOf<Target>>,
-    AddAvailable<{}, SourceNameOf<Target>>,
-    | TableDialectOf<Target>
+    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<Exclude<UpdateValues, undefined>>, CoreQuery.SourceNameOf<Target>>,
+    CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>,
+    | CoreQuery.TableDialectOf<Target>
     | KnownMutationDialectFromValues<Values, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     | KnownMutationDialectFromValues<Exclude<UpdateValues, undefined>, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
     never,
-    SourceNameOf<Target>,
-    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<Exclude<UpdateValues, undefined>>, SourceNameOf<Target>>,
+    CoreQuery.SourceNameOf<Target>,
+    Exclude<MutationRequiredFromValues<Values> | MutationRequiredFromValues<Exclude<UpdateValues, undefined>>, CoreQuery.SourceNameOf<Target>>,
     TrueFormula,
     "write",
     "insert",
@@ -6332,13 +6200,13 @@ type AsCurriedResult<
   interface DeleteApi {
     <Target extends MutationTargetLike>(
       target: Target & TableDialectConstraint<Target, Dialect>
-    ): QueryPlan<
+    ): CoreQuery.QueryPlan<
       {},
       never,
-      AddAvailable<{}, SourceNameOf<Target>>,
-      TableDialectOf<Target>,
+      CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>,
+      CoreQuery.TableDialectOf<Target>,
       never,
-      SourceNameOf<Target>,
+      CoreQuery.SourceNameOf<Target>,
       never,
       TrueFormula,
       "write",
@@ -6349,13 +6217,13 @@ type AsCurriedResult<
     >
     <Targets extends MutationTargetTuple>(
       target: Dialect extends "mysql" ? Targets & MutationTargetTupleDialectConstraint<Targets, Dialect> & MutationTargetTupleUniqueNamesConstraint<Targets> : never
-    ): QueryPlan<
+    ): CoreQuery.QueryPlan<
       {},
       never,
-      AddAvailableMany<{}, MutationTargetNamesOf<Targets>>,
-      TableDialectOf<Targets[0]>,
+      CoreQuery.AddAvailableMany<{}, CoreQuery.MutationTargetNamesOf<Targets>>,
+      CoreQuery.TableDialectOf<Targets[0]>,
       never,
-      MutationTargetNamesOf<Targets>,
+      CoreQuery.MutationTargetNamesOf<Targets>,
       never,
       TrueFormula,
       "write",
@@ -6369,11 +6237,11 @@ type AsCurriedResult<
   type TruncateApi = <Target extends MutationTargetLike>(
     target: Target & TableDialectConstraint<Target, Dialect>,
     options?: TruncateOptions
-  ) => QueryPlan<
+  ) => CoreQuery.QueryPlan<
     {},
     never,
     {},
-    TableDialectOf<Target>,
+    CoreQuery.TableDialectOf<Target>,
     never,
     never,
     never,
@@ -6393,55 +6261,55 @@ type AsCurriedResult<
 
   type MergeSupportedApi = <
     Target extends MutationTargetLike,
-    Source extends SourceLike,
-    On extends PredicateInput,
-    MatchedValues extends MutationInputOf<Table.UpdateOf<Target>> = MutationInputOf<Table.UpdateOf<Target>>,
-    InsertValues extends MutationInputOf<Table.InsertOf<Target>> = MutationInputOf<Table.InsertOf<Target>>,
-    MatchedPredicate extends PredicateInput | undefined = undefined,
-    NotMatchedPredicate extends PredicateInput | undefined = undefined
+    Source extends CoreQuery.SourceLike,
+    On extends CoreQuery.PredicateInput,
+    MatchedValues extends CoreQuery.MutationInputOf<Table.UpdateOf<Target>> = CoreQuery.MutationInputOf<Table.UpdateOf<Target>>,
+    InsertValues extends CoreQuery.MutationInputOf<Table.InsertOf<Target>> = CoreQuery.MutationInputOf<Table.InsertOf<Target>>,
+    MatchedPredicate extends CoreQuery.PredicateInput | undefined = undefined,
+    NotMatchedPredicate extends CoreQuery.PredicateInput | undefined = undefined
   >(
     target: Target & TableDialectConstraint<Target, Dialect>,
     source: Source & (
-      SourceRequiredOf<Source> extends never ? unknown : SourceRequirementError<Source>
+      CoreQuery.SourceRequiredOf<Source> extends never ? unknown : CoreQuery.SourceRequirementError<Source>
     ) & SourceDialectConstraint<Source, Dialect>,
     on: On,
     options: MergeOptions<Target, MatchedValues, InsertValues, MatchedPredicate, NotMatchedPredicate>
-  ) => QueryPlan<
+  ) => CoreQuery.QueryPlan<
     {},
     Exclude<
-      AddExpressionRequired<
+      CoreQuery.AddExpressionRequired<
         MergeRequiredFromPredicate<
           MatchedPredicate,
-          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>
+          CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>
         > | MergeRequiredFromPredicate<
           NotMatchedPredicate,
-          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>
+          CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>
         > | MutationRequiredFromValues<MatchedValues> | MutationRequiredFromValues<InsertValues>,
-        AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+        CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>,
         On
       >,
-      SourceNameOf<Target> | SourceNameOf<Source>
+      CoreQuery.SourceNameOf<Target> | CoreQuery.SourceNameOf<Source>
     >,
-    AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
-    TableDialectOf<Target> | SourceDialectOf<Source>,
+    CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>,
+    CoreQuery.TableDialectOf<Target> | CoreQuery.SourceDialectOf<Source>,
     never,
-    SourceNameOf<Target> | SourceNameOf<Source>,
+    CoreQuery.SourceNameOf<Target> | CoreQuery.SourceNameOf<Source>,
     Exclude<
-      AddExpressionRequired<
+      CoreQuery.AddExpressionRequired<
         MergeRequiredFromPredicate<
           MatchedPredicate,
-          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>
+          CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>
         > | MergeRequiredFromPredicate<
           NotMatchedPredicate,
-          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>
+          CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>
         > | MutationRequiredFromValues<MatchedValues> | MutationRequiredFromValues<InsertValues>,
-        AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+        CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>,
         On
       >,
-      SourceNameOf<Target> | SourceNameOf<Source>
+      CoreQuery.SourceNameOf<Target> | CoreQuery.SourceNameOf<Source>
     >,
     TrueFormula,
-    MergeCapabilities<"write", SourceCapabilitiesOf<Source>>,
+    CoreQuery.MergeCapabilities<"write", CoreQuery.SourceCapabilitiesOf<Source>>,
     "merge",
     any,
     "ready",
@@ -6452,10 +6320,6 @@ type AsCurriedResult<
 
   const mutationRuntime = makeDslMutationRuntime({
     profile,
-    makePlan,
-    getAst,
-    getQueryState,
-    currentRequiredList,
     toDialectExpression,
     buildMutationAssignments,
     buildInsertValuesRows,
@@ -6475,13 +6339,13 @@ type AsCurriedResult<
   ) => mutationRuntime.insert(target, values)) as InsertApi
 
   const attachInsertSource = (
-    plan: QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
-    source: AnyValuesInput | AnyValuesSource | AnyUnnestSource | CompletePlan<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
-  ): QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "ready"> =>
+    plan: CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
+    source: CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.CompletePlan<CoreQuery.Plan.Any>
+  ): CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "ready"> =>
     mutationRuntime.attachInsertSource(plan, source)
 
   const onConflict = ((target: unknown, options: unknown = {}) =>
-    (plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>) =>
+    (plan: CoreQuery.Plan.Any) =>
       mutationRuntime.onConflict(target, options)(plan)) as OnConflictApi
 
   const update: UpdateApi = ((
@@ -6505,11 +6369,11 @@ type AsCurriedResult<
   >(
     target: Target,
     options: TruncateOptions = {}
-  ): QueryPlan<
+  ): CoreQuery.QueryPlan<
     {},
     never,
     {},
-    TableDialectOf<Target>,
+    CoreQuery.TableDialectOf<Target>,
     never,
     never,
     never,
@@ -6523,62 +6387,62 @@ type AsCurriedResult<
 
   const merge = (<
     Target extends MutationTargetLike,
-    Source extends SourceLike,
-    On extends PredicateInput,
-    MatchedValues extends MutationInputOf<Table.UpdateOf<Target>> = MutationInputOf<Table.UpdateOf<Target>>,
-    InsertValues extends MutationInputOf<Table.InsertOf<Target>> = MutationInputOf<Table.InsertOf<Target>>,
-    MatchedPredicate extends PredicateInput | undefined = undefined,
-    NotMatchedPredicate extends PredicateInput | undefined = undefined
+    Source extends CoreQuery.SourceLike,
+    On extends CoreQuery.PredicateInput,
+    MatchedValues extends CoreQuery.MutationInputOf<Table.UpdateOf<Target>> = CoreQuery.MutationInputOf<Table.UpdateOf<Target>>,
+    InsertValues extends CoreQuery.MutationInputOf<Table.InsertOf<Target>> = CoreQuery.MutationInputOf<Table.InsertOf<Target>>,
+    MatchedPredicate extends CoreQuery.PredicateInput | undefined = undefined,
+    NotMatchedPredicate extends CoreQuery.PredicateInput | undefined = undefined
   >(
     target: Target,
     source: Source & (
-      SourceRequiredOf<Source> extends never ? unknown : SourceRequirementError<Source>
+      CoreQuery.SourceRequiredOf<Source> extends never ? unknown : CoreQuery.SourceRequirementError<Source>
     ),
     on: On,
     options: MergeOptions<Target, MatchedValues, InsertValues, MatchedPredicate, NotMatchedPredicate>
-  ): QueryPlan<
+  ): CoreQuery.QueryPlan<
     {},
     Exclude<
-      AddExpressionRequired<
+      CoreQuery.AddExpressionRequired<
         MergeRequiredFromPredicate<
           MatchedPredicate,
-          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>
+          CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>
         > | MergeRequiredFromPredicate<
           NotMatchedPredicate,
-          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>
+          CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>
         > | MutationRequiredFromValues<MatchedValues> | MutationRequiredFromValues<InsertValues>,
-        AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+        CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>,
         On
       >,
-      SourceNameOf<Target> | SourceNameOf<Source>
+      CoreQuery.SourceNameOf<Target> | CoreQuery.SourceNameOf<Source>
     >,
-    AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
-    TableDialectOf<Target> | SourceDialectOf<Source>,
+    CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>,
+    CoreQuery.TableDialectOf<Target> | CoreQuery.SourceDialectOf<Source>,
     never,
-    SourceNameOf<Target> | SourceNameOf<Source>,
+    CoreQuery.SourceNameOf<Target> | CoreQuery.SourceNameOf<Source>,
     Exclude<
-      AddExpressionRequired<
+      CoreQuery.AddExpressionRequired<
         MergeRequiredFromPredicate<
           MatchedPredicate,
-          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>
+          CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>
         > | MergeRequiredFromPredicate<
           NotMatchedPredicate,
-          AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>
+          CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>
         > | MutationRequiredFromValues<MatchedValues> | MutationRequiredFromValues<InsertValues>,
-        AddAvailable<AddAvailable<{}, SourceNameOf<Target>>, SourceNameOf<Source>>,
+        CoreQuery.AddAvailable<CoreQuery.AddAvailable<{}, CoreQuery.SourceNameOf<Target>>, CoreQuery.SourceNameOf<Source>>,
         On
       >,
-      SourceNameOf<Target> | SourceNameOf<Source>
+      CoreQuery.SourceNameOf<Target> | CoreQuery.SourceNameOf<Source>
     >,
     TrueFormula,
-    MergeCapabilities<"write", SourceCapabilitiesOf<Source>>,
+    CoreQuery.MergeCapabilities<"write", CoreQuery.SourceCapabilitiesOf<Source>>,
     "merge",
     any,
     "ready",
     EmptyFacts
   > => mutationRuntime.merge(target, source, on, options)) as unknown as MergeApi
 
-  type TransactionApi = (options?: TransactionOptions) => QueryPlan<
+  type TransactionApi = (options?: TransactionOptions) => CoreQuery.QueryPlan<
     {},
     never,
     {},
@@ -6591,7 +6455,7 @@ type AsCurriedResult<
     "transaction"
   >
 
-  type CommitApi = () => QueryPlan<
+  type CommitApi = () => CoreQuery.QueryPlan<
     {},
     never,
     {},
@@ -6604,7 +6468,7 @@ type AsCurriedResult<
     "commit"
   >
 
-  type RollbackApi = () => QueryPlan<
+  type RollbackApi = () => CoreQuery.QueryPlan<
     {},
     never,
     {},
@@ -6617,7 +6481,7 @@ type AsCurriedResult<
     "rollback"
   >
 
-  type SavepointApi = <Name extends string>(name: NonEmptyStringInput<Name>) => QueryPlan<
+  type SavepointApi = <Name extends string>(name: NonEmptyStringInput<Name>) => CoreQuery.QueryPlan<
     {},
     never,
     {},
@@ -6630,7 +6494,7 @@ type AsCurriedResult<
     "savepoint"
   >
 
-  type RollbackToApi = <Name extends string>(name: NonEmptyStringInput<Name>) => QueryPlan<
+  type RollbackToApi = <Name extends string>(name: NonEmptyStringInput<Name>) => CoreQuery.QueryPlan<
     {},
     never,
     {},
@@ -6643,7 +6507,7 @@ type AsCurriedResult<
     "rollbackTo"
   >
 
-  type ReleaseSavepointApi = <Name extends string>(name: NonEmptyStringInput<Name>) => QueryPlan<
+  type ReleaseSavepointApi = <Name extends string>(name: NonEmptyStringInput<Name>) => CoreQuery.QueryPlan<
     {},
     never,
     {},
@@ -6656,14 +6520,14 @@ type AsCurriedResult<
     "releaseSavepoint"
   >
 
-  type CreateTableApi = <Target extends SchemaTableLike>(
+  type CreateTableApi = <Target extends CoreQuery.SchemaTableLike>(
     target: Target & TableDialectConstraint<Target, Dialect>,
     options?: CreateTableOptions
-  ) => QueryPlan<
+  ) => CoreQuery.QueryPlan<
     {},
     never,
     {},
-    TableDialectOf<Target>,
+    CoreQuery.TableDialectOf<Target>,
     never,
     never,
     never,
@@ -6672,14 +6536,14 @@ type AsCurriedResult<
     "createTable"
   >
 
-  type DropTableApi = <Target extends SchemaTableLike>(
+  type DropTableApi = <Target extends CoreQuery.SchemaTableLike>(
     target: Target & TableDialectConstraint<Target, Dialect>,
     options?: DropTableOptions
-  ) => QueryPlan<
+  ) => CoreQuery.QueryPlan<
     {},
     never,
     {},
-    TableDialectOf<Target>,
+    CoreQuery.TableDialectOf<Target>,
     never,
     never,
     never,
@@ -6688,15 +6552,15 @@ type AsCurriedResult<
     "dropTable"
   >
 
-  type CreateIndexApi = <Target extends SchemaTableLike, const Columns extends DdlColumnInput, Name extends string = string>(
+  type CreateIndexApi = <Target extends CoreQuery.SchemaTableLike, const Columns extends DdlColumnInput, Name extends string = string>(
     target: Target & TableDialectConstraint<Target, Dialect>,
     columns: Columns & ValidateDdlColumnInput<Target, Columns>,
     options?: CreateIndexOptions<Name>
-  ) => QueryPlan<
+  ) => CoreQuery.QueryPlan<
     {},
     never,
     {},
-    TableDialectOf<Target>,
+    CoreQuery.TableDialectOf<Target>,
     never,
     never,
     never,
@@ -6705,15 +6569,15 @@ type AsCurriedResult<
     "createIndex"
   >
 
-  type DropIndexApi = <Target extends SchemaTableLike, const Columns extends DdlColumnInput, Name extends string = string>(
+  type DropIndexApi = <Target extends CoreQuery.SchemaTableLike, const Columns extends DdlColumnInput, Name extends string = string>(
     target: Target & TableDialectConstraint<Target, Dialect>,
     columns: Columns & ValidateDdlColumnInput<Target, Columns>,
     options?: DropIndexOptions<Name>
-  ) => QueryPlan<
+  ) => CoreQuery.QueryPlan<
     {},
     never,
     {},
-    TableDialectOf<Target>,
+    CoreQuery.TableDialectOf<Target>,
     never,
     never,
     never,
@@ -6735,7 +6599,6 @@ type AsCurriedResult<
     dropIndex
   } = makeDslTransactionDdlRuntime({
     profile,
-    makePlan,
     targetSourceDetails,
     normalizeColumnList,
     defaultIndexName
@@ -6849,7 +6712,6 @@ export {
   exportedValues as values,
   exportedUnnest as unnest,
   generateSeries,
-  returning,
   onConflict,
   exportedInsert as insert,
   update,

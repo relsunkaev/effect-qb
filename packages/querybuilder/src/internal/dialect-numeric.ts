@@ -6,7 +6,7 @@ import {
   type MergeAggregation,
   type MergeNullabilityTuple,
   type TupleDependencies
-} from "./query.js"
+} from "./query/plan.js"
 import * as Expression from "./scalar.js"
 
 export type Input = Expression.Any | number

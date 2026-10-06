@@ -3,7 +3,7 @@ import * as SqlClient from "effect/sql/SqlClient"
 import * as Stream from "effect/Stream"
 
 import * as CoreExecutor from "../internal/executor.js"
-import * as CoreQuery from "../internal/query.js"
+import * as CoreQuery from "../internal/query/plan.js"
 import * as CoreRenderer from "../internal/renderer.js"
 import type * as Expression from "../internal/scalar.js"
 import type { SqliteDatatypeFamily, SqliteDatatypeKind } from "./datatypes/spec.js"
@@ -40,7 +40,7 @@ export interface MakeOptions<Error = never, Context = never> {
 /** Standard composed error shape for SQLite executors. */
 export type SqliteExecutorError = SqliteDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in SQLite executors. */
-export type SqliteQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+export type SqliteQueryError<PlanValue extends CoreQuery.Plan.Any> =
   Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? SqliteReadQueryError | RowDecodeError : SqliteExecutorError
 
 /** Pipeable execution cardinality helpers. */
@@ -54,21 +54,21 @@ export const withTransaction = CoreExecutor.withTransaction
 /** SQLite executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"sqlite", SqliteQueryError<any>, Context> {
   readonly dialect: "sqlite"
-  execute<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): Effect.Effect<CoreQuery.ResultRows<PlanValue>, SqliteQueryError<PlanValue>, Context>
-  executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  executeResult<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, SqliteQueryError<PlanValue>, Context>
-  prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  prepare<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, SqliteQueryError<PlanValue>, Context>
-  stream<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  stream<PlanValue extends CoreQuery.Plan.Any>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
       : never
   ): Stream.Stream<CoreQuery.ResultRow<PlanValue>, SqliteQueryError<PlanValue>, Context>
-  explain<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  explain<PlanValue extends CoreQuery.Plan.Any>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
       : never
@@ -274,7 +274,7 @@ export const custom = <
   Error = never,
   Context = never
 >(
-  execute: <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "sqlite">
   ) => Effect.Effect<CoreQuery.ResultRows<PlanValue>, Error, Context>
 ): Executor<Error, Context> =>

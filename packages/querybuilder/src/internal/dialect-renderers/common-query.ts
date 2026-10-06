@@ -1,4 +1,4 @@
-import type * as QueryAst from "../query-ast.js"
+import type * as QueryAst from "../query/ast.js"
 import type { RenderState, SqlDialect, RenderedAst } from "../dialect.js"
 import { flattenSelection, type Projection } from "../projections.js"
 import { renderSelectSql } from "../runtime/driver-value-mapping.js"

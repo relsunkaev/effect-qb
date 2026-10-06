@@ -10,7 +10,7 @@ import {
   type NormalizeDialect,
   type TupleDependencies,
   type TupleDialect
-} from "./query.js"
+} from "./query/plan.js"
 
 /** A structured SQL identifier. Every path segment is quoted by the renderer. */
 export type Identifier<

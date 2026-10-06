@@ -1,4 +1,4 @@
-import type { ExpressionInput } from "../query.js"
+import type { ExpressionInput } from "../internal/query.js"
 import {
   call,
   cast,

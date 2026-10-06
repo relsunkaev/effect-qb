@@ -1,5 +1,5 @@
-import * as Query from "../query.js"
-import type * as QueryAst from "../query-ast.js"
+import * as Query from "../query/plan.js"
+import type * as QueryAst from "../query/ast.js"
 import * as Expression from "../scalar.js"
 import * as ExpressionAst from "../expression-ast.js"
 import type { RenderState, SqlDialect } from "../dialect.js"

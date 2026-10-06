@@ -1,5 +1,5 @@
 import * as Table from "../table.js"
-import type * as QueryAst from "../query-ast.js"
+import type * as QueryAst from "../query/ast.js"
 import type { RenderState, SqlDialect } from "../dialect.js"
 import * as Casing from "../casing.js"
 

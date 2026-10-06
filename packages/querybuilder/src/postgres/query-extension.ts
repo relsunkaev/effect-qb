@@ -1,2 +1,6 @@
-/** Postgres-only query helpers. Portable query builders are exported from the root package. */
-export { distinctOn, generateSeries, onConflict } from "./query.js"
+/**
+ * Postgres-only query extensions.
+ * Portable builders: import { Query } from "effect-qb".
+ * Source: ../standard/query.ts
+ */
+export { distinctOn, generateSeries, onConflict } from "./internal/query.js"

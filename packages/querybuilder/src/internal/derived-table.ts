@@ -1,19 +1,19 @@
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 
 import * as Expression from "./scalar.js"
-import * as Plan from "./row-set.js"
+import * as RowSet from "./row-set.js"
 import {
   type CompletePlan,
   type CteSource,
   type DerivedSelectionOf,
   type DerivedSource,
   type LateralSource,
-  type QueryPlan,
+  type Plan,
   getAst,
   makeExpression,
   currentRequiredList,
   type SelectionOfPlan
-} from "./query.js"
+} from "./query/plan.js"
 import * as ExpressionAst from "./expression-ast.js"
 import { flattenSelection } from "./projections.js"
 
@@ -55,7 +55,7 @@ const setPath = (
 }
 
 const reboundedColumns = <
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   Alias extends string
 >(
   plan: PlanValue,
@@ -86,7 +86,7 @@ const reboundedColumns = <
 }
 
 export const makeDerivedSource = <
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   Alias extends string
 >(
   plan: CompletePlan<PlanValue>,
@@ -98,7 +98,7 @@ export const makeDerivedSource = <
   derived.kind = "derived"
   derived.name = alias
   derived.baseName = alias
-  derived.dialect = plan[Plan.TypeId].dialect
+  derived.dialect = plan[RowSet.TypeId].dialect
   derived.plan = plan
   derived.required = undefined as never
   derived.columns = columns
@@ -106,7 +106,7 @@ export const makeDerivedSource = <
 }
 
 export const makeCteSource = <
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   Alias extends string
 >(
   plan: CompletePlan<PlanValue>,
@@ -119,7 +119,7 @@ export const makeCteSource = <
   cte.kind = "cte"
   cte.name = alias
   cte.baseName = alias
-  cte.dialect = plan[Plan.TypeId].dialect
+  cte.dialect = plan[RowSet.TypeId].dialect
   cte.plan = plan
   cte.recursive = recursive
   cte.required = undefined as never
@@ -128,7 +128,7 @@ export const makeCteSource = <
 }
 
 export const makeLateralSource = <
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   Alias extends string
 >(
   plan: PlanValue,
@@ -140,9 +140,9 @@ export const makeLateralSource = <
   lateral.kind = "lateral"
   lateral.name = alias
   lateral.baseName = alias
-  lateral.dialect = plan[Plan.TypeId].dialect
+  lateral.dialect = plan[RowSet.TypeId].dialect
   lateral.plan = plan
-  lateral.required = currentRequiredList(plan[Plan.TypeId].required) as never
+  lateral.required = currentRequiredList(plan[RowSet.TypeId].required) as never
   lateral.columns = columns
   return lateral as unknown as LateralSource<PlanValue, Alias>
 }

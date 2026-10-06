@@ -7,18 +7,82 @@ import * as Stream from "effect/Stream"
 
 import { Cast, Column as C, Fragment, Json as J, Table, Type } from "#standard"
 import { Function as F, Query as Q } from "#standard"
-import { Executor, Function as SqFunction } from "#sqlite"
+import { Executor, Function as SqFunction, Query as SqQuery, Renderer } from "#sqlite"
 import {
   portableFunctionResults,
   portableScalarFunctions,
   portableWindowFunctions
 } from "./portable-functions.ts"
 
-const runSqlite = <A, E>(effect: Effect.Effect<A, E, never>) =>
+const runSqlite = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
   Effect.runPromise(Effect.provide(effect, SqliteClient.layer({
     filename: ":memory:",
     disableWAL: true
   })))
+
+test("branches an author search without losing correlated filters or changing its base", async () => {
+  const users = Table.make("predicate_users", {
+    id: C.text().pipe(C.primaryKey),
+    email: C.text()
+  })
+  const posts = Table.make("predicate_posts", {
+    id: C.int().pipe(C.primaryKey),
+    userId: C.text(),
+    title: C.text()
+  })
+  const launchPosts = Q.select({ id: posts.id }).pipe(
+    Q.from(posts),
+    Q.where(Q.eq(posts.userId, users.id)),
+    Q.where(Q.eq(posts.title, "launch"))
+  )
+  const authors = Q.select({ label: Q.literal("author"), email: users.email }).pipe(
+    Q.from(users),
+    Q.where(Q.exists(launchPosts)),
+    Q.orderBy(users.email)
+  )
+  const allowedAuthors = authors.pipe(Q.where(Q.neq(users.email, "blocked@example.com")))
+  const rendered = Renderer.make().render(allowedAuthors)
+
+  expect(rendered.sql).toBe([
+    'select ? as "label", "predicate_users"."email" as "email" from "predicate_users"',
+    'where exists (select "predicate_posts"."id" as "id" from "predicate_posts"',
+    'where ("predicate_posts"."userId" = "predicate_users"."id")',
+    'and ("predicate_posts"."title" = ?))',
+    'and ("predicate_users"."email" <> ?) order by "predicate_users"."email" asc'
+  ].join(" "))
+  expect(rendered.params).toEqual(["author", "launch", "blocked@example.com"])
+
+  const seedUsers = Q.insert(users).pipe(Q.from(Q.values([
+    { id: "alice", email: "alice@example.com" },
+    { id: "bob", email: "bob@example.com" },
+    { id: "blocked", email: "blocked@example.com" }
+  ])))
+  const seedPosts = Q.insert(posts).pipe(Q.from(Q.values([
+    { id: 1, userId: "alice", title: "launch" },
+    { id: 2, userId: "alice", title: "launch" },
+    { id: 3, userId: "bob", title: "draft" },
+    { id: 4, userId: "blocked", title: "launch" }
+  ])))
+  const executor = Executor.make()
+  const rows = await runSqlite(executor.execute(Q.createTable(users)).pipe(
+    Effect.andThen(executor.execute(Q.createTable(posts))),
+    Effect.andThen(executor.execute(seedUsers)),
+    Effect.andThen(executor.execute(seedPosts)),
+    Effect.andThen(executor.execute(authors)),
+    Effect.bindTo("all"),
+    Effect.bind("allowed", () => executor.execute(allowedAuthors)),
+    Effect.bind("allAgain", () => executor.execute(authors))
+  ))
+
+  // Two matching posts yield one author; another author's match must not include Bob.
+  expect(rows.all).toEqual([
+    { label: "author", email: "alice@example.com" },
+    { label: "author", email: "blocked@example.com" }
+  ])
+  expect(rows.allowed).toEqual([{ label: "author", email: "alice@example.com" }])
+  expect(rows.allAgain).toEqual(rows.all)
+  expect(Renderer.make().render(authors).params).toEqual(["author", "launch"])
+})
 
 test("sqlite executes the portable standard function matrix", async () => {
   const result = await runSqlite(Effect.gen(function*() {
@@ -70,13 +134,13 @@ test("sqlite executes expression, analytics, cardinality, prepared, and explain 
 
     const spec = {
       partitionBy: [metrics.groupName],
-      orderBy: [{ value: metrics.id, direction: "asc" as const }],
+      orderBy: [{ value: metrics.id, direction: "asc" }],
       frame: {
-        unit: "rows" as const,
-        start: "unboundedPreceding" as const,
-        end: "currentRow" as const
+        unit: "rows",
+        start: "unboundedPreceding",
+        end: "currentRow"
       }
-    }
+    } as const
     const offsetSpec = {
       partitionBy: spec.partitionBy,
       orderBy: spec.orderBy
@@ -120,12 +184,14 @@ test("sqlite executes expression, analytics, cardinality, prepared, and explain 
 })
 
 test("sqlite executor runs DDL, mutations, reads, and streams through the ambient Effect SQL client", async () => {
+  const happenedAt = Schema.decodeUnknownSync(Schema.toType(C.datetime().schema))("2026-03-18T10:00:00")
   const events = Table.make("events", {
     id: C.text().pipe(C.primaryKey),
     happenedOn: C.date().pipe(C.schema(Schema.DateFromString)),
     happenedAt: C.datetime(),
     active: C.boolean(),
-    amount: C.number({ precision: 10, scale: 4 }),
+    // Accept raw decimal strings to exercise driver-boundary canonicalization.
+    amount: C.number({ precision: 10, scale: 4 }).pipe(C.schema(Schema.String)),
     payload: C.json(Schema.Struct({
       visits: Schema.Number
     }))
@@ -138,7 +204,7 @@ test("sqlite executor runs DDL, mutations, reads, and streams through the ambien
     yield* executor.execute(Q.insert(events, {
       id: "sqlite-1",
       happenedOn: new Date("2026-03-18T00:00:00.000Z"),
-      happenedAt: "2026-03-18T10:00:00",
+      happenedAt,
       active: true,
       amount: "0012.3400",
       payload: {
@@ -164,7 +230,7 @@ test("sqlite executor runs DDL, mutations, reads, and streams through the ambien
     {
       id: "sqlite-1",
       happenedOn: new Date("2026-03-18T00:00:00.000Z"),
-      happenedAt: "2026-03-18T10:00:00",
+      happenedAt,
       active: true,
       amount: "12.34",
       payload: {
@@ -172,13 +238,18 @@ test("sqlite executor runs DDL, mutations, reads, and streams through the ambien
       }
     }
   ])
-  expect(result.streamed).toEqual(result.rows)
+  expect(result.streamed).toEqual([...result.rows])
 })
 
 test("sqlite executor supports returning upserts, JSON1 queries, and savepoint rollback", async () => {
   const docs = Table.make("docs", {
     id: C.text().pipe(C.primaryKey),
-    payload: C.json(Schema.Unknown),
+    payload: C.json(Schema.Struct({
+      profile: Schema.Struct({
+        address: Schema.Struct({ city: Schema.String }),
+        tags: Schema.Array(Schema.String)
+      })
+    })),
     note: C.text()
   })
 
@@ -271,7 +342,13 @@ test("sqlite upserts execute against partial conflict targets", async () => {
     id: C.text().pipe(C.primaryKey),
     email: C.text().pipe(C.nullable),
     visits: C.int()
-  })
+  }).pipe(Table.option({
+    kind: "index",
+    name: "partial_conflict_users_email_idx",
+    columns: ["email"] as const,
+    unique: true,
+    predicate: Q.isNotNull(Q.column("email", Type.text()))
+  }))
 
   const result = await runSqlite(Effect.gen(function*() {
     const executor = Executor.make()
@@ -292,7 +369,7 @@ test("sqlite upserts execute against partial conflict targets", async () => {
       email: "alice@example.com",
       visits: 2
     }).pipe(
-      Q.onConflict({
+      SqQuery.onConflict({
         columns: ["email"] as const,
         where: Q.isNotNull(users.email)
       }, {
@@ -390,10 +467,10 @@ test("sqlite set operations execute as compound selects", async () => {
   const result = await runSqlite(Effect.gen(function*() {
     const executor = Executor.make()
     const left = Q.select({
-      id: Q.cast(Q.literal(1), Type.int())
+      id: Q.cast(Q.literal<number>(1), Type.int())
     })
     const right = Q.select({
-      id: Q.cast(Q.literal(2), Type.int())
+      id: Q.cast(Q.literal<number>(2), Type.int())
     })
 
     return yield* executor.execute(Q.unionAll(left, right))
@@ -632,16 +709,15 @@ test("sqlite composed reads execute CTEs, derived aggregates, subqueries, window
       Q.with("active_posts")
     )
 
-    const counts = Q.select({
+    const counts = Q.as(Q.select({
       userId: activePosts.userId,
       postCount: F.count(activePosts.title),
       firstTitle: F.min(activePosts.title)
     }).pipe(
       Q.from(activePosts),
       Q.groupBy(activePosts.userId),
-      Q.having(Q.gt(F.count(activePosts.title), 0)),
-      Q.as("post_counts")
-    )
+      Q.having(Q.gt(F.count(activePosts.title), 0))
+    ), "post_counts")
 
     const latestTitle = Q.select({
       value: F.max(posts.title)
@@ -700,7 +776,8 @@ test("sqlite composed reads execute CTEs, derived aggregates, subqueries, window
     ))
   }))
 
-  expect(result).toEqual([
+  // Compare driver values, not the nominal brands on bigint result types.
+  expect(result).toEqual<unknown>([
     {
       userId: "user-1",
       emailLower: "alice@example.com",
@@ -757,9 +834,12 @@ test("sqlite DDL constraints, generated columns, indexes, and drops execute", as
     role: C.text(),
     normalizedRole: C.text().pipe(C.generated(SqFunction.lower(Q.column("role", Type.text()))))
   }).pipe(
-    Table.foreignKey((table) => table.orgId, () => orgs.id),
-    Table.unique((table) => [table.orgId, table.role]),
-    Table.check("ddl_memberships_role_not_empty", Q.neq(Q.column("role", Type.text()), "")),
+    Table.foreignKey((table) => table.orgId, () => orgs.id)
+  ).pipe(
+    Table.unique((table) => [table.orgId, table.role])
+  ).pipe(
+    Table.check("ddl_memberships_role_not_empty", Q.neq(Q.column("role", Type.text()), ""))
+  ).pipe(
     Table.index((table) => [table.role, table.orgId])
   )
 
@@ -874,7 +954,13 @@ test("sqlite transaction statements commit and roll back through the executor", 
 test("sqlite JSON1 mutation and construction helpers execute against stored JSON", async () => {
   const docs = Table.make("json_helper_docs", {
     id: C.text().pipe(C.primaryKey),
-    payload: C.json(Schema.Unknown)
+    payload: C.json(Schema.Struct({
+      profile: Schema.Struct({
+        address: Schema.Struct({ city: Schema.String }),
+        tags: Schema.Array(Schema.String)
+      }),
+      note: Schema.NullOr(Schema.String)
+    }))
   })
 
   const result = await runSqlite(Effect.gen(function*() {
@@ -907,12 +993,12 @@ test("sqlite JSON1 mutation and construction helpers execute against stored JSON
       keys: J.keys(docs.payload),
       hasProfile: J.hasKey(docs.payload, "profile"),
       hasAll: J.hasAllKeys(docs.payload, "profile", "note"),
-      pathExists: cityPath.pipe(J.pathExists),
+      pathExists: docs.payload.pipe(J.pathExists(J.focus().key("profile").key("address").key("city"))),
       city: cityPath.pipe(J.text),
       setPostcode: postcodePath.pipe(J.set("1000")),
       insertMetadata: metadataPath.pipe(J.insert({ imported: true })),
-      deleteNote: J.delete(docs.payload, J.key("note")),
-      removeNote: J.remove(docs.payload, J.key("note")),
+      deleteNote: docs.payload.note.pipe(J.delete),
+      removeNote: docs.payload.note.pipe(J.remove),
       merged: J.merge(docs.payload, {
         profile: {
           active: true
@@ -921,7 +1007,8 @@ test("sqlite JSON1 mutation and construction helpers execute against stored JSON
     }).pipe(Q.from(docs)))
   }))
 
-  expect(result).toEqual([
+  // This is a SQLite value oracle, including its native recursive merge behavior.
+  expect(result).toEqual<unknown>([
     {
       builtObject: {
         source: "sqlite",
@@ -1044,6 +1131,6 @@ test("sqlite composes reusable JSON focuses into one database-side expression", 
       }
       return { main, sparse }
   }))
-  expect(rows.main).toEqual([{ payload: focusExpected }])
-  expect(rows.sparse).toEqual(sparseExpected("sqlite"))
+  expect(rows.main).toEqual<unknown>([{ payload: focusExpected }])
+  expect(rows.sparse).toEqual<unknown>(sparseExpected("sqlite"))
 })

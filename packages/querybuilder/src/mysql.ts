@@ -10,7 +10,7 @@ export * as Function from "./mysql/function/index.js"
 export * as Json from "./mysql/json.js"
 /** MySQL-specialized typed query execution contracts. */
 export * as Executor from "./mysql/executor.js"
-/** MySQL-specific query helpers. Portable queries are exported from the root package. */
+/** MySQL-only query extensions. For portable builders, import { Query } from "effect-qb". */
 export * as Query from "./mysql/query-extension.js"
 /** MySQL-only database-type constructors for casts and typed references. */
 export { type as Type } from "./mysql/type.js"

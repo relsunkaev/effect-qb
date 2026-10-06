@@ -5,17 +5,17 @@ import { casingForTable, casedTableReferenceName, quoteColumn, stateWithTableCas
 import { isArray } from "../datatypes/guards.js"
 import * as Schema from "effect/Schema"
 
-import * as Query from "../query.js"
+import * as Query from "../query/plan.js"
 import * as Expression from "../scalar.js"
 import * as Table from "../table.js"
-import * as QueryAst from "../query-ast.js"
+import * as QueryAst from "../query/ast.js"
 import { renderDbTypeName, type RenderState, type RenderValueContext, type SqlDialect } from "../dialect.js"
 import { renderPortableDatatypeCastType, renderPortableDatatypeDdlType } from "../datatypes/matrix.js"
 import * as ExpressionAst from "../expression-ast.js"
 import { renderWindowFrame } from "../window-renderer.js"
 import * as JsonPath from "../json/path.js"
-import { expectConflictClause } from "../dsl-mutation-runtime.js"
-import { expectDdlClauseKind, normalizeStatementFlag, normalizeStatementIdentifier } from "../dsl-transaction-ddl-runtime.js"
+import { expectConflictClause } from "../query/mutations.js"
+import { expectDdlClauseKind, normalizeStatementFlag, normalizeStatementIdentifier } from "../query/statements.js"
 import {
   renderJsonSelectSql,
   toDriverValue
