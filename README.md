@@ -1505,6 +1505,47 @@ type VisiblePostRow = Query.ResultRow<typeof visiblePosts>
 
 ```
 
+An ordinary equality filter can prove presence too. Using the same tables,
+start with all users and their posts, including users with no matching post:
+
+```ts
+const userPosts = Query.select({
+  userId: users.id,
+  postId: posts.id,
+  title: posts.title,
+  publishedAt: posts.publishedAt
+}).pipe(
+  Query.from(users),
+  Query.leftJoin(posts, Query.eq(users.id, posts.userId))
+)
+
+type UserPostRow = Query.ResultRow<typeof userPosts>
+// {
+//   readonly userId: string
+//   readonly postId: string | null
+//   readonly title: string | null
+//   readonly publishedAt: string | null
+// }
+
+const releaseNotes = userPosts.pipe(
+  Query.where(Query.eq(posts.title, "Release notes"))
+)
+
+type ReleaseNoteRow = Query.ResultRow<typeof releaseNotes>
+// {
+//   readonly userId: string
+//   readonly postId: string
+//   readonly title: "Release notes"
+//   readonly publishedAt: string | null
+// }
+```
+
+The `where` equality excludes missing posts and posts whose title is `null` or
+different. It therefore proves the post exists, making `postId` non-null and
+narrowing `title`. `publishedAt` stays nullable because the filter says nothing
+about that field. The equality inside `leftJoin` alone does not prove presence:
+unmatched users still survive that join.
+
 Literal predicates can narrow finite unions too. This applies to ordinary
 columns and to selected expressions that retain enough path metadata.
 

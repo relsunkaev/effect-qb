@@ -1,8 +1,8 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 2289-2328
+// Code fences: 2330-2369
 
-// README.md:2289-2328
+// README.md:2330-2369
 import { SqliteClient } from "@effect/sql-sqlite-node"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"

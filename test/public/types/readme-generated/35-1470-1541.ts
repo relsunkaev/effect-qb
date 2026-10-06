@@ -1,6 +1,6 @@
 // Generated from README.md.
 // Do not edit directly; update README.md and rerun `bun run generate:readme-types`.
-// Code fences: 1470-1506
+// Code fences: 1470-1506, 1511-1541
 
 // README.md:1470-1506
 import { Column, Function, Query, Table } from "effect-qb"
@@ -38,5 +38,38 @@ type VisiblePostRow = Query.ResultRow<typeof visiblePosts>
 // }
 // The title predicate also proves the left-joined posts row exists, so postId is string.
 
+
+{
+  // README.md:1511-1541
+  const userPosts = Query.select({
+    userId: users.id,
+    postId: posts.id,
+    title: posts.title,
+    publishedAt: posts.publishedAt
+  }).pipe(
+    Query.from(users),
+    Query.leftJoin(posts, Query.eq(users.id, posts.userId))
+  )
+
+  type UserPostRow = Query.ResultRow<typeof userPosts>
+  // {
+  //   readonly userId: string
+  //   readonly postId: string | null
+  //   readonly title: string | null
+  //   readonly publishedAt: string | null
+  // }
+
+  const releaseNotes = userPosts.pipe(
+    Query.where(Query.eq(posts.title, "Release notes"))
+  )
+
+  type ReleaseNoteRow = Query.ResultRow<typeof releaseNotes>
+  // {
+  //   readonly userId: string
+  //   readonly postId: string
+  //   readonly title: "Release notes"
+  //   readonly publishedAt: string | null
+  // }
+}
 
 export {};
