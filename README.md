@@ -9,17 +9,48 @@ you choose the joins, predicates, transaction boundaries, and database client.
 
 ## Contents
 
-| I want to… | Start here |
-| --- | --- |
-| Run a query against a database | [Quick Start](#quick-start) |
-| Define columns, constraints, and codecs | [Core Concepts](#core-concepts) |
-| Filter, join, group, or compose queries | [Writing Queries](#writing-queries) |
-| Execute, stream, or require one result | [Executing Queries](#executing-queries) |
-| Work with stored JSON and reusable paths | [JSON and JSONB Paths](#json-and-jsonb-paths) |
-| Reuse a query, paginate, or inspect failure cases | [Recipes](#recipes) |
-| Understand what TypeScript proves | [Type Safety](#type-safety) |
-| Choose portable or database-specific APIs | [Dialects](#dialects) |
-| Find an export or contribute | [API Map](#api-map) · [Development](#development) |
+- [Getting Started](#getting-started)
+  - [Install](#install)
+  - [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+  - [How effect-qb Works](#how-effect-qb-works)
+  - [Defining Tables](#defining-tables)
+  - [Column Types and Runtime Schemas](#column-types-and-runtime-schemas)
+  - [Casing and Naming](#casing-and-naming)
+- [Query Lifecycle](#query-lifecycle)
+  - [Writing Queries](#writing-queries)
+  - [Rendering SQL](#rendering-sql)
+  - [Executing Queries](#executing-queries)
+- [Type Safety](#type-safety)
+  - [Table Shape and Payloads](#table-shape-and-payloads)
+  - [Conflict Targets](#conflict-targets)
+  - [Result Rows and Predicate Facts](#result-rows-and-predicate-facts)
+  - [JSON and JSONB Paths](#json-and-jsonb-paths)
+  - [Casting and Type Comparison](#casting-and-type-comparison)
+  - [Source Completeness and Aliases](#source-completeness-and-aliases)
+  - [Dialect Compatibility](#dialect-compatibility)
+  - [Runtime Boundaries](#runtime-boundaries)
+- [Dialects](#dialects)
+  - [Portable Standard Surface](#portable-standard-surface)
+  - [Postgres](#postgres)
+  - [MySQL](#mysql)
+  - [SQLite](#sqlite)
+- [Recipes](#recipes)
+  - [Branch a Reusable Query](#branch-a-reusable-query)
+  - [Group in a CTE](#group-in-a-cte)
+  - [Cursor Pagination](#cursor-pagination)
+  - [Update Stored JSON](#update-stored-json)
+  - [Zero, One, or Several Matches](#zero-one-or-several-matches)
+  - [Rollback After a Failed Write](#rollback-after-a-failed-write)
+  - [Offset Pagination](#offset-pagination)
+  - [Postgres Upsert Returning a Row](#postgres-upsert-returning-a-row)
+  - [CamelCase Models, snake_case SQL](#camelcase-models-snake_case-sql)
+- [Guarantees and Boundaries](#guarantees-and-boundaries)
+  - [Limitations](#limitations)
+  - [Companion Package: effect-db](#companion-package-effect-db)
+- [Reference](#reference)
+  - [API Map](#api-map)
+  - [Development](#development)
 
 For driver guides, contracts, and maintainer notes, use the
 [documentation index](docs/README.md).
