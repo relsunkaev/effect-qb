@@ -35,6 +35,8 @@ This project should use `tsgo` for TypeScript compilation and typechecking.
   not terminal searches or extracted editor text. Run fresh readers sequentially
   from matching editor states, exclude prior investigation notes from discovery,
   and distinguish verified call paths from search snippets and inference.
+- Review README usability in GitHub's rendered view, including task navigation,
+  explanation flow, and feature coverage. Check examples against public APIs.
 
 ## APIs
 
