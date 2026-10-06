@@ -798,7 +798,13 @@ describe("postgres dialect behavior", () => {
     const rendered = Postgres.Renderer.make().render(plan)
 
     expect(rendered.sql).toBe(
-      'with "inserted_users" as (insert into "users" ("id", "email", "bio") values ($1, $2, null) returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio") select "inserted_users"."id" as "id", "inserted_users"."email" as "email", "inserted_users"."bio" as "bio" from "inserted_users"'
+      [
+        'with "inserted_users" as (insert into "users" ("id", "email", "bio")',
+        'values ($1, $2, null)',
+        'returning "users"."id" as "id", "users"."email" as "email", "users"."bio" as "bio")',
+        'select "inserted_users"."id" as "id", "inserted_users"."email" as "email", "inserted_users"."bio" as "bio"',
+        'from "inserted_users"'
+      ].join(" ")
     )
     expect(rendered.params).toEqual([
       userId,
