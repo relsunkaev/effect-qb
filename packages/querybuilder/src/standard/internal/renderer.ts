@@ -3,7 +3,6 @@ import type * as Expression from "../../internal/scalar.js"
 import type * as Casing from "../../internal/casing.js"
 import { type RenderState } from "../../internal/dialect.js"
 import { type Projection } from "../../internal/projections.js"
-import { renderQueryAst } from "../../internal/sql-expression-renderer.js"
 import { standardDialect } from "../dialect.js"
 
 export interface StandardRenderResult {
@@ -31,7 +30,7 @@ export const renderStandardPlan = <PlanValue extends Query.Plan.Any>(
     cteSources: new Map<string, unknown>(),
     sourceNames: new Map()
   }
-  const rendered = renderQueryAst(
+  const rendered = standardDialect.renderQueryAst(
     Query.getAst(plan as Query.Plan.Any) as any,
     state,
     standardDialect

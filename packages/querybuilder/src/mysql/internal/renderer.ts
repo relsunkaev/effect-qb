@@ -4,7 +4,6 @@ import type * as Casing from "../../internal/casing.js"
 import { type RenderState } from "../../internal/dialect.js"
 import { mysqlDialect } from "./dialect.js"
 import { type Projection } from "../../internal/projections.js"
-import { renderQueryAst } from "../../internal/sql-expression-renderer.js"
 
 /**
  * Internal rendered-query payload produced by the built-in MySQL renderer.
@@ -37,7 +36,7 @@ export const renderMysqlPlan = <PlanValue extends Query.Plan.Any>(
     cteSources: new Map<string, unknown>(),
     sourceNames: new Map()
   }
-  const rendered = renderQueryAst(
+  const rendered = mysqlDialect.renderQueryAst(
     Query.getAst(plan as Query.Plan.Any) as any,
     state,
     mysqlDialect

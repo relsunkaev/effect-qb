@@ -5,7 +5,6 @@ import * as Effect from "effect/Effect"
 import * as CoreRenderer from "#internal/renderer.ts"
 import * as ExpressionAst from "#internal/expression-ast.ts"
 import { postgresDialect } from "../../../packages/querybuilder/src/postgres/internal/dialect.ts"
-import { renderExpression } from "../../../packages/querybuilder/src/internal/sql-expression-renderer.ts"
 import * as Postgres from "#postgres"
 import { makePostgresSocialGraph } from "../../fixtures/schema.ts"
 import { buildGroupedConcatPlan } from "../../helpers/dialect-matrix.ts"
@@ -1355,7 +1354,7 @@ describe("postgres dialect behavior", () => {
       }
     } as unknown as StdRoot.Scalar.Any
 
-    expect(() => renderExpression(unsupportedExpression, {
+    expect(() => postgresDialect.renderExpression(unsupportedExpression, {
       params: [],
       ctes: [],
       cteNames: new Set<string>()

@@ -5,7 +5,6 @@ import * as Effect from "effect/Effect"
 import * as CoreRenderer from "#internal/renderer.ts"
 import * as ExpressionAst from "#internal/expression-ast.ts"
 import { mysqlDialect } from "../../../packages/querybuilder/src/mysql/internal/dialect.ts"
-import { renderExpression } from "../../../packages/querybuilder/src/internal/sql-expression-renderer.ts"
 import * as Mysql from "#mysql"
 import { makeMysqlSocialGraph } from "../../fixtures/schema.ts"
 import { buildGroupedConcatPlan } from "../../helpers/dialect-matrix.ts"
@@ -1093,7 +1092,7 @@ describe("mysql dialect behavior", () => {
       }
     } as unknown as StdRoot.Scalar.Any
 
-    expect(() => renderExpression(unsupportedExpression, {
+    expect(() => mysqlDialect.renderExpression(unsupportedExpression, {
       params: [],
       ctes: [],
       cteNames: new Set<string>()
