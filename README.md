@@ -199,15 +199,44 @@ concrete modules only when the query depends on concrete SQL.
 
 ### Defining Tables
 
-`Table.make` is the primary table factory.
+Use `Table.make` to define a table. Keep single-column constraints and defaults
+beside the columns they describe:
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const organizations = Table.make("organizations", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  name: Column.text().pipe(Column.unique),
+  archivedAt: Column.datetime().pipe(Column.nullable)
+})
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  orgId: Column.uuid().pipe(Column.references(() => organizations.id)),
+  email: Column.text().pipe(Column.unique),
+  status: Column.text().pipe(Column.default(Query.literal("active")))
+})
+
+type NewUser = Table.InsertOf<typeof users>
+// { readonly id: string; readonly orgId: string; readonly email: string;
+//   readonly status?: string } — the database supplies the default when omitted
+```
+
+`Column.primaryKey` makes a column non-null and unique. `Column.references`
+defines a foreign key to another table's column; the callback defers resolving
+that column. `Column.nullable` allows `null`, while `Column.default` makes the
+field optional on insert without making it nullable.
+
+Use table-level options for composite constraints, checks, and indexes. Here,
+each user can belong to an organization only once, and each role can be assigned
+only once within that organization:
 
 ```ts
 import { Check, Column, ForeignKey, Index, PrimaryKey, Query, Table, Unique } from "effect-qb"
 
 const organizations = Table.make("organizations", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  name: Column.text(),
-  archivedAt: Column.datetime().pipe(Column.nullable)
+  id: Column.uuid().pipe(Column.primaryKey)
 })
 
 const memberships = Table.make("memberships", {
@@ -237,13 +266,42 @@ type MembershipPatch = Table.UpdateOf<typeof memberships>
 
 ```
 
-Root option modules cover portable constraints and metadata:
+`PrimaryKey.make` and `Unique.make` group columns into one constraint. Marking
+two columns with `Column.unique` instead requires each column to be unique
+independently. `ForeignKey.make` is the table-level alternative to inline
+`Column.references` and also supports multi-column references.
 
-- `PrimaryKey.make(...)`
-- `Unique.make(...)`
-- `Index.make(...)`
-- `ForeignKey.make(...)`
-- `Check.make(...)`
+These examples use the portable root API. Postgres also offers
+`Pg.Column.foreignKey(...)` for inline reference options and `Pg.Column.index(...)`
+for inline indexes, from `effect-qb/postgres`.
+
+<details>
+<summary>Generated values</summary>
+
+Unlike a default, a generated expression owns the value: callers omit the column
+from both inserts and updates. This label uses the display name when present,
+or `"Anonymous"` when it is `null`:
+
+```ts
+import { Column, Function, Query, Table, Type } from "effect-qb"
+
+const profiles = Table.make("profiles", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  displayName: Column.text().pipe(Column.nullable),
+  displayLabel: Column.text().pipe(Column.generated(
+    Function.coalesce(Query.column("displayName", Type.text()), "Anonymous")
+  ))
+})
+
+type NewProfile = Table.InsertOf<typeof profiles>
+// { readonly id: string; readonly displayName?: string | null }
+// displayLabel is computed by the database, not supplied by the caller.
+```
+
+`Query.column` refers to a column in the DDL expression before the table is
+bound; `Type.text()` supplies its SQL type witness.
+
+</details>
 
 `Table` keeps table construction and row/schema helpers:
 
