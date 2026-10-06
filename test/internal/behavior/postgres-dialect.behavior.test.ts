@@ -625,6 +625,41 @@ describe("postgres dialect behavior", () => {
     expect(rendered.params).toEqual(["hello", "alice@example.com"])
   })
 
+  test("numbers projection, join, nested and repeated filters in SQL traversal order", () => {
+    const { users, posts } = makePostgresSocialGraph()
+    const helloPosts = StdRoot.Query.select({ id: posts.id }).pipe(
+      StdRoot.Query.from(posts),
+      StdRoot.Query.where(StdRoot.Query.eq(posts.title, "hello"))
+    )
+
+    const plan = StdRoot.Query.select({
+      label: StdRoot.Query.literal("member"),
+      email: users.email
+    }).pipe(
+      StdRoot.Query.from(users),
+      StdRoot.Query.where(StdRoot.Query.eq(users.email, "alice@example.com")),
+      StdRoot.Query.leftJoin(posts, StdRoot.Query.eq(posts.title, "published")),
+      StdRoot.Query.where(StdRoot.Query.exists(helloPosts)),
+      StdRoot.Query.where(true),
+      StdRoot.Query.where(StdRoot.Query.eq(users.email, "bob@example.com"))
+    )
+
+    const rendered = Postgres.Renderer.make().render(plan)
+
+    // JOIN renders before WHERE even though its modifier was applied later.
+    expect(rendered.sql).toBe([
+      'select $1 as "label", "users"."email" as "email" from "users"',
+      'left join "posts" on ("posts"."title" = $2)',
+      'where ("users"."email" = $3)',
+      'and exists (select "posts"."id" as "id" from "posts" where ("posts"."title" = $4))',
+      'and true and ("users"."email" = $5)'
+    ].join(" "))
+    expect(rendered.params).toEqual([
+      "member", "published", "alice@example.com", "hello", "bob@example.com"
+    ])
+    expect(Postgres.Renderer.make().render(plan)).toEqual(rendered)
+  })
+
   test("renders correlated exists subqueries against outer postgres sources", () => {
     const { users, posts } = makePostgresSocialGraph()
 
