@@ -37,6 +37,8 @@ This project should use `tsgo` for TypeScript compilation and typechecking.
   and distinguish verified call paths from search snippets and inference.
 - Review README usability in GitHub's rendered view, including task navigation,
   explanation flow, and feature coverage. Check examples against public APIs.
+- Prioritize README scenarios, outcomes, and execution boundaries. Narrow-width
+  wrapping is not a goal unless explicitly requested.
 
 ## APIs
 

@@ -21,6 +21,9 @@ you choose the joins, predicates, transaction boundaries, and database client.
 | Choose portable or database-specific APIs | [Dialects](#dialects) |
 | Find an export or contribute | [API Map](#api-map) · [Development](#development) |
 
+For driver guides, contracts, and maintainer notes, use the
+[documentation index](docs/README.md).
+
 ## Getting Started
 
 ### Install
@@ -57,17 +60,23 @@ Use Node.js **22.16 or newer** for this client. Save the following as
 `quick-start.ts` and build it with your usual TypeScript bundler for Node.js
 (for example, esbuild). The published packages do not need a runtime TS loader.
 
+`Table.make` describes a table; it does not create one. `Query.createTable`
+builds the DDL plan. The program below executes that plan, inserts Ada and Grace,
+then reads only Ada because Grace is inactive.
+
 ```ts
 import { SqliteClient } from "@effect/sql-sqlite-node"
 import * as Effect from "effect/Effect"
 import { Column, Query, Table } from "effect-qb"
 import { Executor } from "effect-qb/sqlite"
 
+// Describe the table.
 const users = Table.make("users", {
   id: Column.text().pipe(Column.primaryKey),
   email: Column.text(),
   active: Column.boolean()
 })
+// Build the query; no SQL has run yet.
 const activeUsers = Query.select({ id: users.id, email: users.email }).pipe(
   Query.from(users),
   Query.where(Query.eq(users.active, true)),
@@ -76,6 +85,7 @@ const activeUsers = Query.select({ id: users.id, email: users.email }).pipe(
 type ActiveUser = Query.ResultRow<typeof activeUsers>
 // { readonly id: string; readonly email: string }
 
+// Create, seed, and read through the SQLite executor.
 const executor = Executor.make()
 const program = executor.execute(Query.createTable(users)).pipe(
   Effect.andThen(executor.execute(Query.insert(users,
@@ -101,9 +111,8 @@ bunx esbuild quick-start.ts \
 node quick-start.mjs
 ```
 
-`Table.make` describes a table; it does not create one. `Query.createTable`
-builds DDL, and `executor.execute` returns an Effect. The client layer supplies
-the connection; `Effect.runPromise` runs the program and closes its scoped
+`executor.execute` returns an Effect. The client layer supplies the connection;
+`Effect.runPromise` runs the program and closes its scoped
 resources. In an existing Effect application, reuse its SQL client layer rather
 than creating a connection for each query.
 
@@ -2022,8 +2031,10 @@ SQLite has no equivalent.
 
 ## Recipes
 
-These examples build complete plans. Execute them with your application's SQL
-client; table declarations alone do not seed a database.
+Most recipes build plans for your application's SQL client; they do not seed or
+query a database on their own. Recipes marked **Runs on SQLite** include an
+in-memory client, setup, and execution. Use the [Quick Start](#quick-start)
+installation and build steps to run those modules under Node.js.
 
 - [Branch a reusable query](#branch-a-reusable-query) without losing its filters.
 - [Group in a CTE](#group-in-a-cte) and join its aggregate result.
@@ -2074,6 +2085,16 @@ as a join might.
 
 ### Group in a CTE
 
+**Builds a plan.** Find authors with at least two published posts. Execute the
+outer `authors` plan; the CTE is part of that query, not a separate database call.
+
+For example, given these post totals:
+
+| Author | Published posts | Draft posts | Included? |
+| --- | --- | --- | --- |
+| Ada (`ada@example.com`) | 2 | 1 | Yes, with count `"2"` |
+| Grace (`grace@example.com`) | 1 | 0 | No |
+
 Use `where` to choose the input rows, `groupBy` to define the groups, then
 `having` to choose the aggregate results. Naming that complete plan with
 `with` makes it a source for the next query.
@@ -2112,9 +2133,13 @@ type Author = Query.ResultRow<typeof authors>
 // { readonly email: string; readonly postCount: Scalar.BigIntString }
 ```
 
-This returns authors with at least two published posts. The CTE is included
-when the outer plan is rendered; you do not execute it separately. Counts use
-canonical integer strings, so a database result of two is represented as `"2"`.
+For the input above, executing `authors` returns:
+
+```json
+[{ "email": "ada@example.com", "postCount": "2" }]
+```
+
+Counts use canonical integer strings: two is `"2"`, not the JavaScript number `2`.
 
 ### Cursor Pagination
 
@@ -2151,13 +2176,25 @@ below is simpler when the caller needs page numbers rather than a continuation.
 
 ### Update Stored JSON
 
-Compose path replacements into one database-side expression. Whole-column
-reads use the column codec; path reads return the **stored encoded** value.
-Here a decoded number is stored as a JSON string by `NumberFromString`.
+**Runs on SQLite.** Create a document with city `"Rome"` and decoded count `7`,
+update only the document with id `"guide"`, then read it back. The update changes
+the city to `"Paris"` and the stored count to the JSON string `"42"`.
+
+| Read | Returned count | Why |
+| --- | --- | --- |
+| Whole `payload` column | `42` (number) | The column codec decodes the stored string |
+| `payload.profile.count` path | `"42"` (string) | Paths return the stored encoded value |
+
+The schema uses `NumberFromString` to encode numbers as JSON strings. Inserts
+accept decoded values; path replacements supply stored values, so the mutation
+uses `"42"`, not `42`.
 
 ```ts
+import { SqliteClient } from "@effect/sql-sqlite-node"
+import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { Column, Json, Query, Table } from "effect-qb"
+import { Executor } from "effect-qb/sqlite"
 
 const documents = Table.make("documents", {
   id: Column.text().pipe(Column.primaryKey),
@@ -2177,10 +2214,24 @@ const readDocument = Query.select({
   document: documents.payload,
   storedCount: documents.payload.profile.count
 }).pipe(Query.from(documents), Query.where(Query.eq(documents.id, "guide")))
-// After the update: document.profile.count is 42; storedCount is "42".
+
+// Plans above are values. This Effect creates, seeds, updates, then reads.
+const executor = Executor.make()
+const program = executor.execute(Query.createTable(documents)).pipe(
+  Effect.andThen(executor.execute(Query.insert(documents, {
+    id: "guide", payload: { profile: { city: "Rome", count: 7 } }
+  }))),
+  Effect.andThen(executor.execute(updateDocument)),
+  Effect.andThen(executor.execute(readDocument)),
+  Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
+)
+const rows = await Effect.runPromise(program)
+console.log(rows)
+// [{ document: { profile: { city: "Paris", count: 42 } }, storedCount: "42" }]
 ```
 
-No document is fetched or mutated in JavaScript. Use existing parent containers
+The update expression runs in the database; JavaScript does not fetch and rewrite
+the existing payload. Use existing parent containers
 for consistent behavior across engines; see [Reusable JSON Focuses](#reusable-json-focuses)
 for missing paths and shape-changing updates.
 
