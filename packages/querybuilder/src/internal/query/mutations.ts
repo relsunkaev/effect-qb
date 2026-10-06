@@ -59,12 +59,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
         source: target
       },
       values: assignments,
-      conflict: undefined,
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      conflict: undefined
     }, {
       capabilities: "write",
       statement: "insert",
@@ -219,12 +214,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       select: {},
       target: primaryTarget,
       targets,
-      set: assignments,
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      set: assignments
     }, {
       capabilities: "write",
       statement: "update"
@@ -268,12 +258,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
         },
         action: updateAssignments.length > 0 ? "doUpdate" : "doNothing",
         values: updateAssignments.length > 0 ? updateAssignments : undefined
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "write",
       statement: "insert",
@@ -294,12 +279,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       kind: "delete",
       select: {},
       target: primaryTarget,
-      targets,
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      targets
     }, {
       capabilities: "write",
       statement: "delete"
@@ -328,12 +308,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
         kind: "truncate",
         restartIdentity,
         cascade
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "write",
       statement: "truncate"
@@ -415,12 +390,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
               predicate: notMatchedPredicate
             }
           : undefined
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "write",
       statement: "merge"

@@ -295,3 +295,13 @@ export interface Ast<
   readonly setOperations?: readonly SetOperationClause[]
   readonly groupedSources?: Grouped
 }
+
+type EmptyClauses = "where" | "having" | "joins" | "groupBy" | "orderBy"
+
+/** Construction input; the plan constructor supplies omitted empty clauses. */
+export type Input<
+  Selection = unknown,
+  Grouped extends string = never,
+  Statement extends QueryStatement = "select"
+> = Omit<Ast<Selection, Grouped, Statement>, EmptyClauses>
+  & Partial<Pick<Ast<Selection, Grouped, Statement>, EmptyClauses>>

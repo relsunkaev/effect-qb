@@ -55,11 +55,6 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
     }, {
       kind: "set",
       select: leftState.selection,
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: [],
       setBase: basePlan,
       setOperations: [
         ...leftOperations,

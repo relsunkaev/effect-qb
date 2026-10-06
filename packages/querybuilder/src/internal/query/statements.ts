@@ -59,12 +59,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
         kind: "transaction",
         isolationLevel: options.isolationLevel,
         readOnly: options.readOnly
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "transaction",
       statement: "transaction"
@@ -82,12 +77,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       select: {},
       transaction: {
         kind: "commit"
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "transaction",
       statement: "commit"
@@ -104,12 +94,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       select: {},
       transaction: {
         kind: "rollback"
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "transaction",
       statement: "rollback"
@@ -127,12 +112,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       transaction: {
         kind: "savepoint",
         name
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "transaction",
       statement: "savepoint"
@@ -151,12 +131,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       transaction: {
         kind: "rollbackTo",
         name
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "transaction",
       statement: "rollbackTo"
@@ -175,12 +150,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       transaction: {
         kind: "releaseSavepoint",
         name
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "transaction",
       statement: "releaseSavepoint"
@@ -207,12 +177,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       ddl: {
         kind: "createTable",
         ifNotExists
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "ddl",
       statement: "createTable"
@@ -239,12 +204,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       ddl: {
         kind: "dropTable",
         ifExists
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "ddl",
       statement: "dropTable"
@@ -277,12 +237,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
         columns: normalizedColumns as readonly [string, ...string[]],
         unique,
         ifNotExists
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "ddl",
       statement: "createIndex"
@@ -312,12 +267,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
         kind: "dropIndex",
         name: name ?? ctx.defaultIndexName(sourceBaseName, normalizedColumns, false),
         ifExists
-      },
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      }
     }, {
       capabilities: "ddl",
       statement: "dropIndex"

@@ -45,7 +45,7 @@ export const makePlan = <
   Facts extends PredicateContext = PredicateContext
 >(
   state: RowSet.State<Selection, Required, Available, Dialect>,
-  ast: QueryAst.Ast<Selection, Grouped, Statement>,
+  ast: QueryAst.Input<Selection, Grouped, Statement>,
   options: {
     readonly assumptions?: Assumptions
     readonly capabilities?: Capabilities
@@ -64,7 +64,14 @@ export const makePlan = <
     }
   })
   plan[RowSet.TypeId] = state
-  plan[QueryAst.TypeId] = ast
+  plan[QueryAst.TypeId] = {
+    ...ast,
+    where: ast.where ?? [],
+    having: ast.having ?? [],
+    joins: ast.joins ?? [],
+    groupBy: ast.groupBy ?? [],
+    orderBy: ast.orderBy ?? []
+  } satisfies QueryAst.Ast<Selection, Grouped, Statement>
   plan[QueryTypeId] = {
     required: undefined as unknown as Outstanding,
     availableNames: undefined as unknown as ScopedNames,

@@ -79,12 +79,7 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
       dialect: ctx.profile.dialect
     }, {
       kind: "select",
-      select: selection,
-      where: [],
-      having: [],
-      joins: [],
-      groupBy: [],
-      orderBy: []
+      select: selection
     }, {
       capabilities: "read",
       statement: "select"
