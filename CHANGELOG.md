@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.24.1 - 2026-10-06
+
+### Fixes
+
+- fix(deps): allow compatible stable Effect 4 peers
+
+### Docs
+
+- docs: record human readability and flat-pipe conventions
+
+### Tests
+
+- test(pack): reject incompatible Effect consumer peers
+
+### Chores
+
+- chore(beads): record v0.24.0 publication and peer-range follow-up
+- chore(beads): record peer compatibility verification
+
 ## 0.24.0 - 2026-10-05
 
 ### Breaking Changes
