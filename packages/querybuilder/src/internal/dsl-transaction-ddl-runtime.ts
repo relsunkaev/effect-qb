@@ -4,7 +4,7 @@ type DslTransactionDdlRuntimeContext = {
   readonly profile: {
     readonly dialect: string
   }
-  readonly makePlan: (...args: readonly any[]) => any
+  readonly makePlan: import("./query.js").RuntimePlanConstructor
   readonly targetSourceDetails: (target: any) => { readonly sourceName: string; readonly sourceBaseName: string }
   readonly normalizeColumnList: (columns: string | readonly string[]) => readonly string[]
   readonly defaultIndexName: (tableName: string, columns: readonly string[], unique: boolean) => string
@@ -65,7 +65,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "transaction", "transaction")
+    }, {
+      capabilities: "transaction",
+      statement: "transaction"
+    })
   }
 
   const commit = () =>
@@ -85,7 +88,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "transaction", "commit")
+    }, {
+      capabilities: "transaction",
+      statement: "commit"
+    })
 
   const rollback = () =>
     ctx.makePlan({
@@ -104,7 +110,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "transaction", "rollback")
+    }, {
+      capabilities: "transaction",
+      statement: "rollback"
+    })
 
   const savepoint = (name: string) => {
     return ctx.makePlan({
@@ -124,7 +133,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "transaction", "savepoint")
+    }, {
+      capabilities: "transaction",
+      statement: "savepoint"
+    })
   }
 
   const rollbackTo = (name: string) => {
@@ -145,7 +157,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "transaction", "rollbackTo")
+    }, {
+      capabilities: "transaction",
+      statement: "rollbackTo"
+    })
   }
 
   const releaseSavepoint = (name: string) => {
@@ -166,7 +181,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "transaction", "releaseSavepoint")
+    }, {
+      capabilities: "transaction",
+      statement: "releaseSavepoint"
+    })
   }
 
   const createTable = (target: any, options: { readonly ifNotExists?: boolean } = {}) => {
@@ -195,7 +213,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "ddl", "createTable")
+    }, {
+      capabilities: "ddl",
+      statement: "createTable"
+    })
   }
 
   const dropTable = (target: any, options: { readonly ifExists?: boolean } = {}) => {
@@ -224,7 +245,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "ddl", "dropTable")
+    }, {
+      capabilities: "ddl",
+      statement: "dropTable"
+    })
   }
 
   const createIndex = (target: any, columns: string | readonly string[], options: { readonly name?: string; readonly unique?: boolean; readonly ifNotExists?: boolean } = {}) => {
@@ -250,7 +274,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       ddl: {
         kind: "createIndex",
         name: name ?? ctx.defaultIndexName(sourceBaseName, normalizedColumns, unique),
-        columns: normalizedColumns,
+        columns: normalizedColumns as readonly [string, ...string[]],
         unique,
         ifNotExists
       },
@@ -259,7 +283,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "ddl", "createIndex")
+    }, {
+      capabilities: "ddl",
+      statement: "createIndex"
+    })
   }
 
   const dropIndex = (target: any, columns: string | readonly string[], options: { readonly name?: string; readonly ifExists?: boolean } = {}) => {
@@ -291,7 +318,10 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "ddl", "dropIndex")
+    }, {
+      capabilities: "ddl",
+      statement: "dropIndex"
+    })
   }
 
   return {

@@ -1,5 +1,5 @@
 import * as Expression from "./scalar.js"
-import * as Plan from "./row-set.js"
+import type * as Query from "./query.js"
 
 type DslQueryRuntimeContext = {
   readonly profile: {
@@ -10,12 +10,11 @@ type DslQueryRuntimeContext = {
   readonly normalizeUnnestColumns: (columns: any) => Record<string, readonly Expression.Any[]>
   readonly makeColumnReferenceSelection: (alias: string, selection: Record<string, Expression.Any>) => any
   readonly toDialectNumericExpression: (value: any) => Expression.Any
-  readonly extractRequiredRuntime: (selection: any) => readonly string[]
-  readonly makePlan: (...args: readonly any[]) => any
-  readonly getAst: (plan: any) => any
-  readonly getQueryState: (plan: any) => any
-  readonly currentRequiredList: (required: any) => readonly string[]
-  readonly dedupeGroupedExpressions: (values: readonly any[]) => any
+  readonly extractRequiredRuntime: typeof Query.extractRequiredRuntime
+  readonly makePlan: Query.RuntimePlanConstructor
+  readonly getAst: typeof Query.getAst
+  readonly updatePlan: typeof Query.updatePlan
+  readonly dedupeGroupedExpressions: typeof import("./grouping-key.js").dedupeGroupedExpressions
 }
 
 export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
@@ -89,45 +88,25 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "read", "select")
+    }, {
+      capabilities: "read",
+      statement: "select"
+    })
   }
 
   const groupBy = (...values: readonly Expression.Any[]) =>
-    (plan: any) => {
-      const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
-      const required = [...values.flatMap((value) => Object.keys(value[Expression.TypeId].dependencies))].filter((name, index, list) =>
-        !(name in current.available) && list.indexOf(name) === index)
-      return ctx.makePlan({
-        selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...required].filter((name, index, list) =>
-          !(name in current.available) && list.indexOf(name) === index),
-        available: current.available,
-        dialect: current.dialect
-      }, {
-        ...currentAst,
-        groupBy: ctx.dedupeGroupedExpressions([...currentAst.groupBy, ...values])
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
-    }
+    (plan: Query.Plan.Any) => ctx.updatePlan(plan, {
+      ast: {
+        groupBy: ctx.dedupeGroupedExpressions([...ctx.getAst(plan).groupBy, ...values])
+      },
+      additionalRequired: values.flatMap((value) => Object.keys(value[Expression.TypeId].dependencies))
+    })
 
-  const returning = (selection: any) => {
-    return (plan: any) => {
-      const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
-      return ctx.makePlan({
-        selection,
-        required: [...ctx.currentRequiredList(current.required), ...ctx.extractRequiredRuntime(selection)].filter((name, index, list) =>
-          !(name in current.available) && list.indexOf(name) === index),
-        available: current.available,
-        dialect: current.dialect
-      }, {
-        ...currentAst,
-        select: selection
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement, currentQuery.target, currentQuery.insertSource)
-    }
-  }
+  const returning = (selection: Query.SelectionShape) =>
+    (plan: Query.Plan.Any) => ctx.updatePlan(plan, {
+      ast: { select: selection },
+      additionalRequired: ctx.extractRequiredRuntime(selection)
+    })
 
   return {
     values,

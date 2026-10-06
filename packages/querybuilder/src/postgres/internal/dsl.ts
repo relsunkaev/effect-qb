@@ -29,6 +29,7 @@ import {
   getQueryState,
   makeExpression,
   makePlan,
+  updatePlan,
   mergeAggregationManyRuntime,
   mergeAggregationRuntime,
   mergeDependencies,
@@ -5771,8 +5772,7 @@ type AsCurriedResult<
     extractRequiredRuntime,
     makePlan,
     getAst,
-    getQueryState,
-    currentRequiredList,
+    updatePlan,
     dedupeGroupedExpressions
   }) as {
     readonly values: ValuesApi
@@ -6191,7 +6191,14 @@ type AsCurriedResult<
         ...currentAst,
         distinct: true,
         distinctOn: expressions
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement as StatementOfPlan<PlanValue>, currentQuery.target, currentQuery.insertSource, currentQuery.facts)
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement as StatementOfPlan<PlanValue>,
+        target: currentQuery.target,
+        insertSource: currentQuery.insertSource,
+        facts: currentQuery.facts
+      })
     }
   }) as DistinctOnApi<Dialect>
 

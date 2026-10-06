@@ -5,7 +5,7 @@ type DslPlanRuntimeContext = {
   readonly profile: {
     readonly dialect: string
   }
-  readonly makePlan: (...args: readonly any[]) => any
+  readonly makePlan: import("./query.js").RuntimePlanConstructor
   readonly getAst: (plan: any) => any
   readonly getQueryState: (plan: any) => any
   readonly currentRequiredList: (required: any) => readonly string[]
@@ -73,7 +73,9 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           query: right
         }
       ]
-    }, undefined, undefined, "set")
+    }, {
+      statement: "set"
+    })
   }
 
   const where = (predicate: any) =>
@@ -95,10 +97,14 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           kind: "where",
           predicate: predicateExpression
         }]
-      }, ctx.assumeFormulaTrue(
-        currentQuery.assumptions,
-        ctx.formulaOfExpressionRuntime(predicateExpression)
-      ), currentQuery.capabilities, currentQuery.statement)
+      }, {
+        assumptions: ctx.assumeFormulaTrue(
+          currentQuery.assumptions,
+          ctx.formulaOfExpressionRuntime(predicateExpression)
+        ),
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   const from = (source: any) =>
@@ -120,7 +126,7 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
         const nextAvailable = {
           [sourceName]: {
             name: sourceName,
-            mode: "required",
+            mode: "required" as const,
             baseName: sourceBaseName,
             _presentFormula: ctx.trueFormula(),
             _presenceWitnesses: presenceWitnesses
@@ -140,7 +146,11 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
             baseTableName: sourceBaseName,
             source: sourceLike
           }
-        }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
+        }, {
+          assumptions: currentQuery.assumptions,
+          capabilities: currentQuery.capabilities,
+          statement: currentQuery.statement
+        })
       }
 
       if (currentQuery.statement === "update") {
@@ -148,7 +158,7 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           ...current.available,
           [sourceName]: {
             name: sourceName,
-            mode: "required",
+            mode: "required" as const,
             baseName: sourceBaseName,
             _presentFormula: ctx.trueFormula(),
             _presenceWitnesses: presenceWitnesses
@@ -171,7 +181,11 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
               source: sourceLike
             }
           ]
-        }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
+        }, {
+          assumptions: currentQuery.assumptions,
+          capabilities: currentQuery.capabilities,
+          statement: currentQuery.statement
+        })
       }
 
       return plan
@@ -196,10 +210,14 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           kind: "having",
           predicate: predicateExpression
         }]
-      }, ctx.assumeFormulaTrue(
-        currentQuery.assumptions,
-        ctx.formulaOfExpressionRuntime(predicateExpression)
-      ), currentQuery.capabilities, currentQuery.statement)
+      }, {
+        assumptions: ctx.assumeFormulaTrue(
+          currentQuery.assumptions,
+          ctx.formulaOfExpressionRuntime(predicateExpression)
+        ),
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   const crossJoin = (table: any) =>
@@ -214,7 +232,7 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
         ...current.available,
         [sourceName]: {
           name: sourceName,
-          mode: "required",
+          mode: "required" as const,
           baseName: sourceBaseName,
           _presentFormula: ctx.trueFormula(),
           _presenceWitnesses: presenceWitnesses
@@ -234,7 +252,11 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           baseTableName: sourceBaseName,
           source: table
         }]
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   const join = (kind: string, table: any, on: any) =>
@@ -283,11 +305,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           source: table,
           on: onExpression
         }]
-      }, (
-        kind === "inner"
+      }, {
+        assumptions: kind === "inner"
           ? ctx.assumeFormulaTrue(currentQuery.assumptions, onFormula)
-          : currentQuery.assumptions
-      ), currentQuery.capabilities, currentQuery.statement)
+          : currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   const orderBy = (value: any, direction: "asc" | "desc" = "asc") =>
@@ -310,7 +334,11 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           value: expression,
           direction
         }]
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   const lock = (mode: string, options: { readonly nowait?: boolean; readonly skipLocked?: boolean } = {}) =>
@@ -331,7 +359,11 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           nowait: options.nowait ?? false,
           skipLocked: options.skipLocked ?? false
         }
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   const distinct = () =>
@@ -347,7 +379,11 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       }, {
         ...currentAst,
         distinct: true
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   const limit = (value: any) =>
@@ -366,7 +402,11 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       }, {
         ...currentAst,
         limit: expression
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   const offset = (value: any) =>
@@ -385,7 +425,11 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       }, {
         ...currentAst,
         offset: expression
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement)
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
     }
 
   return {

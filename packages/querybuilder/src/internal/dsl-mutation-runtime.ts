@@ -6,7 +6,7 @@ type DslMutationRuntimeContext = {
   readonly profile: {
     readonly dialect: string
   }
-  readonly makePlan: (...args: readonly any[]) => any
+  readonly makePlan: import("./query.js").RuntimePlanConstructor
   readonly getAst: (plan: any) => any
   readonly getQueryState: (plan: any) => any
   readonly currentRequiredList: (required: any) => readonly string[]
@@ -68,7 +68,12 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "write", "insert", target, insertState)
+    }, {
+      capabilities: "write",
+      statement: "insert",
+      target,
+      insertSource: insertState
+    })
   }
 
   const attachInsertSource = (plan: any, source: any) => {
@@ -93,7 +98,13 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
           columns: normalized.columns,
           rows: normalized.rows
         }
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement, currentQuery.target, "ready")
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement,
+        target: currentQuery.target,
+        insertSource: "ready"
+      })
     }
 
     if (typeof source === "object" && source !== null && "kind" in source && source.kind === "unnest") {
@@ -111,7 +122,13 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
           columns: normalized.columns,
           values: normalized.values
         }
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement, currentQuery.target, "ready")
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement,
+        target: currentQuery.target,
+        insertSource: "ready"
+      })
     }
 
     const sourcePlan = source
@@ -130,7 +147,13 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
         columns,
         query: sourcePlan
       }
-    }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement, currentQuery.target, "ready")
+    }, {
+      assumptions: currentQuery.assumptions,
+      capabilities: currentQuery.capabilities,
+      statement: currentQuery.statement,
+      target: currentQuery.target,
+      insertSource: "ready"
+    })
   }
 
   const onConflict = (target: any, options: any = {}) =>
@@ -172,7 +195,13 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
           values: updateAssignments.length === 0 ? undefined : updateAssignments,
           where: updateWhere
         }
-      }, currentQuery.assumptions, currentQuery.capabilities, currentQuery.statement, currentQuery.target, currentQuery.insertSource)
+      }, {
+        assumptions: currentQuery.assumptions,
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement,
+        target: currentQuery.target,
+        insertSource: currentQuery.insertSource
+      })
     }
 
   const update = (target: any, values: Record<string, unknown>) => {
@@ -199,7 +228,10 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "write", "update")
+    }, {
+      capabilities: "write",
+      statement: "update"
+    })
   }
 
   const upsert = (target: any, values: Record<string, unknown>, conflictColumns: string | readonly string[], updateValues?: Record<string, unknown>) => {
@@ -245,7 +277,12 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "write", "insert", target, "ready")
+    }, {
+      capabilities: "write",
+      statement: "insert",
+      target,
+      insertSource: "ready"
+    })
   }
 
   const delete_ = (target: any) => {
@@ -266,7 +303,10 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "write", "delete")
+    }, {
+      capabilities: "write",
+      statement: "delete"
+    })
   }
 
   const truncate = (target: any, options: { readonly restartIdentity?: boolean; readonly cascade?: boolean } = {}) => {
@@ -297,7 +337,10 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "write", "truncate")
+    }, {
+      capabilities: "write",
+      statement: "truncate"
+    })
   }
 
   const merge = (target: any, source: any, on: any, options: any = {}) => {
@@ -381,7 +424,10 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       joins: [],
       groupBy: [],
       orderBy: []
-    }, undefined, "write", "merge")
+    }, {
+      capabilities: "write",
+      statement: "merge"
+    })
   }
 
   return {

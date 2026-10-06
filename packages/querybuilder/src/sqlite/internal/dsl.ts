@@ -28,6 +28,7 @@ import {
   getQueryState,
   makeExpression,
   makePlan,
+  updatePlan,
   mergeAggregationManyRuntime,
   mergeAggregationRuntime,
   mergeDependencies,
@@ -5786,8 +5787,7 @@ type AsCurriedResult<
     extractRequiredRuntime,
     makePlan,
     getAst,
-    getQueryState,
-    currentRequiredList,
+    updatePlan,
     dedupeGroupedExpressions
   }) as unknown as {
     readonly values: ValuesApi

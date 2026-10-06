@@ -2514,12 +2514,14 @@ export const makePlan = <
 >(
   state: RowSet.State<Selection, Required, Available, Dialect>,
   ast: QueryAst.Ast<Selection, Grouped, Statement>,
-  _assumptions?: Assumptions,
-  _capabilities?: Capabilities,
-  _statement?: Statement,
-  _target?: Target,
-  _insertState?: InsertState,
-  _facts?: Facts
+  options: {
+    readonly assumptions?: Assumptions
+    readonly capabilities?: Capabilities
+    readonly statement?: Statement
+    readonly target?: Target
+    readonly insertSource?: InsertState
+    readonly facts?: Facts
+  } = {}
 ): QueryPlan<Selection, Required, Available, Dialect, Grouped, ScopedNames, Outstanding, Assumptions, Capabilities, Statement, Target, InsertState, Facts> => {
   const plan = Object.create(PlanProto)
   Object.defineProperty(plan, "pipe", {
@@ -2535,14 +2537,37 @@ export const makePlan = <
     required: undefined as unknown as Outstanding,
     availableNames: undefined as unknown as ScopedNames,
     grouped: undefined as unknown as Grouped,
-    assumptions: ((_assumptions ?? trueFormula()) as Assumptions),
-    facts: ((_facts ?? undefined) as unknown as Facts),
+    assumptions: ((options.assumptions ?? trueFormula()) as Assumptions),
+    facts: ((options.facts ?? undefined) as unknown as Facts),
     capabilities: undefined as unknown as Capabilities,
-    statement: (_statement ?? ("select" as Statement)) as Statement,
-    target: (_target ?? (undefined as unknown as Target)) as Target,
-    insertSource: (_insertState ?? ("ready" as InsertState)) as InsertState
+    statement: (options.statement ?? ("select" as Statement)) as Statement,
+    target: (options.target ?? (undefined as unknown as Target)) as Target,
+    insertSource: (options.insertSource ?? ("ready" as InsertState)) as InsertState
   }
   return plan
+}
+
+/** Typed construction inputs; public DSL signatures supply phantom result types. */
+export type RuntimePlanConstructor = (...args: Parameters<typeof makePlan>) => any
+
+/** Updates selection/grouping, merging source requirements and retaining query metadata. */
+export const updatePlan = (
+  plan: Plan.Any,
+  changes: {
+    readonly ast: Partial<Pick<QueryAst.Ast<SelectionShape>, "select" | "groupBy">>
+    readonly additionalRequired: readonly string[]
+  }
+): Plan.Any => {
+  const current = plan[RowSet.TypeId]
+  const required = new Set([...currentRequiredList(current.required), ...changes.additionalRequired])
+  return makePlan({
+    ...current,
+    selection: changes.ast.select ?? current.selection,
+    required: [...required].filter((name) => !(name in current.available))
+  }, {
+    ...getAst(plan),
+    ...changes.ast
+  }, getQueryState(plan))
 }
 
 /** Returns the internal AST carried by a query plan. */
