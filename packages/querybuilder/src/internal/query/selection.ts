@@ -1,5 +1,5 @@
-import * as Expression from "./scalar.js"
-import type * as Query from "./query.js"
+import * as Expression from "../scalar.js"
+import type * as Query from "./plan.js"
 
 type DslQueryRuntimeContext = {
   readonly profile: {
@@ -14,7 +14,7 @@ type DslQueryRuntimeContext = {
   readonly makePlan: Query.RuntimePlanConstructor
   readonly getAst: typeof Query.getAst
   readonly updatePlan: typeof Query.updatePlan
-  readonly dedupeGroupedExpressions: typeof import("./grouping-key.js").dedupeGroupedExpressions
+  readonly dedupeGroupedExpressions: typeof import("../grouping-key.js").dedupeGroupedExpressions
 }
 
 export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {

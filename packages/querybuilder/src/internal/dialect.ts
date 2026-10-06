@@ -1,6 +1,6 @@
 import type * as Schema from "effect/Schema"
 
-import type * as QueryAst from "./query-ast.js"
+import type * as QueryAst from "./query/ast.js"
 import type { Projection } from "./projections.js"
 import type * as Expression from "./scalar.js"
 import type * as Casing from "./casing.js"

@@ -1,26 +1,26 @@
-import type { StoredOf, WithoutStoredJson } from "./json/storage.js"
-import { makeDialectLiteral, makeDialectColumn, type QueryDialectProfile, type DialectLiteralExpression } from "./dsl-literal.js"
-export type { QueryDialectProfile } from "./dsl-literal.js"
+import type { StoredOf, WithoutStoredJson } from "../../internal/json/storage.js"
+import { makeDialectLiteral, makeDialectColumn, type QueryDialectProfile, type DialectLiteralExpression } from "../../internal/query/literal.js"
+export type { QueryDialectProfile } from "../../internal/query/literal.js"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
-import { standardDatatypes } from "../standard/datatypes/index.js"
+import { standardDatatypes } from "../datatypes/index.js"
 
-import * as Expression from "./scalar.js"
-import type * as FunctionConstraint from "./function-constraints.js"
-import * as Plan from "./row-set.js"
-import * as Table from "./table.js"
+import * as Expression from "../../internal/scalar.js"
+import type * as FunctionConstraint from "../../internal/function-constraints.js"
+import * as Plan from "../../internal/row-set.js"
+import * as Table from "../../internal/table.js"
 import type {
   CollationIdentifierInput,
   LiteralStringInput,
   NonEmptyStringInput,
   SafeSqlIdentifierInput,
   SafeSqlIdentifierPathInput
-} from "./table-options.js"
-import type { CastTargetError, OperandCompatibilityError } from "./coercion/errors.js"
-import type { RuntimeOfDbType } from "./coercion/analysis.js"
-import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "./coercion/rules.js"
-import { normalizeDbValue } from "./runtime/normalize.js"
+} from "../../internal/table-options.js"
+import type { CastTargetError, OperandCompatibilityError } from "../../internal/coercion/errors.js"
+import type { RuntimeOfDbType } from "../../internal/coercion/analysis.js"
+import type { CanCastDbType, CanCompareDbTypes, CanContainDbTypes, CanTextuallyCoerceDbType } from "../../internal/coercion/rules.js"
+import { normalizeDbValue } from "../../internal/runtime/normalize.js"
 import {
   currentRequiredList,
   extractRequiredRuntime,
@@ -114,13 +114,13 @@ import {
   type TupleDependencies,
   type TupleDialect,
   type ResultRow
-} from "./query.js"
-import * as ExpressionAst from "./expression-ast.js"
-import { presenceWitnessesOfSourceLike } from "./implication-runtime.js"
-import type { JsonNode } from "./json/ast.js"
-import type { JsonPathUsageError } from "./json/errors.js"
-import { withJsonPathAccess } from "./json/path-access.js"
-import * as JsonPath from "./json/path.js"
+} from "../../internal/query/plan.js"
+import * as ExpressionAst from "../../internal/expression-ast.js"
+import { presenceWitnessesOfSourceLike } from "../../internal/implication-runtime.js"
+import type { JsonNode } from "../../internal/json/ast.js"
+import type { JsonPathUsageError } from "../../internal/json/errors.js"
+import { withJsonPathAccess } from "../../internal/json/path-access.js"
+import * as JsonPath from "../../internal/json/path.js"
 import type {
   JsonConcatResult,
   JsonDeleteAtPath,
@@ -134,21 +134,21 @@ import type {
   JsonTypeName,
   JsonValueAtPath,
   NormalizeJsonLiteral
-} from "./json/types.js"
-import type { AssumePredicateStateTrue, EmptyFacts, PredicateStateFacts, PredicateStateFormula } from "./predicate/analysis.js"
-import type { FormulaOfPredicate } from "./predicate/normalize.js"
-import type { TrueFormula } from "./predicate/formula.js"
-import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "./predicate/runtime.js"
-import { dedupeGroupedExpressions } from "./grouping-key.js"
-import { validateWindowFrame } from "./window-frame.js"
-import { makeDslMutationRuntime } from "./dsl-mutation-runtime.js"
-import { makeDslPlanRuntime } from "./dsl-plan-runtime.js"
-import { makeDslQueryRuntime } from "./dsl-query-runtime.js"
-import { makeDslTransactionDdlRuntime } from "./dsl-transaction-ddl-runtime.js"
-import { makeCteSource, makeDerivedSource, makeLateralSource } from "./derived-table.js"
-import * as ProjectionAlias from "./projection-alias.js"
-import * as QueryAst from "./query-ast.js"
-import { normalizeColumnList } from "./table-options.js"
+} from "../../internal/json/types.js"
+import type { AssumePredicateStateTrue, EmptyFacts, PredicateStateFacts, PredicateStateFormula } from "../../internal/predicate/analysis.js"
+import type { FormulaOfPredicate } from "../../internal/predicate/normalize.js"
+import type { TrueFormula } from "../../internal/predicate/formula.js"
+import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "../../internal/predicate/runtime.js"
+import { dedupeGroupedExpressions } from "../../internal/grouping-key.js"
+import { validateWindowFrame } from "../../internal/window-frame.js"
+import { makeDslMutationRuntime } from "../../internal/query/mutations.js"
+import { makeDslPlanRuntime } from "../../internal/query/modifiers.js"
+import { makeDslQueryRuntime } from "../../internal/query/selection.js"
+import { makeDslTransactionDdlRuntime } from "../../internal/query/statements.js"
+import { makeCteSource, makeDerivedSource, makeLateralSource } from "../../internal/derived-table.js"
+import * as ProjectionAlias from "../../internal/projection-alias.js"
+import * as QueryAst from "../../internal/query/ast.js"
+import { normalizeColumnList } from "../../internal/table-options.js"
 
 type MutationTargetLike = Table.AnyTable<string>
 type MutationTargetTuple = readonly [MutationTargetLike, MutationTargetLike, ...MutationTargetLike[]]
@@ -5578,14 +5578,14 @@ type AsCurriedResult<
     alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: DerivedSourceCompatiblePlan<PlanValue>
-  ) => import("./query.js").CteSource<PlanValue, Alias>
+  ) => import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function with_<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: DerivedSourceCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("./query.js").CteSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function with_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => with_(value as any, valueOrAlias as never)
@@ -5602,14 +5602,14 @@ type AsCurriedResult<
     alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: DerivedSourceCompatiblePlan<PlanValue>
-  ) => import("./query.js").CteSource<PlanValue, Alias>
+  ) => import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function withRecursive_<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: DerivedSourceCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("./query.js").CteSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function withRecursive_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => withRecursive_(value as any, valueOrAlias as never)
@@ -5627,14 +5627,14 @@ type AsCurriedResult<
     alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: LateralSourceCompatiblePlan<PlanValue>
-  ) => import("./query.js").LateralSource<PlanValue, Alias>
+  ) => import("../../internal/query/plan.js").LateralSource<PlanValue, Alias>
   function lateral<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: LateralSourceCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("./query.js").LateralSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").LateralSource<PlanValue, Alias>
   function lateral(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => lateral(value as any, valueOrAlias as never)

@@ -94,7 +94,7 @@ export {
   rowNumber,
   rank,
   denseRank
-} from "../internal/standard-dsl.js"
+} from "./internal/dsl.js"
 
 export {
   abs,
@@ -115,7 +115,7 @@ export {
   type WindowOrderTerm
 } from "../internal/analytics.js"
 
-export { union_query_capabilities } from "../internal/query.js"
+export { union_query_capabilities } from "../internal/query/plan.js"
 
 export type MutationInputOf<Shape> = {
   readonly [K in keyof Shape]:
@@ -161,4 +161,4 @@ export type {
   SourceRequirementError,
   StatementOfPlan,
   StringExpressionInput
-} from "../internal/query.js"
+} from "../internal/query/plan.js"

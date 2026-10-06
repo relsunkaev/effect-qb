@@ -1,11 +1,11 @@
-import * as Expression from "./scalar.js"
-import * as Plan from "./row-set.js"
+import * as Expression from "../scalar.js"
+import * as Plan from "../row-set.js"
 
 type DslPlanRuntimeContext = {
   readonly profile: {
     readonly dialect: string
   }
-  readonly makePlan: import("./query.js").RuntimePlanConstructor
+  readonly makePlan: import("./plan.js").RuntimePlanConstructor
   readonly getAst: (plan: any) => any
   readonly getQueryState: (plan: any) => any
   readonly currentRequiredList: (required: any) => readonly string[]

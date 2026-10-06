@@ -13,7 +13,7 @@ import {
   type NumericExpressionInput,
   type TupleDependencies,
   type TupleDialect
-} from "./query.js"
+} from "./query/plan.js"
 
 type NumberLiteral<Value extends number> = Expression.Scalar<
   Value,

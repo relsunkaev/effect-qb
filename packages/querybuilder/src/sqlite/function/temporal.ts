@@ -2,7 +2,7 @@ import type * as Schema from "effect/Schema"
 
 import type * as Expression from "../../internal/scalar.js"
 import type * as ExpressionAst from "../../internal/expression-ast.js"
-import { makeExpression } from "../../internal/query.js"
+import { makeExpression } from "../../internal/query/plan.js"
 import { sqliteDatatypes } from "../datatypes/index.js"
 import {
   LocalDateStringSchema,

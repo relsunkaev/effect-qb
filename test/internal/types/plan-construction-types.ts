@@ -1,5 +1,5 @@
 import { Query, RowSet } from "#standard"
-import { getAst, makePlan, updatePlan, type RuntimePlanConstructor } from "#internal/query.js"
+import { getAst, makePlan, updatePlan, type RuntimePlanConstructor } from "#internal/query/plan.js"
 
 const plan = Query.select({ answer: Query.literal(42) })
 const construct: RuntimePlanConstructor = makePlan

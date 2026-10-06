@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 import * as Expression from "#internal/scalar.ts"
-import * as StdDsl from "#internal/standard-dsl.ts"
+import * as StdDsl from "../../../packages/querybuilder/src/standard/internal/dsl.ts"
 import * as PgDsl from "../../../packages/querybuilder/src/postgres/internal/dsl.ts"
 import * as MyDsl from "../../../packages/querybuilder/src/mysql/internal/dsl.ts"
 import * as SqDsl from "../../../packages/querybuilder/src/sqlite/internal/dsl.ts"

@@ -1,5 +1,5 @@
 import type * as Expression from "./scalar.js"
-import type * as Query from "./query.js"
+import type * as Query from "./query/plan.js"
 import type * as JsonPath from "./json/path.js"
 import type { JsonNode } from "./json/ast.js"
 

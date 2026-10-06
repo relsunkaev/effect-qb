@@ -1,17 +1,17 @@
-import type { StoredOf } from "./json/storage.js"
+import type { StoredOf } from "../json/storage.js"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import type * as Schema from "effect/Schema"
 
-import * as Expression from "./scalar.js"
-import * as RowSet from "./row-set.js"
-import * as Table from "./table.js"
-import * as ExpressionAst from "./expression-ast.js"
-import * as QueryAst from "./query-ast.js"
-import type * as ProjectionAlias from "./projection-alias.js"
-import type { JsonNode } from "./json/ast.js"
-import type * as JsonPath from "./json/path.js"
-import type { QueryCapability } from "./query-requirements.js"
-import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "./case-analysis.js"
+import * as Expression from "../scalar.js"
+import * as RowSet from "../row-set.js"
+import * as Table from "../table.js"
+import * as ExpressionAst from "../expression-ast.js"
+import * as QueryAst from "./ast.js"
+import type * as ProjectionAlias from "../projection-alias.js"
+import type { JsonNode } from "../json/ast.js"
+import type * as JsonPath from "../json/path.js"
+import type { QueryCapability } from "./requirements.js"
+import type { CaseBranchAssumeFalse, CaseBranchAssumeTrue, CaseBranchDecision } from "../case-analysis.js"
 import type {
   ContradictsFormula,
   EmptyFacts,
@@ -23,25 +23,25 @@ import type {
   GuaranteedNullKeysInFacts,
   GuaranteedSourceNamesInFacts,
   PredicateState
-} from "./predicate/analysis.js"
-import type { AssumeFactsFalse, AssumeFactsTrue, PredicateContext } from "./predicate/context.js"
-import type { FormulaOfPredicate } from "./predicate/normalize.js"
-import type { ColumnKey, ColumnKeyOfAst, ColumnKeyOfExpression, PredicateKeyOfAst } from "./predicate/key.js"
-import type { PredicateFormula, TrueFormula } from "./predicate/formula.js"
-import { trueFormula } from "./predicate/runtime.js"
+} from "../predicate/analysis.js"
+import type { AssumeFactsFalse, AssumeFactsTrue, PredicateContext } from "../predicate/context.js"
+import type { FormulaOfPredicate } from "../predicate/normalize.js"
+import type { ColumnKey, ColumnKeyOfAst, ColumnKeyOfExpression, PredicateKeyOfAst } from "../predicate/key.js"
+import type { PredicateFormula, TrueFormula } from "../predicate/formula.js"
+import { trueFormula } from "../predicate/runtime.js"
 
 export type {
   MergeCapabilities,
   MergeCapabilityTuple,
   QueryCapability,
   QueryRequirement
-} from "./query-requirements.js"
+} from "./requirements.js"
 export type {
   ComparableDbType,
   RuntimeOfDbType,
   TextCompatibleDbType,
   CastableDbType
-} from "./coercion/analysis.js"
+} from "../coercion/analysis.js"
 export type {
   CanonicalSegment as JsonPathSegment,
   DescendSegment as JsonPathDescendSegment,
@@ -54,10 +54,10 @@ export type {
   SegmentsOf as JsonPathSegments,
   SliceSegment as JsonPathSliceSegment,
   WildcardSegment as JsonPathWildcardSegment
-} from "./json/path.js"
+} from "../json/path.js"
 export type {
   JsonPathUsageError
-} from "./json/errors.js"
+} from "../json/errors.js"
 export type {
   JsonConcatResult,
   JsonDeleteAtPath,
@@ -72,23 +72,23 @@ export type {
   JsonValue,
   JsonValueAtPath,
   NormalizeJsonLiteral
-} from "./json/types.js"
+} from "../json/types.js"
 export type {
   CoercionKind,
   CoercionKindOf
-} from "./coercion/kind.js"
+} from "../coercion/kind.js"
 export type {
   CanCastDbType,
   CanCompareDbTypes,
   CanContainDbTypes
-} from "./coercion/rules.js"
+} from "../coercion/rules.js"
 export type {
   ConflictClause,
   LockClause,
   QueryStatement,
   SetOperatorKind as SetOperator
-} from "./query-ast.js"
-export { union_query_capabilities } from "./query-requirements.js"
+} from "./ast.js"
+export { union_query_capabilities } from "./requirements.js"
 
 /**
  * Shared prototype for runtime expression values created by query helpers.

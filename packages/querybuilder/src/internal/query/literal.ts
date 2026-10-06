@@ -1,8 +1,8 @@
 import * as Schema from "effect/Schema"
-import type * as Expression from "./scalar.js"
-import type * as ExpressionAst from "./expression-ast.js"
-import { makeExpression, type LiteralValue } from "./query.js"
-import type { RuntimeOfDbType } from "./coercion/analysis.js"
+import type * as Expression from "../scalar.js"
+import type * as ExpressionAst from "../expression-ast.js"
+import { makeExpression, type LiteralValue } from "./plan.js"
+import type { RuntimeOfDbType } from "../coercion/analysis.js"
 
 export interface QueryDialectProfile<
   Dialect extends string,

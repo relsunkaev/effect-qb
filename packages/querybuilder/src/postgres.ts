@@ -13,7 +13,7 @@ export * as Jsonb from "./postgres/jsonb.js"
 /** Postgres-specialized typed query execution contracts. */
 export * as Executor from "./postgres/executor.js"
 /** Postgres-specific query helpers. Portable queries are exported from the root package. */
-export * as Query from "./postgres/query-extension.js"
+export * as Query from "./postgres/query.js"
 /** Postgres database-type constructors for casts and typed references. */
 export { type as Type } from "./postgres/type.js"
 /** Postgres normalized table/enum metadata helpers. */

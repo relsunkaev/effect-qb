@@ -11,7 +11,7 @@ import {
   type PredicateInput,
   type TupleDependencies,
   type TupleDialect
-} from "./query.js"
+} from "./query/plan.js"
 
 type BooleanLiteral<Value extends boolean> = Expression.Scalar<
   Value,

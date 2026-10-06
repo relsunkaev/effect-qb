@@ -12,7 +12,7 @@ import {
   guaranteedSourceNames,
   trueFormula
 } from "./predicate/runtime.js"
-import type { SourceLike } from "./query.js"
+import type { SourceLike } from "./query/plan.js"
 
 export interface ImplicationScope {
   readonly assumptions: PredicateFormula

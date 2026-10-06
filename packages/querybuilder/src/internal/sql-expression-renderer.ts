@@ -1,6 +1,6 @@
 import type { RenderedAst, RenderState, SqlDialect } from "./dialect.js"
 import type * as Expression from "./scalar.js"
-import type * as QueryAst from "./query-ast.js"
+import type * as QueryAst from "./query/ast.js"
 
 export const renderQueryAst = (
   ast: QueryAst.Ast<Record<string, unknown>, any, QueryAst.QueryStatement>,

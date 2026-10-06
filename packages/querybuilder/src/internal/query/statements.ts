@@ -1,10 +1,10 @@
-import * as Plan from "./row-set.js"
+import * as Plan from "../row-set.js"
 
 type DslTransactionDdlRuntimeContext = {
   readonly profile: {
     readonly dialect: string
   }
-  readonly makePlan: import("./query.js").RuntimePlanConstructor
+  readonly makePlan: import("./plan.js").RuntimePlanConstructor
   readonly targetSourceDetails: (target: any) => { readonly sourceName: string; readonly sourceBaseName: string }
   readonly normalizeColumnList: (columns: string | readonly string[]) => readonly string[]
   readonly defaultIndexName: (tableName: string, columns: readonly string[], unique: boolean) => string

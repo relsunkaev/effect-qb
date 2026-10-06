@@ -1,4 +1,4 @@
-import * as Query from "../../internal/query.js"
+import * as Query from "../../internal/query/plan.js"
 import type * as Expression from "../../internal/scalar.js"
 import type * as Casing from "../../internal/casing.js"
 import { type RenderState } from "../../internal/dialect.js"

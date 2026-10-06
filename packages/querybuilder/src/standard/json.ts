@@ -13,7 +13,7 @@ import type {
 import type { LiteralStringInput } from "../internal/table-options.js"
 import type { JsonObjectKeyOf, WithJsonPathAccess } from "../internal/json/path-access.js"
 import type { standardDatatypes } from "./datatypes/index.js"
-import { json as standardJson } from "../internal/standard-dsl.js"
+import { json as standardJson } from "./internal/dsl.js"
 
 type JsonExpression<Runtime = unknown> = Expression.Scalar<
   Runtime,

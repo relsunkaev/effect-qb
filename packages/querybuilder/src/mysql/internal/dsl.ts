@@ -1,6 +1,6 @@
 import type { StoredOf, WithoutStoredJson } from "../../internal/json/storage.js"
-import { makeDialectLiteral, makeDialectColumn, type QueryDialectProfile, type DialectLiteralExpression } from "../../internal/dsl-literal.js"
-export type { QueryDialectProfile } from "../../internal/dsl-literal.js"
+import { makeDialectLiteral, makeDialectColumn, type QueryDialectProfile, type DialectLiteralExpression } from "../../internal/query/literal.js"
+export type { QueryDialectProfile } from "../../internal/query/literal.js"
 import { pipeArguments, type Pipeable } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 
@@ -113,7 +113,7 @@ import {
   type TupleDependencies,
   type TupleDialect,
   type ResultRow
-} from "../../internal/query.js"
+} from "../../internal/query/plan.js"
 import * as ExpressionAst from "../../internal/expression-ast.js"
 import { presenceWitnessesOfSourceLike } from "../../internal/implication-runtime.js"
 import type { JsonNode } from "../../internal/json/ast.js"
@@ -139,13 +139,13 @@ import type { TrueFormula } from "../../internal/predicate/formula.js"
 import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "../../internal/predicate/runtime.js"
 import { dedupeGroupedExpressions } from "../../internal/grouping-key.js"
 import { validateWindowFrame } from "../../internal/window-frame.js"
-import { makeDslMutationRuntime } from "../../internal/dsl-mutation-runtime.js"
-import { makeDslPlanRuntime } from "../../internal/dsl-plan-runtime.js"
-import { makeDslQueryRuntime } from "../../internal/dsl-query-runtime.js"
-import { makeDslTransactionDdlRuntime } from "../../internal/dsl-transaction-ddl-runtime.js"
+import { makeDslMutationRuntime } from "../../internal/query/mutations.js"
+import { makeDslPlanRuntime } from "../../internal/query/modifiers.js"
+import { makeDslQueryRuntime } from "../../internal/query/selection.js"
+import { makeDslTransactionDdlRuntime } from "../../internal/query/statements.js"
 import { makeCteSource, makeDerivedSource, makeLateralSource } from "../../internal/derived-table.js"
 import * as ProjectionAlias from "../../internal/projection-alias.js"
-import * as QueryAst from "../../internal/query-ast.js"
+import * as QueryAst from "../../internal/query/ast.js"
 import { normalizeColumnList } from "../../internal/table-options.js"
 
 type MutationTargetLike = Table.AnyTable<Dialect | "standard">
@@ -5555,14 +5555,14 @@ type AsCurriedResult<
     alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: MysqlCteCompatiblePlan<PlanValue>
-  ) => import("../../internal/query.js").CteSource<PlanValue, Alias>
+  ) => import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function with_<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: MysqlCteCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("../../internal/query.js").CteSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function with_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => with_(value as any, valueOrAlias as never)
@@ -5579,14 +5579,14 @@ type AsCurriedResult<
     alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: MysqlCteCompatiblePlan<PlanValue>
-  ) => import("../../internal/query.js").CteSource<PlanValue, Alias>
+  ) => import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function withRecursive_<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: MysqlCteCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("../../internal/query.js").CteSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function withRecursive_(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => withRecursive_(value as any, valueOrAlias as never)
@@ -5604,14 +5604,14 @@ type AsCurriedResult<
     alias: LiteralStringInput<Alias>
   ): <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
     value: LateralSourceCompatiblePlan<PlanValue>
-  ) => import("../../internal/query.js").LateralSource<PlanValue, Alias>
+  ) => import("../../internal/query/plan.js").LateralSource<PlanValue, Alias>
   function lateral<
     PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
     Alias extends string
   >(
     value: LateralSourceCompatiblePlan<PlanValue>,
     alias: LiteralStringInput<Alias>
-  ): import("../../internal/query.js").LateralSource<PlanValue, Alias>
+  ): import("../../internal/query/plan.js").LateralSource<PlanValue, Alias>
   function lateral(valueOrAlias: unknown, alias?: string): unknown {
     if (alias === undefined) {
       return (value: unknown) => lateral(value as any, valueOrAlias as never)

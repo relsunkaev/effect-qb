@@ -13,7 +13,7 @@ import {
   makeExpression,
   currentRequiredList,
   type SelectionOfPlan
-} from "./query.js"
+} from "./query/plan.js"
 import * as ExpressionAst from "./expression-ast.js"
 import { flattenSelection } from "./projections.js"
 
