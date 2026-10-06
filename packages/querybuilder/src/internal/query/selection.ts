@@ -14,6 +14,14 @@ type DslQueryRuntimeContext = {
   readonly toDialectNumericExpression: (value: any) => Expression.Any
 }
 
+export const groupBy = (...values: readonly Expression.Any[]) =>
+  (plan: Query.Plan.Any) => updatePlan(plan, {
+    ast: {
+      groupBy: dedupeGroupedExpressions([...getAst(plan).groupBy, ...values])
+    },
+    additionalRequired: values.flatMap((value) => Object.keys(value[Expression.TypeId].dependencies))
+  })
+
 export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
   const values = (rows: readonly [Record<string, any>, ...Record<string, any>[]]) => {
     const [first, ...rest] = rows
@@ -86,14 +94,6 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
     })
   }
 
-  const groupBy = (...values: readonly Expression.Any[]) =>
-    (plan: Query.Plan.Any) => updatePlan(plan, {
-      ast: {
-        groupBy: dedupeGroupedExpressions([...getAst(plan).groupBy, ...values])
-      },
-      additionalRequired: values.flatMap((value) => Object.keys(value[Expression.TypeId].dependencies))
-    })
-
   const returning = (selection: Query.SelectionShape) =>
     (plan: Query.Plan.Any) => updatePlan(plan, {
       ast: { select: selection },
@@ -105,7 +105,6 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
     unnest,
     generateSeries,
     select,
-    groupBy,
     returning
   }
 }

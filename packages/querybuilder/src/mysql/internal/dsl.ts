@@ -46,7 +46,7 @@ import type { TrueFormula } from "../../internal/predicate/formula.js"
 import { validateWindowFrame } from "../../internal/window-frame.js"
 import { makeDslMutationRuntime } from "../../internal/query/mutations.js"
 import { makeDslPlanRuntime } from "../../internal/query/modifiers.js"
-import { makeDslQueryRuntime } from "../../internal/query/selection.js"
+import { groupBy as groupByRuntime, makeDslQueryRuntime } from "../../internal/query/selection.js"
 import { makeDslTransactionDdlRuntime } from "../../internal/query/statements.js"
 import { makeCteSource, makeDerivedSource, makeLateralSource } from "../../internal/derived-table.js"
 import * as ProjectionAlias from "../../internal/projection-alias.js"
@@ -5632,7 +5632,6 @@ type AsCurriedResult<
     unnest,
     generateSeries,
     select,
-    groupBy,
     returning
   } = makeDslQueryRuntime({
     profile,
@@ -5646,7 +5645,6 @@ type AsCurriedResult<
     readonly unnest: UnnestApi
     readonly generateSeries: GenerateSeriesApi
     readonly select: SelectApi
-    readonly groupBy: GroupByApi
     readonly returning: ReturningApi
   }
 
@@ -6049,6 +6047,8 @@ type AsCurriedResult<
       CoreQuery.InsertSourceStateOfPlan<PlanValue>,
       CoreQuery.FactsOfPlan<PlanValue>
     >
+
+  const groupBy: GroupByApi = groupByRuntime
 
   type ReturningSelectionNonEmptyError<Selection> = Selection & {
     readonly __effect_qb_error__: "effect-qb: returning(...) requires at least one selected expression"
