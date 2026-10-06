@@ -1681,6 +1681,7 @@ type BinaryPredicateExpression<
     right: Right,
     kind: Kind,
     nullability: Nullability = "maybe" as Nullability,
+    aggregation: Expression.ScalarKind = "scalar"
   ): any => {
     const [leftExpression, rightExpression] = alignBinaryPredicateExpressions(
       toDialectExpression(left),
@@ -1691,7 +1692,7 @@ type BinaryPredicateExpression<
       dbType: profile.boolDb as BoolDb,
       nullability,
       dialect: (leftExpression[Expression.TypeId].dialect ?? rightExpression[Expression.TypeId].dialect) as DialectOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-      kind: "scalar",
+      kind: aggregation,
       dependencies: CoreQuery.mergeDependencies(
         leftExpression[Expression.TypeId].dependencies,
         rightExpression[Expression.TypeId].dependencies
@@ -3815,6 +3816,11 @@ type BinaryPredicateExpression<
     value: Value
   ): MatchStarter<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> => {
     const subject = toDialectExpression(value)
+    const compareSubject = (compare: CoreQuery.ExpressionInput) => {
+      const candidate = toDialectExpression(compare)
+      return buildBinaryPredicate(subject, candidate, "eq", "maybe",
+        CoreQuery.mergeAggregationManyRuntime([subject, candidate]))
+    }
     const build = (
       branches: readonly RuntimeCaseBranch[]
     ): {
@@ -3825,7 +3831,7 @@ type BinaryPredicateExpression<
         return build([
           ...branches,
           {
-            when: buildBinaryPredicate(subject as CoreQuery.ExpressionInput, compare as CoreQuery.ExpressionInput, "eq"),
+            when: compareSubject(compare),
             then: toDialectExpression(result)
           }
         ])
@@ -3840,7 +3846,7 @@ type BinaryPredicateExpression<
         compare: CoreQuery.ExpressionInput,
         result: Then
       ) {
-        const predicate = buildBinaryPredicate(subject as CoreQuery.ExpressionInput, compare as CoreQuery.ExpressionInput, "eq")
+        const predicate = compareSubject(compare)
         return build([{
           when: predicate,
           then: toDialectExpression(result)
