@@ -8,7 +8,7 @@
 bun add effect-qb effect
 ```
 
-Requires stable Effect `4.0.0`. Install from the default npm channel;
+Requires stable Effect `^4.0.0`. Install from the default npm channel;
 the old beta and RC artifacts are superseded.
 
 ## Entry points

@@ -8,7 +8,7 @@
 bun add effect-db effect
 ```
 
-Requires stable Effect `4.0.0`. Install from the default npm channel;
+Requires stable Effect `^4.0.0`. Install from the default npm channel;
 the old beta and RC artifacts are superseded.
 
 PostgreSQL migration scripts use `libpg-query` to find statement boundaries,

@@ -36,7 +36,7 @@
         "typescript": "^6.0.3",
       },
       "peerDependencies": {
-        "effect": "4.0.0",
+        "effect": "^4.0.0",
       },
     },
     "packages/querybuilder": {
@@ -50,7 +50,7 @@
         "@typescript/native-preview": "^7.0.0-dev.20260707.2",
       },
       "peerDependencies": {
-        "effect": "4.0.0",
+        "effect": "^4.0.0",
       },
     },
   },
