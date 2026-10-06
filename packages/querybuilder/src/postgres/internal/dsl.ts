@@ -701,7 +701,7 @@ type DialectStringExpressionTuple<
 type AvailableNames<Available extends Record<string, Plan.AnySource>> = Extract<keyof Available, string>
 
 type PlanPredicateStateAfterWhere<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.PredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -715,7 +715,7 @@ type PlanPredicateStateAfterWhere<
 >
 
 type PlanAssumptionsAfterWhere<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.PredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -726,7 +726,7 @@ type PlanAssumptionsAfterWhere<
 > = PredicateStateFormula<PlanPredicateStateAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanFactsAfterWhere<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.PredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -737,7 +737,7 @@ type PlanFactsAfterWhere<
 > = PredicateStateFacts<PlanPredicateStateAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanPredicateStateAfterHaving<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.HavingPredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -751,7 +751,7 @@ type PlanPredicateStateAfterHaving<
 >
 
 type PlanAssumptionsAfterHaving<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.HavingPredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -762,7 +762,7 @@ type PlanAssumptionsAfterHaving<
 > = PredicateStateFormula<PlanPredicateStateAfterHaving<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanFactsAfterHaving<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.HavingPredicateInput,
   Dialect extends string,
   TextDb extends Expression.DbType.Any,
@@ -773,7 +773,7 @@ type PlanFactsAfterHaving<
 > = PredicateStateFacts<PlanPredicateStateAfterHaving<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanPredicateStateAfterJoin<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.PredicateInput,
   Kind extends QueryAst.JoinKind,
   Dialect extends string,
@@ -790,7 +790,7 @@ type PlanPredicateStateAfterJoin<
   : CoreQuery.PredicateStateOfPlan<PlanValue>
 
 type PlanAssumptionsAfterJoin<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.PredicateInput,
   Kind extends QueryAst.JoinKind,
   Dialect extends string,
@@ -802,7 +802,7 @@ type PlanAssumptionsAfterJoin<
 > = PredicateStateFormula<PlanPredicateStateAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type PlanFactsAfterJoin<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Predicate extends CoreQuery.PredicateInput,
   Kind extends QueryAst.JoinKind,
   Dialect extends string,
@@ -814,7 +814,7 @@ type PlanFactsAfterJoin<
 > = PredicateStateFacts<PlanPredicateStateAfterJoin<PlanValue, Predicate, Kind, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
 
 type ScalarSubqueryInput<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   EngineDialect extends string
 > = PlanValue & CoreQuery.DialectCompatibleNestedPlan<PlanValue, EngineDialect> & (
   CoreQuery.ScalarOutputOfPlan<PlanValue> extends never ? never : unknown
@@ -3307,7 +3307,7 @@ type BinaryPredicateExpression<
   }
 
   const exists = <
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    PlanValue extends CoreQuery.Plan.Any
   >(
     plan: CoreQuery.DialectCompatibleNestedPlan<PlanValue, Dialect>
   ): AstBackedExpression<
@@ -3337,7 +3337,7 @@ type BinaryPredicateExpression<
   }
 
   const scalar = <
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    PlanValue extends CoreQuery.Plan.Any
   >(
     plan: ScalarSubqueryInput<PlanValue, Dialect>
   ): AstBackedExpression<
@@ -3371,7 +3371,7 @@ type BinaryPredicateExpression<
 
   const inSubquery = <
     Left extends CoreQuery.ExpressionInput,
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    PlanValue extends CoreQuery.Plan.Any
   >(
     left: Left,
     plan: ScalarSubqueryInput<PlanValue, Dialect> & (
@@ -3427,7 +3427,7 @@ type BinaryPredicateExpression<
 
   const quantifiedComparison = <
     Left extends CoreQuery.ExpressionInput,
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Operator extends QuantifiedComparisonOperator,
     Quantifier extends "any" | "all"
   >(
@@ -3458,7 +3458,7 @@ type BinaryPredicateExpression<
 
   const compareAny = <
     Left extends CoreQuery.ExpressionInput,
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Operator extends QuantifiedComparisonOperator
   >(
     left: Left,
@@ -3468,7 +3468,7 @@ type BinaryPredicateExpression<
 
   const compareAll = <
     Left extends CoreQuery.ExpressionInput,
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Operator extends QuantifiedComparisonOperator
   >(
     left: Left,
@@ -3980,14 +3980,14 @@ type BinaryPredicateExpression<
 
   const renderQuantifiedComparisonAst = (
     left: Expression.Any,
-    plan: CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    plan: CoreQuery.Plan.Any,
     operator: QuantifiedComparisonOperator,
     quantifier: "any" | "all"
   ): ExpressionAst.QuantifiedComparisonNode<
     "comparisonAny" | "comparisonAll",
     QuantifiedComparisonOperator,
     Expression.Any,
-    CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    CoreQuery.Plan.Any
   > => ({
     kind: quantifier === "any" ? "comparisonAny" : "comparisonAll",
     operator,
@@ -4621,7 +4621,7 @@ type DistinctOnUnsupportedError<Dialect extends string> = {
 type DistinctOnApi<Dialect extends string> = Dialect extends "postgres"
   ? <Values extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]>(
       ...values: Values
-    ) => <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    ) => <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -4641,7 +4641,7 @@ type DistinctOnApi<Dialect extends string> = Dialect extends "postgres"
   : DistinctOnUnsupportedError<Dialect>
 
 type InsertPlanStatementError<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends CoreQuery.Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: insert sources only accept select-like query plans"
   readonly __effect_qb_statement__: CoreQuery.StatementOfPlan<PlanValue>
@@ -4649,7 +4649,7 @@ type InsertPlanStatementError<
 }
 
 type InsertPlanSelectionShapeError<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends CoreQuery.Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: insert sources require a flat selection object"
   readonly __effect_qb_selection__: CoreQuery.SelectionOfPlan<PlanValue>
@@ -4757,7 +4757,7 @@ type IsFlatExpressionSelection<Selection> = Selection extends Record<string, any
 
 type InsertSelectSource<
   Target extends MutationTargetLike,
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Dialect extends string
 > = CoreQuery.StatementOfPlan<PlanValue> extends "select" | "set"
   ? IsFlatExpressionSelection<CoreQuery.SelectionOfPlan<PlanValue>> extends true
@@ -4770,7 +4770,7 @@ type InsertSelectSource<
 type InsertSourceInput<
   Target extends MutationTargetLike,
   Dialect extends string,
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any> = CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends CoreQuery.Plan.Any = CoreQuery.Plan.Any
 > =
   | CoreQuery.AnyValuesInput
   | CoreQuery.AnyValuesSource
@@ -4778,7 +4778,7 @@ type InsertSourceInput<
   | InsertSelectSource<Target, PlanValue, Dialect>
 
 type InsertSourceOfPlanInput<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   Source,
   Dialect extends string
 > = CoreQuery.MutationTargetOfPlan<PlanValue> extends infer Target extends MutationTargetLike
@@ -4786,7 +4786,7 @@ type InsertSourceOfPlanInput<
     ? Source
     : Source extends CoreQuery.AnyUnnestSource
       ? InsertUnnestSourceInput<Target, Source>
-      : Source extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+      : Source extends CoreQuery.Plan.Any
         ? InsertSelectSource<Target, Source, Dialect>
         : never
   : never
@@ -4794,11 +4794,11 @@ type InsertSourceOfPlanInput<
 type InsertSourceRequired<Source> =
   Source extends CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource ? NestedMutationRequiredFromValues<Source["rows"][number]> :
     Source extends CoreQuery.UnnestSource<any, any, any> ? never :
-      Source extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any> ? CoreQuery.RequiredOfPlan<Source> :
+      Source extends CoreQuery.Plan.Any ? CoreQuery.RequiredOfPlan<Source> :
         never
 
 type InsertSourceDialect<Source> =
-  Source extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any> ? CoreQuery.PlanDialectOf<Source> :
+  Source extends CoreQuery.Plan.Any ? CoreQuery.PlanDialectOf<Source> :
     Source extends CoreQuery.SourceLike ? CoreQuery.SourceDialectOf<Source> :
       never
 
@@ -4964,30 +4964,30 @@ type MergeOptions<
     readonly whenNotMatched: MergeNotMatchedOption<Target, InsertValues, NotMatchedPredicate>
   }
 
-type RequireSelectStatement<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+type RequireSelectStatement<PlanValue extends CoreQuery.Plan.Any> =
   CoreQuery.StatementOfPlan<PlanValue> extends "select" ? unknown : never
 
-type RequirePendingInsertStatement<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+type RequirePendingInsertStatement<PlanValue extends CoreQuery.Plan.Any> =
   CoreQuery.StatementOfPlan<PlanValue> extends "insert"
     ? CoreQuery.InsertSourceStateOfPlan<PlanValue> extends "missing" ? unknown : never
     : never
 
-type RequireWhereStatement<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+type RequireWhereStatement<PlanValue extends CoreQuery.Plan.Any> =
   CoreQuery.StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
 
-type RequireMutationStatement<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+type RequireMutationStatement<PlanValue extends CoreQuery.Plan.Any> =
   CoreQuery.StatementOfPlan<PlanValue> extends MutationStatement ? unknown : never
 
-type RequireInsertStatement<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+type RequireInsertStatement<PlanValue extends CoreQuery.Plan.Any> =
   CoreQuery.StatementOfPlan<PlanValue> extends "insert" ? unknown : never
 
-type RequireJoinStatement<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+type RequireJoinStatement<PlanValue extends CoreQuery.Plan.Any> =
   CoreQuery.StatementOfPlan<PlanValue> extends "select" | "update" | "delete" ? unknown : never
 
-type RequireUpdateFromStatement<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+type RequireUpdateFromStatement<PlanValue extends CoreQuery.Plan.Any> =
   CoreQuery.StatementOfPlan<PlanValue> extends "update" ? unknown : never
 
-type MutationOrderLimitSupported<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>, Dialect extends string> =
+type MutationOrderLimitSupported<PlanValue extends CoreQuery.Plan.Any, Dialect extends string> =
   CoreQuery.StatementOfPlan<PlanValue> extends "select"
     ? unknown
     : Dialect extends "mysql"
@@ -5099,7 +5099,7 @@ type MutationLockModeForStatement<
 
 type InsertDirectSource =
   | CoreQuery.AnyValuesInput
-  | CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  | CoreQuery.Plan.Any
 
 type FromInput = CoreQuery.SourceLike | InsertDirectSource
 
@@ -5115,7 +5115,7 @@ type SourceDialectConstraint<
       : never
 
 type SourceRequirementConstraint<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends CoreQuery.SourceLike
 > = [CoreQuery.SourceRequiredOf<CurrentSource>] extends [never]
   ? unknown
@@ -5124,7 +5124,7 @@ type SourceRequirementConstraint<
     : CoreQuery.SourceRequirementError<CurrentSource>
 
 type SelectFromConstraint<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends CoreQuery.SourceLike
 > =
   RequireSelectStatement<PlanValue> &
@@ -5140,7 +5140,7 @@ type SelectFromConstraint<
   (CoreQuery.SourceRequiredOf<CurrentSource> extends never ? unknown : CoreQuery.SourceRequirementError<CurrentSource>)
 
 type UpdateFromConstraint<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends CoreQuery.SourceLike
 > =
   RequireUpdateFromStatement<PlanValue> &
@@ -5148,7 +5148,7 @@ type UpdateFromConstraint<
   (CoreQuery.SourceRequiredOf<CurrentSource> extends never ? unknown : CoreQuery.SourceRequirementError<CurrentSource>)
 
 type InsertFromConstraint<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource,
   Dialect extends string
 > =
@@ -5158,7 +5158,7 @@ type InsertFromConstraint<
     : InsertSourceOfPlanInput<PlanValue, CurrentSource, Dialect>)
 
 type SelectFromResult<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends CoreQuery.SourceLike
 > = CoreQuery.QueryPlan<
   CoreQuery.SelectionOfPlan<PlanValue>,
@@ -5177,7 +5177,7 @@ type SelectFromResult<
 >
 
 type UpdateFromResult<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends CoreQuery.SourceLike
 > = CoreQuery.QueryPlan<
   CoreQuery.SelectionOfPlan<PlanValue>,
@@ -5202,7 +5202,7 @@ type UpdateFromResult<
 >
 
 type InsertFromResult<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource,
   Dialect extends string
 > = CoreQuery.QueryPlan<
@@ -5214,7 +5214,7 @@ type InsertFromResult<
   CoreQuery.ScopedNamesOfPlan<PlanValue>,
   InsertSourceRequired<CurrentSource>,
   CoreQuery.AssumptionsOfPlan<PlanValue>,
-  CurrentSource extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  CurrentSource extends CoreQuery.Plan.Any
     ? CoreQuery.MergeCapabilities<CoreQuery.CapabilitiesOfPlan<PlanValue>, CoreQuery.CapabilitiesOfPlan<CurrentSource>>
     : CoreQuery.CapabilitiesOfPlan<PlanValue>,
   CoreQuery.StatementOfPlan<PlanValue>,
@@ -5224,7 +5224,7 @@ type InsertFromResult<
 >
 
 type FromPlanConstraint<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends FromInput,
   Dialect extends string
 > =
@@ -5247,7 +5247,7 @@ type FromPlanConstraint<
       : never
 
 type FromPlanResult<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends FromInput,
   Dialect extends string
 > =
@@ -5268,7 +5268,7 @@ type FromPlanResult<
       : never
 
 export type PublicStructuredFromConstraint<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.AnyTableFunctionSource,
   Dialect extends string
 > =
@@ -5279,7 +5279,7 @@ export type PublicStructuredFromConstraint<
     : FromPlanConstraint<PlanValue, CurrentSource, Dialect>
 
 export type PublicStructuredFromResult<
-  PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends CoreQuery.Plan.Any,
   CurrentSource extends CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.AnyTableFunctionSource,
   Dialect extends string
 > =
@@ -5338,7 +5338,7 @@ export type PublicStructuredFromResult<
 export type PublicNonStructuredFromApi = <CurrentSource extends Exclude<FromInput, CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.AnyTableFunctionSource>>(
   source: CurrentSource
 ) =>
-  <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  <PlanValue extends CoreQuery.Plan.Any>(
     plan: PlanValue & FromPlanConstraint<PlanValue, CurrentSource, Dialect>
   ) => FromPlanResult<PlanValue, CurrentSource, Dialect>
 
@@ -5380,7 +5380,7 @@ type MergeSourceNameConstraint<
 type AsCurriedInput<Dialect extends string> =
   | CoreQuery.ExpressionInput
   | CoreQuery.ValuesInput<any, any, Dialect>
-  | CoreQuery.CompletePlan<CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+  | CoreQuery.CompletePlan<CoreQuery.Plan.Any>
 
 type AsCurriedResult<
   Value,
@@ -5397,7 +5397,7 @@ type AsCurriedResult<
     infer Selection extends CoreQuery.SelectionShape,
     Dialect
   > ? CoreQuery.ValuesSource<Rows, Selection, Alias, Dialect>
-    : Value extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    : Value extends CoreQuery.Plan.Any
       ? CoreQuery.DerivedSource<Value, Alias>
       : Value extends CoreQuery.ExpressionInput
         ? DialectAsExpression<Value, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
@@ -5434,7 +5434,7 @@ type AsCurriedResult<
     Dialect
   >
   function as<
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Alias extends string
   >(
     value: CoreQuery.DerivedTableCompatiblePlan<PlanValue>,
@@ -5476,18 +5476,18 @@ type AsCurriedResult<
         resolvedAlias
       ) as unknown
     }
-    return makeDerivedSource(value as CoreQuery.CompletePlan<CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>, resolvedAlias)
+    return makeDerivedSource(value as CoreQuery.CompletePlan<CoreQuery.Plan.Any>, resolvedAlias)
   }
 
   function with_<
     Alias extends string
   >(
     alias: LiteralStringInput<Alias>
-  ): <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  ): <PlanValue extends CoreQuery.Plan.Any>(
     value: CoreQuery.DerivedSourceCompatiblePlan<PlanValue>
   ) => import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function with_<
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Alias extends string
   >(
     value: CoreQuery.DerivedSourceCompatiblePlan<PlanValue>,
@@ -5498,7 +5498,7 @@ type AsCurriedResult<
       return (value: unknown) => with_(value as any, valueOrAlias as never)
     }
     return makeCteSource(
-      valueOrAlias as CoreQuery.CompletePlan<CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
+      valueOrAlias as CoreQuery.CompletePlan<CoreQuery.Plan.Any>,
       alias
     )
   }
@@ -5507,11 +5507,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     alias: LiteralStringInput<Alias>
-  ): <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  ): <PlanValue extends CoreQuery.Plan.Any>(
     value: CoreQuery.DerivedSourceCompatiblePlan<PlanValue>
   ) => import("../../internal/query/plan.js").CteSource<PlanValue, Alias>
   function withRecursive_<
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Alias extends string
   >(
     value: CoreQuery.DerivedSourceCompatiblePlan<PlanValue>,
@@ -5522,7 +5522,7 @@ type AsCurriedResult<
       return (value: unknown) => withRecursive_(value as any, valueOrAlias as never)
     }
     return makeCteSource(
-      valueOrAlias as CoreQuery.CompletePlan<CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>,
+      valueOrAlias as CoreQuery.CompletePlan<CoreQuery.Plan.Any>,
       alias,
       true
     )
@@ -5532,11 +5532,11 @@ type AsCurriedResult<
     Alias extends string
   >(
     alias: LiteralStringInput<Alias>
-  ): <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  ): <PlanValue extends CoreQuery.Plan.Any>(
     value: CoreQuery.LateralSourceCompatiblePlan<PlanValue>
   ) => import("../../internal/query/plan.js").LateralSource<PlanValue, Alias>
   function lateral<
-    PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+    PlanValue extends CoreQuery.Plan.Any,
     Alias extends string
   >(
     value: CoreQuery.LateralSourceCompatiblePlan<PlanValue>,
@@ -5547,7 +5547,7 @@ type AsCurriedResult<
       return (value: unknown) => lateral(value as any, valueOrAlias as never)
     }
     return makeLateralSource(
-      valueOrAlias as CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+      valueOrAlias as CoreQuery.Plan.Any,
       alias
     )
   }
@@ -5691,8 +5691,8 @@ type AsCurriedResult<
   }
 
   type SetOperationResult<
-    LeftPlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-    RightPlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    LeftPlanValue extends CoreQuery.Plan.Any,
+    RightPlanValue extends CoreQuery.Plan.Any
   > = CoreQuery.QueryPlan<
     CoreQuery.SelectionOfPlan<LeftPlanValue>,
     never,
@@ -5710,8 +5710,8 @@ type AsCurriedResult<
   >
 
   type SetOperationApi = <
-    LeftPlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-    RightPlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>
+    LeftPlanValue extends CoreQuery.Plan.Any,
+    RightPlanValue extends CoreQuery.Plan.Any
   >(
     left: CoreQuery.SetCompatiblePlan<LeftPlanValue, Dialect>,
     right: CoreQuery.SetCompatibleRightPlan<LeftPlanValue, RightPlanValue, Dialect>
@@ -5720,7 +5720,7 @@ type AsCurriedResult<
   type WhereApi = <Predicate extends CoreQuery.PredicateInput>(
     predicate: Predicate
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireWhereStatement<PlanValue>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -5741,14 +5741,14 @@ type AsCurriedResult<
   export type FromApi = <CurrentSource extends FromInput>(
     source: CurrentSource
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & FromPlanConstraint<PlanValue, CurrentSource, Dialect>
     ) => FromPlanResult<PlanValue, CurrentSource, Dialect>
 
   type HavingApi = <Predicate extends CoreQuery.HavingPredicateInput>(
     predicate: Predicate
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -5769,7 +5769,7 @@ type AsCurriedResult<
   type CrossJoinApi = <CurrentTable extends CoreQuery.SourceLike>(
     table: CurrentTable
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireJoinStatement<PlanValue> & (
         keyof CoreQuery.AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
@@ -5806,7 +5806,7 @@ type AsCurriedResult<
     table: CurrentTable,
     on: Predicate
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireJoinStatement<PlanValue> & (
         keyof CoreQuery.AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
@@ -5841,7 +5841,7 @@ type AsCurriedResult<
     table: CurrentTable,
     on: Predicate
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireJoinStatement<PlanValue> & (
         keyof CoreQuery.AvailableOfPlan<PlanValue> extends never ? never : unknown
       ) & (
@@ -5873,7 +5873,7 @@ type AsCurriedResult<
     value: Value,
     direction?: CoreQuery.OrderDirection
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & MutationOrderLimitSupported<PlanValue, Dialect>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -5892,7 +5892,7 @@ type AsCurriedResult<
     >
 
   interface LockApi {
-    (mode: "update" | "share", options?: LockOptions): <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    (mode: "update" | "share", options?: LockOptions): <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & (CoreQuery.StatementOfPlan<PlanValue> extends "select" ? unknown : never)
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -5912,7 +5912,7 @@ type AsCurriedResult<
     <Mode extends Dialect extends "mysql" ? "lowPriority" | "ignore" | "quick" : never>(
       mode: Mode,
       options?: LockOptions
-    ): <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    ): <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & (
         Dialect extends "mysql"
           ? CoreQuery.StatementOfPlan<PlanValue> extends "update"
@@ -5940,7 +5940,7 @@ type AsCurriedResult<
   }
 
   type DistinctApi = () =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -5961,7 +5961,7 @@ type AsCurriedResult<
   type LimitApi = <Value extends CoreQuery.NumericExpressionInput>(
     value: Value
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & MutationOrderLimitSupported<PlanValue, Dialect>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -5982,7 +5982,7 @@ type AsCurriedResult<
   type OffsetApi = <Value extends CoreQuery.NumericExpressionInput>(
     value: Value
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -6070,7 +6070,7 @@ type AsCurriedResult<
 
   const distinctOn = (<Values extends readonly [CoreQuery.ExpressionInput, ...CoreQuery.ExpressionInput[]]>(...values: Values) => {
     const expressions = values.map((value) => toDialectExpression(value)) as Expression.Any[]
-    return <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    return <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ): CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -6112,7 +6112,7 @@ type AsCurriedResult<
   type GroupByApi = <Values extends readonly [CoreQuery.GroupByInput, ...CoreQuery.GroupByInput[]]>(
     ...values: Values
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireSelectStatement<PlanValue>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -6144,7 +6144,7 @@ type AsCurriedResult<
   type ReturningApi = <const Selection extends CoreQuery.SelectionShape>(
     selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & ReturningSelectionNonEmptyConstraint<Selection> & CoreQuery.SelectionProjectionAliasCollisionConstraint<Selection>
   ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireMutationStatement<PlanValue>
     ) => CoreQuery.QueryPlan<
       Selection,
@@ -6202,7 +6202,7 @@ type AsCurriedResult<
 
   type AttachInsertSourceApi = (
     plan: CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
-    source: CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.CompletePlan<CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+    source: CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.CompletePlan<CoreQuery.Plan.Any>
   ) => CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "ready">
 
   type OnConflictApi = <
@@ -6215,7 +6215,7 @@ type AsCurriedResult<
     target: ConflictTarget & ConflictConstraintNameConstraint<ConflictTarget>,
     options?: Options & ConflictActionUpdateNonEmptyConstraint<Options>
 	  ) =>
-    <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+    <PlanValue extends CoreQuery.Plan.Any>(
       plan: PlanValue & RequireInsertStatement<PlanValue> & ConflictTargetPlanConstraint<CoreQuery.MutationTargetOfPlan<PlanValue>, ConflictTarget>
     ) => CoreQuery.QueryPlan<
       CoreQuery.SelectionOfPlan<PlanValue>,
@@ -6439,12 +6439,12 @@ type AsCurriedResult<
 
   const attachInsertSource = (
     plan: CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "missing">,
-    source: CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.CompletePlan<CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+    source: CoreQuery.AnyValuesInput | CoreQuery.AnyValuesSource | CoreQuery.AnyUnnestSource | CoreQuery.CompletePlan<CoreQuery.Plan.Any>
   ): CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, "insert", MutationTargetLike, "ready"> =>
     mutationRuntime.attachInsertSource(plan, source)
 
   const onConflict = ((target: unknown, options: unknown = {}) =>
-    (plan: CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>) =>
+    (plan: CoreQuery.Plan.Any) =>
       mutationRuntime.onConflict(target, options)(plan)) as OnConflictApi
 
   const update: UpdateApi = ((

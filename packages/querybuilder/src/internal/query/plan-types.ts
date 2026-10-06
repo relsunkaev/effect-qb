@@ -509,7 +509,7 @@ export type SchemaTableLike =
  * be passed to `from(...)` or join builders.
  */
 export type DerivedSource<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   Alias extends string
 > = DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias> & {
   readonly kind: "derived"
@@ -523,7 +523,7 @@ export type DerivedSource<
 
 /** Wrapper returned by `with(subquery, alias)` for common table expression composition. */
 export type CteSource<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   Alias extends string
 > = DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias> & {
   readonly kind: "cte"
@@ -537,7 +537,7 @@ export type CteSource<
 
 /** Wrapper returned by `lateral(subquery, alias)` for correlated derived sources. */
 export type LateralSource<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   Alias extends string
 > = DerivedSelectionOf<SelectionOfPlan<PlanValue>, Alias> & {
   readonly kind: "lateral"
@@ -636,7 +636,7 @@ type DerivedSourceShape = {
   readonly name: string
   readonly baseName: string
   readonly dialect: string
-  readonly plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  readonly plan: Plan.Any
   readonly columns: Record<string, unknown>
 }
 
@@ -645,7 +645,7 @@ type CteSourceShape = {
   readonly name: string
   readonly baseName: string
   readonly dialect: string
-  readonly plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  readonly plan: Plan.Any
   readonly recursive?: boolean
   readonly required?: never
   readonly columns: Record<string, unknown>
@@ -656,7 +656,7 @@ type LateralSourceShape = {
   readonly name: string
   readonly baseName: string
   readonly dialect: string
-  readonly plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  readonly plan: Plan.Any
   readonly required: string
   readonly columns: Record<string, unknown>
 }
@@ -701,7 +701,7 @@ type TableFunctionSourceShape = {
   readonly columns: Record<string, unknown>
 }
 
-type DerivedSourceAliasError = DerivedSourceRequiredError<QueryPlan<any, any, any, any, any, any, any, any, any, any>>
+type DerivedSourceAliasError = DerivedSourceRequiredError<Plan.Any>
 
 export type SourceLike =
   | TableLike<any, any>
@@ -1007,9 +1007,9 @@ export type UpdateInputOfTarget<Target extends MutationTargetInput> =
 
 type SourceDialectOfRaw<Source extends SourceLike> =
   Source extends TableLike<any, infer Dialect> ? Dialect :
-    Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
-      Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
-        Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? PlanDialectOf<PlanValue> :
+    Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends Plan.Any } ? PlanDialectOf<PlanValue> :
+      Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends Plan.Any } ? PlanDialectOf<PlanValue> :
+        Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends Plan.Any } ? PlanDialectOf<PlanValue> :
           Source extends { readonly dialect: infer Dialect extends string } ? Dialect :
       never
 
@@ -1044,7 +1044,7 @@ export type SourceRequirementError<
 
 /** Helper type used when a raw plan is passed where `as(...)` is required. */
 export type DerivedSourceRequiredError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: subqueries must be aliased before they can be used as a source"
   readonly __effect_qb_hint__: "Wrap the nested plan in as(subquery, alias) before passing it to from(...) or a join"
@@ -1166,7 +1166,7 @@ export type SelectionProjectionAliasCollisionConstraint<Selection> =
     : SelectionProjectionAliasCollisionError<Selection>
 
 export type DerivedSourceProjectionCompatibilityError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: derived subqueries require unique path-based projection aliases"
   readonly __effect_qb_duplicate_projection_aliases__: DerivedProjectionDuplicateAliases<SelectionOfPlan<PlanValue>>
@@ -1175,18 +1175,18 @@ export type DerivedSourceProjectionCompatibilityError<
 }
 
 export type DerivedProjectionCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   ValidPlan = PlanValue
 > = [DerivedProjectionIssues<SelectionOfPlan<PlanValue>>] extends [never]
   ? ValidPlan
   : ValidPlan & DerivedSourceProjectionCompatibilityError<PlanValue>
 
 export type DerivedSourceCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = DerivedProjectionCompatiblePlan<PlanValue, CompletePlan<PlanValue>>
 
 type InlineSourceStatementError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: inline derived sources only accept select-like query plans"
   readonly __effect_qb_statement__: StatementOfPlan<PlanValue>
@@ -1194,13 +1194,13 @@ type InlineSourceStatementError<
 }
 
 export type DerivedTableCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = StatementOfPlan<PlanValue> extends SelectLikeStatement
   ? DerivedSourceCompatiblePlan<PlanValue>
   : InlineSourceStatementError<PlanValue>
 
 export type LateralSourceCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = StatementOfPlan<PlanValue> extends SelectLikeStatement
   ? DerivedProjectionCompatiblePlan<PlanValue>
   : InlineSourceStatementError<PlanValue>
@@ -1304,8 +1304,8 @@ export type FactsOfPlan<
 > = QueryPlanState<PlanValue>["facts"]
 
 export type CommonSetFacts<
-  Left extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Right extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  Left extends Plan.Any,
+  Right extends Plan.Any
 > = [FactsOfPlan<Left>] extends [FactsOfPlan<Right>]
   ? [FactsOfPlan<Right>] extends [FactsOfPlan<Left>] ? FactsOfPlan<Left> : EmptyFacts
   : EmptyFacts
@@ -1321,9 +1321,9 @@ export type CapabilitiesOfPlan<
 /** Extracts capabilities contributed by a source wrapper. */
 export type SourceCapabilitiesOf<Source extends SourceLike> =
   Source extends TableLike<any, any> ? never :
-    Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? CapabilitiesOfPlan<PlanValue> :
-      Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? CapabilitiesOfPlan<PlanValue> :
-        Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any> } ? CapabilitiesOfPlan<PlanValue> :
+    Source extends { readonly kind: "derived"; readonly plan: infer PlanValue extends Plan.Any } ? CapabilitiesOfPlan<PlanValue> :
+      Source extends { readonly kind: "cte"; readonly plan: infer PlanValue extends Plan.Any } ? CapabilitiesOfPlan<PlanValue> :
+        Source extends { readonly kind: "lateral"; readonly plan: infer PlanValue extends Plan.Any } ? CapabilitiesOfPlan<PlanValue> :
           never
 
 /** Extracts the statement kind carried by a query plan. */
@@ -2108,7 +2108,7 @@ type ResolvedSelectionOutput<
 >
 
 /** Resolved row type produced by a concrete query plan. */
-export type ResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+export type ResultRow<PlanValue extends Plan.Any> =
   SelectionOfPlan<PlanValue> extends infer Selection
     ? AvailableOfPlan<PlanValue> extends infer Available extends Record<string, RowSet.AnySource>
       ? AssumptionsOfPlan<PlanValue> extends infer Assumptions extends PredicateFormula
@@ -2120,10 +2120,10 @@ export type ResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, 
     : never
 
 /** Resolved row collection type produced by a concrete query plan. */
-export type ResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> = ReadonlyArray<ResultRow<PlanValue>>
+export type ResultRows<PlanValue extends Plan.Any> = ReadonlyArray<ResultRow<PlanValue>>
 
 /** Conservative runtime row shape produced by remapping projection aliases. */
-export type RuntimeResultRow<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+export type RuntimeResultRow<PlanValue extends Plan.Any> =
   SelectionOfPlan<PlanValue> extends infer Selection
     ? AvailableOfPlan<PlanValue> extends infer Available extends Record<string, RowSet.AnySource>
       ? OutputOfSelection<Selection, Available, TrueAssumptions, EmptyFacts>
@@ -2131,7 +2131,7 @@ export type RuntimeResultRow<PlanValue extends QueryPlan<any, any, any, any, any
     : never
 
 /** Conservative runtime row collection type. */
-export type RuntimeResultRows<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> = ReadonlyArray<RuntimeResultRow<PlanValue>>
+export type RuntimeResultRows<PlanValue extends Plan.Any> = ReadonlyArray<RuntimeResultRow<PlanValue>>
 
 /** Narrows a query plan to aggregate-compatible selections. */
 type HasKnownOutstanding<Required> = [Required] extends [never]
@@ -2141,7 +2141,7 @@ type HasKnownOutstanding<Required> = [Required] extends [never]
     : true
 
 type SourceCompletenessError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   MissingSources extends string
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: query references sources that are not yet in scope"
@@ -2150,14 +2150,14 @@ type SourceCompletenessError<
 }
 
 type AggregationCompatibilityError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: invalid grouped selection"
   readonly __effect_qb_hint__: "Scalar selections must be covered by groupBy(...) when aggregates are present"
 }
 
 type DialectCompatibilityError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   EngineDialect extends string
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: plan dialect is not compatible with the target renderer or executor"
@@ -2167,7 +2167,7 @@ type DialectCompatibilityError<
 }
 
 type InsertSourceCompletenessError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: insert plan is missing inline values or a source"
   readonly __effect_qb_hint__: "Pass values directly to insert(...), or pipe the insert plan into from(...)"
@@ -2178,7 +2178,7 @@ type RequiredKeys<Shape> = Extract<{
 }[keyof Shape], string>
 
 type InsertHasOptionalDefaults<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = MutationTargetOfPlan<PlanValue> extends infer Target extends MutationTargetLike
   ? RequiredKeys<Table.InsertOf<Target>> extends never
     ? true
@@ -2187,13 +2187,13 @@ type InsertHasOptionalDefaults<
 
 /** Narrows a query plan to aggregate-compatible selections. */
 export type AggregationCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = IsAggregationCompatibleSelection<SelectionOfPlan<PlanValue>, GroupedOfPlan<PlanValue>> extends true
   ? PlanValue
   : AggregationCompatibilityError<PlanValue>
 
 /** Narrows a query plan to aggregate-compatible, source-complete plans. */
-export type CompletePlan<PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+export type CompletePlan<PlanValue extends Plan.Any> =
   StatementOfPlan<PlanValue> extends "insert"
     ? InsertSourceStateOfPlan<PlanValue> extends "missing"
       ? InsertHasOptionalDefaults<PlanValue> extends true
@@ -2218,7 +2218,7 @@ type IsDialectCompatible<
 
 /** Narrows a complete plan to those compatible with a target engine dialect. */
 export type DialectCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   EngineDialect extends string
 > = IsDialectCompatible<PlanDialectOf<PlanValue>, EngineDialect> extends true
   ? CompletePlan<PlanValue>
@@ -2227,7 +2227,7 @@ export type DialectCompatiblePlan<
 type SelectLikeStatement = "select" | "set"
 
 type NestedPlanStatementError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: subquery expressions only accept select-like query plans"
   readonly __effect_qb_statement__: StatementOfPlan<PlanValue>
@@ -2236,7 +2236,7 @@ type NestedPlanStatementError<
 
 /** Nested-plan compatibility used by subquery expressions such as `exists(...)`. */
 export type DialectCompatibleNestedPlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   EngineDialect extends string
 > = IsDialectCompatible<PlanDialectOf<PlanValue>, EngineDialect> extends true
   ? StatementOfPlan<PlanValue> extends SelectLikeStatement
@@ -2249,14 +2249,14 @@ type SetOperandStatement = SelectLikeStatement
 type IsUnion<Value, All = Value> = Value extends any ? ([All] extends [Value] ? false : true) : never
 
 type SingleSelectedExpressionError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: scalar and quantified subqueries must project exactly one top-level expression"
   readonly __effect_qb_hint__: "Project exactly one scalar expression like select({ value: expr }) before using this subquery as a scalar operand"
 }
 
 type SingleSelectedExpression<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = SelectionOfPlan<PlanValue> extends Record<string, infer Value>
   ? IsUnion<Extract<keyof SelectionOfPlan<PlanValue>, string>> extends true
     ? SingleSelectedExpressionError<PlanValue>
@@ -2266,22 +2266,22 @@ type SingleSelectedExpression<
   : SingleSelectedExpressionError<PlanValue>
 
 export type ScalarSubqueryPlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   EngineDialect extends string
 > = DialectCompatibleNestedPlan<PlanValue, EngineDialect> extends infer Compatible
-  ? Compatible extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  ? Compatible extends Plan.Any
     ? SingleSelectedExpression<Compatible> extends Expression.Any ? Compatible : SingleSelectedExpression<Compatible>
     : Compatible
   : never
 
 export type ScalarOutputOfPlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = SingleSelectedExpression<PlanValue> extends infer Value
   ? Value extends Expression.Any ? Value : never
   : never
 
 type SetOperandStatementError<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  PlanValue extends Plan.Any
 > = PlanValue & {
   readonly __effect_qb_error__: "effect-qb: set operators only accept select-like query plans"
   readonly __effect_qb_statement__: StatementOfPlan<PlanValue>
@@ -2289,8 +2289,8 @@ type SetOperandStatementError<
 }
 
 type SetOperandShapeError<
-  Left extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Right extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  Left extends Plan.Any,
+  Right extends Plan.Any
 > = Right & {
   readonly __effect_qb_error__: "effect-qb: set operator operands must have matching result rows"
   readonly __effect_qb_expected_selection__: SelectionOfPlan<Left>
@@ -2299,15 +2299,15 @@ type SetOperandShapeError<
 }
 
 type IsSameSelection<
-  Left extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Right extends QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  Left extends Plan.Any,
+  Right extends Plan.Any
 > = [SelectionOfPlan<Left>] extends [SelectionOfPlan<Right>]
   ? [SelectionOfPlan<Right>] extends [SelectionOfPlan<Left>] ? true : false
   : false
 
 /** Set-operator compatibility used by `union(...)`, `intersect(...)`, and `except(...)`. */
 export type SetCompatiblePlan<
-  PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  PlanValue extends Plan.Any,
   EngineDialect extends string
 > = StatementOfPlan<PlanValue> extends SetOperandStatement
   ? DialectCompatiblePlan<PlanValue, EngineDialect>
@@ -2315,8 +2315,8 @@ export type SetCompatiblePlan<
 
 /** Right-hand operand compatibility for set operators. */
 export type SetCompatibleRightPlan<
-  Left extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
-  Right extends QueryPlan<any, any, any, any, any, any, any, any, any, any>,
+  Left extends Plan.Any,
+  Right extends Plan.Any,
   EngineDialect extends string
 > = StatementOfPlan<Right> extends SetOperandStatement
   ? IsSameSelection<Left, Right> extends true

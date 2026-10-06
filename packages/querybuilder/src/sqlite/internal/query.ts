@@ -20,6 +20,7 @@ import {
   type NumericExpressionInput,
   type PredicateInput,
   type QueryCapability,
+  type Plan,
   type QueryPlan,
   type QueryRequirement,
   type SetCompatiblePlan,
@@ -150,7 +151,7 @@ type StructuredSource = AnyValuesSource | AnyUnnestSource | AnyTableFunctionSour
 
 type StructuredFromApi = <CurrentSource extends StructuredSource>(
   source: CurrentSource
-) => <PlanValue extends QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+) => <PlanValue extends Plan.Any>(
   plan: PlanValue & PublicStructuredFromConstraint<PlanValue, CurrentSource, "sqlite">
 ) => PublicStructuredFromResult<PlanValue, CurrentSource, "sqlite">
 

@@ -113,7 +113,7 @@ export const getAst = <
 
 /** Returns the internal phantom query state carried by a query plan. */
 export const getQueryState = (
-  plan: QueryPlan<any, any, any, any, any, any, any, any, any, any>
+  plan: Plan.Any
 ): QueryState<any, any, any, any, any, any, any, any, any> => plan[QueryTypeId]
 
 /**
