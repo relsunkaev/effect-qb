@@ -24,6 +24,9 @@ This project should use `tsgo` for TypeScript compilation and typechecking.
 - Assess readability through the human reading path: visual hierarchy,
   navigation, skimmability, and flow. Flattening composition alone is not a
   readability review.
+- Include the file tree in visual readability reviews: filenames, folder
+  grouping, depth, and discoverability of public APIs and implementation owners.
+  Navigation notes supplement coherent structure rather than compensate for it.
 
 ## APIs
 
