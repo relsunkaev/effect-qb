@@ -80,7 +80,7 @@ export const makePlan = <
 }
 
 /** Typed construction inputs; public DSL signatures supply phantom result types. */
-export type RuntimePlanConstructor = (...args: Parameters<typeof makePlan>) => any
+export const makeRuntimePlan: (...args: Parameters<typeof makePlan>) => any = makePlan
 
 /** Updates selection/grouping, merging source requirements and retaining query metadata. */
 export const updatePlan = (

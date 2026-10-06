@@ -1,10 +1,10 @@
+import { makeRuntimePlan } from "./plan.js"
 import * as Plan from "../row-set.js"
 
 type DslTransactionDdlRuntimeContext = {
   readonly profile: {
     readonly dialect: string
   }
-  readonly makePlan: import("./plan.js").RuntimePlanConstructor
   readonly targetSourceDetails: (target: any) => { readonly sourceName: string; readonly sourceBaseName: string }
   readonly normalizeColumnList: (columns: string | readonly string[]) => readonly string[]
   readonly defaultIndexName: (tableName: string, columns: readonly string[], unique: boolean) => string
@@ -47,7 +47,7 @@ export const normalizeStatementIdentifier = (
 
 export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContext) => {
   const transaction = (options: { readonly isolationLevel?: any; readonly readOnly?: boolean } = {}) => {
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -72,7 +72,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   }
 
   const commit = () =>
-    ctx.makePlan({
+    makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -94,7 +94,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
     })
 
   const rollback = () =>
-    ctx.makePlan({
+    makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -116,7 +116,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
     })
 
   const savepoint = (name: string) => {
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -140,7 +140,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   }
 
   const rollbackTo = (name: string) => {
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -164,7 +164,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   }
 
   const releaseSavepoint = (name: string) => {
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -190,7 +190,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   const createTable = (target: any, options: { readonly ifNotExists?: boolean } = {}) => {
     const ifNotExists = normalizeStatementFlag(options.ifNotExists)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -222,7 +222,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
   const dropTable = (target: any, options: { readonly ifExists?: boolean } = {}) => {
     const ifExists = normalizeStatementFlag(options.ifExists)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -257,7 +257,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
     const ifNotExists = normalizeStatementFlag(options.ifNotExists)
     const name = options.name
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -294,7 +294,7 @@ export const makeDslTransactionDdlRuntime = (ctx: DslTransactionDdlRuntimeContex
     const ifExists = normalizeStatementFlag(options.ifExists)
     const name = options.name
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},

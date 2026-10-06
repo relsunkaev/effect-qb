@@ -20,6 +20,11 @@ inside its own folder. Concrete dialects keep their broader typed query assembly
 in `internal/query.ts`; their top-level `query.ts` exposes only the supported
 dialect extensions. Standard's `query.ts` exposes the portable query API.
 
+Shared owners import invariant plan, grouping, and predicate helpers directly.
+Dialect assemblies supply their profiles and local conversion/source callbacks,
+not copies of those shared dependencies. The runtime constructor is the same
+plan constructor with typed inputs; dialect facades still supply phantom result types.
+
 The four shared runtime owners remain the same after regrouping. Adding
 another generic query factory would duplicate those owners and widen the
 configuration surface without simplifying the public caller.

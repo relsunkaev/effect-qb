@@ -45,8 +45,6 @@ import type {
 import type { AssumePredicateStateTrue, EmptyFacts, PredicateStateFacts, PredicateStateFormula } from "../../internal/predicate/analysis.js"
 import type { FormulaOfPredicate } from "../../internal/predicate/normalize.js"
 import type { TrueFormula } from "../../internal/predicate/formula.js"
-import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "../../internal/predicate/runtime.js"
-import { dedupeGroupedExpressions } from "../../internal/grouping-key.js"
 import { validateWindowFrame } from "../../internal/window-frame.js"
 import { makeDslMutationRuntime } from "../../internal/query/mutations.js"
 import { makeDslPlanRuntime } from "../../internal/query/modifiers.js"
@@ -5675,12 +5673,7 @@ type AsCurriedResult<
     normalizeValuesRow,
     normalizeUnnestColumns,
     makeColumnReferenceSelection,
-    toDialectNumericExpression,
-    extractRequiredRuntime: CoreQuery.extractRequiredRuntime,
-    makePlan: CoreQuery.makePlan,
-    getAst: CoreQuery.getAst,
-    updatePlan: CoreQuery.updatePlan,
-    dedupeGroupedExpressions
+    toDialectNumericExpression
   }) as {
     readonly values: ValuesApi
     readonly unnest: UnnestApi
@@ -6014,17 +6007,10 @@ type AsCurriedResult<
     offset
   } = makeDslPlanRuntime({
     profile,
-    makePlan: CoreQuery.makePlan,
-    getAst: CoreQuery.getAst,
-    getQueryState: CoreQuery.getQueryState,
-    currentRequiredList: CoreQuery.currentRequiredList,
     toDialectExpression,
     toDialectNumericExpression,
     extractRequiredFromDialectInputRuntime,
     extractRequiredFromDialectNumericInputRuntime,
-    formulaOfExpressionRuntime,
-    assumeFormulaTrue,
-    trueFormula,
     sourceDetails,
     presenceWitnessesOfSourceLike,
     attachInsertSource: (...args) => attachInsertSource(args[0], args[1])
@@ -6380,10 +6366,6 @@ type AsCurriedResult<
 
   const mutationRuntime = makeDslMutationRuntime({
     profile,
-    makePlan: CoreQuery.makePlan,
-    getAst: CoreQuery.getAst,
-    getQueryState: CoreQuery.getQueryState,
-    currentRequiredList: CoreQuery.currentRequiredList,
     toDialectExpression,
     buildMutationAssignments,
     buildInsertValuesRows,
@@ -6613,7 +6595,6 @@ type AsCurriedResult<
     dropIndex
   } = makeDslTransactionDdlRuntime({
     profile,
-    makePlan: CoreQuery.makePlan,
     targetSourceDetails,
     normalizeColumnList,
     defaultIndexName

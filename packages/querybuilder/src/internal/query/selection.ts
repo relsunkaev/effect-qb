@@ -1,5 +1,7 @@
-import * as Expression from "../scalar.js"
+import { dedupeGroupedExpressions } from "../grouping-key.js"
+import { makeRuntimePlan, getAst, updatePlan, extractRequiredRuntime } from "./plan.js"
 import type * as Query from "./plan.js"
+import * as Expression from "../scalar.js"
 
 type DslQueryRuntimeContext = {
   readonly profile: {
@@ -10,11 +12,6 @@ type DslQueryRuntimeContext = {
   readonly normalizeUnnestColumns: (columns: any) => Record<string, readonly Expression.Any[]>
   readonly makeColumnReferenceSelection: (alias: string, selection: Record<string, Expression.Any>) => any
   readonly toDialectNumericExpression: (value: any) => Expression.Any
-  readonly extractRequiredRuntime: typeof Query.extractRequiredRuntime
-  readonly makePlan: Query.RuntimePlanConstructor
-  readonly getAst: typeof Query.getAst
-  readonly updatePlan: typeof Query.updatePlan
-  readonly dedupeGroupedExpressions: typeof import("../grouping-key.js").dedupeGroupedExpressions
 }
 
 export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
@@ -75,9 +72,9 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
   }
 
   const select = (selection: any = {}) => {
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection,
-      required: ctx.extractRequiredRuntime(selection),
+      required: extractRequiredRuntime(selection),
       available: {},
       dialect: ctx.profile.dialect
     }, {
@@ -95,17 +92,17 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
   }
 
   const groupBy = (...values: readonly Expression.Any[]) =>
-    (plan: Query.Plan.Any) => ctx.updatePlan(plan, {
+    (plan: Query.Plan.Any) => updatePlan(plan, {
       ast: {
-        groupBy: ctx.dedupeGroupedExpressions([...ctx.getAst(plan).groupBy, ...values])
+        groupBy: dedupeGroupedExpressions([...getAst(plan).groupBy, ...values])
       },
       additionalRequired: values.flatMap((value) => Object.keys(value[Expression.TypeId].dependencies))
     })
 
   const returning = (selection: Query.SelectionShape) =>
-    (plan: Query.Plan.Any) => ctx.updatePlan(plan, {
+    (plan: Query.Plan.Any) => updatePlan(plan, {
       ast: { select: selection },
-      additionalRequired: ctx.extractRequiredRuntime(selection)
+      additionalRequired: extractRequiredRuntime(selection)
     })
 
   return {

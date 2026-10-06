@@ -1,3 +1,4 @@
+import { makeRuntimePlan, getAst, getQueryState, currentRequiredList } from "./plan.js"
 import * as Expression from "../scalar.js"
 import * as Plan from "../row-set.js"
 import { normalizeStatementFlag } from "./statements.js"
@@ -6,15 +7,11 @@ type DslMutationRuntimeContext = {
   readonly profile: {
     readonly dialect: string
   }
-  readonly makePlan: import("./plan.js").RuntimePlanConstructor
-  readonly getAst: (plan: any) => any
-  readonly getQueryState: (plan: any) => any
-  readonly currentRequiredList: (required: any) => readonly string[]
   readonly toDialectExpression: (value: any) => Expression.Any
   readonly buildMutationAssignments: (target: any, values: Record<string, unknown>) => readonly any[]
   readonly buildInsertValuesRows: (target: any, rows: readonly [Record<string, unknown>, ...Record<string, unknown>[]]) => any
   readonly normalizeInsertUnnestValues: (target: any, values: any) => any
-  readonly normalizeInsertSelectColumns: (selection: Record<string, Expression.Any>) => readonly string[]
+  readonly normalizeInsertSelectColumns: (selection: Record<string, Expression.Any>) => readonly [string, ...string[]]
   readonly buildConflictTarget: (target: any, input: any) => any
   readonly mutationTargetClauses: (target: any) => readonly any[]
   readonly mutationAvailableSources: (target: any) => Record<string, any>
@@ -41,7 +38,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       : ctx.buildMutationAssignments(target, values)
     const required = assignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies))
     const insertState = values === undefined ? "missing" : "ready"
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: required.filter((name, index, list) => name !== sourceName && list.indexOf(name) === index),
       available: {
@@ -78,14 +75,14 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
 
   const attachInsertSource = (plan: any, source: any) => {
     const current = plan[Plan.TypeId]
-    const currentAst = ctx.getAst(plan)
-    const currentQuery = ctx.getQueryState(plan)
+    const currentAst = getAst(plan)
+    const currentQuery = getQueryState(plan)
     const target = currentQuery.target
     const sourceName = currentAst.into!.tableName
 
     if (typeof source === "object" && source !== null && "kind" in source && source.kind === "values") {
       const normalized = ctx.buildInsertValuesRows(target, source.rows)
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
         required: normalized.required.filter((name: string) => name !== sourceName),
         available: current.available,
@@ -109,7 +106,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
 
     if (typeof source === "object" && source !== null && "kind" in source && source.kind === "unnest") {
       const normalized = ctx.normalizeInsertUnnestValues(target, source.values)
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
         required: [],
         available: current.available,
@@ -134,9 +131,9 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
     const sourcePlan = source
     const selection = sourcePlan[Plan.TypeId].selection as Record<string, Expression.Any>
     const columns = ctx.normalizeInsertSelectColumns(selection)
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: current.selection,
-      required: ctx.currentRequiredList(sourcePlan[Plan.TypeId].required),
+      required: currentRequiredList(sourcePlan[Plan.TypeId].required),
       available: current.available,
       dialect: current.dialect
     }, {
@@ -159,8 +156,8 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
   const onConflict = (target: any, options: any = {}) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const insertTarget = currentAst.into!.source
       const conflictTarget = expectConflictClause({
         kind: "conflict",
@@ -175,13 +172,13 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
         : ctx.toDialectExpression(options.where)
       const targetWhere = conflictTarget.kind === "columns" ? conflictTarget.where : undefined
       const required = [
-        ...ctx.currentRequiredList(current.required),
+        ...currentRequiredList(current.required),
         ...updateAssignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies)),
         ...(updateWhere ? Object.keys(updateWhere[Expression.TypeId].dependencies) : []),
         ...(targetWhere ? Object.keys(targetWhere[Expression.TypeId].dependencies) : [])
       ].filter((name, index, list) =>
         !(name in current.available) && list.indexOf(name) === index)
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
         required,
         available: current.available,
@@ -212,7 +209,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
     const required = assignments
       .flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies))
       .filter((name, index, list) => !targetNames.has(name) && list.indexOf(name) === index)
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required,
       available: ctx.mutationAvailableSources(target),
@@ -242,7 +239,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       ...assignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies)),
       ...updateAssignments.flatMap((entry) => Object.keys(entry.value[Expression.TypeId].dependencies))
     ]
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: required.filter((name, index, list) => name !== sourceName && list.indexOf(name) === index),
       available: {
@@ -288,7 +285,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
   const delete_ = (target: any) => {
     const targets = ctx.mutationTargetClauses(target)
     const primaryTarget = targets[0]!
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: ctx.mutationAvailableSources(target),
@@ -313,7 +310,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
     const restartIdentity = normalizeStatementFlag(options.restartIdentity)
     const cascade = normalizeStatementFlag(options.cascade)
     const { sourceName, sourceBaseName } = ctx.targetSourceDetails(target)
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required: [],
       available: {},
@@ -365,7 +362,7 @@ export const makeDslMutationRuntime = (ctx: DslMutationRuntimeContext) => {
       ...(notMatchedPredicate ? Object.keys(notMatchedPredicate[Expression.TypeId].dependencies) : [])
     ].filter((name, index, values) =>
       name !== targetName && name !== usingName && values.indexOf(name) === index)
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: {},
       required,
       available: {

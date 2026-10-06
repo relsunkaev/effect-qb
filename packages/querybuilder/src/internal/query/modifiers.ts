@@ -1,3 +1,6 @@
+import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "../predicate/runtime.js"
+import type * as QueryAst from "./ast.js"
+import { makeRuntimePlan, getAst, getQueryState, currentRequiredList } from "./plan.js"
 import * as Expression from "../scalar.js"
 import * as Plan from "../row-set.js"
 
@@ -5,17 +8,10 @@ type DslPlanRuntimeContext = {
   readonly profile: {
     readonly dialect: string
   }
-  readonly makePlan: import("./plan.js").RuntimePlanConstructor
-  readonly getAst: (plan: any) => any
-  readonly getQueryState: (plan: any) => any
-  readonly currentRequiredList: (required: any) => readonly string[]
   readonly toDialectExpression: (value: any) => Expression.Any
   readonly toDialectNumericExpression: (value: any) => Expression.Any
   readonly extractRequiredFromDialectInputRuntime: (value: any) => readonly string[]
   readonly extractRequiredFromDialectNumericInputRuntime: (value: any) => readonly string[]
-  readonly formulaOfExpressionRuntime: (value: Expression.Any) => any
-  readonly assumeFormulaTrue: (assumptions: any, formula: any) => any
-  readonly trueFormula: () => any
   readonly sourceDetails: (source: any) => { readonly sourceName: string; readonly sourceBaseName: string }
   readonly presenceWitnessesOfSourceLike: (source: any) => readonly string[]
   readonly attachInsertSource: (plan: any, source: any) => any
@@ -39,19 +35,19 @@ export const renderMysqlMutationLockMode = (
 export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const sourceRequiredList = (source: any): readonly string[] =>
     typeof source === "object" && source !== null && "required" in source
-      ? ctx.currentRequiredList(source.required)
+      ? currentRequiredList(source.required)
       : []
 
-  const buildSetOperation = (kind: string, all: boolean, left: any, right: any) => {
+  const buildSetOperation = (kind: QueryAst.SetOperatorKind, all: boolean, left: any, right: any) => {
     const leftState = left[Plan.TypeId]
-    const leftAst = ctx.getAst(left)
+    const leftAst = getAst(left)
     const basePlan = leftAst.kind === "set"
       ? leftAst.setBase ?? left
       : left
     const leftOperations = leftAst.kind === "set"
       ? [...(leftAst.setOperations ?? [])]
       : []
-    return ctx.makePlan({
+    return makeRuntimePlan({
       selection: leftState.selection,
       required: undefined,
       available: {},
@@ -81,13 +77,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const where = (predicate: any) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const predicateExpression = ctx.toDialectExpression(predicate)
       const predicateRequired = ctx.extractRequiredFromDialectInputRuntime(predicate)
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...predicateRequired].filter((name, index, values) =>
+        required: [...currentRequiredList(current.required), ...predicateRequired].filter((name, index, values) =>
           !(name in current.available) && values.indexOf(name) === index),
         available: current.available,
         dialect: current.dialect ?? predicateExpression[Expression.TypeId].dialect
@@ -98,9 +94,9 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           predicate: predicateExpression
         }]
       }, {
-        assumptions: ctx.assumeFormulaTrue(
+        assumptions: assumeFormulaTrue(
           currentQuery.assumptions,
-          ctx.formulaOfExpressionRuntime(predicateExpression)
+          formulaOfExpressionRuntime(predicateExpression)
         ),
         capabilities: currentQuery.capabilities,
         statement: currentQuery.statement
@@ -110,8 +106,8 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const from = (source: any) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
 
       if (currentQuery.statement === "insert") {
         return ctx.attachInsertSource(plan, source)
@@ -128,13 +124,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
             name: sourceName,
             mode: "required" as const,
             baseName: sourceBaseName,
-            _presentFormula: ctx.trueFormula(),
+            _presentFormula: trueFormula(),
             _presenceWitnesses: presenceWitnesses
           }
         }
-        return ctx.makePlan({
+        return makeRuntimePlan({
           selection: current.selection,
-          required: [...ctx.currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
+          required: [...currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
             !(name in nextAvailable) && values.indexOf(name) === index),
           available: nextAvailable,
           dialect: current.dialect
@@ -160,13 +156,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
             name: sourceName,
             mode: "required" as const,
             baseName: sourceBaseName,
-            _presentFormula: ctx.trueFormula(),
+            _presentFormula: trueFormula(),
             _presenceWitnesses: presenceWitnesses
           }
         }
-        return ctx.makePlan({
+        return makeRuntimePlan({
           selection: current.selection,
-          required: [...ctx.currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
+          required: [...currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
             !(name in nextAvailable) && values.indexOf(name) === index),
           available: nextAvailable,
           dialect: current.dialect
@@ -194,13 +190,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const having = (predicate: any) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const predicateExpression = ctx.toDialectExpression(predicate)
       const predicateRequired = ctx.extractRequiredFromDialectInputRuntime(predicate)
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...predicateRequired].filter((name, index, values) =>
+        required: [...currentRequiredList(current.required), ...predicateRequired].filter((name, index, values) =>
           !(name in current.available) && values.indexOf(name) === index),
         available: current.available,
         dialect: current.dialect ?? predicateExpression[Expression.TypeId].dialect
@@ -211,9 +207,9 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           predicate: predicateExpression
         }]
       }, {
-        assumptions: ctx.assumeFormulaTrue(
+        assumptions: assumeFormulaTrue(
           currentQuery.assumptions,
-          ctx.formulaOfExpressionRuntime(predicateExpression)
+          formulaOfExpressionRuntime(predicateExpression)
         ),
         capabilities: currentQuery.capabilities,
         statement: currentQuery.statement
@@ -223,8 +219,8 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const crossJoin = (table: any) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const { sourceName, sourceBaseName } = ctx.sourceDetails(table)
       const presenceWitnesses = ctx.presenceWitnessesOfSourceLike(table)
       const sourceRequired = sourceRequiredList(table)
@@ -234,13 +230,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           name: sourceName,
           mode: "required" as const,
           baseName: sourceBaseName,
-          _presentFormula: ctx.trueFormula(),
+          _presentFormula: trueFormula(),
           _presenceWitnesses: presenceWitnesses
         }
       }
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
+        required: [...currentRequiredList(current.required), ...sourceRequired].filter((name, index, values) =>
           !(name in nextAvailable) && values.indexOf(name) === index),
         available: nextAvailable,
         dialect: current.dialect ?? table[Plan.TypeId]?.dialect ?? table.dialect
@@ -259,13 +255,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       })
     }
 
-  const join = (kind: string, table: any, on: any) =>
+  const join = (kind: QueryAst.JoinKind, table: any, on: any) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const onExpression = ctx.toDialectExpression(on)
-      const onFormula = ctx.formulaOfExpressionRuntime(onExpression)
+      const onFormula = formulaOfExpressionRuntime(onExpression)
       const { sourceName, sourceBaseName } = ctx.sourceDetails(table)
       const presenceWitnesses = ctx.presenceWitnessesOfSourceLike(table)
       const sourceRequired = sourceRequiredList(table)
@@ -286,13 +282,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
           name: sourceName,
           mode: (kind === "left" || kind === "full") ? "optional" : "required",
           baseName: sourceBaseName,
-          _presentFormula: (kind === "inner" || kind === "left") ? onFormula : ctx.trueFormula(),
+          _presentFormula: (kind === "inner" || kind === "left") ? onFormula : trueFormula(),
           _presenceWitnesses: presenceWitnesses
         }
       }
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...sourceRequired, ...ctx.extractRequiredFromDialectInputRuntime(on)].filter((name, index, values) =>
+        required: [...currentRequiredList(current.required), ...sourceRequired, ...ctx.extractRequiredFromDialectInputRuntime(on)].filter((name, index, values) =>
           !(name in nextAvailable) && values.indexOf(name) === index),
         available: nextAvailable,
         dialect: current.dialect ?? table.dialect ?? onExpression[Expression.TypeId].dialect
@@ -307,7 +303,7 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
         }]
       }, {
         assumptions: kind === "inner"
-          ? ctx.assumeFormulaTrue(currentQuery.assumptions, onFormula)
+          ? assumeFormulaTrue(currentQuery.assumptions, onFormula)
           : currentQuery.assumptions,
         capabilities: currentQuery.capabilities,
         statement: currentQuery.statement
@@ -317,13 +313,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const orderBy = (value: any, direction: "asc" | "desc" = "asc") =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const expression = ctx.toDialectExpression(value)
       const required = ctx.extractRequiredFromDialectInputRuntime(value)
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...required].filter((name, index, values) =>
+        required: [...currentRequiredList(current.required), ...required].filter((name, index, values) =>
           !(name in current.available) && values.indexOf(name) === index),
         available: current.available,
         dialect: current.dialect ?? expression[Expression.TypeId].dialect
@@ -341,12 +337,12 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       })
     }
 
-  const lock = (mode: string, options: { readonly nowait?: boolean; readonly skipLocked?: boolean } = {}) =>
+  const lock = (mode: LockMode, options: { readonly nowait?: boolean; readonly skipLocked?: boolean } = {}) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
-      return ctx.makePlan({
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      return makeRuntimePlan({
         selection: current.selection,
         required: current.required,
         available: current.available,
@@ -369,9 +365,9 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const distinct = () =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
-      return ctx.makePlan({
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      return makeRuntimePlan({
         selection: current.selection,
         required: current.required,
         available: current.available,
@@ -389,13 +385,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const limit = (value: any) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const expression = ctx.toDialectNumericExpression(value)
       const required = ctx.extractRequiredFromDialectNumericInputRuntime(value)
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...required].filter((name, index, values) =>
+        required: [...currentRequiredList(current.required), ...required].filter((name, index, values) =>
           !(name in current.available) && values.indexOf(name) === index),
         available: current.available,
         dialect: current.dialect ?? expression[Expression.TypeId].dialect
@@ -412,13 +408,13 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const offset = (value: any) =>
     (plan: any) => {
       const current = plan[Plan.TypeId]
-      const currentAst = ctx.getAst(plan)
-      const currentQuery = ctx.getQueryState(plan)
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
       const expression = ctx.toDialectNumericExpression(value)
       const required = ctx.extractRequiredFromDialectNumericInputRuntime(value)
-      return ctx.makePlan({
+      return makeRuntimePlan({
         selection: current.selection,
-        required: [...ctx.currentRequiredList(current.required), ...required].filter((name, index, values) =>
+        required: [...currentRequiredList(current.required), ...required].filter((name, index, values) =>
           !(name in current.available) && values.indexOf(name) === index),
         available: current.available,
         dialect: current.dialect ?? expression[Expression.TypeId].dialect
