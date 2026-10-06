@@ -27,6 +27,10 @@ This project should use `tsgo` for TypeScript compilation and typechecking.
 - Include the file tree in visual readability reviews: filenames, folder
   grouping, depth, and discoverability of public APIs and implementation owners.
   Navigation notes supplement coherent structure rather than compensate for it.
+- Validate readability with concrete discovery tasks given to an unbriefed reader.
+  Record navigation, wrong turns, and verified versus inferred connections.
+  Calmer files, moved types, and shorter files alone do not demonstrate reduced
+  complexity; distinguish current discoverability from measured improvement.
 
 ## APIs
 
