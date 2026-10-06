@@ -265,6 +265,8 @@ const main = async () => {
       TMPDIR: tmpdir(),
       SystemRoot: process.env.SystemRoot
     })
+    // Bun warns on incompatible peers without failing the install.
+    await run(["bunx", "npm", "ls", "effect", "--all"], consumerDir)
     await Bun.write(join(consumerDir, "node-sqlite.ts"), await Bun.file(join(cwd, "scripts", "fixtures", "node-sqlite.ts")).text())
     console.log(await verifyRuntimeBundles(join(consumerDir, "node_modules", "effect-qb")))
     await run([join(cwd, "node_modules", ".bin", "tsgo"), "-p", "tsconfig.json"], consumerDir)
