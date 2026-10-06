@@ -31,6 +31,10 @@ This project should use `tsgo` for TypeScript compilation and typechecking.
   Record navigation, wrong turns, and verified versus inferred connections.
   Calmer files, moved types, and shorter files alone do not demonstrate reduced
   complexity; distinguish current discoverability from measured improvement.
+- For Zed screenshot evaluations, read code and navigation results through the UI,
+  not terminal searches or extracted editor text. Run fresh readers sequentially
+  from matching editor states, exclude prior investigation notes from discovery,
+  and distinguish verified call paths from search snippets and inference.
 
 ## APIs
 
