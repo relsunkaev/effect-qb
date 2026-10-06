@@ -21,6 +21,9 @@ This project should use `tsgo` for TypeScript compilation and typechecking.
 - Use `bunx tsgo -p <tsconfig>` for project typechecks
 - Prefer existing repo scripts that already invoke `tsgo`
 - Do not introduce new `tsc`-based scripts or documentation unless there is a specific, documented reason
+- Assess readability through the human reading path: visual hierarchy,
+  navigation, skimmability, and flow. Flattening composition alone is not a
+  readability review.
 
 ## APIs
 
@@ -129,6 +132,10 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
   a `1.0` release. A stable Effect dependency does not change this policy.
 
 ## Runtime and build boundaries
+
+- Use flat Effect pipes for effectful workflows. Keep stages at one level and
+  extract multi-step callbacks into named helpers rather than nesting pipelines
+  or generator blocks.
 
 - Keep Bun as the workspace package manager and tooling runtime.
 - Keep published `effect-qb` and `effect-db` runtime behavior Node.js-native.
