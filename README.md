@@ -16,7 +16,7 @@ you choose the joins, predicates, transaction boundaries, and database client.
 | Filter, join, group, or compose queries | [Writing Queries](#writing-queries) |
 | Execute, stream, or require one result | [Executing Queries](#executing-queries) |
 | Work with stored JSON and reusable paths | [JSON and JSONB Paths](#json-and-jsonb-paths) |
-| Reuse a base query or paginate it | [Recipes](#recipes) |
+| Reuse a query, paginate, or inspect failure cases | [Recipes](#recipes) |
 | Understand what TypeScript proves | [Type Safety](#type-safety) |
 | Choose portable or database-specific APIs | [Dialects](#dialects) |
 | Find an export or contribute | [API Map](#api-map) · [Development](#development) |
@@ -911,6 +911,9 @@ Prefer `Executor.withTransaction` for scoped transaction composition. A nested
 `withTransaction` call uses the underlying transaction implementation's
 savepoint behavior.
 
+See [Rollback After a Failed Write](#rollback-after-a-failed-write) for a runnable
+example that checks the database after a rejected transaction.
+
 <details>
 <summary>Show example</summary>
 
@@ -1146,6 +1149,9 @@ const rowStream = executor.stream(readUsers)
 Cardinality helpers fail with `ResultCardinalityError`. They **do not add
 LIMIT** or silently pick the first row. Use `Effect.asVoid` when the caller
 intentionally ignores the returned rows.
+
+See [Zero, One, or Several Matches](#zero-one-or-several-matches) for a runnable
+comparison of missing, unique, and duplicate results.
 
 <details>
 <summary>Prepared reads, result metadata, and EXPLAIN</summary>
@@ -2040,6 +2046,8 @@ installation and build steps to run those modules under Node.js.
 - [Group in a CTE](#group-in-a-cte) and join its aggregate result.
 - Choose [offset](#offset-pagination) or [cursor](#cursor-pagination) pagination.
 - [Update stored JSON](#update-stored-json) while keeping codec boundaries explicit.
+- [Handle zero, one, or several matches](#zero-one-or-several-matches).
+- [Verify transaction rollback](#rollback-after-a-failed-write).
 - [Upsert and return a row](#postgres-upsert-returning-a-row) in Postgres.
 - [Map model names to physical SQL](#camelcase-models-snake_case-sql).
 
@@ -2234,6 +2242,135 @@ The update expression runs in the database; JavaScript does not fetch and rewrit
 the existing payload. Use existing parent containers
 for consistent behavior across engines; see [Reusable JSON Focuses](#reusable-json-focuses)
 for missing paths and shape-changing updates.
+
+### Zero, One, or Several Matches
+
+**Runs on SQLite.** Look up users by an email that is intentionally not unique.
+The same query matches no user, Grace alone, or two users sharing an address.
+Cardinality is a caller requirement; it does not change the SQL or add a limit.
+
+| Matches | `atMostOne` | `exactlyOne` |
+| --- | --- | --- |
+| 0 | `Option.none()` | `ResultCardinalityError`, actual `0` |
+| 1 | `Option.some(row)` | The row |
+| 2 | `ResultCardinalityError`, actual `2` | `ResultCardinalityError`, actual `2` |
+
+The example converts the Option to a row or `null`, and catches only
+`ResultCardinalityError` to print its expected and actual counts. SQL and decode
+errors still fail the program; an application need not recover from any of these.
+
+```ts
+import { SqliteClient } from "@effect/sql-sqlite-node"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import { Column, Executor, Query, Table } from "effect-qb"
+import * as Sq from "effect-qb/sqlite"
+
+const users = Table.make("users", {
+  id: Column.text().pipe(Column.primaryKey),
+  email: Column.text()
+})
+const executor = Sq.Executor.make()
+const lookup = (email: string) => Query.select({ id: users.id }).pipe(
+  Query.from(users), Query.where(Query.eq(users.email, email))
+)
+const describeCardinality = (error: Executor.ResultCardinalityError) =>
+  Effect.succeed({ expected: error.expected, actual: error.actual })
+
+const optionalUser = (email: string) => executor.execute(lookup(email)).pipe(
+  Sq.Executor.atMostOne,
+  Effect.map(Option.getOrNull),
+  Effect.catchTag("ResultCardinalityError", describeCardinality)
+)
+const requiredUser = (email: string) => executor.execute(lookup(email)).pipe(
+  Sq.Executor.exactlyOne,
+  Effect.catchTag("ResultCardinalityError", describeCardinality)
+)
+const optionalCases = Effect.all({
+  missing: optionalUser("missing@example.com"),
+  unique: optionalUser("grace@example.com"),
+  duplicate: optionalUser("shared@example.com")
+})
+const requiredCases = Effect.all({
+  missing: requiredUser("missing@example.com"),
+  unique: requiredUser("grace@example.com"),
+  duplicate: requiredUser("shared@example.com")
+})
+const checks = Effect.all({ optional: optionalCases, required: requiredCases })
+const program = executor.execute(Query.createTable(users)).pipe(
+  Effect.andThen(executor.execute(Query.insert(users, { id: "ada", email: "shared@example.com" }))),
+  Effect.andThen(executor.execute(Query.insert(users, { id: "linus", email: "shared@example.com" }))),
+  Effect.andThen(executor.execute(Query.insert(users, { id: "grace", email: "grace@example.com" }))),
+  Effect.andThen(checks),
+  Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
+)
+const outcomes = await Effect.runPromise(program)
+console.log(outcomes)
+```
+
+```json
+{
+  "optional": {
+    "missing": null,
+    "unique": { "id": "grace" },
+    "duplicate": { "expected": "zeroOrOne", "actual": 2 }
+  },
+  "required": {
+    "missing": { "expected": "exactlyOne", "actual": 0 },
+    "unique": { "id": "grace" },
+    "duplicate": { "expected": "exactlyOne", "actual": 2 }
+  }
+}
+```
+
+### Rollback After a Failed Write
+
+**Runs on SQLite.** Insert a membership and its audit log, then deliberately
+reject the signup. Both inserts roll back. Reading the still-existing tables
+after the transaction returns `{ memberships: [], auditLogs: [] }`.
+
+Keep recovery **outside** `withTransaction`: the transaction must see the
+failure to roll back. Catching it inside and returning success would permit
+a commit instead. This example catches only the deliberate `SignupRejected`;
+database and decode failures still propagate.
+
+```ts
+import { SqliteClient } from "@effect/sql-sqlite-node"
+import * as Effect from "effect/Effect"
+import { Column, Query, Table } from "effect-qb"
+import { Executor } from "effect-qb/sqlite"
+
+const memberships = Table.make("memberships", {
+  id: Column.text().pipe(Column.primaryKey),
+  role: Column.text()
+})
+const auditLogs = Table.make("audit_logs", {
+  id: Column.text().pipe(Column.primaryKey),
+  membershipId: Column.text()
+})
+const executor = Executor.make()
+const insertMembership = Query.insert(memberships, { id: "member-1", role: "admin" })
+const insertAuditLog = Query.insert(auditLogs, { id: "audit-1", membershipId: "member-1" })
+const rejectedSignup = executor.execute(insertMembership).pipe(
+  Effect.andThen(executor.execute(insertAuditLog)),
+  Effect.andThen(Effect.fail({ _tag: "SignupRejected" as const })),
+  Executor.withTransaction
+)
+const readState = Effect.all({
+  memberships: executor.execute(Query.select({ id: memberships.id }).pipe(Query.from(memberships))),
+  auditLogs: executor.execute(Query.select({ id: auditLogs.id }).pipe(Query.from(auditLogs)))
+})
+const program = executor.execute(Query.createTable(memberships)).pipe(
+  Effect.andThen(executor.execute(Query.createTable(auditLogs))),
+  Effect.andThen(rejectedSignup),
+  Effect.catchTag("SignupRejected", () => Effect.void),
+  Effect.andThen(readState),
+  Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
+)
+const state = await Effect.runPromise(program)
+console.log(state)
+// { memberships: [], auditLogs: [] }
+```
 
 ### Offset Pagination
 
