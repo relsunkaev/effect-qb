@@ -97,7 +97,6 @@ export {
   values,
   unnest,
   select,
-  returning,
   onConflict,
   insert,
   update,

@@ -48,7 +48,11 @@ import type { TrueFormula } from "../../internal/predicate/formula.js"
 import { validateWindowFrame } from "../../internal/window-frame.js"
 import { makeDslMutationRuntime } from "../../internal/query/mutations.js"
 import { makeDslPlanRuntime } from "../../internal/query/modifiers.js"
-import { groupBy as groupByRuntime, makeDslQueryRuntime } from "../../internal/query/selection.js"
+import {
+  groupBy as groupByRuntime,
+  returning as returningRuntime,
+  makeDslQueryRuntime
+} from "../../internal/query/selection.js"
 import { makeDslTransactionDdlRuntime } from "../../internal/query/statements.js"
 import { makeCteSource, makeDerivedSource, makeLateralSource } from "../../internal/derived-table.js"
 import * as ProjectionAlias from "../../internal/projection-alias.js"
@@ -5664,8 +5668,7 @@ type AsCurriedResult<
     values,
     unnest,
     generateSeries,
-    select,
-    returning
+    select
   } = makeDslQueryRuntime({
     profile,
     ValuesInputProto,
@@ -5678,7 +5681,6 @@ type AsCurriedResult<
     readonly unnest: UnnestApi
     readonly generateSeries: GenerateSeriesApi
     readonly select: SelectApi
-    readonly returning: ReturningApi
   }
 
   type SetOperationResult<
@@ -6147,6 +6149,8 @@ type AsCurriedResult<
       CoreQuery.InsertSourceStateOfPlan<PlanValue>,
       CoreQuery.FactsOfPlan<PlanValue>
     >
+
+  const returning: ReturningApi = returningRuntime
 
   export interface InsertApi {
     <Target extends MutationTargetLike>(

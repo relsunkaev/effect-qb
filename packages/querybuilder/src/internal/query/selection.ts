@@ -22,6 +22,12 @@ export const groupBy = (...values: readonly Expression.Any[]) =>
     additionalRequired: values.flatMap((value) => Object.keys(value[Expression.TypeId].dependencies))
   })
 
+export const returning = (selection: Query.SelectionShape) =>
+  (plan: Query.Plan.Any) => updatePlan(plan, {
+    ast: { select: selection },
+    additionalRequired: extractRequiredRuntime(selection)
+  })
+
 export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
   const values = (rows: readonly [Record<string, any>, ...Record<string, any>[]]) => {
     const [first, ...rest] = rows
@@ -94,17 +100,10 @@ export const makeDslQueryRuntime = (ctx: DslQueryRuntimeContext) => {
     })
   }
 
-  const returning = (selection: Query.SelectionShape) =>
-    (plan: Query.Plan.Any) => updatePlan(plan, {
-      ast: { select: selection },
-      additionalRequired: extractRequiredRuntime(selection)
-    })
-
   return {
     values,
     unnest,
     generateSeries,
-    select,
-    returning
+    select
   }
 }

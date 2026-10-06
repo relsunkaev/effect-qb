@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { Query, RowSet } from "#standard"
+import { Column, Query, RowSet, Table } from "#standard"
 import { getAst, makePlan } from "#internal/query/plan.ts"
 import * as PgDsl from "../../../packages/querybuilder/src/postgres/internal/dsl.ts"
 import * as MyDsl from "../../../packages/querybuilder/src/mysql/internal/dsl.ts"
@@ -24,6 +24,29 @@ for (const [dialect, groupBy] of [
     })
     expect(render(extended)).toMatchObject({
       sql: 'select $1 as "answer" group by $2, $3', params: [42, 1, 2]
+    })
+  })
+}
+
+for (const [dialect, returning] of [
+  ["standard", Query.returning],
+  ["postgres", PgDsl.returning],
+  ["sqlite", SqDsl.returning]
+] as const) {
+  test(`${dialect} returning binding replaces output without changing the input mutation`, () => {
+    const users = Table.make("users", { id: Column.text(), name: Column.text() })
+    const base = Query.update(users, { name: "Bob" }).pipe(Query.where(Query.eq(users.id, "u1")))
+    const first = base.pipe(returning({ name: users.name }))
+    const second = first.pipe(returning({ id: users.id }))
+    const render = Renderer.make().render
+    const mutationSql = 'update "users" set "name" = $1 where ("users"."id" = $2)'
+
+    expect(render(base)).toMatchObject({ sql: mutationSql, params: ["Bob", "u1"] })
+    expect(render(first)).toMatchObject({
+      sql: `${mutationSql} returning "users"."name" as "name"`, params: ["Bob", "u1"]
+    })
+    expect(render(second)).toMatchObject({
+      sql: `${mutationSql} returning "users"."id" as "id"`, params: ["Bob", "u1"]
     })
   })
 }

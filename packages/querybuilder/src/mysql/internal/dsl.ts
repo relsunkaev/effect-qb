@@ -4602,12 +4602,6 @@ type FullJoinUnsupportedError<Dialect extends string> = {
   readonly __effect_qb_hint__: "Use leftJoin/rightJoin with nullable handling or switch to postgres.Query.fullJoin(...)"
 }
 
-type ReturningUnsupportedError<Dialect extends string> = {
-  readonly __effect_qb_error__: "effect-qb: returning(...) is only supported by the postgres dialect"
-  readonly __effect_qb_dialect__: Dialect
-  readonly __effect_qb_hint__: "Use postgres.Query.returning(...) or run a follow-up select after MySQL mutations"
-}
-
 type MysqlCteStatementError<PlanValue extends CoreQuery.Plan.Any> =
   PlanValue & {
     readonly __effect_qb_error__: "effect-qb: mysql cte sources only accept select-like query plans"
@@ -5631,8 +5625,7 @@ type AsCurriedResult<
     values,
     unnest,
     generateSeries,
-    select,
-    returning
+    select
   } = makeDslQueryRuntime({
     profile,
     ValuesInputProto,
@@ -5645,7 +5638,6 @@ type AsCurriedResult<
     readonly unnest: UnnestApi
     readonly generateSeries: GenerateSeriesApi
     readonly select: SelectApi
-    readonly returning: ReturningApi
   }
 
   type SetOperationResult<
@@ -6049,40 +6041,6 @@ type AsCurriedResult<
     >
 
   const groupBy: GroupByApi = groupByRuntime
-
-  type ReturningSelectionNonEmptyError<Selection> = Selection & {
-    readonly __effect_qb_error__: "effect-qb: returning(...) requires at least one selected expression"
-  }
-
-  type ReturningSelectionNonEmptyConstraint<Selection> =
-    Selection extends Expression.Any
-      ? unknown
-      : [Extract<keyof Selection, string>] extends [never]
-        ? ReturningSelectionNonEmptyError<Selection>
-        : unknown
-
-  type ReturningApi = Dialect extends "postgres"
-    ? <const Selection extends CoreQuery.SelectionShape>(
-        selection: Selection & SelectionRootObjectConstraint<Selection> & SelectionNestedNonEmptyConstraint<Selection> & ReturningSelectionNonEmptyConstraint<Selection> & CoreQuery.SelectionProjectionAliasCollisionConstraint<Selection>
-      ) =>
-        <PlanValue extends CoreQuery.Plan.Any>(
-          plan: PlanValue & RequireMutationStatement<PlanValue>
-        ) => CoreQuery.QueryPlan<
-          Selection,
-          Exclude<CoreQuery.RequiredOfPlan<PlanValue> | CoreQuery.ExtractRequired<Selection>, AvailableNames<CoreQuery.AvailableOfPlan<PlanValue>>>,
-          CoreQuery.AvailableOfPlan<PlanValue>,
-          CoreQuery.PlanDialectOf<PlanValue> | CoreQuery.ExtractDialect<Selection>,
-          CoreQuery.GroupedOfPlan<PlanValue>,
-          CoreQuery.ScopedNamesOfPlan<PlanValue>,
-          Exclude<CoreQuery.OutstandingOfPlan<PlanValue> | CoreQuery.ExtractRequired<Selection>, AvailableNames<CoreQuery.AvailableOfPlan<PlanValue>>>,
-          CoreQuery.AssumptionsOfPlan<PlanValue>,
-          CoreQuery.CapabilitiesOfPlan<PlanValue>,
-          CoreQuery.StatementOfPlan<PlanValue>,
-          CoreQuery.MutationTargetOfPlan<PlanValue>,
-          CoreQuery.InsertSourceStateOfPlan<PlanValue>,
-          CoreQuery.FactsOfPlan<PlanValue>
-        >
-    : ReturningUnsupportedError<Dialect>
 
   export interface InsertApi {
     <Target extends MutationTargetLike>(
@@ -6737,7 +6695,6 @@ export {
   exportedValues as values,
   exportedUnnest as unnest,
   generateSeries,
-  returning,
   onConflict,
   exportedInsert as insert,
   update,
