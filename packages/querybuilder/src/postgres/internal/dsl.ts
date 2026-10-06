@@ -1074,24 +1074,6 @@ type CasePredicateUnion<Branches extends readonly CaseBranch[]> =
 type CaseResultUnion<Branches extends readonly CaseBranch[]> =
   Branches[number] extends CaseBranch<any, infer Then extends Expression.Any> ? Then : never
 
-type CasePredicateTuple<Branches extends readonly CaseBranch[]> = {
-  readonly [K in keyof Branches]: Branches[K] extends CaseBranch<infer Predicate extends Expression.Any, any> ? Predicate : never
-} & readonly Expression.Any[]
-
-type CaseResultTuple<Branches extends readonly CaseBranch[]> = {
-  readonly [K in keyof Branches]: Branches[K] extends CaseBranch<any, infer Then extends Expression.Any> ? Then : never
-} & readonly Expression.Any[]
-
-type CaseAllTuple<
-  Branches extends readonly CaseBranch[],
-  Else extends Expression.Any
-> = [...CasePredicateTuple<Branches>, ...CaseResultTuple<Branches>, Else]
-
-type CaseResultTupleWithElse<
-  Branches extends readonly CaseBranch[],
-  Else extends Expression.Any
-> = [...CaseResultTuple<Branches>, Else]
-
 type MergeAggregationUnion<Value extends Expression.Any> =
   Extract<CoreQuery.KindOf<Value>, "window"> extends never
     ? Extract<CoreQuery.KindOf<Value>, "aggregate"> extends never ? "scalar" : "aggregate"
@@ -1109,6 +1091,23 @@ type CaseAstBranches<
     ? ExpressionAst.CaseBranchNode<Predicate, Then>
     : never
 } & readonly ExpressionAst.CaseBranchNode[]
+
+type CaseResults<Branches extends readonly CaseBranch[], Else extends Expression.Any> =
+  CaseResultUnion<Branches> | Else
+
+type CaseInputs<Branches extends readonly CaseBranch[], Else extends Expression.Any> =
+  CasePredicateUnion<Branches> | CaseResults<Branches, Else>
+
+type CaseExpression<Branches extends readonly CaseBranch[], Else extends Expression.Any> = AstBackedExpression<
+  Expression.RuntimeOf<CaseResults<Branches, Else>> |
+    (CaseNullabilityOfUnion<CaseResults<Branches, Else>> extends "never" ? never : null),
+  Expression.DbTypeOf<CaseResults<Branches, Else>>,
+  CaseNullabilityOfUnion<CaseResults<Branches, Else>>,
+  CoreQuery.NormalizeDialect<CoreQuery.DialectOf<CaseInputs<Branches, Else>>>,
+  MergeAggregationUnion<CaseInputs<Branches, Else>>,
+  CoreQuery.DependenciesOf<CaseInputs<Branches, Else>>,
+  ExpressionAst.CaseNode<CaseAstBranches<Branches>, Else>
+>
 
 type CaseBuilder<
   Branches extends readonly [CaseBranch<any, any>, ...CaseBranch<any, any>[]],
@@ -1136,14 +1135,9 @@ type CaseBuilder<
   >
   else<Else extends CoreQuery.ExpressionInput>(
     fallback: Else
-  ): AstBackedExpression<
-    Expression.RuntimeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    Expression.DbTypeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    CaseNullabilityOfUnion<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    CoreQuery.TupleDialect<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    MergeAggregationTuple<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    CoreQuery.TupleDependencies<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    ExpressionAst.CaseNode<CaseAstBranches<Branches>, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+  ): CaseExpression<
+    Branches,
+    DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   >
 }
 
@@ -1163,7 +1157,13 @@ type MatchBuilder<
   ): MatchBuilder<
     Subject,
     [...Branches, CaseBranch<
-      Expression.Any,
+      BinaryPredicateExpression<
+        Subject, Compare, "eq", "maybe",
+        MergeAggregationUnion<
+          DialectAsExpression<Subject, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> |
+          DialectAsExpression<Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+        >
+      >,
       DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >],
     Dialect,
@@ -1175,14 +1175,9 @@ type MatchBuilder<
   >
   else<Else extends CoreQuery.ExpressionInput>(
     fallback: Else
-  ): AstBackedExpression<
-    Expression.RuntimeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    Expression.DbTypeOf<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    CaseNullabilityOfUnion<CaseResultTupleWithElse<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>[number]>,
-    CoreQuery.TupleDialect<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    MergeAggregationTuple<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    CoreQuery.TupleDependencies<CaseAllTuple<Branches, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>>,
-    ExpressionAst.CaseNode<CaseAstBranches<Branches>, DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>>
+  ): CaseExpression<
+    Branches,
+    DialectAsExpression<Else, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
   >
 }
 
@@ -1226,7 +1221,13 @@ type MatchStarter<
   ): MatchBuilder<
     Subject,
     [CaseBranch<
-      Expression.Any,
+      BinaryPredicateExpression<
+        Subject, Compare, "eq", "maybe",
+        MergeAggregationUnion<
+          DialectAsExpression<Subject, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> |
+          DialectAsExpression<Compare, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
+        >
+      >,
       DialectAsExpression<Then, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >],
     Dialect,
@@ -1607,13 +1608,14 @@ type BinaryPredicateExpression<
   Left extends CoreQuery.ExpressionInput,
   Right extends CoreQuery.ExpressionInput,
   Kind extends ExpressionAst.BinaryKind,
-  Nullability extends Expression.Nullability = "maybe"
+  Nullability extends Expression.Nullability = "maybe",
+  Aggregation extends Expression.ScalarKind = "scalar"
 > = AstBackedExpression<
   boolean,
   BoolDb,
   Nullability,
   DialectOfDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> | DialectOfDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>,
-  "scalar",
+  Aggregation,
   CoreQuery.DependencyRecord<
     RequiredFromDialectInput<Left, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb> |
     RequiredFromDialectInput<Right, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
