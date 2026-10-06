@@ -63,6 +63,6 @@
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
-    "effect": "4.0.0"
+    "effect": "^4.0.0"
   }
 }

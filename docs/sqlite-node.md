@@ -1,7 +1,7 @@
 # SQLite on Node.js
 
 Effect 4's `@effect/sql-sqlite-node` uses built-in `node:sqlite`. Install it at
-`4.0.0` alongside `effect@4.0.0` and `effect-qb`. This driver requires Node 22.16
+`^4.0.0` alongside `effect@^4.0.0` and `effect-qb`. This driver requires Node 22.16
 or newer; other drivers retain their existing runtime requirements.
 
 ```ts
