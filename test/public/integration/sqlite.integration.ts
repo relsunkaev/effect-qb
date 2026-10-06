@@ -14,7 +14,7 @@ import {
   portableWindowFunctions
 } from "./portable-functions.ts"
 
-const runSqlite = <A, E>(effect: Effect.Effect<A, E, never>) =>
+const runSqlite = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
   Effect.runPromise(Effect.provide(effect, SqliteClient.layer({
     filename: ":memory:",
     disableWAL: true
