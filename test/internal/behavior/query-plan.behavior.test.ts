@@ -1,10 +1,48 @@
 import { expect, test } from "bun:test"
 import { Column, Query, RowSet, Table } from "#standard"
 import { getAst, makePlan } from "#internal/query/plan.ts"
+import * as ExpressionAst from "#internal/expression-ast.ts"
+import * as Scalar from "#internal/scalar.ts"
 import * as PgDsl from "../../../packages/querybuilder/src/postgres/internal/dsl.ts"
 import * as MyDsl from "../../../packages/querybuilder/src/mysql/internal/dsl.ts"
 import * as SqDsl from "../../../packages/querybuilder/src/sqlite/internal/dsl.ts"
 import { Renderer } from "#postgres"
+
+for (const [dialect, where] of [
+  ["standard", Query.where],
+  ["postgres", PgDsl.where],
+  ["mysql", MyDsl.where],
+  ["sqlite", SqDsl.where]
+] as const) {
+  test(`${dialect} where binding appends filters without changing the input or parameter order`, () => {
+    const users = Table.make("users", { email: Column.text() })
+    const base = Query.select({ label: Query.literal("member"), email: users.email }).pipe(
+      Query.from(users),
+      where(Query.eq(users.email, "alice@example.com"))
+    )
+    const extended = base.pipe(
+      where(true),
+      where(Query.eq(users.email, "bob@example.com"))
+    )
+    const render = Renderer.make().render
+
+    expect(render(base)).toMatchObject({
+      sql: 'select $1 as "label", "users"."email" as "email" from "users" where ("users"."email" = $2)',
+      params: ["member", "alice@example.com"]
+    })
+    expect(render(extended)).toMatchObject({
+      sql: [
+        'select $1 as "label", "users"."email" as "email" from "users"',
+        'where ("users"."email" = $2) and true and ("users"."email" = $3)'
+      ].join(" "),
+      params: ["member", "alice@example.com", "bob@example.com"]
+    })
+
+    const booleanPredicate = getAst(extended).where[1]!.predicate
+    expect(booleanPredicate[ExpressionAst.TypeId]).toEqual({ kind: "literal", value: true })
+    expect(booleanPredicate[Scalar.TypeId].dialect).toBe(dialect)
+  })
+}
 
 for (const [dialect, groupBy] of [
   ["standard", Query.groupBy],

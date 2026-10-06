@@ -1,4 +1,5 @@
 import { assumeFormulaTrue, formulaOfExpression as formulaOfExpressionRuntime, trueFormula } from "../predicate/runtime.js"
+import type * as Query from "./plan.js"
 import type * as QueryAst from "./ast.js"
 import { makeRuntimePlan, getAst, getQueryState, currentRequiredList } from "./plan.js"
 import * as Expression from "../scalar.js"
@@ -31,6 +32,36 @@ export const renderMysqlMutationLockMode = (
   }
   return mode === "ignore" ? " ignore" : " quick"
 }
+
+export const makeWhere = (toExpression: (value: Query.PredicateInput) => Expression.Any) =>
+  (predicate: Query.PredicateInput) =>
+    (plan: any) => {
+      const current = plan[Plan.TypeId]
+      const currentAst = getAst(plan)
+      const currentQuery = getQueryState(plan)
+      const predicateExpression = toExpression(predicate)
+      const predicateRequired = Object.keys(predicateExpression[Expression.TypeId].dependencies)
+      return makeRuntimePlan({
+        selection: current.selection,
+        required: [...currentRequiredList(current.required), ...predicateRequired].filter((name, index, values) =>
+          !(name in current.available) && values.indexOf(name) === index),
+        available: current.available,
+        dialect: current.dialect ?? predicateExpression[Expression.TypeId].dialect
+      }, {
+        ...currentAst,
+        where: [...currentAst.where, {
+          kind: "where",
+          predicate: predicateExpression
+        }]
+      }, {
+        assumptions: assumeFormulaTrue(
+          currentQuery.assumptions,
+          formulaOfExpressionRuntime(predicateExpression)
+        ),
+        capabilities: currentQuery.capabilities,
+        statement: currentQuery.statement
+      })
+    }
 
 export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
   const sourceRequiredList = (source: any): readonly string[] =>
@@ -68,35 +99,6 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
       statement: "set"
     })
   }
-
-  const where = (predicate: any) =>
-    (plan: any) => {
-      const current = plan[Plan.TypeId]
-      const currentAst = getAst(plan)
-      const currentQuery = getQueryState(plan)
-      const predicateExpression = ctx.toDialectExpression(predicate)
-      const predicateRequired = ctx.extractRequiredFromDialectInputRuntime(predicate)
-      return makeRuntimePlan({
-        selection: current.selection,
-        required: [...currentRequiredList(current.required), ...predicateRequired].filter((name, index, values) =>
-          !(name in current.available) && values.indexOf(name) === index),
-        available: current.available,
-        dialect: current.dialect ?? predicateExpression[Expression.TypeId].dialect
-      }, {
-        ...currentAst,
-        where: [...currentAst.where, {
-          kind: "where",
-          predicate: predicateExpression
-        }]
-      }, {
-        assumptions: assumeFormulaTrue(
-          currentQuery.assumptions,
-          formulaOfExpressionRuntime(predicateExpression)
-        ),
-        capabilities: currentQuery.capabilities,
-        statement: currentQuery.statement
-      })
-    }
 
   const from = (source: any) =>
     (plan: any) => {
@@ -425,7 +427,6 @@ export const makeDslPlanRuntime = (ctx: DslPlanRuntimeContext) => {
 
   return {
     buildSetOperation,
-    where,
     from,
     having,
     crossJoin,

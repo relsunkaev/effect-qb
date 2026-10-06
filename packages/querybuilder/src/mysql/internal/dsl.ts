@@ -45,7 +45,7 @@ import type { FormulaOfPredicate } from "../../internal/predicate/normalize.js"
 import type { TrueFormula } from "../../internal/predicate/formula.js"
 import { validateWindowFrame } from "../../internal/window-frame.js"
 import { makeDslMutationRuntime } from "../../internal/query/mutations.js"
-import { makeDslPlanRuntime } from "../../internal/query/modifiers.js"
+import { makeDslPlanRuntime, makeWhere } from "../../internal/query/modifiers.js"
 import { groupBy as groupByRuntime, makeDslQueryRuntime } from "../../internal/query/selection.js"
 import { makeDslTransactionDdlRuntime } from "../../internal/query/statements.js"
 import { makeCteSource, makeDerivedSource, makeLateralSource } from "../../internal/derived-table.js"
@@ -5688,6 +5688,8 @@ type AsCurriedResult<
       PlanFactsAfterWhere<PlanValue, Predicate, Dialect, TextDb, NumericDb, BoolDb, TimestampDb, NullDb>
     >
 
+  const where: WhereApi = makeWhere(toDialectExpression)
+
   export type FromApi = <CurrentSource extends FromInput>(
     source: CurrentSource
   ) =>
@@ -5954,7 +5956,6 @@ type AsCurriedResult<
 
   const {
     buildSetOperation,
-    where,
     from,
     having,
     crossJoin,
@@ -5975,7 +5976,6 @@ type AsCurriedResult<
     attachInsertSource: (...args) => attachInsertSource(args[0], args[1])
   }) as {
     readonly buildSetOperation: (kind: QueryAst.SetOperatorKind, all: boolean, left: any, right: any) => any
-    readonly where: WhereApi
     readonly from: FromApi
     readonly having: HavingApi
     readonly crossJoin: CrossJoinApi
