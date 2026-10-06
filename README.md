@@ -95,7 +95,9 @@ console.log(rows)
 For example, build with esbuild and run the resulting JavaScript under Node:
 
 ```sh
-bunx esbuild quick-start.ts --bundle --platform=node --format=esm --packages=external --outfile=quick-start.mjs
+bunx esbuild quick-start.ts \
+  --bundle --platform=node --format=esm \
+  --packages=external --outfile=quick-start.mjs
 node quick-start.mjs
 ```
 
@@ -467,11 +469,11 @@ Repeated `where` calls add conditions with AND. An UPDATE or DELETE without a
 
 #### Predicate Combinators
 
-<details>
-<summary>Show example</summary>
-
 Combine predicates with `and`/`or`; `between`, `in`, `notIn`, `isNull`, and
 `isNotNull` cover the common shapes.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -498,11 +500,11 @@ const filtered = Query.select({ id: users.id }).pipe(
 
 #### Conditional Expressions
 
-<details>
-<summary>Show example</summary>
-
 Use `case` for different predicates, or `match` to compare one expression with
 several alternatives. Both produce SQL CASE expressions, not JavaScript branches.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -528,15 +530,15 @@ const labelled = Query.select({
 
 #### Functions and Aggregates
 
-<details>
-<summary>Show example</summary>
-
 Root `Function` contains the portable subset: arithmetic, `concat`, `coalesce`,
 `count`, `min`/`max`, and portable windows. Each dialect owns native
 `lower`/`upper`, `sum`/`avg`, clock functions, `round`, `modulo`, and explicitly
 framed window value functions.
 `count`, `rowNumber`, `rank`, and `denseRank` decode to
 `Scalar.BigIntString` so 64-bit results have one portable runtime contract.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
@@ -572,13 +574,13 @@ const report = Query.select({
 
 #### Arithmetic and Composition
 
-<details>
-<summary>Show example</summary>
-
 Arithmetic expressions keep the input column's numeric contract. `andAll` and
 `orAll` accept arrays assembled at runtime; their empty-list identities are
 `true` and `false`. `when` conditionally applies a pipe modifier, while
 `includeIf` builds an optional selection fragment.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
@@ -609,13 +611,13 @@ const report = Query.select({
 
 #### Native Division and Rounding
 
-<details>
-<summary>Show example</summary>
-
 `divide`, `round` and `modulo` live on each dialect's `Function` module because their
 accepted database types, result types, and runtime behavior are not portable.
 `Cast.to(...)` can deliberately select an overload; the operation still belongs
 to the dialect that defines its semantics.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Cast, Column, Query, Table, Type } from "effect-qb"
@@ -679,14 +681,14 @@ or expression when fractional precision must survive before `round`.
 
 #### Typed SQL Fragments
 
-<details>
-<summary>Show example</summary>
-
 `Fragment.expression` is the escape hatch for a database feature that does not
 yet have a first-class helper. Static template text is trusted source text.
 Interpolations accept typed expressions or `Fragment.identifier(...)`;
 runtime values must go through `Query.literal(...)`, so they remain bound
 parameters.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import * as Schema from "effect/Schema"
@@ -712,11 +714,11 @@ const plan = Query.select({
 
 #### Common Table Expressions
 
-<details>
-<summary>Show example</summary>
-
 Pipe `Query.with(name)` onto a complete plan to name it, then reference it like
 any other source. `Query.withRecursive(name)` builds recursive CTEs.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -755,12 +757,12 @@ const usersWithActivePosts = Query.select({
 
 #### Correlated Subqueries
 
-<details>
-<summary>Show example</summary>
-
 A subquery correlates with the outer query by referencing its columns.
 `Query.exists`, `Query.inSubquery`, `Query.scalar`, `Query.compareAny`, and
 `Query.compareAll` all take a select plan.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -790,13 +792,13 @@ const authors = Query.select({
 
 #### Set Operators
 
-<details>
-<summary>Show example</summary>
-
 `union`, `unionAll`, `intersect`, `intersectAll`, `except`, and `exceptAll`
 combine two source-complete selects that share a projection shape — useful for
 stitching together independent queries. The minimal example below splits one
 table by a flag so the two shapes are obviously identical.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -825,15 +827,15 @@ const allEmails = Query.unionAll(activeEmails, inactiveEmails)
 
 #### Window Functions
 
-<details>
-<summary>Show example</summary>
-
 `Function.rowNumber`, `rank`, and `denseRank` take a window spec;
 `Function.over` wraps an aggregate in a window without an explicit frame.
 `lag` and `lead` read another row in an ordered partition. Root `firstValue`
 and `lastValue` use the portable default frame. Explicit frames belong to each
 dialect's `Function.over`, `firstValue`, and `lastValue` helpers because frame
 boundary clipping differs across engines.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Function, Query, Table } from "effect-qb"
@@ -896,12 +898,12 @@ const merge = Query.merge(users, incoming, Query.eq(users.id, incoming.id), {
 
 #### Transactions and Savepoints
 
-<details>
-<summary>Show example</summary>
-
 Prefer `Executor.withTransaction` for scoped transaction composition. A nested
 `withTransaction` call uses the underlying transaction implementation's
 savepoint behavior.
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Effect } from "effect"
@@ -966,6 +968,9 @@ const commit = Query.commit()
 
 #### DDL
 
+Build table and index statements from the same model used by queries. Execute
+them explicitly; defining a model does not change the database.
+
 <details>
 <summary>Show example</summary>
 
@@ -993,6 +998,9 @@ const dropEmailIndex = Query.dropIndex(users, ["email"], {
 </details>
 
 #### Mutations
+
+Insert payloads or update selected fields. Filter updates and deletes before
+execution to avoid changing every row.
 
 <details>
 <summary>Show example</summary>
