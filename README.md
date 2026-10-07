@@ -118,14 +118,16 @@ type ActiveUser = Query.ResultRow<typeof activeUsers>
 
 // Create, seed, and read through the SQLite executor.
 const executor = Executor.make()
-const program = executor.execute(Query.createTable(users)).pipe(
-  Effect.andThen(executor.execute(Query.insert(users,
+const program = Effect.gen(function* () {
+  yield* executor.execute(Query.createTable(users))
+  yield* executor.execute(Query.insert(users,
     { id: "ada", email: "ada@example.com", active: true }
-  ))),
-  Effect.andThen(executor.execute(Query.insert(users,
+  ))
+  yield* executor.execute(Query.insert(users,
     { id: "grace", email: "grace@example.com", active: false }
-  ))),
-  Effect.andThen(executor.execute(activeUsers)),
+  ))
+  return yield* executor.execute(activeUsers)
+}).pipe(
   Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
 )
 const rows = await Effect.runPromise(program)
@@ -1044,11 +1046,11 @@ const readMembership = Query.select({
 )
 
 const writeAuditLog = executor.execute(updateAuditLog).pipe(Pg.Executor.withTransaction)
-const writeMembership = executor.execute(insertMembership).pipe(
-  Effect.andThen(writeAuditLog), // nested transaction uses a savepoint
-  Effect.andThen(executor.execute(readMembership)),
-  Pg.Executor.withTransaction
-)
+const writeMembership = Effect.gen(function* () {
+  yield* executor.execute(insertMembership)
+  yield* writeAuditLog // nested transaction uses a savepoint
+  return yield* executor.execute(readMembership)
+}).pipe(Pg.Executor.withTransaction)
 ```
 
 Low-level transaction-control helpers build statements you issue through an
@@ -1321,8 +1323,8 @@ information to know the answer before SQL is rendered. The main idea is that
 tables, columns, predicates, source availability, and dialects all carry type
 metadata through the plan.
 
-> If you just want to write, render, and execute queries end to end, skip ahead
-> to [Query Lifecycle](#query-lifecycle). This section explains what TypeScript
+> If you just want to write, render, and execute queries end to end, see
+> [Query Lifecycle](#query-lifecycle). This section explains what TypeScript
 > catches for you before any SQL runs.
 
 ### Table Shape and Payloads
@@ -2355,12 +2357,14 @@ const readDocument = Query.select({
 
 // Plans above are values. This Effect creates, seeds, updates, then reads.
 const executor = Executor.make()
-const program = executor.execute(Query.createTable(documents)).pipe(
-  Effect.andThen(executor.execute(Query.insert(documents, {
+const program = Effect.gen(function* () {
+  yield* executor.execute(Query.createTable(documents))
+  yield* executor.execute(Query.insert(documents, {
     id: "guide", payload: { profile: { city: "Rome", count: 7 } }
-  }))),
-  Effect.andThen(executor.execute(updateDocument)),
-  Effect.andThen(executor.execute(readDocument)),
+  }))
+  yield* executor.execute(updateDocument)
+  return yield* executor.execute(readDocument)
+}).pipe(
   Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
 )
 const rows = await Effect.runPromise(program)
@@ -2427,11 +2431,13 @@ const requiredCases = Effect.all({
   duplicate: requiredUser("shared@example.com")
 })
 const checks = Effect.all({ optional: optionalCases, required: requiredCases })
-const program = executor.execute(Query.createTable(users)).pipe(
-  Effect.andThen(executor.execute(Query.insert(users, { id: "ada", email: "shared@example.com" }))),
-  Effect.andThen(executor.execute(Query.insert(users, { id: "linus", email: "shared@example.com" }))),
-  Effect.andThen(executor.execute(Query.insert(users, { id: "grace", email: "grace@example.com" }))),
-  Effect.andThen(checks),
+const program = Effect.gen(function* () {
+  yield* executor.execute(Query.createTable(users))
+  yield* executor.execute(Query.insert(users, { id: "ada", email: "shared@example.com" }))
+  yield* executor.execute(Query.insert(users, { id: "linus", email: "shared@example.com" }))
+  yield* executor.execute(Query.insert(users, { id: "grace", email: "grace@example.com" }))
+  return yield* checks
+}).pipe(
   Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
 )
 const outcomes = await Effect.runPromise(program)
@@ -2481,20 +2487,21 @@ const auditLogs = Table.make("audit_logs", {
 const executor = Executor.make()
 const insertMembership = Query.insert(memberships, { id: "member-1", role: "admin" })
 const insertAuditLog = Query.insert(auditLogs, { id: "audit-1", membershipId: "member-1" })
-const rejectedSignup = executor.execute(insertMembership).pipe(
-  Effect.andThen(executor.execute(insertAuditLog)),
-  Effect.andThen(Effect.fail({ _tag: "SignupRejected" as const })),
-  Executor.withTransaction
-)
+const rejectedSignup = Effect.gen(function* () {
+  yield* executor.execute(insertMembership)
+  yield* executor.execute(insertAuditLog)
+  return yield* Effect.fail({ _tag: "SignupRejected" as const })
+}).pipe(Executor.withTransaction)
 const readState = Effect.all({
   memberships: executor.execute(Query.select({ id: memberships.id }).pipe(Query.from(memberships))),
   auditLogs: executor.execute(Query.select({ id: auditLogs.id }).pipe(Query.from(auditLogs)))
 })
-const program = executor.execute(Query.createTable(memberships)).pipe(
-  Effect.andThen(executor.execute(Query.createTable(auditLogs))),
-  Effect.andThen(rejectedSignup),
-  Effect.catchTag("SignupRejected", () => Effect.void),
-  Effect.andThen(readState),
+const program = Effect.gen(function* () {
+  yield* executor.execute(Query.createTable(memberships))
+  yield* executor.execute(Query.createTable(auditLogs))
+  yield* rejectedSignup.pipe(Effect.catchTag("SignupRejected", () => Effect.void))
+  return yield* readState
+}).pipe(
   Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
 )
 const state = await Effect.runPromise(program)
