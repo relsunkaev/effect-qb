@@ -1,4 +1,9 @@
-import { lock } from "./query.js"
+/**
+ * MySQL-only query extensions.
+ * Portable builders: import { Query } from "effect-qb".
+ * Source: ../standard/query.ts
+ */
+import { lock } from "./internal/query.js"
 
 /** MySQL-only mutation modifier for UPDATE IGNORE. */
 export const ignore = lock("ignore")
@@ -10,7 +15,7 @@ export const quick = lock("quick")
 export const lowPriority = lock("lowPriority")
 
 /** MySQL-only mutation ordering and limiting. */
-export { orderBy, limit } from "./query.js"
+export { orderBy, limit } from "./internal/query.js"
 
 /** MySQL-only multi-target mutation forms. */
-export { update, delete } from "./query.js"
+export { update, delete } from "./internal/query.js"

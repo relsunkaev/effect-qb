@@ -1,6 +1,55 @@
 import type * as Expression from "../internal/scalar.js"
 
 export {
+  // Read queries
+  select,
+  from,
+  innerJoin,
+  leftJoin,
+  rightJoin,
+  fullJoin,
+  crossJoin,
+  where,
+  groupBy,
+  having,
+  orderBy,
+  limit,
+  offset,
+  distinct,
+  lock,
+
+  // Sources and subqueries
+  values,
+  unnest,
+  as,
+  with_ as with,
+  withRecursive,
+  lateral,
+  scalar,
+  exists,
+  inSubquery,
+  compareAny,
+  compareAll,
+
+  // Set operations
+  union,
+  unionAll,
+  intersect,
+  intersectAll,
+  except,
+  exceptAll,
+
+  // Mutations
+  insert,
+  update,
+  upsert,
+  delete_ as delete,
+  merge,
+  onConflict,
+  excluded,
+  returning,
+
+  // Expressions and predicates
   literal,
   column,
   cast,
@@ -12,6 +61,8 @@ export {
   gte,
   isNull,
   isNotNull,
+  isDistinctFrom,
+  isNotDistinctFrom,
   like,
   ilike,
   collate,
@@ -32,69 +83,33 @@ export {
   contains,
   containedBy,
   overlaps,
-  exists,
-  isDistinctFrom,
-  isNotDistinctFrom,
-  excluded,
-  as,
-  with_ as with,
-  withRecursive,
-  lateral,
-  scalar,
-  inSubquery,
-  compareAny,
-  compareAll,
-  values,
-  unnest,
-  select,
-  returning,
-  onConflict,
-  insert,
-  update,
-  upsert,
-  delete_ as delete,
-  truncate,
-  merge,
-  transaction,
-  commit,
-  rollback,
-  savepoint,
-  rollbackTo,
-  releaseSavepoint,
-  createTable,
-  dropTable,
-  createIndex,
-  dropIndex,
-  union,
-  unionAll,
-  intersect,
-  intersectAll,
-  except,
-  exceptAll,
-  where,
-  having,
-  from,
-  innerJoin,
-  leftJoin,
-  rightJoin,
-  fullJoin,
-  crossJoin,
-  distinct,
-  limit,
-  offset,
-  lock,
-  orderBy,
-  groupBy,
   concat,
   coalesce,
+
+  // Aggregates and windows
   count,
   max,
   min,
   over,
   rowNumber,
   rank,
-  denseRank
-} from "../internal/standard-dsl.js"
+  denseRank,
+
+  // Transactions
+  transaction,
+  commit,
+  rollback,
+  savepoint,
+  rollbackTo,
+  releaseSavepoint,
+
+  // Schema changes
+  createTable,
+  dropTable,
+  createIndex,
+  dropIndex,
+  truncate
+} from "./internal/dsl.js"
 
 export {
   abs,
@@ -115,7 +130,7 @@ export {
   type WindowOrderTerm
 } from "../internal/analytics.js"
 
-export { union_query_capabilities } from "../internal/query.js"
+export { union_query_capabilities } from "../internal/query/plan.js"
 
 export type MutationInputOf<Shape> = {
   readonly [K in keyof Shape]:
@@ -161,4 +176,4 @@ export type {
   SourceRequirementError,
   StatementOfPlan,
   StringExpressionInput
-} from "../internal/query.js"
+} from "../internal/query/plan.js"

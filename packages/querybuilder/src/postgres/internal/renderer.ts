@@ -1,10 +1,9 @@
-import * as Query from "../../internal/query.js"
+import * as Query from "../../internal/query/plan.js"
 import type * as Expression from "../../internal/scalar.js"
 import type * as Casing from "../../internal/casing.js"
 import { type RenderState } from "../../internal/dialect.js"
 import { postgresDialect } from "./dialect.js"
 import { type Projection } from "../../internal/projections.js"
-import { renderQueryAst } from "../../internal/sql-expression-renderer.js"
 
 /**
  * Minimal rendered-query payload produced by the built-in Postgres renderer.
@@ -40,7 +39,7 @@ export const renderPostgresPlan = <PlanValue extends Query.Plan.Any>(
     cteSources: new Map<string, unknown>(),
     sourceNames: new Map()
   }
-  const rendered = renderQueryAst(
+  const rendered = postgresDialect.renderQueryAst(
     Query.getAst(plan as Query.Plan.Any) as any,
     state,
     postgresDialect

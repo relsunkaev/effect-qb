@@ -1,4 +1,4 @@
-import * as Query from "./query.js"
+import * as Query from "./query/plan.js"
 import * as Expression from "./scalar.js"
 import { flattenSelection, type Projection, validateProjections } from "./projections.js"
 

@@ -168,7 +168,7 @@ export const include = <
     } as Spec & { readonly include: BaseTable.SelectedColumns<Selection> }))
 
 /** Adds a Postgres partial-index predicate to a standard index option. */
-export const where = <Predicate extends BaseTable.DdlExpressionLike>(
+export const indexPredicate = <Predicate extends BaseTable.DdlExpressionLike>(
   predicate: Predicate
 ) =>
   <Spec extends IndexSpec, TableContext extends BaseTable.SchemaTableDefinition>(

@@ -1,4 +1,4 @@
-import { read_query_capabilities, type QueryCapability, type QueryRequirement } from "../../internal/query-requirements.js"
+import { read_query_capabilities, type QueryCapability, type QueryRequirement } from "../../internal/query/requirements.js"
 import type { PostgresErrorClassCode } from "./catalog.js"
 import type { PostgresQueryContext } from "./fields.js"
 import type {

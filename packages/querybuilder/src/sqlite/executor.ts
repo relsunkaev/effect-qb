@@ -4,7 +4,7 @@ import * as Stream from "effect/Stream"
 
 import * as CoreExecutor from "../internal/executor.js"
 import * as RowDecoder from "../internal/row-decoder.js"
-import * as CoreQuery from "../internal/query.js"
+import * as CoreQuery from "../internal/query/plan.js"
 import * as CoreRenderer from "../internal/renderer.js"
 import type * as Expression from "../internal/scalar.js"
 import type { SqliteDatatypeFamily, SqliteDatatypeKind } from "./datatypes/spec.js"

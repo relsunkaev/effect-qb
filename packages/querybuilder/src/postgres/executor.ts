@@ -4,7 +4,7 @@ import * as Stream from "effect/Stream"
 
 import * as CoreExecutor from "../internal/executor.js"
 import * as RowDecoder from "../internal/row-decoder.js"
-import * as CoreQuery from "../internal/query.js"
+import * as CoreQuery from "../internal/query/plan.js"
 import * as CoreRenderer from "../internal/renderer.js"
 import type * as Expression from "../internal/scalar.js"
 import type { PostgresDatatypeFamily, PostgresDatatypeKind } from "./datatypes/spec.js"
@@ -43,7 +43,7 @@ export interface MakeOptions<Error = never, Context = never> {
 /** Standard composed error shape for Postgres executors. */
 export type PostgresExecutorError = PostgresDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in Postgres executors. */
-export type PostgresQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+export type PostgresQueryError<PlanValue extends CoreQuery.Plan.Any> =
   Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? PostgresReadQueryError | RowDecodeError : PostgresExecutorError
 
 /** Pipeable execution cardinality helpers. */
@@ -57,21 +57,21 @@ export const withTransaction = CoreExecutor.withTransaction
 /** Postgres executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"postgres", PostgresQueryError<any>, Context> {
   readonly dialect: "postgres"
-  execute<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
   ): Effect.Effect<CoreQuery.ResultRows<PlanValue>, PostgresQueryError<PlanValue>, Context>
-  executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  executeResult<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
   ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, PostgresQueryError<PlanValue>, Context>
-  prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  prepare<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
   ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, PostgresQueryError<PlanValue>, Context>
-  stream<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  stream<PlanValue extends CoreQuery.Plan.Any>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
       : never
   ): Stream.Stream<CoreQuery.ResultRow<PlanValue>, PostgresQueryError<PlanValue>, Context>
-  explain<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  explain<PlanValue extends CoreQuery.Plan.Any>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
       : never,
@@ -286,7 +286,7 @@ export const custom = <
   Error = never,
   Context = never
 >(
-  execute: <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "postgres">
   ) => Effect.Effect<CoreQuery.ResultRows<PlanValue>, Error, Context>
 ): Executor<Error, Context> =>

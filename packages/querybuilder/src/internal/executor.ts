@@ -4,8 +4,8 @@ import * as SqlClient from "effect/sql/SqlClient"
 import * as SqlError from "effect/sql/SqlError"
 import * as Stream from "effect/Stream"
 
-import * as Query from "./query.js"
-import * as QueryAst from "./query-ast.js"
+import * as Query from "./query/plan.js"
+import * as QueryAst from "./query/ast.js"
 import * as Renderer from "./renderer.js"
 import { remapRows, type FlatRow } from "./row-decoder.js"
 

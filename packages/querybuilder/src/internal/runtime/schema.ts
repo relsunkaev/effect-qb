@@ -4,7 +4,7 @@ import * as SchemaAST from "effect/SchemaAST"
 
 import * as Expression from "../scalar.js"
 import * as ExpressionAst from "../expression-ast.js"
-import * as Query from "../query.js"
+import * as Query from "../query/plan.js"
 import * as JsonPath from "../json/path.js"
 import type { PredicateFormula } from "../predicate/formula.js"
 import {

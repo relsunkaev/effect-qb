@@ -12,7 +12,7 @@ import { resolveImplicationScope, type ImplicationScope } from "./implication-ru
 import { fromDriverValue } from "./runtime/driver-value-mapping.js"
 import { expressionRuntimeSchema } from "./runtime/schema.js"
 import { flattenSelection } from "./projections.js"
-import * as Query from "./query.js"
+import * as Query from "./query/plan.js"
 import type * as Renderer from "./renderer.js"
 import * as Plan from "./row-set.js"
 import { columnPredicateKey } from "./predicate/runtime.js"

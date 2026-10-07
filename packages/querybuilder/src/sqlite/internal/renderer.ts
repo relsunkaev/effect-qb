@@ -1,10 +1,9 @@
-import * as Query from "../../internal/query.js"
+import * as Query from "../../internal/query/plan.js"
 import type * as Expression from "../../internal/scalar.js"
 import type * as Casing from "../../internal/casing.js"
 import { type RenderState } from "../../internal/dialect.js"
 import { sqliteDialect } from "./dialect.js"
 import { type Projection } from "../../internal/projections.js"
-import { renderQueryAst } from "../../internal/sql-expression-renderer.js"
 
 /**
  * Internal rendered-query payload produced by the built-in SQLite renderer.
@@ -37,7 +36,7 @@ export const renderSqlitePlan = <PlanValue extends Query.Plan.Any>(
     cteSources: new Map<string, unknown>(),
     sourceNames: new Map()
   }
-  const rendered = renderQueryAst(
+  const rendered = sqliteDialect.renderQueryAst(
     Query.getAst(plan as Query.Plan.Any) as any,
     state,
     sqliteDialect

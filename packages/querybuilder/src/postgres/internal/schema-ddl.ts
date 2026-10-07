@@ -1,7 +1,6 @@
 import type * as Expression from "../../internal/scalar.js"
 import type { RenderState, SqlDialect } from "../../internal/dialect.js"
 import * as SchemaExpression from "../../internal/schema-expression.js"
-import { renderExpression } from "../../internal/sql-expression-renderer.js"
 import type { DdlExpressionLike } from "../../internal/table-options.js"
 import { parse, toSql } from "pgsql-ast-parser"
 import { postgresDialect } from "./dialect.js"
@@ -13,7 +12,7 @@ export const renderDdlExpression = (
 ): string =>
   SchemaExpression.isSchemaExpression(expression)
     ? SchemaExpression.render(expression)
-    : renderExpression(expression as Expression.Any, state, dialect)
+    : dialect.renderExpression(expression as Expression.Any, state, dialect)
 
 const escapeString = (value: string): string => `'${value.replaceAll("'", "''")}'`
 
@@ -53,7 +52,7 @@ export const renderDdlExpressionSql = (
 ): string =>
   SchemaExpression.isSchemaExpression(expression)
     ? SchemaExpression.render(expression)
-    : renderExpression(expression as Expression.Any, makeExpressionState(state), inlineLiteralDialect)
+    : inlineLiteralDialect.renderExpression(expression as Expression.Any, makeExpressionState(state), inlineLiteralDialect)
 
 const stripRedundantOuterParens = (value: string): string => {
   let current = value.trim()

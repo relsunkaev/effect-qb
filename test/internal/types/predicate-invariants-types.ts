@@ -9,7 +9,7 @@ import type { TrueFormula } from "#internal/predicate/formula.js"
 import type { PredicateKeyOfExpression } from "#internal/predicate/key.js"
 import type { FormulaOfPredicate } from "#internal/predicate/normalize.js"
 import type { RuntimeOf } from "#internal/scalar.js"
-import type { AssumptionsOfPlan, AvailableOfPlan, ExpressionOutput, FactsOfPlan, OutputOfSelection, SelectionOfPlan } from "#internal/query.js"
+import type { AssumptionsOfPlan, AvailableOfPlan, ExpressionOutput, FactsOfPlan, OutputOfSelection, SelectionOfPlan } from "#internal/query/plan.js"
 
 const posts = Std.Table.make("predicate_invariant_posts", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),

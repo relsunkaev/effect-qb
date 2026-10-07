@@ -4,7 +4,7 @@ import * as Stream from "effect/Stream"
 
 import * as CoreExecutor from "../internal/executor.js"
 import * as RowDecoder from "../internal/row-decoder.js"
-import * as CoreQuery from "../internal/query.js"
+import * as CoreQuery from "../internal/query/plan.js"
 import * as CoreRenderer from "../internal/renderer.js"
 import type * as Expression from "../internal/scalar.js"
 import type { MysqlDatatypeFamily, MysqlDatatypeKind } from "./datatypes/spec.js"
@@ -51,7 +51,7 @@ export interface MakeOptions<Error = never, Context = never> {
 /** Standard composed error shape for MySQL executors. */
 export type MysqlExecutorError = MysqlDriverError | RowDecodeError
 /** Read-query error surface emitted by built-in MySQL executors. */
-export type MysqlQueryError<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>> =
+export type MysqlQueryError<PlanValue extends CoreQuery.Plan.Any> =
   Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read"> extends never ? MysqlReadQueryError | RowDecodeError : MysqlExecutorError
 
 /** Pipeable execution cardinality helpers. */
@@ -65,21 +65,21 @@ export const withTransaction = CoreExecutor.withTransaction
 /** MySQL executor whose error channel narrows based on the query plan. */
 export interface QueryExecutor<Context = never> extends CoreExecutor.Executor<"mysql", MysqlQueryError<any>, Context> {
   readonly dialect: "mysql"
-  execute<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
   ): Effect.Effect<CoreQuery.ResultRows<PlanValue>, MysqlQueryError<PlanValue>, Context>
-  executeResult<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  executeResult<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
   ): Effect.Effect<CoreExecutor.ExecutionResult<CoreQuery.ResultRow<PlanValue>>, MysqlQueryError<PlanValue>, Context>
-  prepare<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  prepare<PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
   ): CoreExecutor.PreparedQuery<CoreQuery.ResultRow<PlanValue>, MysqlQueryError<PlanValue>, Context>
-  stream<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  stream<PlanValue extends CoreQuery.Plan.Any>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
       : never
   ): Stream.Stream<CoreQuery.ResultRow<PlanValue>, MysqlQueryError<PlanValue>, Context>
-  explain<PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  explain<PlanValue extends CoreQuery.Plan.Any>(
     plan: Exclude<CoreQuery.CapabilitiesOfPlan<PlanValue>, "read" | "locking"> extends never
       ? CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
       : never,
@@ -292,7 +292,7 @@ export const custom = <
   Error = never,
   Context = never
 >(
-  execute: <PlanValue extends CoreQuery.QueryPlan<any, any, any, any, any, any, any, any, any, any>>(
+  execute: <PlanValue extends CoreQuery.Plan.Any>(
     plan: CoreQuery.DialectCompatiblePlan<PlanValue, "mysql">
   ) => Effect.Effect<CoreQuery.ResultRows<PlanValue>, Error, Context>
 ): Executor<Error, Context> =>

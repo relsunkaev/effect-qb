@@ -724,7 +724,17 @@ describe("table definitions", () => {
     const renderer = Renderer.make("postgres")
     const rendered = renderer.render(plan)
 
-    expect(rendered.sql).toBe('select upper("users"."email") as "emailUpper", count("posts"."id") as "postCount", max("posts"."title") as "maxPostTitle", min("posts"."title") as "minPostTitle", coalesce(max("posts"."title"), $1) as "fallbackTitle" from "users" inner join "posts" on (("users"."id" = "posts"."userId") and (not false)) group by upper("users"."email") order by count("posts"."id") desc, upper("users"."email") asc')
+    expect(rendered.sql).toBe([
+      'select upper("users"."email") as "emailUpper",',
+      'count("posts"."id") as "postCount",',
+      'max("posts"."title") as "maxPostTitle",',
+      'min("posts"."title") as "minPostTitle",',
+      'coalesce(max("posts"."title"), $1) as "fallbackTitle"',
+      'from "users"',
+      'inner join "posts" on (("users"."id" = "posts"."userId") and (not false))',
+      'group by upper("users"."email")',
+      'order by count("posts"."id") desc, upper("users"."email") asc'
+    ].join(" "))
     expect(rendered.params).toEqual(["NONE"])
   })
 

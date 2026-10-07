@@ -12,7 +12,7 @@ export * as Json from "./postgres/json-extension.js"
 export * as Jsonb from "./postgres/jsonb.js"
 /** Postgres-specialized typed query execution contracts. */
 export * as Executor from "./postgres/executor.js"
-/** Postgres-specific query helpers. Portable queries are exported from the root package. */
+/** Postgres-only query extensions. For portable builders, import { Query } from "effect-qb". */
 export * as Query from "./postgres/query-extension.js"
 /** Postgres database-type constructors for casts and typed references. */
 export { type as Type } from "./postgres/type.js"
@@ -31,7 +31,7 @@ export * as PrimaryKey from "./postgres/primary-key.js"
 /** Postgres-specific unique-constraint option modifiers. */
 export * as Unique from "./postgres/unique.js"
 /** Postgres-specific index option modifiers. */
-export * as Index from "./postgres/index.js"
+export * as Index from "./postgres/index-extension.js"
 /** Postgres-specific foreign-key option modifiers. */
 export * as ForeignKey from "./postgres/foreign-key.js"
 /** Postgres-specific check-constraint option modifiers. */

@@ -7,7 +7,7 @@ import * as SqlError from "effect/sql/SqlError"
 
 import * as Mysql from "#mysql"
 import * as Postgres from "#postgres"
-import type { AvailableOfPlan } from "#internal/query.ts"
+import type { AvailableOfPlan } from "#internal/query/plan.ts"
 import { Cast, Query as Q } from "#standard"
 import { Executor, Renderer, Type } from "#postgres"
 

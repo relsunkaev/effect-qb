@@ -1,4 +1,0 @@
-import type * as Expression from "../scalar.js";
-import type { FamilyOfDbType } from "../datatypes/lookup.js";
-export type CoercionKind = "text" | "numeric" | "boolean" | "date" | "time" | "timestamp" | "binary" | "interval" | "uuid" | "json" | "xml" | "bit" | "identifier" | "network" | "spatial" | "textsearch" | "range" | "multirange" | "array" | "record" | "domain" | "enum" | "set" | "money" | "null" | `other:${string}`;
-export type CoercionKindOf<Db extends Expression.DbType.Any> = FamilyOfDbType<Db>;

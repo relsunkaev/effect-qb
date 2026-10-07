@@ -4,14 +4,33 @@ Root `effect-qb` remains the portable query API. Concrete query extensions keep
 their existing restricted exports; this refactor restores no legacy helpers to
 those namespaces.
 
-The implementation inventory found four existing shared runtime owners:
-`dsl-query-runtime.ts`, `dsl-plan-runtime.ts`, `dsl-mutation-runtime.ts` and
-`dsl-transaction-ddl-runtime.ts`. Concrete DSL files already use them. Adding
+Shared query construction lives in `packages/querybuilder/src/internal/query/`:
+
+- `plan.ts`: runtime construction, updates, and state access; the existing import surface.
+- `plan-types.ts`: compile-time plan model and inference constraints, re-exported by `plan.ts`.
+- `ast.ts` and `requirements.ts`: statement structure and capabilities.
+- `selection.ts`: selection, value sources, grouping, and returning.
+- `modifiers.ts`: source attachment, joins, predicates, ordering, and limits.
+- `mutations.ts`: inserts, updates, deletes, and conflicts.
+- `statements.ts`: transactions and DDL.
+- `literal.ts`: literal and unqualified-column construction.
+
+Each dialect, including standard, assembles these owners in `internal/dsl.ts`
+inside its own folder. Concrete dialects keep their broader typed query assembly
+in `internal/query.ts`; their top-level `query.ts` exposes only the supported
+dialect extensions. Standard's `query.ts` exposes the portable query API.
+
+Shared owners import invariant plan, grouping, and predicate helpers directly.
+Dialect assemblies supply their profiles and local conversion/source callbacks,
+not copies of those shared dependencies. The runtime constructor is the same
+plan constructor with typed inputs; dialect facades still supply phantom result types.
+
+The four shared runtime owners remain the same after regrouping. Adding
 another generic query factory would duplicate those owners and widen the
 configuration surface without simplifying the public caller.
 
 The completed shared slice is literal and unqualified-column construction.
-`dsl-literal.ts` now owns the existing profile contract, literal result-type
+`internal/query/literal.ts` owns the existing profile contract, literal result-type
 mapping, literal schema derivation, and both constructors. Each DSL passes its
 existing profile or dialect directly. There is no new callback configuration,
 retagging pass or parallel query runtime.
