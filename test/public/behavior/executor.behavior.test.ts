@@ -1843,6 +1843,39 @@ describe("executor behavior", () => {
       expect(finalized).toBe(true)
     })
 
+    test.each(["reserved", "transaction"] as const)("stream uses the %s connection and preserves its lifetime", (source) => {
+      const plan = Q.select({ answer: Q.literal(1) })
+      const events: string[] = []
+      const connection = {
+        executeStream: () => {
+          events.push("stream")
+          return Stream.fromIterable([{ answer: 1 }, { answer: 1 }])
+        }
+      }
+      const transactionService = SqlClient.TransactionConnection(0)
+      const sql = {
+        transactionService,
+        reserve: Effect.acquireRelease(
+          Effect.sync(() => {
+            events.push("reserve")
+            return connection
+          }),
+          () => Effect.sync(() => { events.push("release") })
+        )
+      } as unknown as SqlClient.SqlClient
+      const collect = Executor.make().stream(plan).pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.provideService(SqlClient.SqlClient, sql)
+      )
+      const program = source === "transaction"
+        ? collect.pipe(Effect.provideService(transactionService, [connection, 0]))
+        : collect
+
+      expect(Effect.runSync(program)).toEqual([{ answer: 1 }])
+      expect(events).toEqual(source === "transaction" ? ["stream"] : ["reserve", "stream", "release"])
+    })
+
     test("forwards rendered SQL and params to the ambient SqlClient stream", () => {
       const users = StdRoot.Table.make("users", {
         id: StdRoot.Column.uuid().pipe(StdRoot.Column.primaryKey),
