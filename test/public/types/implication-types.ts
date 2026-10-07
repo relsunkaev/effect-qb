@@ -13,7 +13,8 @@ const posts = Std.Table.make("posts", {
   id: Std.Column.uuid().pipe(Std.Column.primaryKey),
   userId: Std.Column.uuid(),
   status: Std.Column.text(),
-  title: Std.Column.text().pipe(Std.Column.nullable)
+  title: Std.Column.text().pipe(Std.Column.nullable),
+  publishedAt: Std.Column.datetime().pipe(Std.Column.nullable)
 })
 
 const articles = Std.Table.make("articles", {
@@ -132,6 +133,47 @@ const promotedByEqualityUpperPostTitle: PromotedByEqualityRow["upperPostTitle"] 
 void promotedByEqualityUserId
 void promotedByEqualityPostTitle
 void promotedByEqualityUpperPostTitle
+
+const allUserPosts = Q.select({
+  userId: users.id,
+  postId: posts.id,
+  title: posts.title,
+  publishedAt: posts.publishedAt
+}).pipe(
+  Q.from(users),
+  Q.leftJoin(posts, Q.eq(users.id, posts.userId))
+)
+
+type AllUserPostsRow = Q.ResultRow<typeof allUserPosts>
+const missingJoinedPost: AllUserPostsRow = {
+  userId: "user-id",
+  postId: null,
+  title: null,
+  publishedAt: null
+}
+
+const releaseNotes = allUserPosts.pipe(
+  Q.where(Q.eq(posts.title, "Release notes"))
+)
+
+type ReleaseNoteRow = Q.ResultRow<typeof releaseNotes>
+declare const releaseNote: ReleaseNoteRow
+const matchedPostId: string = releaseNote.postId
+const matchedTitle: "Release notes" = releaseNote.title
+const unpublishedReleaseNote: ReleaseNoteRow["publishedAt"] = null
+// @ts-expect-error equality proves the joined post exists
+const missingMatchedPost: ReleaseNoteRow["postId"] = null
+// @ts-expect-error equality excludes a null title
+const nullMatchedTitle: ReleaseNoteRow["title"] = null
+// @ts-expect-error equality narrows the title to the matched literal
+const differentMatchedTitle: ReleaseNoteRow["title"] = "Other title"
+void missingJoinedPost
+void matchedPostId
+void matchedTitle
+void unpublishedReleaseNote
+void missingMatchedPost
+void nullMatchedTitle
+void differentMatchedTitle
 
 const promotedByIn = Q.select({
   title: posts.title,

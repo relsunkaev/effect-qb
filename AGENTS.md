@@ -35,6 +35,13 @@ This project should use `tsgo` for TypeScript compilation and typechecking.
   not terminal searches or extracted editor text. Run fresh readers sequentially
   from matching editor states, exclude prior investigation notes from discovery,
   and distinguish verified call paths from search snippets and inference.
+- Review README usability in GitHub's rendered view, including section navigation,
+  explanation flow, and feature coverage. Check examples against public APIs.
+- Use README contents that follow the document's heading hierarchy and wording.
+- Lead README table definitions with portable inline column modifiers, then
+  explain table-level composite constraints.
+- Prioritize README scenarios, outcomes, and execution boundaries. Narrow-width
+  wrapping is not a goal unless explicitly requested.
 
 ## APIs
 

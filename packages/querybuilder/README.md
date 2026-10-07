@@ -1,6 +1,8 @@
 # effect-qb
 
-`effect-qb` is the typed SQL querybuilder package in this workspace.
+Build typed SQL queries for PostgreSQL, MySQL, and SQLite with Effect.
+Table definitions carry schemas; query plans describe SQL; concrete executors
+run those plans and decode the returned rows. This is a query builder, not an ORM.
 
 ## Install
 
@@ -10,6 +12,20 @@ bun add effect-qb effect
 
 Requires stable Effect `^4.0.0`. Install from the default npm channel;
 the old beta and RC artifacts are superseded.
+
+## Start here
+
+The [full guide](https://github.com/relsunkaev/effect-qb#readme) includes checked
+examples and database-specific boundaries:
+
+- [Run an in-memory database example](https://github.com/relsunkaev/effect-qb#quick-start).
+- [Filter, group, join, and compose queries](https://github.com/relsunkaev/effect-qb#writing-queries).
+- [Execute, stream, and require one result](https://github.com/relsunkaev/effect-qb#executing-queries).
+- [Branch queries, paginate, and update stored JSON](https://github.com/relsunkaev/effect-qb#recipes).
+
+Install the SQL client for your runtime separately. Rendering a plan needs no
+database connection; executing one needs an Effect SQL client layer or a custom
+driver. Node.js SQLite uses `@effect/sql-sqlite-node` and requires Node 22.16+.
 
 ## Entry points
 

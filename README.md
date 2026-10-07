@@ -1,43 +1,11 @@
 # effect-qb
 
-Typed SQL query building for Effect-oriented TypeScript applications.
+Build typed SQL queries for PostgreSQL, MySQL, and SQLite with Effect.
 
-`effect-qb` lets you define tables once, compose typed query plans, render those
-plans for a concrete SQL dialect, and execute them through Effect SQL clients or a
-custom driver. It is a query builder, not an ORM: table definitions describe SQL
-shape and runtime schemas, while query plans stay explicit and inspectable.
-
-```ts
-import { Column, Function, Query, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text(),
-  active: Column.boolean()
-})
-
-const activeUsers = Query.select({
-  id: users.id,
-  email: Pg.Function.lower(users.email)
-}).pipe(
-  Query.from(users),
-  Query.where(Query.eq(users.active, true)),
-  Query.orderBy(users.email)
-)
-
-type ActiveUser = Query.ResultRow<typeof activeUsers>
-// { readonly id: string; readonly email: string }
-
-// Pg.Function.lower makes this a Postgres plan.
-const rendered = Pg.Renderer.make().render(activeUsers)
-// rendered.sql:
-// select "users"."id" as "id", lower("users"."email") as "email" from "users" where ("users"."active" = $1) order by "users"."email" asc
-```
-
-Columns reference their own table (`users.id`), so a query starts with
-`Query.select(...)` and pipes `from`, `where`, and `orderBy` onto it. The order
-of the piped steps does not change the SQL that is generated.
+Define tables with Effect Schemas, compose query plans as values, then render
+SQL or execute it through an Effect SQL client. Result rows are inferred from
+your selection and checked when decoded. This is a query builder, not an ORM:
+you choose the joins, predicates, transaction boundaries, and database client.
 
 ## Contents
 
@@ -49,6 +17,10 @@ of the piped steps does not change the SQL that is generated.
   - [Defining Tables](#defining-tables)
   - [Column Types and Runtime Schemas](#column-types-and-runtime-schemas)
   - [Casing and Naming](#casing-and-naming)
+- [Query Lifecycle](#query-lifecycle)
+  - [Writing Queries](#writing-queries)
+  - [Rendering SQL](#rendering-sql)
+  - [Executing Queries](#executing-queries)
 - [Type Safety](#type-safety)
   - [Table Shape and Payloads](#table-shape-and-payloads)
   - [Conflict Targets](#conflict-targets)
@@ -58,22 +30,30 @@ of the piped steps does not change the SQL that is generated.
   - [Source Completeness and Aliases](#source-completeness-and-aliases)
   - [Dialect Compatibility](#dialect-compatibility)
   - [Runtime Boundaries](#runtime-boundaries)
-- [Query Lifecycle](#query-lifecycle)
-  - [Writing Queries](#writing-queries)
-  - [Rendering SQL](#rendering-sql)
-  - [Executing Queries](#executing-queries)
 - [Dialects](#dialects)
   - [Portable Standard Surface](#portable-standard-surface)
   - [Postgres](#postgres)
   - [MySQL](#mysql)
   - [SQLite](#sqlite)
 - [Recipes](#recipes)
+  - [Branch a Reusable Query](#branch-a-reusable-query)
+  - [Group in a CTE](#group-in-a-cte)
+  - [Cursor Pagination](#cursor-pagination)
+  - [Update Stored JSON](#update-stored-json)
+  - [Zero, One, or Several Matches](#zero-one-or-several-matches)
+  - [Rollback After a Failed Write](#rollback-after-a-failed-write)
+  - [Offset Pagination](#offset-pagination)
+  - [Postgres Upsert Returning a Row](#postgres-upsert-returning-a-row)
+  - [CamelCase Models, snake_case SQL](#camelcase-models-snake_case-sql)
 - [Guarantees and Boundaries](#guarantees-and-boundaries)
   - [Limitations](#limitations)
   - [Companion Package: effect-db](#companion-package-effect-db)
 - [Reference](#reference)
   - [API Map](#api-map)
   - [Development](#development)
+
+For driver guides, contracts, and maintainer notes, use the
+[documentation index](docs/README.md).
 
 ## Getting Started
 
@@ -97,53 +77,81 @@ Public query-builder import paths:
 
 ### Quick Start
 
-Define a table, build a query, derive its result-row type, then render the one
-plan for each dialect. The plan does not change between dialects; only the
-rendered SQL does.
+This example creates an **in-memory SQLite database**, inserts two users, and
+reads the active user. It needs no server or credentials. The table and query
+use portable APIs; the executor and SQL client select the database.
 
-```ts
-import { Column, Function, Query, Table } from "effect-qb"
-import * as My from "effect-qb/mysql"
-import * as Pg from "effect-qb/postgres"
-import * as Sq from "effect-qb/sqlite"
+Install the client alongside the query builder:
 
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text(),
-  displayName: Column.text(),
-  active: Column.boolean()
-})
-
-const activeUsers = Query.select({
-  id: users.id,
-  email: Function.concat(users.email, ""),
-  displayName: users.displayName
-}).pipe(
-  Query.from(users),
-  Query.where(Query.eq(users.active, true)),
-  Query.orderBy(users.email)
-)
-
-type ActiveUserRow = Query.ResultRow<typeof activeUsers>
-// {
-//   readonly id: string
-//   readonly email: string
-//   readonly displayName: string
-// }
-
-const postgres = Pg.Renderer.make().render(activeUsers)
-// select "users"."id" as "id", ("users"."email" || $1) as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $2) order by "users"."email" asc
-
-const mysql = My.Renderer.make().render(activeUsers)
-// select `users`.`id` as `id`, concat(`users`.`email`, ?) as `email`, `users`.`displayName` as `displayName` from `users` where (`users`.`active` = ?) order by `users`.`email` asc
-
-const sqlite = Sq.Renderer.make().render(activeUsers)
-// select "users"."id" as "id", ("users"."email" || ?) as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = ?) order by "users"."email" asc
+```sh
+bun add effect-qb effect @effect/sql-sqlite-node
 ```
 
-This plan is portable because it only uses root `effect-qb` modules. Reach for a
-dialect module (`effect-qb/postgres`, etc.) only when a query depends on that
-dialect's SQL.
+Use Node.js **22.16 or newer** for this client. Save the following as
+`quick-start.ts` and build it with your usual TypeScript bundler for Node.js
+(for example, esbuild). The published packages do not need a runtime TS loader.
+
+`Table.make` describes a table; it does not create one. `Query.createTable`
+builds the DDL plan. The program below executes that plan, inserts Ada and Grace,
+then reads only Ada because Grace is inactive.
+
+```ts
+import { SqliteClient } from "@effect/sql-sqlite-node"
+import * as Effect from "effect/Effect"
+import { Column, Query, Table } from "effect-qb"
+import { Executor } from "effect-qb/sqlite"
+
+// Describe the table.
+const users = Table.make("users", {
+  id: Column.text().pipe(Column.primaryKey),
+  email: Column.text(),
+  active: Column.boolean()
+})
+// Build the query; no SQL has run yet.
+const activeUsers = Query.select({ id: users.id, email: users.email }).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, true)),
+  Query.orderBy(users.id)
+)
+type ActiveUser = Query.ResultRow<typeof activeUsers>
+// { readonly id: string; readonly email: string }
+
+// Create, seed, and read through the SQLite executor.
+const executor = Executor.make()
+const program = Effect.gen(function* () {
+  yield* executor.execute(Query.createTable(users))
+  yield* executor.execute(Query.insert(users,
+    { id: "ada", email: "ada@example.com", active: true }
+  ))
+  yield* executor.execute(Query.insert(users,
+    { id: "grace", email: "grace@example.com", active: false }
+  ))
+  return yield* executor.execute(activeUsers)
+}).pipe(
+  Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
+)
+const rows = await Effect.runPromise(program)
+console.log(rows)
+// [{ id: "ada", email: "ada@example.com" }]
+```
+
+For example, build with esbuild and run the resulting JavaScript under Node:
+
+```sh
+bunx esbuild quick-start.ts \
+  --bundle --platform=node --format=esm \
+  --packages=external --outfile=quick-start.mjs
+node quick-start.mjs
+```
+
+`executor.execute` returns an Effect. The client layer supplies the connection;
+`Effect.runPromise` runs the program and closes its scoped
+resources. In an existing Effect application, reuse its SQL client layer rather
+than creating a connection for each query.
+
+To inspect SQL without connecting, call a dialect renderer's `render(plan)`.
+The same portable plan can be [rendered for all three databases](#portable-standard-surface).
+See [SQLite on Node.js](docs/sqlite-node.md) for driver and streaming limits.
 
 ## Core Concepts
 
@@ -193,15 +201,44 @@ concrete modules only when the query depends on concrete SQL.
 
 ### Defining Tables
 
-`Table.make` is the primary table factory.
+Use `Table.make` to define a table. Keep single-column constraints and defaults
+beside the columns they describe:
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const organizations = Table.make("organizations", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  name: Column.text().pipe(Column.unique),
+  archivedAt: Column.datetime().pipe(Column.nullable)
+})
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  orgId: Column.uuid().pipe(Column.references(() => organizations.id)),
+  email: Column.text().pipe(Column.unique),
+  status: Column.text().pipe(Column.default(Query.literal("active")))
+})
+
+type NewUser = Table.InsertOf<typeof users>
+// { readonly id: string; readonly orgId: string; readonly email: string;
+//   readonly status?: string } — the database supplies the default when omitted
+```
+
+`Column.primaryKey` makes a column non-null and unique. `Column.references`
+defines a foreign key to another table's column; the callback defers resolving
+that column. `Column.nullable` allows `null`, while `Column.default` makes the
+field optional on insert without making it nullable.
+
+Use table-level options for composite constraints, checks, and indexes. Here,
+each user can belong to an organization only once, and each role can be assigned
+only once within that organization:
 
 ```ts
 import { Check, Column, ForeignKey, Index, PrimaryKey, Query, Table, Unique } from "effect-qb"
 
 const organizations = Table.make("organizations", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  name: Column.text(),
-  archivedAt: Column.datetime().pipe(Column.nullable)
+  id: Column.uuid().pipe(Column.primaryKey)
 })
 
 const memberships = Table.make("memberships", {
@@ -231,13 +268,42 @@ type MembershipPatch = Table.UpdateOf<typeof memberships>
 
 ```
 
-Root option modules cover portable constraints and metadata:
+`PrimaryKey.make` and `Unique.make` group columns into one constraint. Marking
+two columns with `Column.unique` instead requires each column to be unique
+independently. `ForeignKey.make` is the table-level alternative to inline
+`Column.references` and also supports multi-column references.
 
-- `PrimaryKey.make(...)`
-- `Unique.make(...)`
-- `Index.make(...)`
-- `ForeignKey.make(...)`
-- `Check.make(...)`
+These examples use the portable root API. Postgres also offers
+`Pg.Column.foreignKey(...)` for inline reference options and `Pg.Column.index(...)`
+for inline indexes, from `effect-qb/postgres`.
+
+<details>
+<summary>Generated values</summary>
+
+Unlike a default, a generated expression owns the value: callers omit the column
+from both inserts and updates. This label uses the display name when present,
+or `"Anonymous"` when it is `null`:
+
+```ts
+import { Column, Function, Query, Table, Type } from "effect-qb"
+
+const profiles = Table.make("profiles", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  displayName: Column.text().pipe(Column.nullable),
+  displayLabel: Column.text().pipe(Column.generated(
+    Function.coalesce(Query.column("displayName", Type.text()), "Anonymous")
+  ))
+})
+
+type NewProfile = Table.InsertOf<typeof profiles>
+// { readonly id: string; readonly displayName?: string | null }
+// displayLabel is computed by the database, not supplied by the caller.
+```
+
+`Query.column` refers to a column in the DDL expression before the table is
+bound; `Type.text()` supplies its SQL type witness.
+
+</details>
 
 `Table` keeps table construction and row/schema helpers:
 
@@ -429,6 +495,827 @@ Built-in casing styles:
 
 </details>
 
+## Query Lifecycle
+
+### Writing Queries
+
+Queries are ordinary values. Compose them with `.pipe(...)`.
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid(),
+  title: Column.text().pipe(Column.nullable),
+  publishedAt: Column.datetime().pipe(Column.nullable)
+})
+
+const postsByUser = Query.select({
+  userId: users.id,
+  email: users.email,
+  postCount: Function.count(posts.id)
+}).pipe(
+  Query.from(users),
+  Query.innerJoin(posts, Query.eq(users.id, posts.userId)),
+  Query.where(Query.isNotNull(posts.publishedAt)),
+  Query.groupBy(users.id, users.email),
+  Query.having(Query.gt(Function.count(posts.id), 1)),
+  Query.orderBy(users.email)
+)
+
+type PostsByUserRow = Query.ResultRow<typeof postsByUser>
+// {
+//   readonly userId: string
+//   readonly email: string
+//   readonly postCount: Scalar.BigIntString
+// }
+
+```
+
+This returns authors with more than one published post. `where` filters input
+rows **before** grouping; `having` filters the groups **after** aggregation.
+`count` follows SQL counting semantics: `count(column)` ignores NULL values.
+Its portable result uses `Scalar.BigIntString`, a canonical integer string,
+rather than assuming a JavaScript number is precise enough.
+
+Core query surfaces include:
+
+- `select`, `from`, joins, aliases, derived sources, and CTEs
+- predicates such as `eq`, `and`, `or`, `isNull`, `isNotNull`, `exists`
+- grouping, ordering, distinct, limit, and offset
+- inserts, updates, deletes, merge, upsert, and returning where supported
+- set operators
+- transaction helpers such as savepoints
+
+Choose the SQL operation you need:
+
+- **Filter and label:** [predicates](#predicate-combinators), [CASE/MATCH](#conditional-expressions).
+- **Summarize and rank:** [aggregates](#functions-and-aggregates), [windows](#window-functions).
+- **Compose sources:** [CTEs](#common-table-expressions), [correlated subqueries](#correlated-subqueries), [set operators](#set-operators).
+- **Write safely:** [mutations](#mutations), [transactions](#transactions-and-savepoints), [DDL](#ddl).
+- **Extend SQL:** [arithmetic](#arithmetic-and-composition), [native division](#native-division-and-rounding), [typed fragments](#typed-sql-fragments).
+
+The examples below build plans; they do not run SQL unless they explicitly call
+an executor. Use the client setup in [Quick Start](#quick-start) to execute them.
+Repeated `where` calls add conditions with AND. An UPDATE or DELETE without a
+`where` affects every row; add the predicate before executing a mutation.
+
+#### Predicate Combinators
+
+Combine predicates with `and`/`or`; `between`, `in`, `notIn`, `isNull`, and
+`isNotNull` cover the common shapes.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.int().pipe(Column.primaryKey),
+  email: Column.text().pipe(Column.nullable),
+  status: Column.text()
+})
+
+const filtered = Query.select({ id: users.id }).pipe(
+  Query.from(users),
+  Query.where(Query.and(
+    Query.between(users.id, 1, 100),
+    Query.or(
+      Query.in(users.status, "active", "archived"),
+      Query.isNull(users.email)
+    )
+  ))
+)
+```
+
+</details>
+
+#### Conditional Expressions
+
+Use `case` for different predicates, or `match` to compare one expression with
+several alternatives. Both produce SQL CASE expressions, not JavaScript branches.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  status: Column.text()
+})
+
+const labelled = Query.select({
+  id: users.id,
+  tier: Query.case()
+    .when(Query.eq(users.status, "active"), "current")
+    .else("other"),
+  label: Query.match(users.status)
+    .when("active", "Active")
+    .when("archived", "Archived")
+    .else("Unknown")
+}).pipe(Query.from(users))
+```
+
+</details>
+
+#### Functions and Aggregates
+
+Root `Function` contains the portable subset: arithmetic, `concat`, `coalesce`,
+`count`, `min`/`max`, and portable windows. Each dialect owns native
+`lower`/`upper`, `sum`/`avg`, clock functions, `round`, `modulo`, and explicitly
+framed window value functions.
+`count`, `rowNumber`, `rank`, and `denseRank` decode to
+`Scalar.BigIntString` so 64-bit results have one portable runtime contract.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid(),
+  title: Column.text().pipe(Column.nullable)
+})
+
+const postCount = Function.count(posts.id)
+
+const report = Query.select({
+  label: Function.concat(Pg.Function.lower(users.email), "-user"),
+  postCount,
+  latestTitle: Function.max(posts.title)
+}).pipe(
+  Query.from(users),
+  Query.leftJoin(posts, Query.eq(users.id, posts.userId)),
+  Query.groupBy(users.email),
+  Query.having(Query.gt(postCount, 0))
+)
+// select (lower("users"."email") || $1) as "label", count("posts"."id") as "postCount", max("posts"."title") as "latestTitle" from "users" left join "posts" on ("users"."id" = "posts"."userId") group by "users"."email" having (count("posts"."id") > $2)
+```
+
+</details>
+
+#### Arithmetic and Composition
+
+Arithmetic expressions keep the input column's numeric contract. `andAll` and
+`orAll` accept arrays assembled at runtime; their empty-list identities are
+`true` and `false`. `when` conditionally applies a pipe modifier, while
+`includeIf` builds an optional selection fragment.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+
+const accounts = Table.make("accounts", {
+  id: Column.int().pipe(Column.primaryKey),
+  balance: Column.real(),
+  active: Column.boolean()
+})
+
+const minimum = 100
+const onlyActive = true as boolean
+
+const report = Query.select({
+  id: accounts.id,
+  adjustedBalance: Function.abs(Function.add(accounts.balance, 2.5)),
+  ...Query.includeIf(onlyActive, { active: accounts.active })
+}).pipe(
+  Query.from(accounts),
+  Query.where(Query.andAll([
+    Query.gte(accounts.balance, minimum),
+    ...(onlyActive ? [Query.eq(accounts.active, true)] : [])
+  ]))
+)
+```
+
+</details>
+
+#### Native Division and Rounding
+
+`divide`, `round` and `modulo` live on each dialect's `Function` module because their
+accepted database types, result types, and runtime behavior are not portable.
+`Cast.to(...)` can deliberately select an overload; the operation still belongs
+to the dialect that defines its semantics.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Cast, Column, Query, Table, Type } from "effect-qb"
+import * as My from "effect-qb/mysql"
+import * as Pg from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
+
+const amounts = Table.make("amounts", {
+  count: Column.int(),
+  exact: Column.number({ precision: 12, scale: 2 }),
+  value: Column.real()
+})
+
+const postgresExact = Cast.to(amounts.value, Type.numeric())
+
+const postgresPlan = Query.select({
+  quotient: Pg.Function.divide(amounts.count, Cast.to(2, Pg.Type.int4())),
+  remainder: Pg.Function.modulo(amounts.count, 2),
+  rounded: Pg.Function.round(postgresExact, 2)
+}).pipe(Query.from(amounts))
+
+const mysqlPlan = Query.select({
+  quotient: My.Function.divide(amounts.exact, amounts.count),
+  remainder: My.Function.modulo(amounts.exact, amounts.count),
+  rounded: My.Function.round(amounts.exact, 2)
+}).pipe(Query.from(amounts))
+
+const sqlitePlan = Query.select({
+  quotient: Sq.Function.divide(amounts.value, amounts.count),
+  remainder: Sq.Function.modulo(amounts.value, amounts.count),
+  rounded: Sq.Function.round(amounts.exact, 2)
+}).pipe(Query.from(amounts))
+```
+
+| Dialect | `modulo` | `round` |
+| --- | --- | --- |
+| PostgreSQL | integer and `numeric`; floating operands are rejected; zero divisors fail the statement | `numeric` is exact and rounds ties away from zero; integer/float one-argument forms return `float8` with platform-dependent floating-point ties |
+| MySQL | integer → `BIGINT`, exact → `DECIMAL`, approximate → `DOUBLE`; zero divisors return `NULL` | preserves the input category; exact ties round away from zero while approximate rounding follows floating-point semantics |
+| SQLite | operands are integer-coerced; a potentially REAL result is typed as `double`; zero divisors return `NULL` | always returns floating-point `double`; negative scales behave as zero and binary representation can affect decimal ties |
+
+Division uses native `/`, without casts or zero guards added to expression
+operands. PostgreSQL integer pairs truncate (bigint returns BigIntString);
+exact pairs return DecimalString. A float operand promotes to float8 except
+float4/float4, which stays float4. Zero denominators fail. MySQL exact pairs
+return DecimalString, approximate pairs return number, and zero denominators
+return NULL in SELECT (DML depends on SQL mode). SQLite always exposes number
+results: integer values truncate, REAL values divide fractionally, and integer
+overflow can promote to REAL. MySQL decimal results are normalized by the
+executor; trailing scale is not preserved.
+
+JavaScript number literals use the dialect numeric literal mapping: float8 for
+PostgreSQL, double for MySQL, and native bound numbers for SQLite. Use explicit
+integer or REAL casts when selecting truncating or fractional division matters.
+
+All three dialects give a nonzero remainder the dividend's sign. Scale-sensitive
+exact casts are still dialect-specific: in particular, MySQL's bare
+`CAST(... AS DECIMAL)` defaults to scale zero, so prefer a typed decimal column
+or expression when fractional precision must survive before `round`.
+
+</details>
+
+#### Typed SQL Fragments
+
+`Fragment.expression` is the escape hatch for a database feature that does not
+yet have a first-class helper. Static template text is trusted source text.
+Interpolations accept typed expressions or `Fragment.identifier(...)`;
+runtime values must go through `Query.literal(...)`, so they remain bound
+parameters.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import * as Schema from "effect/Schema"
+import { Column, Fragment, Query, Table, Type } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.int().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const normalizedEmail = Fragment.expression({
+  dbType: Type.text(),
+  schema: Schema.String,
+  nullability: "never"
+})`coalesce(${users.email}, ${Query.literal("missing")})`
+
+const plan = Query.select({
+  normalizedEmail
+}).pipe(Query.from(users))
+```
+
+</details>
+
+#### Common Table Expressions
+
+Pipe `Query.with(name)` onto a complete plan to name it, then reference it like
+any other source. `Query.withRecursive(name)` builds recursive CTEs.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid(),
+  title: Column.text().pipe(Column.nullable)
+})
+
+const activePosts = Query.select({
+  userId: posts.userId,
+  title: posts.title
+}).pipe(
+  Query.from(posts),
+  Query.where(Query.isNotNull(posts.title)),
+  Query.with("active_posts")
+)
+
+const usersWithActivePosts = Query.select({
+  email: users.email,
+  title: activePosts.title
+}).pipe(
+  Query.from(users),
+  Query.innerJoin(activePosts, Query.eq(users.id, activePosts.userId))
+)
+// with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."email" as "email", "active_posts"."title" as "title" from "users" inner join "active_posts" on ("users"."id" = "active_posts"."userId")
+```
+
+</details>
+
+#### Correlated Subqueries
+
+A subquery correlates with the outer query by referencing its columns.
+`Query.exists`, `Query.inSubquery`, `Query.scalar`, `Query.compareAny`, and
+`Query.compareAll` all take a select plan.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid()
+})
+
+const userPosts = Query.select({ value: posts.id }).pipe(
+  Query.from(posts),
+  Query.where(Query.eq(posts.userId, users.id))
+)
+
+const authors = Query.select({
+  email: users.email,
+  hasPosts: Query.exists(userPosts)
+}).pipe(Query.from(users))
+```
+
+</details>
+
+#### Set Operators
+
+`union`, `unionAll`, `intersect`, `intersectAll`, `except`, and `exceptAll`
+combine two source-complete selects that share a projection shape — useful for
+stitching together independent queries. The minimal example below splits one
+table by a flag so the two shapes are obviously identical.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text(),
+  active: Column.boolean()
+})
+
+const activeEmails = Query.select({ email: users.email }).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, true))
+)
+
+const inactiveEmails = Query.select({ email: users.email }).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, false))
+)
+
+const allEmails = Query.unionAll(activeEmails, inactiveEmails)
+// (select "users"."email" as "email" from "users" where ("users"."active" = $1)) union all (select "users"."email" as "email" from "users" where ("users"."active" = $2))
+```
+
+</details>
+
+#### Window Functions
+
+`Function.rowNumber`, `rank`, and `denseRank` take a window spec;
+`Function.over` wraps an aggregate in a window without an explicit frame.
+`lag` and `lead` read another row in an ordered partition. Root `firstValue`
+and `lastValue` use the portable default frame. Explicit frames belong to each
+dialect's `Function.over`, `firstValue`, and `lastValue` helpers because frame
+boundary clipping differs across engines.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+
+const posts = Table.make("posts", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  userId: Column.uuid()
+})
+
+const ranked = Query.select({
+  postId: posts.id,
+  rowInUser: Function.rowNumber({
+    partitionBy: [posts.userId],
+    orderBy: [{ value: posts.id, direction: "asc" }]
+  }),
+  perUser: Function.over(Function.count(posts.id), {
+    partitionBy: [posts.userId]
+  }),
+  previousPost: Function.lag(posts.id, {
+    spec: {
+      partitionBy: [posts.userId],
+      orderBy: [{ value: posts.id, direction: "asc" }]
+    }
+  }),
+  firstPost: Function.firstValue(posts.id, {
+    partitionBy: [posts.userId],
+    orderBy: [{ value: posts.id, direction: "asc" }]
+  })
+}).pipe(Query.from(posts))
+```
+
+</details>
+
+#### Merge
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const incoming = Table.make("incoming_users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const merge = Query.merge(users, incoming, Query.eq(users.id, incoming.id), {
+  whenMatched: { update: { email: incoming.email } },
+  whenNotMatched: { values: { id: incoming.id, email: incoming.email } }
+})
+// merge into "users" using "incoming_users" on ("users"."id" = "incoming_users"."id") when matched then update set "email" = "incoming_users"."email" when not matched then insert ("id", "email") values ("incoming_users"."id", "incoming_users"."email")
+```
+
+</details>
+
+#### Transactions and Savepoints
+
+Prefer `Executor.withTransaction` for scoped transaction composition. A nested
+`withTransaction` call uses the underlying transaction implementation's
+savepoint behavior.
+
+See [Rollback After a Failed Write](#rollback-after-a-failed-write) for a runnable
+example that checks the database after a rejected transaction.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Effect } from "effect"
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const memberships = Table.make("memberships", {
+  id: Column.text().pipe(Column.primaryKey),
+  role: Column.text()
+})
+
+const auditLogs = Table.make("audit_logs", {
+  id: Column.text().pipe(Column.primaryKey),
+  membershipId: Column.text(),
+  note: Column.text()
+})
+
+const executor = Pg.Executor.make()
+
+const insertMembership = Query.insert(memberships, {
+  id: "membership-1",
+  role: "admin"
+})
+
+const updateAuditLog = Query.update(auditLogs, {
+  note: "membership written"
+}).pipe(
+  Query.where(Query.eq(auditLogs.membershipId, "membership-1"))
+)
+
+const readMembership = Query.select({
+  id: memberships.id,
+  role: memberships.role
+}).pipe(
+  Query.from(memberships),
+  Query.where(Query.eq(memberships.id, "membership-1"))
+)
+
+const writeAuditLog = executor.execute(updateAuditLog).pipe(Pg.Executor.withTransaction)
+const writeMembership = Effect.gen(function* () {
+  yield* executor.execute(insertMembership)
+  yield* writeAuditLog // nested transaction uses a savepoint
+  return yield* executor.execute(readMembership)
+}).pipe(Pg.Executor.withTransaction)
+```
+
+Low-level transaction-control helpers build statements you issue through an
+executor yourself: begin a transaction, optionally mark and roll back to
+savepoints, then commit.
+
+```ts
+import { Query } from "effect-qb"
+
+const begin = Query.transaction({ isolationLevel: "serializable" })
+const savepoint = Query.savepoint("before_merge")
+const rollbackToSavepoint = Query.rollbackTo("before_merge")
+const releaseSavepoint = Query.releaseSavepoint("before_merge")
+const commit = Query.commit()
+```
+
+</details>
+
+#### DDL
+
+Build table and index statements from the same model used by queries. Execute
+them explicitly; defining a model does not change the database.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const createUsers = Query.createTable(users)
+// create table "users" ("id" uuid not null, "email" text not null, primary key ("id"))
+
+const createEmailIndex = Query.createIndex(users, ["email"], {
+  name: "users_email_idx"
+})
+// create index "users_email_idx" on "users" ("email")
+
+const dropEmailIndex = Query.dropIndex(users, ["email"], {
+  name: "users_email_idx"
+})
+```
+
+</details>
+
+#### Mutations
+
+Insert payloads or update selected fields. Filter updates and deletes before
+execution to avoid changing every row.
+
+<details>
+<summary>Show example</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text(),
+  visits: Column.int()
+})
+
+const insertUser = Query.insert(users, {
+  id: "11111111-1111-4111-8111-111111111111",
+  email: "alice@example.com",
+  visits: 1
+})
+
+const incrementVisits = Query.update(users, {
+  visits: 2
+}).pipe(
+  Query.where(Query.eq(users.email, "alice@example.com"))
+)
+
+```
+
+</details>
+
+### Rendering SQL
+
+Each built-in renderer exposes `make(options?)` and `render(plan)`.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text()
+})
+
+const readUsers = Query.select({
+  id: users.id,
+  email: users.email
+}).pipe(Query.from(users))
+
+const rendered = Pg.Renderer.make().render(readUsers)
+
+// rendered.sql:
+// select "users"."id" as "id", "users"."email" as "email" from "users"
+// rendered.params:
+// []
+
+```
+
+Renderer options:
+
+- `valueMappings?` - typed driver-boundary mappings by known datatype or datatype family
+
+`valueMappings` is keyed by the renderer's known type surface. Unknown keys are
+type errors.
+
+```ts
+import { Scalar } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+// Adapt a custom driver's native bigint values to canonical integer strings.
+// The column schema still determines the decoded result type.
+const bigintAsString: Scalar.DriverValueMapping = {
+  fromDriver: (value) => typeof value === "bigint" ? value.toString() : value,
+  toDriver: (value) => value
+}
+
+const renderer = Pg.Renderer.make({
+  valueMappings: {
+    int8: bigintAsString
+  }
+})
+
+```
+
+<details>
+<summary>Rendered output shape</summary>
+
+A rendered query contains:
+
+- `sql`
+- `params`
+- `dialect`
+- `projections`
+- optional `valueMappings`
+
+Executors use the projection metadata to decode flat driver rows back into the
+nested result shape described by the query plan.
+
+</details>
+
+### Executing Queries
+
+A concrete executor returns **Effects**, not rows that have already been read.
+Its default driver requires the ambient `effect/sql` `SqlClient` service.
+Provide your application's client layer, as in [Quick Start](#quick-start),
+then run the Effect. See the [JSON transport contract](docs/json-transport.md)
+for driver representations.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", {
+  id: Column.text().pipe(Column.primaryKey),
+  email: Column.text()
+})
+const readUsers = Query.select({ id: users.id, email: users.email }).pipe(Query.from(users))
+const findAda = readUsers.pipe(Query.where(Query.eq(users.id, "ada")))
+const executor = Pg.Executor.make()
+
+const rowsEffect = executor.execute(readUsers)
+const userEffect = executor.execute(findAda).pipe(Pg.Executor.exactlyOne)
+const optionalUserEffect = executor.execute(findAda).pipe(Pg.Executor.atMostOne)
+const rowStream = executor.stream(readUsers)
+```
+
+| Operation | What the caller receives when run |
+| --- | --- |
+| `execute(plan)` | A readonly array, including an empty array for no matches |
+| `execute(plan).pipe(Executor.atMostOne)` | `Option<Row>`; fails if more than one row matches |
+| `execute(plan).pipe(Executor.exactlyOne)` | One row; fails on zero or multiple matches |
+| `execute(plan).pipe(Executor.nonEmpty)` | A nonempty readonly array; fails on no matches |
+| `executeResult(plan)` | Rows plus `affectedRows` / `insertId` when the driver provides them |
+| `stream(plan)` | A Stream of rows; some drivers buffer the database result |
+
+Cardinality helpers fail with `ResultCardinalityError`. They **do not add
+LIMIT** or silently pick the first row. Use `Effect.asVoid` when the caller
+intentionally ignores the returned rows.
+
+See [Zero, One, or Several Matches](#zero-one-or-several-matches) for a runnable
+comparison of missing, unique, and duplicate results.
+
+<details>
+<summary>Prepared reads, result metadata, and EXPLAIN</summary>
+
+`prepare(plan)` caches the rendered query for this executor. Native prepared
+statements remain the SQL driver's responsibility. `explain` executes a
+dialect-correct EXPLAIN for read plans, so it also needs a client.
+
+```ts
+const prepared = executor.prepare(readUsers)
+const firstRun = prepared.execute
+const secondRun = prepared.execute
+const preparedUser = executor.prepare(findAda).execute.pipe(Pg.Executor.exactlyOne)
+const resultEffect = executor.executeResult(readUsers)
+const queryPlanEffect = executor.explain(readUsers, { format: "json" })
+```
+
+</details>
+
+#### Decode Errors
+
+A successful SQL statement can still fail while normalizing or decoding a row.
+`RowDecodeError` identifies the dialect, failure stage, and projection path.
+Log its formatted summary rather than the error object:
+
+```ts
+import * as Effect from "effect/Effect"
+import { Column, Query, Table } from "effect-qb"
+import * as Pg from "effect-qb/postgres"
+
+const users = Table.make("users", { email: Column.text() })
+const readUsers = Query.select({ email: users.email }).pipe(Query.from(users))
+const reportDecodeError = (error: Pg.Executor.RowDecodeError) =>
+  Effect.logError(Pg.Executor.formatRowDecodeError(error))
+
+const checkedRead = Pg.Executor.make().execute(readUsers).pipe(
+  Effect.tapErrorTag("RowDecodeError", reportDecodeError)
+)
+```
+
+This logs the decode failure and leaves it in the Effect's error channel.
+The formatter omits row values, SQL, parameters, causes, and custom schema
+messages, but **projection identifiers are not redacted**. The original error
+still holds raw data: logging it directly is not safe for shared logs.
+`reportInput: true` is an explicit local-debugging option, not a production
+logging default.
+
+Executors also accept custom renderers, custom drivers, driver modes, and value
+mappings.
+
+<details>
+<summary>Custom driver shape</summary>
+
+```ts
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import * as Pg from "effect-qb/postgres"
+
+const driver = Pg.Executor.driver({
+  execute: () => Effect.succeed([]),
+  executeResult: () => Effect.succeed({
+    rows: [],
+    affectedRows: 1
+  }),
+  stream: () => Stream.empty
+})
+
+const executor = Pg.Executor.make({ driver })
+
+```
+
+</details>
+
 ## Type Safety
 
 `effect-qb` pushes checks into TypeScript when the public API has enough
@@ -436,8 +1323,8 @@ information to know the answer before SQL is rendered. The main idea is that
 tables, columns, predicates, source availability, and dialects all carry type
 metadata through the plan.
 
-> If you just want to write, render, and execute queries end to end, skip ahead
-> to [Query Lifecycle](#query-lifecycle). This section explains what TypeScript
+> If you just want to write, render, and execute queries end to end, see
+> [Query Lifecycle](#query-lifecycle). This section explains what TypeScript
 > catches for you before any SQL runs.
 
 ### Table Shape and Payloads
@@ -620,6 +1507,47 @@ type VisiblePostRow = Query.ResultRow<typeof visiblePosts>
 
 ```
 
+An ordinary equality filter can prove presence too. Using the same tables,
+start with all users and their posts, including users with no matching post:
+
+```ts
+const userPosts = Query.select({
+  userId: users.id,
+  postId: posts.id,
+  title: posts.title,
+  publishedAt: posts.publishedAt
+}).pipe(
+  Query.from(users),
+  Query.leftJoin(posts, Query.eq(users.id, posts.userId))
+)
+
+type UserPostRow = Query.ResultRow<typeof userPosts>
+// {
+//   readonly userId: string
+//   readonly postId: string | null
+//   readonly title: string | null
+//   readonly publishedAt: string | null
+// }
+
+const releaseNotes = userPosts.pipe(
+  Query.where(Query.eq(posts.title, "Release notes"))
+)
+
+type ReleaseNoteRow = Query.ResultRow<typeof releaseNotes>
+// {
+//   readonly userId: string
+//   readonly postId: string
+//   readonly title: "Release notes"
+//   readonly publishedAt: string | null
+// }
+```
+
+The `where` equality excludes missing posts and posts whose title is `null` or
+different. It therefore proves the post exists, making `postId` non-null and
+narrowing `title`. `publishedAt` stays nullable because the filter says nothing
+about that field. The equality inside `leftJoin` alone does not prove presence:
+unmatched users still survive that join.
+
 Literal predicates can narrow finite unions too. This applies to ordinary
 columns and to selected expressions that retain enough path metadata.
 
@@ -727,7 +1655,7 @@ into JavaScript numbers, so cast a schema-known numeric path when you need
 numeric SQL semantics.
 
 ```ts
-const count = Cast.to(docs.payload.profile.metrics.count, Pg.Type.float8())
+const count = Cast.to(docs.payload.profile.metrics.count.pipe(Jsonb.text), Pg.Type.float8())
 
 type Count = Scalar.RuntimeOf<typeof count>
 // number
@@ -760,6 +1688,8 @@ The same property-path shape works with root `Json.delete` for portable
 `Column.json(...)` values. Reach for `Json.key(...)` / `Jsonb.key(...)` only
 when a path segment cannot be written as a normal property, such as a dynamic,
 invalid-identifier, or reserved JSON key.
+
+#### Reusable JSON Focuses
 
 For repeated mutations, build a reusable focus instead of repeating a callback
 from the document root. Property paths such as
@@ -819,6 +1749,11 @@ across engines. PostgreSQL and MySQL leave a missing intermediate object
 unchanged, whereas SQLite can create it. Array indexes replace rather than
 insert; negative and out-of-range indexes retain the selected engine's
 `set` behavior. No JavaScript read-modify-write or parent creation is added.
+
+**Merge/concat caveat:** these existing helpers inherit different native behavior
+for nested objects, arrays, and NULL across the three engines. Do not treat
+`Json.merge` or `Json.concat` as an identical cross-dialect deep merge. Use
+explicit path replacements when those semantics matter.
 
 ### Casting and Type Comparison
 
@@ -1010,736 +1945,60 @@ at these boundaries:
 If a driver returns a value that does not satisfy the projection schema,
 `Executor` fails during decode instead of pretending the row is typed.
 
-## Query Lifecycle
-
-### Writing Queries
-
-Queries are ordinary values. Compose them with `.pipe(...)`.
-
-```ts
-import { Column, Function, Query, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const posts = Table.make("posts", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  userId: Column.uuid(),
-  title: Column.text().pipe(Column.nullable),
-  publishedAt: Column.datetime().pipe(Column.nullable)
-})
-
-const postsByUser = Query.select({
-  userId: users.id,
-  email: users.email,
-  postCount: Function.count(posts.id)
-}).pipe(
-  Query.from(users),
-  Query.innerJoin(posts, Query.eq(users.id, posts.userId)),
-  Query.where(Query.isNotNull(posts.publishedAt)),
-  Query.groupBy(users.id, users.email),
-  Query.orderBy(users.email)
-)
-
-type PostsByUserRow = Query.ResultRow<typeof postsByUser>
-// {
-//   readonly userId: string
-//   readonly email: string
-//   readonly postCount: Scalar.BigIntString
-// }
-
-```
-
-Core query surfaces include:
-
-- `select`, `from`, joins, aliases, derived sources, and CTEs
-- predicates such as `eq`, `and`, `or`, `isNull`, `isNotNull`, `exists`
-- grouping, ordering, distinct, limit, and offset
-- inserts, updates, deletes, merge, upsert, and returning where supported
-- set operators
-- transaction helpers such as savepoints
-
-The blocks below showcase the surfaces beyond the basic read above.
-
-<details>
-<summary>Predicate combinators</summary>
-
-Combine predicates with `and`/`or`; `between`, `in`, `notIn`, `isNull`, and
-`isNotNull` cover the common shapes.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.int().pipe(Column.primaryKey),
-  email: Column.text().pipe(Column.nullable),
-  status: Column.text()
-})
-
-const filtered = Query.select({ id: users.id }).pipe(
-  Query.from(users),
-  Query.where(Query.and(
-    Query.between(users.id, 1, 100),
-    Query.or(
-      Query.in(users.status, "active", "archived"),
-      Query.isNull(users.email)
-    )
-  ))
-)
-```
-
-</details>
-
-<details>
-<summary>Conditional expressions (case / match)</summary>
-
-`case` builds a searched CASE; `match` builds a simple CASE over one expression.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  status: Column.text()
-})
-
-const labelled = Query.select({
-  id: users.id,
-  tier: Query.case()
-    .when(Query.eq(users.status, "active"), "current")
-    .else("other"),
-  label: Query.match(users.status)
-    .when("active", "Active")
-    .when("archived", "Archived")
-    .else("Unknown")
-}).pipe(Query.from(users))
-```
-
-</details>
-
-<details>
-<summary>Functions and aggregates</summary>
-
-Root `Function` contains the portable subset: arithmetic, `concat`, `coalesce`,
-`count`, `min`/`max`, and portable windows. Each dialect owns native
-`lower`/`upper`, `sum`/`avg`, clock functions, `round`, `modulo`, and explicitly
-framed window value functions.
-`count`, `rowNumber`, `rank`, and `denseRank` decode to
-`Scalar.BigIntString` so 64-bit results have one portable runtime contract.
-
-```ts
-import { Column, Function, Query, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const posts = Table.make("posts", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  userId: Column.uuid(),
-  title: Column.text().pipe(Column.nullable)
-})
-
-const postCount = Function.count(posts.id)
-
-const report = Query.select({
-  label: Function.concat(Pg.Function.lower(users.email), "-user"),
-  postCount,
-  latestTitle: Function.max(posts.title)
-}).pipe(
-  Query.from(users),
-  Query.leftJoin(posts, Query.eq(users.id, posts.userId)),
-  Query.groupBy(users.email),
-  Query.having(Query.gt(postCount, 0))
-)
-// select (lower("users"."email") || $1) as "label", count("posts"."id") as "postCount", max("posts"."title") as "latestTitle" from "users" left join "posts" on ("users"."id" = "posts"."userId") group by "users"."email" having (count("posts"."id") > $2)
-```
-
-</details>
-
-<details>
-<summary>Arithmetic and runtime composition</summary>
-
-Arithmetic expressions keep the input column's numeric contract. `andAll` and
-`orAll` accept arrays assembled at runtime; their empty-list identities are
-`true` and `false`. `when` conditionally applies a pipe modifier, while
-`includeIf` builds an optional selection fragment.
-
-```ts
-import { Column, Function, Query, Table } from "effect-qb"
-
-const accounts = Table.make("accounts", {
-  id: Column.int().pipe(Column.primaryKey),
-  balance: Column.real(),
-  active: Column.boolean()
-})
-
-const minimum = 100
-const onlyActive = true as boolean
-
-const report = Query.select({
-  id: accounts.id,
-  adjustedBalance: Function.abs(Function.add(accounts.balance, 2.5)),
-  ...Query.includeIf(onlyActive, { active: accounts.active })
-}).pipe(
-  Query.from(accounts),
-  Query.where(Query.andAll([
-    Query.gte(accounts.balance, minimum),
-    ...(onlyActive ? [Query.eq(accounts.active, true)] : [])
-  ]))
-)
-```
-
-</details>
-
-<details>
-<summary>Dialect-specific division, modulo and rounding</summary>
-
-`divide`, `round` and `modulo` live on each dialect's `Function` module because their
-accepted database types, result types, and runtime behavior are not portable.
-`Cast.to(...)` can deliberately select an overload; the operation still belongs
-to the dialect that defines its semantics.
-
-```ts
-import { Cast, Column, Query, Table, Type } from "effect-qb"
-import * as My from "effect-qb/mysql"
-import * as Pg from "effect-qb/postgres"
-import * as Sq from "effect-qb/sqlite"
-
-const amounts = Table.make("amounts", {
-  count: Column.int(),
-  exact: Column.number({ precision: 12, scale: 2 }),
-  value: Column.real()
-})
-
-const postgresExact = Cast.to(amounts.value, Type.numeric())
-
-const postgresPlan = Query.select({
-  quotient: Pg.Function.divide(amounts.count, Cast.to(2, Pg.Type.int4())),
-  remainder: Pg.Function.modulo(amounts.count, 2),
-  rounded: Pg.Function.round(postgresExact, 2)
-}).pipe(Query.from(amounts))
-
-const mysqlPlan = Query.select({
-  quotient: My.Function.divide(amounts.exact, amounts.count),
-  remainder: My.Function.modulo(amounts.exact, amounts.count),
-  rounded: My.Function.round(amounts.exact, 2)
-}).pipe(Query.from(amounts))
-
-const sqlitePlan = Query.select({
-  quotient: Sq.Function.divide(amounts.value, amounts.count),
-  remainder: Sq.Function.modulo(amounts.value, amounts.count),
-  rounded: Sq.Function.round(amounts.exact, 2)
-}).pipe(Query.from(amounts))
-```
-
-| Dialect | `modulo` | `round` |
-| --- | --- | --- |
-| PostgreSQL | integer and `numeric`; floating operands are rejected; zero divisors fail the statement | `numeric` is exact and rounds ties away from zero; integer/float one-argument forms return `float8` with platform-dependent floating-point ties |
-| MySQL | integer → `BIGINT`, exact → `DECIMAL`, approximate → `DOUBLE`; zero divisors return `NULL` | preserves the input category; exact ties round away from zero while approximate rounding follows floating-point semantics |
-| SQLite | operands are integer-coerced; a potentially REAL result is typed as `double`; zero divisors return `NULL` | always returns floating-point `double`; negative scales behave as zero and binary representation can affect decimal ties |
-
-Division uses native `/`, without casts or zero guards added to expression
-operands. PostgreSQL integer pairs truncate (bigint returns BigIntString);
-exact pairs return DecimalString. A float operand promotes to float8 except
-float4/float4, which stays float4. Zero denominators fail. MySQL exact pairs
-return DecimalString, approximate pairs return number, and zero denominators
-return NULL in SELECT (DML depends on SQL mode). SQLite always exposes number
-results: integer values truncate, REAL values divide fractionally, and integer
-overflow can promote to REAL. MySQL decimal results are normalized by the
-executor; trailing scale is not preserved.
-
-JavaScript number literals use the dialect numeric literal mapping: float8 for
-PostgreSQL, double for MySQL, and native bound numbers for SQLite. Use explicit
-integer or REAL casts when selecting truncating or fractional division matters.
-
-All three dialects give a nonzero remainder the dividend's sign. Scale-sensitive
-exact casts are still dialect-specific: in particular, MySQL's bare
-`CAST(... AS DECIMAL)` defaults to scale zero, so prefer a typed decimal column
-or expression when fractional precision must survive before `round`.
-
-</details>
-
-<details>
-<summary>Typed custom SQL expressions</summary>
-
-`Fragment.expression` is the escape hatch for a database feature that does not
-yet have a first-class helper. Static template text is trusted source text.
-Interpolations accept typed expressions or `Fragment.identifier(...)`;
-runtime values must go through `Query.literal(...)`, so they remain bound
-parameters.
-
-```ts
-import * as Schema from "effect/Schema"
-import { Column, Fragment, Query, Table, Type } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.int().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const normalizedEmail = Fragment.expression({
-  dbType: Type.text(),
-  schema: Schema.String,
-  nullability: "never"
-})`coalesce(${users.email}, ${Query.literal("missing")})`
-
-const plan = Query.select({
-  normalizedEmail
-}).pipe(Query.from(users))
-```
-
-</details>
-
-<details>
-<summary>Common table expressions</summary>
-
-Pipe `Query.with(name)` onto a complete plan to name it, then reference it like
-any other source. `Query.withRecursive(name)` builds recursive CTEs.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const posts = Table.make("posts", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  userId: Column.uuid(),
-  title: Column.text().pipe(Column.nullable)
-})
-
-const activePosts = Query.select({
-  userId: posts.userId,
-  title: posts.title
-}).pipe(
-  Query.from(posts),
-  Query.where(Query.isNotNull(posts.title)),
-  Query.with("active_posts")
-)
-
-const usersWithActivePosts = Query.select({
-  email: users.email,
-  title: activePosts.title
-}).pipe(
-  Query.from(users),
-  Query.innerJoin(activePosts, Query.eq(users.id, activePosts.userId))
-)
-// with "active_posts" as (select "posts"."userId" as "userId", "posts"."title" as "title" from "posts" where ("posts"."title" is not null)) select "users"."email" as "email", "active_posts"."title" as "title" from "users" inner join "active_posts" on ("users"."id" = "active_posts"."userId")
-```
-
-</details>
-
-<details>
-<summary>Subqueries (correlated exists)</summary>
-
-A subquery correlates with the outer query by referencing its columns.
-`Query.exists`, `Query.inSubquery`, `Query.scalar`, `Query.compareAny`, and
-`Query.compareAll` all take a select plan.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const posts = Table.make("posts", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  userId: Column.uuid()
-})
-
-const userPosts = Query.select({ value: posts.id }).pipe(
-  Query.from(posts),
-  Query.where(Query.eq(posts.userId, users.id))
-)
-
-const authors = Query.select({
-  email: users.email,
-  hasPosts: Query.exists(userPosts)
-}).pipe(Query.from(users))
-```
-
-</details>
-
-<details>
-<summary>Set operators</summary>
-
-`union`, `unionAll`, `intersect`, `intersectAll`, `except`, and `exceptAll`
-combine two source-complete selects that share a projection shape — useful for
-stitching together independent queries. The minimal example below splits one
-table by a flag so the two shapes are obviously identical.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text(),
-  active: Column.boolean()
-})
-
-const activeEmails = Query.select({ email: users.email }).pipe(
-  Query.from(users),
-  Query.where(Query.eq(users.active, true))
-)
-
-const inactiveEmails = Query.select({ email: users.email }).pipe(
-  Query.from(users),
-  Query.where(Query.eq(users.active, false))
-)
-
-const allEmails = Query.unionAll(activeEmails, inactiveEmails)
-// (select "users"."email" as "email" from "users" where ("users"."active" = $1)) union all (select "users"."email" as "email" from "users" where ("users"."active" = $2))
-```
-
-</details>
-
-<details>
-<summary>Window functions</summary>
-
-`Function.rowNumber`, `rank`, and `denseRank` take a window spec;
-`Function.over` wraps an aggregate in a window without an explicit frame.
-`lag` and `lead` read another row in an ordered partition. Root `firstValue`
-and `lastValue` use the portable default frame. Explicit frames belong to each
-dialect's `Function.over`, `firstValue`, and `lastValue` helpers because frame
-boundary clipping differs across engines.
-
-```ts
-import { Column, Function, Query, Table } from "effect-qb"
-
-const posts = Table.make("posts", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  userId: Column.uuid()
-})
-
-const ranked = Query.select({
-  postId: posts.id,
-  rowInUser: Function.rowNumber({
-    partitionBy: [posts.userId],
-    orderBy: [{ value: posts.id, direction: "asc" }]
-  }),
-  perUser: Function.over(Function.count(posts.id), {
-    partitionBy: [posts.userId]
-  }),
-  previousPost: Function.lag(posts.id, {
-    spec: {
-      partitionBy: [posts.userId],
-      orderBy: [{ value: posts.id, direction: "asc" }]
-    }
-  }),
-  firstPost: Function.firstValue(posts.id, {
-    partitionBy: [posts.userId],
-    orderBy: [{ value: posts.id, direction: "asc" }]
-  })
-}).pipe(Query.from(posts))
-```
-
-</details>
-
-<details>
-<summary>Merge</summary>
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const incoming = Table.make("incoming_users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const merge = Query.merge(users, incoming, Query.eq(users.id, incoming.id), {
-  whenMatched: { update: { email: incoming.email } },
-  whenNotMatched: { values: { id: incoming.id, email: incoming.email } }
-})
-// merge into "users" using "incoming_users" on ("users"."id" = "incoming_users"."id") when matched then update set "email" = "incoming_users"."email" when not matched then insert ("id", "email") values ("incoming_users"."id", "incoming_users"."email")
-```
-
-</details>
-
-<details>
-<summary>Transactions and savepoints</summary>
-
-Prefer `Executor.withTransaction` for scoped transaction composition. A nested
-`withTransaction` call uses the underlying transaction implementation's
-savepoint behavior.
-
-```ts
-import { Effect } from "effect"
-import { Column, Query, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const memberships = Table.make("memberships", {
-  id: Column.text().pipe(Column.primaryKey),
-  role: Column.text()
-})
-
-const auditLogs = Table.make("audit_logs", {
-  id: Column.text().pipe(Column.primaryKey),
-  membershipId: Column.text(),
-  note: Column.text()
-})
-
-const executor = Pg.Executor.make()
-
-const insertMembership = Query.insert(memberships, {
-  id: "membership-1",
-  role: "admin"
-})
-
-const updateAuditLog = Query.update(auditLogs, {
-  note: "membership written"
-}).pipe(
-  Query.where(Query.eq(auditLogs.membershipId, "membership-1"))
-)
-
-const readMembership = Query.select({
-  id: memberships.id,
-  role: memberships.role
-}).pipe(
-  Query.from(memberships),
-  Query.where(Query.eq(memberships.id, "membership-1"))
-)
-
-const writeMembership = Effect.gen(function*() {
-  yield* executor.execute(insertMembership)
-
-  // nested transaction uses a savepoint
-  yield* executor.execute(updateAuditLog).pipe(Pg.Executor.withTransaction)
-
-  return yield* executor.execute(readMembership)
-}).pipe(Pg.Executor.withTransaction)
-```
-
-Low-level transaction-control helpers build statements you issue through an
-executor yourself: begin a transaction, optionally mark and roll back to
-savepoints, then commit.
-
-```ts
-import { Query } from "effect-qb"
-
-const begin = Query.transaction({ isolationLevel: "serializable" })
-const savepoint = Query.savepoint("before_merge")
-const rollbackToSavepoint = Query.rollbackTo("before_merge")
-const releaseSavepoint = Query.releaseSavepoint("before_merge")
-const commit = Query.commit()
-```
-
-</details>
-
-<details>
-<summary>DDL (create / drop)</summary>
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const createUsers = Query.createTable(users)
-// create table "users" ("id" uuid not null, "email" text not null, primary key ("id"))
-
-const createEmailIndex = Query.createIndex(users, ["email"], {
-  name: "users_email_idx"
-})
-// create index "users_email_idx" on "users" ("email")
-
-const dropEmailIndex = Query.dropIndex(users, ["email"], {
-  name: "users_email_idx"
-})
-```
-
-</details>
-
-<details>
-<summary>Mutation example</summary>
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text(),
-  visits: Column.int()
-})
-
-const insertUser = Query.insert(users, {
-  id: "11111111-1111-4111-8111-111111111111",
-  email: "alice@example.com",
-  visits: 1
-})
-
-const incrementVisits = Query.update(users, {
-  visits: 2
-}).pipe(
-  Query.where(Query.eq(users.email, "alice@example.com"))
-)
-
-```
-
-</details>
-
-### Rendering SQL
-
-Each built-in renderer exposes `make(options?)` and `render(plan)`.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const readUsers = Query.select({
-  id: users.id,
-  email: users.email
-}).pipe(Query.from(users))
-
-const rendered = Pg.Renderer.make().render(readUsers)
-
-// rendered.sql:
-// select "users"."id" as "id", "users"."email" as "email" from "users"
-// rendered.params:
-// []
-
-```
-
-Renderer options:
-
-- `valueMappings?` - typed driver-boundary mappings by known datatype or datatype family
-
-`valueMappings` is keyed by the renderer's known type surface. Unknown keys are
-type errors.
-
-```ts
-import { Scalar } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-// The pg driver returns int8 (bigint) columns as strings. Decode them to a
-// JavaScript BigInt on the way out, and encode back to a string on the way in.
-const bigintAsString: Scalar.DriverValueMapping = {
-  fromDriver: (value) => typeof value === "string" ? BigInt(value) : value,
-  toDriver: (value) => typeof value === "bigint" ? value.toString() : value
-}
-
-const renderer = Pg.Renderer.make({
-  valueMappings: {
-    int8: bigintAsString
-  }
-})
-
-```
-
-<details>
-<summary>Rendered output shape</summary>
-
-A rendered query contains:
-
-- `sql`
-- `params`
-- `dialect`
-- `projections`
-- optional `valueMappings`
-
-Executors use the projection metadata to decode flat driver rows back into the
-nested result shape described by the query plan.
-
-</details>
-
-### Executing Queries
-
-Use concrete executors for execution. By default, a concrete executor uses the
-built-in renderer and the ambient `effect/sql` `SqlClient` service. See the [JSON transport contract](docs/json-transport.md) for driver configuration.
-
-```ts
-import { Column, Query, Table } from "effect-qb"
-import * as Pg from "effect-qb/postgres"
-
-const users = Table.make("users", {
-  id: Column.uuid().pipe(Column.primaryKey),
-  email: Column.text()
-})
-
-const readUsers = Query.select({
-  id: users.id,
-  email: users.email
-}).pipe(Query.from(users))
-
-const executor = Pg.Executor.make()
-const rowsEffect = executor.execute(readUsers)
-const rowStream = executor.stream(readUsers)
-
-const rows = executor.execute(readUsers)
-const maybeUser = rows.pipe(Pg.Executor.atMostOne)
-const oneUser = rows.pipe(Pg.Executor.exactlyOne)
-const atLeastOneUser = rows.pipe(Pg.Executor.nonEmpty)
-const result = executor.executeResult(readUsers)
-// result.rows plus affectedRows / insertId when the driver provides them
-
-const prepared = executor.prepare(readUsers)
-const firstRun = prepared.execute
-const preparedOne = prepared.execute.pipe(Pg.Executor.exactlyOne)
-
-const queryPlan = executor.explain(readUsers, { format: "json" })
-```
-
-Use the narrowest pipeable cardinality helper the caller expects. `prepare(plan)`
-returns a reusable handle and caches the rendered query for that executor. The
-SQL driver still owns native prepared-statement behavior. `explain` runs a
-dialect-correct EXPLAIN for read plans. Use Effect's `asVoid` when a caller
-intentionally ignores the returned rows.
-
-Executors also accept custom renderers, custom drivers, driver modes, and value
-mappings.
-
-<details>
-<summary>Custom driver shape</summary>
-
-```ts
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
-import * as Pg from "effect-qb/postgres"
-
-const driver = Pg.Executor.driver({
-  execute: () => Effect.succeed([]),
-  executeResult: () => Effect.succeed({
-    rows: [],
-    affectedRows: 1
-  }),
-  stream: () => Stream.empty
-})
-
-const executor = Pg.Executor.make({ driver })
-
-```
-
-</details>
-
 ## Dialects
 
 ### Portable Standard Surface
 
-Portable APIs are exported from `effect-qb`; dialect modules add only concrete
-behavior. Any plan built entirely from root modules renders through every
-dialect renderer — see [Quick Start](#quick-start) for one plan rendered as
-Postgres, MySQL, and SQLite.
+Start with root `effect-qb` modules for portable plans. Choose a concrete
+renderer/executor at the boundary, and a dialect helper when SQL behavior is
+specific to that engine. Concrete dialects cannot be mixed in one plan.
+
+<details>
+<summary>Render one portable plan for all three databases</summary>
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+import * as My from "effect-qb/mysql"
+import * as Pg from "effect-qb/postgres"
+import * as Sq from "effect-qb/sqlite"
+
+const users = Table.make("users", {
+  id: Column.uuid().pipe(Column.primaryKey),
+  email: Column.text(),
+  displayName: Column.text(),
+  active: Column.boolean()
+})
+
+const activeUsers = Query.select({
+  id: users.id,
+  email: users.email,
+  displayName: users.displayName
+}).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, true)),
+  Query.orderBy(users.email)
+)
+
+type ActiveUserRow = Query.ResultRow<typeof activeUsers>
+// {
+//   readonly id: string
+//   readonly email: string
+//   readonly displayName: string
+// }
+
+const postgres = Pg.Renderer.make().render(activeUsers)
+
+const mysql = My.Renderer.make().render(activeUsers)
+
+const sqlite = Sq.Renderer.make().render(activeUsers)
+// postgres.params, mysql.params, and sqlite.params are [true].
+```
+
+The result contains `sql` and `params`; rendering does not connect to a
+database. PostgreSQL uses `$1` placeholders, while MySQL and SQLite use `?`.
+Physical identifier quoting also follows the chosen dialect.
+
+</details>
 
 Native aggregate results follow each database:
 
@@ -1910,10 +2169,350 @@ SQLite has no equivalent.
 
 ## Recipes
 
-These combine features covered above into snippets you can copy whole.
+Most recipes build plans for your application's SQL client; they do not seed or
+query a database on their own. Recipes marked **Runs on SQLite** include an
+in-memory client, setup, and execution. Use the [Quick Start](#quick-start)
+installation and build steps to run those modules under Node.js.
 
-<details open>
-<summary>Paginated, filtered, ordered read</summary>
+- [Branch a reusable query](#branch-a-reusable-query) without losing its filters.
+- [Group in a CTE](#group-in-a-cte) and join its aggregate result.
+- Choose [offset](#offset-pagination) or [cursor](#cursor-pagination) pagination.
+- [Update stored JSON](#update-stored-json) while keeping codec boundaries explicit.
+- [Handle zero, one, or several matches](#zero-one-or-several-matches).
+- [Verify transaction rollback](#rollback-after-a-failed-write).
+- [Upsert and return a row](#postgres-upsert-returning-a-row) in Postgres.
+- [Map model names to physical SQL](#camelcase-models-snake_case-sql).
+
+### Branch a Reusable Query
+
+A plan is an immutable value. Build the common filters once, then extend it
+for different callers. Each branch below keeps the active-user and correlated
+post checks; an additional `where` adds another AND condition, not a replacement.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.text().pipe(Column.primaryKey),
+  email: Column.text(),
+  active: Column.boolean(),
+  visits: Column.int()
+})
+const posts = Table.make("posts", {
+  id: Column.text().pipe(Column.primaryKey),
+  userId: Column.text()
+})
+const userPosts = Query.select({ id: posts.id }).pipe(
+  Query.from(posts),
+  Query.where(Query.eq(posts.userId, users.id))
+)
+const base = Query.select({ id: users.id, email: users.email }).pipe(
+  Query.from(users),
+  Query.where(Query.eq(users.active, true)),
+  Query.where(Query.exists(userPosts))
+)
+const firstPage = base.pipe(Query.orderBy(users.id), Query.limit(20))
+const frequentAuthors = base.pipe(
+  Query.where(Query.gte(users.visits, 3)),
+  Query.orderBy(users.id)
+)
+// base is unchanged; neither branch needs to rebuild the correlated subquery.
+```
+
+The inner query supplies `posts`; the outer query supplies `users`. Its
+`exists` expression checks for a matching post without multiplying user rows
+as a join might.
+
+### Group in a CTE
+
+**Builds a plan.** Find authors with at least two published posts. Execute the
+outer `authors` plan; the CTE is part of that query, not a separate database call.
+
+For example, given these post totals:
+
+| Author | Published posts | Draft posts | Included? |
+| --- | --- | --- | --- |
+| Ada (`ada@example.com`) | 2 | 1 | Yes, with count `"2"` |
+| Grace (`grace@example.com`) | 1 | 0 | No |
+
+Use `where` to choose the input rows, `groupBy` to define the groups, then
+`having` to choose the aggregate results. Naming that complete plan with
+`with` makes it a source for the next query.
+
+```ts
+import { Column, Function, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.text().pipe(Column.primaryKey),
+  email: Column.text()
+})
+const posts = Table.make("posts", {
+  id: Column.text().pipe(Column.primaryKey),
+  userId: Column.text(),
+  published: Column.boolean()
+})
+const totals = Query.select({
+  userId: posts.userId,
+  postCount: Function.count(posts.id)
+}).pipe(
+  Query.from(posts),
+  Query.where(Query.eq(posts.published, true)),
+  Query.groupBy(posts.userId),
+  Query.having(Query.gte(Function.count(posts.id), 2)),
+  Query.with("post_totals")
+)
+const authors = Query.select({
+  email: users.email,
+  postCount: totals.postCount
+}).pipe(
+  Query.from(users),
+  Query.innerJoin(totals, Query.eq(users.id, totals.userId)),
+  Query.orderBy(users.id)
+)
+type Author = Query.ResultRow<typeof authors>
+// { readonly email: string; readonly postCount: Scalar.BigIntString }
+```
+
+For the input above, executing `authors` returns:
+
+```json
+[{ "email": "ada@example.com", "postCount": "2" }]
+```
+
+Counts use canonical integer strings: two is `"2"`, not the JavaScript number `2`.
+
+### Cursor Pagination
+
+This recipe orders by **non-null email, then unique id**, both ascending. The
+cursor contains both values from the last returned row. The seek predicate
+must match that ordering, including the tie-breaker.
+
+```ts
+import { Column, Query, Table } from "effect-qb"
+
+const users = Table.make("users", {
+  id: Column.text().pipe(Column.primaryKey),
+  email: Column.text()
+})
+const cursor = { email: "ada@example.com", id: "ada" }
+const afterCursor = Query.or(
+  Query.gt(users.email, cursor.email),
+  Query.and(Query.eq(users.email, cursor.email), Query.gt(users.id, cursor.id))
+)
+const nextPage = Query.select({ id: users.id, email: users.email }).pipe(
+  Query.from(users),
+  Query.where(afterCursor),
+  Query.orderBy(users.email),
+  Query.orderBy(users.id),
+  Query.limit(20)
+)
+```
+
+Omit the seek predicate for the first page. Validate and encode cursors in your
+application; changing the order, null policy, or filters changes the cursor
+contract. Descending order needs reversed comparisons. This is not snapshot
+pagination: concurrent changes can move rows between pages. Offset pagination
+below is simpler when the caller needs page numbers rather than a continuation.
+
+### Update Stored JSON
+
+**Runs on SQLite.** Create a document with city `"Rome"` and decoded count `7`,
+update only the document with id `"guide"`, then read it back. The update changes
+the city to `"Paris"` and the stored count to the JSON string `"42"`.
+
+| Read | Returned count | Why |
+| --- | --- | --- |
+| Whole `payload` column | `42` (number) | The column codec decodes the stored string |
+| `payload.profile.count` path | `"42"` (string) | Paths return the stored encoded value |
+
+The schema uses `NumberFromString` to encode numbers as JSON strings. Inserts
+accept decoded values; path replacements supply stored values, so the mutation
+uses `"42"`, not `42`.
+
+```ts
+import { SqliteClient } from "@effect/sql-sqlite-node"
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
+import { Column, Json, Query, Table } from "effect-qb"
+import { Executor } from "effect-qb/sqlite"
+
+const documents = Table.make("documents", {
+  id: Column.text().pipe(Column.primaryKey),
+  payload: Column.json(Schema.Struct({
+    profile: Schema.Struct({ city: Schema.String, count: Schema.NumberFromString })
+  }))
+})
+const profile = Json.focus().key("profile")
+const updated = documents.payload.pipe(
+  Json.replace(profile.key("city"), "Paris"),
+  Json.replace(profile.key("count"), "42") // encoded value, not the decoded number
+)
+const updateDocument = Query.update(documents, { payload: updated }).pipe(
+  Query.where(Query.eq(documents.id, "guide"))
+)
+const readDocument = Query.select({
+  document: documents.payload,
+  storedCount: documents.payload.profile.count
+}).pipe(Query.from(documents), Query.where(Query.eq(documents.id, "guide")))
+
+// Plans above are values. This Effect creates, seeds, updates, then reads.
+const executor = Executor.make()
+const program = Effect.gen(function* () {
+  yield* executor.execute(Query.createTable(documents))
+  yield* executor.execute(Query.insert(documents, {
+    id: "guide", payload: { profile: { city: "Rome", count: 7 } }
+  }))
+  yield* executor.execute(updateDocument)
+  return yield* executor.execute(readDocument)
+}).pipe(
+  Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
+)
+const rows = await Effect.runPromise(program)
+console.log(rows)
+// [{ document: { profile: { city: "Paris", count: 42 } }, storedCount: "42" }]
+```
+
+The update expression runs in the database; JavaScript does not fetch and rewrite
+the existing payload. Use existing parent containers
+for consistent behavior across engines; see [Reusable JSON Focuses](#reusable-json-focuses)
+for missing paths and shape-changing updates.
+
+### Zero, One, or Several Matches
+
+**Runs on SQLite.** Look up users by an email that is intentionally not unique.
+The same query matches no user, Grace alone, or two users sharing an address.
+Cardinality is a caller requirement; it does not change the SQL or add a limit.
+
+| Matches | `atMostOne` | `exactlyOne` |
+| --- | --- | --- |
+| 0 | `Option.none()` | `ResultCardinalityError`, actual `0` |
+| 1 | `Option.some(row)` | The row |
+| 2 | `ResultCardinalityError`, actual `2` | `ResultCardinalityError`, actual `2` |
+
+The example converts the Option to a row or `null`, and catches only
+`ResultCardinalityError` to print its expected and actual counts. SQL and decode
+errors still fail the program; an application need not recover from any of these.
+
+```ts
+import { SqliteClient } from "@effect/sql-sqlite-node"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import { Column, Executor, Query, Table } from "effect-qb"
+import * as Sq from "effect-qb/sqlite"
+
+const users = Table.make("users", {
+  id: Column.text().pipe(Column.primaryKey),
+  email: Column.text()
+})
+const executor = Sq.Executor.make()
+const lookup = (email: string) => Query.select({ id: users.id }).pipe(
+  Query.from(users), Query.where(Query.eq(users.email, email))
+)
+const describeCardinality = (error: Executor.ResultCardinalityError) =>
+  Effect.succeed({ expected: error.expected, actual: error.actual })
+
+const optionalUser = (email: string) => executor.execute(lookup(email)).pipe(
+  Sq.Executor.atMostOne,
+  Effect.map(Option.getOrNull),
+  Effect.catchTag("ResultCardinalityError", describeCardinality)
+)
+const requiredUser = (email: string) => executor.execute(lookup(email)).pipe(
+  Sq.Executor.exactlyOne,
+  Effect.catchTag("ResultCardinalityError", describeCardinality)
+)
+const optionalCases = Effect.all({
+  missing: optionalUser("missing@example.com"),
+  unique: optionalUser("grace@example.com"),
+  duplicate: optionalUser("shared@example.com")
+})
+const requiredCases = Effect.all({
+  missing: requiredUser("missing@example.com"),
+  unique: requiredUser("grace@example.com"),
+  duplicate: requiredUser("shared@example.com")
+})
+const checks = Effect.all({ optional: optionalCases, required: requiredCases })
+const program = Effect.gen(function* () {
+  yield* executor.execute(Query.createTable(users))
+  yield* executor.execute(Query.insert(users, { id: "ada", email: "shared@example.com" }))
+  yield* executor.execute(Query.insert(users, { id: "linus", email: "shared@example.com" }))
+  yield* executor.execute(Query.insert(users, { id: "grace", email: "grace@example.com" }))
+  return yield* checks
+}).pipe(
+  Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
+)
+const outcomes = await Effect.runPromise(program)
+console.log(outcomes)
+```
+
+```json
+{
+  "optional": {
+    "missing": null,
+    "unique": { "id": "grace" },
+    "duplicate": { "expected": "zeroOrOne", "actual": 2 }
+  },
+  "required": {
+    "missing": { "expected": "exactlyOne", "actual": 0 },
+    "unique": { "id": "grace" },
+    "duplicate": { "expected": "exactlyOne", "actual": 2 }
+  }
+}
+```
+
+### Rollback After a Failed Write
+
+**Runs on SQLite.** Insert a membership and its audit log, then deliberately
+reject the signup. Both inserts roll back. Reading the still-existing tables
+after the transaction returns `{ memberships: [], auditLogs: [] }`.
+
+Keep recovery **outside** `withTransaction`: the transaction must see the
+failure to roll back. Catching it inside and returning success would permit
+a commit instead. This example catches only the deliberate `SignupRejected`;
+database and decode failures still propagate.
+
+```ts
+import { SqliteClient } from "@effect/sql-sqlite-node"
+import * as Effect from "effect/Effect"
+import { Column, Query, Table } from "effect-qb"
+import { Executor } from "effect-qb/sqlite"
+
+const memberships = Table.make("memberships", {
+  id: Column.text().pipe(Column.primaryKey),
+  role: Column.text()
+})
+const auditLogs = Table.make("audit_logs", {
+  id: Column.text().pipe(Column.primaryKey),
+  membershipId: Column.text()
+})
+const executor = Executor.make()
+const insertMembership = Query.insert(memberships, { id: "member-1", role: "admin" })
+const insertAuditLog = Query.insert(auditLogs, { id: "audit-1", membershipId: "member-1" })
+const rejectedSignup = Effect.gen(function* () {
+  yield* executor.execute(insertMembership)
+  yield* executor.execute(insertAuditLog)
+  return yield* Effect.fail({ _tag: "SignupRejected" as const })
+}).pipe(Executor.withTransaction)
+const readState = Effect.all({
+  memberships: executor.execute(Query.select({ id: memberships.id }).pipe(Query.from(memberships))),
+  auditLogs: executor.execute(Query.select({ id: auditLogs.id }).pipe(Query.from(auditLogs)))
+})
+const program = Effect.gen(function* () {
+  yield* executor.execute(Query.createTable(memberships))
+  yield* executor.execute(Query.createTable(auditLogs))
+  yield* rejectedSignup.pipe(Effect.catchTag("SignupRejected", () => Effect.void))
+  return yield* readState
+}).pipe(
+  Effect.provide(SqliteClient.layer({ filename: ":memory:" }))
+)
+const state = await Effect.runPromise(program)
+console.log(state)
+// { memberships: [], auditLogs: [] }
+```
+
+### Offset Pagination
+
+<details>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -1934,18 +2533,21 @@ const page = Query.select({
   Query.from(users),
   Query.where(Query.eq(users.active, true)),
   Query.orderBy(users.email),
+  Query.orderBy(users.id),
   Query.limit(20),
   Query.offset(40)
 )
 
 const rendered = Pg.Renderer.make().render(page)
-// select "users"."id" as "id", "users"."email" as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $1) order by "users"."email" asc limit $2 offset $3
+// select "users"."id" as "id", "users"."email" as "email", "users"."displayName" as "displayName" from "users" where ("users"."active" = $1) order by "users"."email" asc, "users"."id" asc limit $2 offset $3
 ```
 
 </details>
 
+### Postgres Upsert Returning a Row
+
 <details>
-<summary>Postgres upsert returning the affected row</summary>
+<summary>Show example</summary>
 
 ```ts
 import { Column, Query, Table } from "effect-qb"
@@ -1972,8 +2574,10 @@ const rendered = Pg.Renderer.make().render(upserted)
 
 </details>
 
+### CamelCase Models, snake_case SQL
+
 <details>
-<summary>CamelCase models against snake_case database names</summary>
+<summary>Show example</summary>
 
 ```ts
 import { Casing, Column, Query, Table } from "effect-qb"
@@ -2027,7 +2631,7 @@ mental model separate:
 
 - `effect-qb` defines tables and query plans.
 - `effect-qb` renders and executes typed SQL.
-- `effect-db` is the companion package for schema-management CLI workflows.
+- [`effect-db`](packages/database/README.md) is the companion package for schema-management CLI workflows.
 
 ## Reference
 
@@ -2045,6 +2649,9 @@ Root modules:
 | `Cast` | checked explicit database-type conversion |
 | `Function` | portable SQL function expressions |
 | `Fragment` | typed custom SQL expressions and safely quoted identifiers |
+| `Json` | stored JSON paths, construction, and pipeable mutations |
+| `Scalar` | expression metadata and canonical scalar result types |
+| `RowSet` | shared typed row-set interfaces |
 | `Renderer` | standard renderer |
 | `Executor` | portable executor contracts and result metadata |
 | `Datatypes` | portable datatype witnesses |
