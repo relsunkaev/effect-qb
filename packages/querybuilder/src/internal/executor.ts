@@ -428,11 +428,11 @@ export const explainQuery = <Dialect extends string>(
 export const streamFromSqlClient = <Dialect extends string>(
   query: Renderer.RenderedQuery<any, Dialect>
 ): Stream.Stream<FlatRow, SqlError.SqlError, SqlClient.SqlClient> =>
-  SqlClient.SqlClient.pipe(
-    Effect.flatMap(connectionForStream),
-    Effect.map((connection) => connection.executeStream(query.sql, [...query.params], undefined)),
-    Stream.unwrap
-  )
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const connection = yield* connectionForStream(sql)
+    return connection.executeStream(query.sql, [...query.params], undefined)
+  }).pipe(Stream.unwrap)
 
 const connectionForStream = (sql: SqlClient.SqlClient) =>
   Effect.serviceOption(sql.transactionService).pipe(

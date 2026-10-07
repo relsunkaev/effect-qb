@@ -144,9 +144,9 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 ## Runtime and build boundaries
 
-- Use flat Effect pipes for effectful workflows. Keep stages at one level and
-  extract multi-step callbacks into named helpers rather than nesting pipelines
-  or generator blocks.
+- Prefer a single `Effect.gen` for multi-step sequential workflows over
+  successive `Effect.andThen` applications. Use flat pipes for query composition
+  and Effect transforms; keep workflow sequencing visible in one place.
 
 - Keep Bun as the workspace package manager and tooling runtime.
 - Keep published `effect-qb` and `effect-db` runtime behavior Node.js-native.
