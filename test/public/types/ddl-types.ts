@@ -162,8 +162,10 @@ Q.from(memberships)(dropTablePlan)
 // @ts-expect-error ddl plans cannot return rows
 Q.returning({ id: memberships.id })(createIndexPlan)
 
+// @ts-expect-error createIndex columns must exist on the table
 Q.createIndex(memberships, ["missing"])
 
+// @ts-expect-error dropIndex columns must exist on the table
 Q.dropIndex(memberships, ["missing"])
 
 // @ts-expect-error rich index columns cannot be empty
