@@ -126,14 +126,16 @@ type ClassTableOption<Fields extends TableFieldMap> = TableOption<
   TableDefinition<string, Fields, keyof Fields & string, "schema", any>
 >
 type ClassDeclaredTableOptions<Fields extends TableFieldMap> = readonly ClassTableOption<Fields>[]
+// Structural inference through the recursive table type can erase metadata
+// after generic transforms. Read the authoritative state instead.
 type TableNameOf<Table extends TableDefinition<any, any, any, "schema", any>> =
-  Table extends TableDefinition<infer Name, any, any, "schema", any> ? Name : never
+  Table[typeof TypeId]["name"]
 type TableFieldsOf<Table extends TableDefinition<any, any, any, "schema", any>> =
-  Table extends TableDefinition<any, infer Fields, any, "schema", any> ? Fields : never
+  Table[typeof TypeId]["fields"]
 type TablePrimaryKeyOf<Table extends TableDefinition<any, any, any, "schema", any>> =
-  Table extends TableDefinition<any, any, infer PrimaryKeyColumns, "schema", any> ? PrimaryKeyColumns : never
+  Table[typeof TypeId]["primaryKey"][number]
 type TableSchemaNameOf<Table extends TableDefinition<any, any, any, "schema", any>> =
-  Table extends TableDefinition<any, any, any, "schema", infer SchemaName> ? SchemaName : never
+  Table[typeof TypeId]["schemaName"]
 type HasBroadColumns<Columns extends readonly string[]> = string extends Columns[number] ? true : false
 
 export type ConflictArbiterScope = "unconditional" | "partial"
@@ -165,7 +167,7 @@ type InlineConflictArbiters<Fields extends TableFieldMap> = Extract<{
 }[keyof Fields], ConflictArbiter>
 
 type TableConflictArbitersOf<Table extends TableDefinition<any, any, any, any, any, any>> =
-  Table extends TableDefinition<any, any, any, any, any, infer ConflictArbiters> ? ConflictArbiters : never
+  Table[typeof TypeId]["conflictArbiters"][number]
 
 type NormalizeArbiterColumns<Columns> =
   Columns extends readonly [infer Head extends string, ...infer Tail extends string[]]
