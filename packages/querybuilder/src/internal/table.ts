@@ -253,6 +253,29 @@ type ApplyTableOption<
   Spec extends TableOptionSpec
 > = ApplyOption<Table, Spec>
 
+type SchemaTable<
+  Name extends string,
+  Fields extends TableFieldMap,
+  PrimaryKeyColumns extends keyof Fields & string,
+  SchemaName extends string | undefined,
+  ConflictArbiters extends ConflictArbiter
+> = TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName, ConflictArbiters>
+
+/** Every option's validation argument in turn: empty when all of them fit the table. */
+type OptionsValidationArgs<
+  Table extends TableDefinition<any, any, any, "schema", any, any>,
+  Specs extends readonly TableOptionSpec[]
+> = Specs extends readonly [infer Head extends TableOptionSpec, ...infer Tail extends readonly TableOptionSpec[]]
+  ? [...OptionValidationArgs<Table, Head>, ...OptionsValidationArgs<Table, Tail>]
+  : []
+
+/**
+ * `pipe` on a schema table. Effect's generic `Pipeable.pipe` cannot type a
+ * table option, which is a generic function needing the table as context, so
+ * several options passed to one call would lose the table's columns. These
+ * overloads type each option against the table, as one option alone is, and
+ * compute the resulting table from all of them at once.
+ */
 type TableOptionPipe<
   Name extends string,
   Fields extends TableFieldMap,
@@ -266,8 +289,115 @@ type TableOptionPipe<
         option: TableOption<Spec, TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName, ConflictArbiters>>,
         ...validation: OptionValidationArgs<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName, ConflictArbiters>, Spec>
       ): ApplyTableOption<TableDefinition<Name, Fields, PrimaryKeyColumns, "schema", SchemaName, ConflictArbiters>, Spec>
+      pipe<S1 extends TableOptionSpec, S2 extends TableOptionSpec>(
+        o1: TableOption<S1, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o2: TableOption<S2, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        ...validation: OptionsValidationArgs<SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>, [S1, S2]>
+      ): ApplyTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters, [S1, S2]>
+      pipe<S1 extends TableOptionSpec, S2 extends TableOptionSpec, S3 extends TableOptionSpec>(
+        o1: TableOption<S1, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o2: TableOption<S2, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o3: TableOption<S3, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        ...validation: OptionsValidationArgs<SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>, [S1, S2, S3]>
+      ): ApplyTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters, [S1, S2, S3]>
+      pipe<S1 extends TableOptionSpec, S2 extends TableOptionSpec, S3 extends TableOptionSpec, S4 extends TableOptionSpec>(
+        o1: TableOption<S1, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o2: TableOption<S2, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o3: TableOption<S3, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o4: TableOption<S4, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        ...validation: OptionsValidationArgs<SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>, [S1, S2, S3, S4]>
+      ): ApplyTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters, [S1, S2, S3, S4]>
+      pipe<S1 extends TableOptionSpec, S2 extends TableOptionSpec, S3 extends TableOptionSpec, S4 extends TableOptionSpec, S5 extends TableOptionSpec>(
+        o1: TableOption<S1, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o2: TableOption<S2, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o3: TableOption<S3, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o4: TableOption<S4, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o5: TableOption<S5, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        ...validation: OptionsValidationArgs<SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>, [S1, S2, S3, S4, S5]>
+      ): ApplyTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters, [S1, S2, S3, S4, S5]>
+      pipe<S1 extends TableOptionSpec, S2 extends TableOptionSpec, S3 extends TableOptionSpec, S4 extends TableOptionSpec, S5 extends TableOptionSpec, S6 extends TableOptionSpec>(
+        o1: TableOption<S1, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o2: TableOption<S2, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o3: TableOption<S3, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o4: TableOption<S4, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o5: TableOption<S5, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o6: TableOption<S6, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        ...validation: OptionsValidationArgs<SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>, [S1, S2, S3, S4, S5, S6]>
+      ): ApplyTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters, [S1, S2, S3, S4, S5, S6]>
+      pipe<S1 extends TableOptionSpec, S2 extends TableOptionSpec, S3 extends TableOptionSpec, S4 extends TableOptionSpec, S5 extends TableOptionSpec, S6 extends TableOptionSpec, S7 extends TableOptionSpec>(
+        o1: TableOption<S1, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o2: TableOption<S2, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o3: TableOption<S3, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o4: TableOption<S4, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o5: TableOption<S5, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o6: TableOption<S6, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o7: TableOption<S7, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        ...validation: OptionsValidationArgs<SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>, [S1, S2, S3, S4, S5, S6, S7]>
+      ): ApplyTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters, [S1, S2, S3, S4, S5, S6, S7]>
+      pipe<S1 extends TableOptionSpec, S2 extends TableOptionSpec, S3 extends TableOptionSpec, S4 extends TableOptionSpec, S5 extends TableOptionSpec, S6 extends TableOptionSpec, S7 extends TableOptionSpec, S8 extends TableOptionSpec>(
+        o1: TableOption<S1, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o2: TableOption<S2, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o3: TableOption<S3, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o4: TableOption<S4, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o5: TableOption<S5, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o6: TableOption<S6, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o7: TableOption<S7, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o8: TableOption<S8, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        ...validation: OptionsValidationArgs<SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>, [S1, S2, S3, S4, S5, S6, S7, S8]>
+      ): ApplyTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters, [S1, S2, S3, S4, S5, S6, S7, S8]>
+      pipe<S1 extends TableOptionSpec, S2 extends TableOptionSpec, S3 extends TableOptionSpec, S4 extends TableOptionSpec, S5 extends TableOptionSpec, S6 extends TableOptionSpec, S7 extends TableOptionSpec, S8 extends TableOptionSpec, S9 extends TableOptionSpec>(
+        o1: TableOption<S1, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o2: TableOption<S2, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o3: TableOption<S3, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o4: TableOption<S4, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o5: TableOption<S5, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o6: TableOption<S6, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o7: TableOption<S7, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o8: TableOption<S8, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        o9: TableOption<S9, SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>>,
+        ...validation: OptionsValidationArgs<SchemaTable<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters>, [S1, S2, S3, S4, S5, S6, S7, S8, S9]>
+      ): ApplyTableOptions<Name, Fields, PrimaryKeyColumns, SchemaName, ConflictArbiters, [S1, S2, S3, S4, S5, S6, S7, S8, S9]>
     }
   : {}
+
+/**
+ * A schema table after several options piped at once, computed from the
+ * table's own parameters rather than by applying one option at a time, so
+ * relating tables never has to unfold nested option applications.
+ */
+type ApplyTableOptions<
+  Name extends string,
+  Fields extends TableFieldMap,
+  PrimaryKeyColumns extends keyof Fields & string,
+  SchemaName extends string | undefined,
+  ConflictArbiters extends ConflictArbiter,
+  Specs extends readonly TableOptionSpec[]
+> = TableDefinition<
+  Name,
+  Fields,
+  PrimaryKeyAfterOptions<Fields, PrimaryKeyColumns, Specs>,
+  "schema",
+  SchemaName,
+  ConflictArbiters | ConflictArbitersFromOptions<Specs>
+>
+
+/** The primary key after `Specs`: the last primary-key option's columns, or the table's own. */
+type PrimaryKeyAfterOptions<
+  Fields extends TableFieldMap,
+  PrimaryKeyColumns extends keyof Fields & string,
+  Specs extends readonly TableOptionSpec[]
+> = Specs extends readonly [...infer Init extends readonly TableOptionSpec[], infer Last extends TableOptionSpec]
+  ? Last extends { readonly kind: "primaryKey"; readonly columns: infer Columns extends readonly string[] }
+    ? HasBroadColumns<Columns> extends true
+      ? PrimaryKeyAfterOptions<Fields, PrimaryKeyColumns, Init>
+      : Columns[number] & keyof Fields & string
+    : PrimaryKeyAfterOptions<Fields, PrimaryKeyColumns, Init>
+  : PrimaryKeyColumns
+
+/** The conflict arbiters every option in `Specs` declares. */
+type ConflictArbitersFromOptions<Specs extends readonly TableOptionSpec[]> = {
+  readonly [K in keyof Specs]: Specs[K] extends TableOptionSpec ? ConflictArbiterFromOption<Specs[K]> : never
+}[number]
 
 export type ValidateDeclaredOptions<
   Table extends TableDefinition<any, any, any, "schema", any, any>,

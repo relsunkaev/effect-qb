@@ -29,6 +29,7 @@
       },
       "dependencies": {
         "@effect/platform-node": "4.0.0",
+        "@effect/platform-node-shared": "4.0.0",
         "@effect/sql-pg": "4.0.0",
         "effect-qb": "workspace:*",
         "libpg-query": "18.1.5",
@@ -36,7 +37,7 @@
         "typescript": "^6.0.3",
       },
       "peerDependencies": {
-        "effect": "^4.0.0",
+        "effect": ">=4.0.0 <4.1.0",
       },
     },
     "packages/querybuilder": {
@@ -50,7 +51,7 @@
         "@typescript/native-preview": "^7.0.0-dev.20260707.2",
       },
       "peerDependencies": {
-        "effect": "^4.0.0",
+        "effect": ">=4.0.0 <4.1.0",
       },
     },
   },
@@ -226,8 +227,8 @@
 
     "@types/ws/@types/node": ["@types/node@26.0.1", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-fc3KiUoBt6kie0N9bIW3E47vZsuaMf0PM2AaUpLCLT0s/LvX1nxAim6Fc049cNxODPpGm6qRAuUOB86SkRuPQw=="],
 
-    "effect-qb/@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
+    "effect-qb/@types/bun": ["@types/bun@1.4.4", "", { "dependencies": { "bun-types": "1.4.4" } }, "sha512-9wkRDXUXK124pEnAutE6n/l18j+i9GC5IAHK8TmX/2nlySETmky0OU6yL5U8pW1AoKh++AN9auDCr647BfurjQ=="],
 
-    "effect-qb/@types/bun/bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
+    "effect-qb/@types/bun/bun-types": ["bun-types@1.4.4", "", { "dependencies": { "@types/node": "*", "undici-types": "*" } }, "sha512-yjrJh5oGX7mMPKGd19YXyIjmEuj4G4zNC30bs7PM9Az7NQ3ndF3j6hbeRdvJTRQEhJ/FYQwW0a2moweEi2hMxQ=="],
   }
 }

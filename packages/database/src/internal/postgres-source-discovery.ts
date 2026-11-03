@@ -549,11 +549,12 @@ const createTemporaryExportModuleEffect = (
   names: readonly string[]
 ): Effect.Effect<string, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {
-    const crypto = yield* Crypto.Crypto
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path
     const extension = paths.extname(filePath) || ".ts"
-    const uuid = yield* crypto.randomUUIDv4
+    // Only makes the file name unique. Effect's `Crypto.randomUUIDv4` became a
+    // method in 4.0.3, so the platform's Web Crypto keeps every 4.0.x working.
+    const uuid = globalThis.crypto.randomUUID()
     const tempPath = paths.join(
       paths.dirname(filePath),
       `.__effect_qb_discovery_${paths.basename(filePath, extension)}_${uuid}${extension}`
