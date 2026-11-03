@@ -8,89 +8,24 @@ All notable changes to this project are documented here.
 
 ### Fixes
 
-- fix(querybuilder): retain JSON expression metadata
-- fix(querybuilder): retain case branch types
-- fix(querybuilder): accept partial-index schema tables
-- fix(querybuilder): preserve aggregate match runtime metadata
-- fix(querybuilder): type several table options in one pipe call
-- fix(deps): keep Effect below 4.1 until effect-db supports it
-- fix(database): name discovery modules without Crypto.randomUUIDv4
-- fix(querybuilder): preserve table metadata through generic transforms
+- Preserve column types when two through nine table options share one `.pipe(...)` call.
+- Retain row, update, and conflict-target metadata when context-bound option callbacks compose with ordinary transforms or standalone Effect `pipe`.
+- Preserve CASE branch types, JSON expression metadata, and aggregate MATCH runtime metadata; accept schema tables in partial-index DDL.
+- Restore effect-db temporary source discovery with Effect 4.0.3 and later 4.0.x releases by using Node Web Crypto for unique filenames.
 
-### Refactors
+### Compatibility
 
-- refactor(executor): separate row decoding from execution
-- refactor(executor): clarify execution and decoding reading paths
-- refactor(query): name plan metadata and isolate modifier changes
-- refactor(querybuilder): organize query implementation owners
-- refactor(querybuilder): qualify standard query-plan dependencies
-- refactor(querybuilder): qualify dialect query-plan dependencies
-- refactor(querybuilder): separate plan runtime from type machinery
-- refactor(querybuilder): reuse named plan constraints
-- refactor(querybuilder): remove invariant runtime wiring
-- refactor(querybuilder): call dialect renderers directly
-- refactor(querybuilder): centralize empty clause defaults
-- refactor(querybuilder): bind grouping directly to its runtime owner
-- refactor(querybuilder): bind returning directly to its runtime owner
-- refactor(querybuilder): distinguish dialect query extension facades
-- refactor(querybuilder): bind filtering to its runtime constructor
-- refactor(querybuilder): distinguish index DDL predicate helpers
-- refactor(executor): make stream connection sequencing explicit
+- Both packages now declare Effect `>=4.0.0 <4.1.0`. Effect 4.1 is not supported yet; effect-db also pins the matching Node platform shared package.
 
-### Docs
+### Documentation and maintenance
 
-- docs: include file-tree organization in readability reviews
-- docs: validate readability with unbriefed discovery tasks
-- docs: require screenshot-only readability trials
-- docs(querybuilder): improve README reading paths and examples
-- docs: require rendered GitHub README reviews
-- docs(querybuilder): keep feature explanations visible
-- docs(querybuilder): lead examples with outcomes and execution boundaries
-- docs(querybuilder): demonstrate cardinality failures and rollback
-- docs: use heading-based README contents
-- docs: prefer generators for sequential Effect workflows
-- docs(querybuilder): show inline table column modifiers
-- docs(querybuilder): demonstrate equality-based join presence
-- docs(querybuilder): use generators for sequential examples
+- Add a runnable Node SQLite quick start and heading-based contents, with clearer setup and execution boundaries.
+- Expand inline and composite table definitions, join-presence inference, grouped CTEs, cursor pagination, stored JSON updates, cardinality failures, and transaction rollback examples.
+- Reorganize query and executor implementation owners, with regression coverage for clause ordering, correlated queries, stream cleanup, and SQLite fixture types.
 
-### Tests
+### Known limitation
 
-- test(executor): preserve stream connection ownership and cleanup
-- test(query): preserve modifier state and typed construction contracts
-- test(querybuilder): keep grouping SQL expectation readable
-- test(querybuilder): keep returning CTE expectation readable
-- test(querybuilder): demonstrate cross-clause parameter ordering
-- test(querybuilder): declare the SQLite service requirement
-- test(querybuilder): execute a branched correlated author search
-- test(querybuilder): typecheck SQLite integration fixtures
-
-### Chores
-
-- chore(beads): record executor readability verification
-- chore(beads): record visual file-tree review
-- chore(querybuilder): remove stale source declaration copies
-- chore(beads): record post-refactor visual discovery
-- chore(beads): record clause-default discovery trials
-- chore(beads): record grouping navigation verification
-- chore(beads): record grouping and returning visual trials
-- chore(beads): record predicate parameter-ordering visual trials
-- chore(beads): record predicate maintenance trials
-- chore(beads): close SQLite fixture typing task
-- chore(beads): record rendered README verification
-- chore(beads): record README visual-review proposals
-- chore(beads): record README outcomes and failure verification
-- chore(beads): record README contents verification
-- chore(beads): record inline table example verification
-- chore(beads): record join-presence example verification
-- chore(beads): record automated README example checks
-- chore(beads): track executor PR integration
-- chore(beads): record executor PR merge
-- chore(beads): track README merge
-- chore(beads): track metadata merge and patch release
-
-### Style
-
-- style(querybuilder): group public query exports by task
+- Unannotated table-option selectors mixed with ordinary transforms can still lose contextual inference. The metadata fix covers explicitly context-bound callbacks; it does not repair every mixed-modifier shorthand.
 
 ## 0.24.1 - 2026-10-06
 
