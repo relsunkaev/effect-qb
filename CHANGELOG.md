@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.24.2 - 2026-11-03
+
+### Fixes
+
+- Preserve column types when two through nine table options share one `.pipe(...)` call.
+- Retain row, update, and conflict-target metadata when context-bound option callbacks compose with ordinary transforms or standalone Effect `pipe`.
+- Preserve CASE branch types, JSON expression metadata, and aggregate MATCH runtime metadata; accept schema tables in partial-index DDL.
+- Restore effect-db temporary source discovery with Effect 4.0.3 and later 4.0.x releases by using Node Web Crypto for unique filenames.
+
+### Compatibility
+
+- Both packages now declare Effect `>=4.0.0 <4.1.0`. Effect 4.1 is not supported yet; effect-db also pins the matching Node platform shared package.
+
+### Documentation and maintenance
+
+- Add a runnable Node SQLite quick start and heading-based contents, with clearer setup and execution boundaries.
+- Expand inline and composite table definitions, join-presence inference, grouped CTEs, cursor pagination, stored JSON updates, cardinality failures, and transaction rollback examples.
+- Reorganize query and executor implementation owners, with regression coverage for clause ordering, correlated queries, stream cleanup, and SQLite fixture types.
+
+### Known limitation
+
+- Unannotated table-option selectors mixed with ordinary transforms can still lose contextual inference. The metadata fix covers explicitly context-bound callbacks; it does not repair every mixed-modifier shorthand.
+
 ## 0.24.1 - 2026-10-06
 
 ### Fixes
