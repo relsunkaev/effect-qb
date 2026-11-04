@@ -8,7 +8,10 @@
 bun add effect-db effect
 ```
 
-Requires stable Effect `>=4.0.0 <4.1.0`; Effect 4.1 moved `effect/Crypto`, which `effect-db` still imports. Install from the default npm channel;
+Requires stable Effect `>=4.1.2 <4.2.0`. Effect-based migration readers require
+`Digest.Digest` from `effect/crypto`; provide `NodeCrypto.layerDigest` alongside
+`NodeServices.layer`. The CLI and Promise APIs provide these services for you.
+Install from the default npm channel;
 the old beta and RC artifacts are superseded.
 
 PostgreSQL migration scripts use `libpg-query` to find statement boundaries,

@@ -10,7 +10,9 @@ run those plans and decode the returned rows. This is a query builder, not an OR
 bun add effect-qb effect
 ```
 
-Requires stable Effect `>=4.0.0 <4.1.0`; Effect 4.1 is not supported yet. Install from the default npm channel;
+Requires stable Effect `>=4.0.0 <4.2.0`. Development uses Effect `4.1.2`;
+packed-package checks also verify public types and Node SQLite execution on `4.0.0`.
+Install from the default npm channel;
 the old beta and RC artifacts are superseded.
 
 ## Start here
