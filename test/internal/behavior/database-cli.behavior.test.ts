@@ -3,7 +3,7 @@ import { BunServices } from "@effect/platform-bun"
 import { Command } from "effect/cli"
 import * as Effect from "effect/Effect"
 import type * as Cause from "effect/Cause"
-import type * as Crypto from "effect/Crypto"
+import { Digest } from "effect/crypto"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Terminal from "effect/Terminal"
@@ -11,8 +11,12 @@ import * as TestConsole from "effect/testing/TestConsole"
 
 import { root, push, pull, migrateGenerate, migrateDown, migrateRepair } from "../../../packages/database/src/commands.js"
 
-const run = <A, E>(program: Effect.Effect<A, E, Command.Environment | Crypto.Crypto>) =>
-  Effect.runPromise(program.pipe(Effect.provide(BunServices.layer), Effect.provide(TestConsole.layer)))
+const run = <A, E>(program: Effect.Effect<A, E, Command.Environment | Digest.Digest>) =>
+  Effect.runPromise(program.pipe(
+    Effect.provide(Digest.layerWebCrypto),
+    Effect.provide(BunServices.layer),
+    Effect.provide(TestConsole.layer)
+  ))
 
 const checkDefaults = <Name extends string, Input, E, R>(command: Command.Command<Name, Input, {}, E, R>) => {
   test(`${command.name}: omitted boolean flags default to false`, async () => {
