@@ -1,5 +1,4 @@
-import * as Crypto from "effect/Crypto"
-import * as Hex from "effect/encoding/Hex"
+import { Digest } from "effect/crypto"
 import * as SqlClient from "effect/sql/SqlClient"
 import * as SqlSchema from "effect/sql/SqlSchema"
 import * as Effect from "effect/Effect"
@@ -102,11 +101,11 @@ const normalizeMigrationContents = (contents: string): string =>
 
 const migrationChecksumOfEffect = (
   contents: string
-): Effect.Effect<string, unknown, Crypto.Crypto> =>
-  Effect.flatMap(Crypto.Crypto, (crypto) =>
+): Effect.Effect<string, unknown, Digest.Digest> =>
+  Effect.flatMap(Digest.Digest, (digest) =>
     Effect.map(
-      crypto.digest("SHA-256", new TextEncoder().encode(normalizeMigrationContents(contents))),
-      (digest) => `${MIGRATION_CHECKSUM_PREFIX}:${Hex.encode(digest)}`
+      digest.digestHex(Digest.sha256, new TextEncoder().encode(normalizeMigrationContents(contents))),
+      (hex) => `${MIGRATION_CHECKSUM_PREFIX}:${hex}`
     ))
 
 export interface MigrationFile {
@@ -248,7 +247,7 @@ export const applyStatements = (
 export const readPendingMigrationFilesEffect = (
   migrationsDir: string,
   appliedNames: ReadonlySet<string>
-): Effect.Effect<ReadonlyArray<MigrationFile>, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<ReadonlyArray<MigrationFile>, unknown, Digest.Digest | FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path
@@ -285,7 +284,7 @@ export const readPendingMigrationFiles = (
 
 export const readMigrationFilesEffect = (
   migrationsDir: string
-): Effect.Effect<ReadonlyArray<MigrationFile>, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<ReadonlyArray<MigrationFile>, unknown, Digest.Digest | FileSystem.FileSystem | Path.Path> =>
   readPendingMigrationFilesEffect(migrationsDir, new Set())
 
 export const readMigrationFiles = (

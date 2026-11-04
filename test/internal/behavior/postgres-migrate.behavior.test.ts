@@ -3,7 +3,7 @@ import { join } from "node:path"
 
 import * as SqlClient from "effect/sql/SqlClient"
 import { describe, expect, test } from "bun:test"
-import * as Crypto from "effect/Crypto"
+import { Digest } from "effect/crypto"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
@@ -24,9 +24,9 @@ describe("postgres migrations", () => {
           readFileString: () => Effect.succeed("create table users (id integer);\n")
         })),
         Effect.provide(Path.layer),
-        Effect.provideService(Crypto.Crypto, Crypto.make({
-          randomBytes: (size) => new Uint8Array(size),
-          digest: () => Effect.succeed(Uint8Array.from([1, 2, 255]))
+        Effect.provideService(Digest.Digest, Digest.Digest.of({
+          digest: () => Effect.die("Expected a hex digest"),
+          digestHex: () => Effect.succeed("0102ff")
         }))
       )
     )
@@ -89,6 +89,7 @@ describe("postgres migrations", () => {
       ])
       expect(files[0]?.sql).toBe("create table users (id integer);")
       expect(files[0]?.downSql).toBe("drop table users;")
+      expect(files[0]?.checksum).toBe("sha256:181b633c8f0d3b21c0fe32cfb1d38dc002d5ac47c0b4cb1fdc4eb1fcc881f108")
       expect(files[0]?.checksum).toBe(files[1]?.checksum)
     } finally {
       await rm(tempDir, { recursive: true, force: true })

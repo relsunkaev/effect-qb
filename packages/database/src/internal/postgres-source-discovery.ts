@@ -1,5 +1,4 @@
 import * as Std from "effect-qb"
-import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
@@ -547,13 +546,11 @@ const discoverInFile = (
 const createTemporaryExportModuleEffect = (
   filePath: string,
   names: readonly string[]
-): Effect.Effect<string, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<string, unknown, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path
     const extension = paths.extname(filePath) || ".ts"
-    // Only makes the file name unique. Effect's `Crypto.randomUUIDv4` became a
-    // method in 4.0.3, so the platform's Web Crypto keeps every 4.0.x working.
     const uuid = globalThis.crypto.randomUUID()
     const tempPath = paths.join(
       paths.dirname(filePath),
@@ -569,7 +566,7 @@ const createTemporaryExportModuleEffect = (
 
 const importDiscoveredValuesEffect = (
   declarations: readonly SourceDeclaration[]
-): Effect.Effect<ReadonlyArray<unknown>, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<ReadonlyArray<unknown>, unknown, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path
@@ -626,7 +623,7 @@ export const discoverSourceSchemaEffect = (
     readonly include: readonly string[]
     readonly exclude?: readonly string[]
   }
-): Effect.Effect<DiscoveredSourceSchema, unknown, Crypto.Crypto | FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<DiscoveredSourceSchema, unknown, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem
     const paths = yield* Path.Path

@@ -1,6 +1,6 @@
 import { verifyRuntimeBundles } from "./check-runtime-bundles.js"
 import { build } from "esbuild"
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises"
+import { cp, mkdir, mkdtemp, rm, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
@@ -54,7 +54,7 @@ const run = async (
   workdir: string,
   env: Record<string, string | undefined> = process.env
 ) => {
-  const proc = Bun.spawn(command, {
+  const proc = Bun.spawn([...command], {
     cwd: workdir,
     env,
     stdout: "inherit",
@@ -66,13 +66,77 @@ const run = async (
   }
 }
 
-const main = async () => {
-  const querybuilderPackage = JSON.parse(await Bun.file(join(querybuilderPackageDir, "package.json")).text()) as {
-    readonly peerDependencies?: { readonly effect?: string }
+// A public-package consumer must not inherit developer credentials or caches.
+const installConsumer = async (consumerDir: string) => {
+  const installHome = join(consumerDir, ".install-home")
+  await mkdir(installHome)
+  await run([
+    process.execPath, "install", "--no-save",
+    "--registry=https://registry.npmjs.org",
+    `--cache-dir=${join(installHome, "cache")}`
+  ], consumerDir, {
+    PATH: process.env.PATH,
+    HOME: installHome,
+    USERPROFILE: installHome,
+    TMPDIR: tmpdir(),
+    SystemRoot: process.env.SystemRoot
+  })
+  // Bun warns on incompatible peers without failing the install.
+  await run(["bunx", "npm", "ls", "effect", "--all"], consumerDir)
+}
+
+const verifyQuerybuilderMinimum = async (tarball: string, nodePath: string) => {
+  const consumerDir = await mkdtemp(join(tmpdir(), "effect-qb-minimum-"))
+  try {
+    await Bun.write(join(consumerDir, "package.json"), JSON.stringify({
+      name: "effect-qb-minimum-smoke",
+      private: true,
+      type: "module",
+      dependencies: {
+        effect: "4.0.0",
+        "@effect/sql-sqlite-node": "4.0.0",
+        "effect-qb": `file:${tarball}`
+      },
+      devDependencies: {
+        "@types/node": JSON.parse(await Bun.file(join(cwd, "package.json")).text()).devDependencies["@types/node"]
+      }
+    }))
+    await installConsumer(consumerDir)
+    await cp(join(cwd, "test", "public", "types"), join(consumerDir, "test", "public", "types"), { recursive: true })
+    await mkdir(join(consumerDir, "test", "helpers"), { recursive: true })
+    await cp(join(cwd, "test", "helpers", "branded-error.ts"), join(consumerDir, "test", "helpers", "branded-error.ts"))
+    await cp(join(cwd, "scripts", "fixtures", "node-sqlite.ts"), join(consumerDir, "node-sqlite.ts"))
+    await Bun.write(join(consumerDir, "tsconfig.json"), JSON.stringify({
+      extends: join(cwd, "tsconfig.json"),
+      compilerOptions: {
+        types: ["node"],
+        paths: { "#internal/*": ["./node_modules/effect-qb/src/internal/*"] }
+      },
+      include: ["test/public/types/**/*.ts", "node-sqlite.ts"]
+    }))
+    await run([join(cwd, "node_modules", ".bin", "tsgo"), "-p", "tsconfig.json"], consumerDir)
+    await build({
+      entryPoints: [join(consumerDir, "node-sqlite.ts")],
+      outfile: join(consumerDir, "node-sqlite.mjs"),
+      platform: "node",
+      format: "esm",
+      bundle: true,
+      packages: "external"
+    })
+    await run([nodePath, "node-sqlite.mjs"], consumerDir)
+    console.log("effect-qb public types and Node SQLite passed with Effect 4.0.0")
+  } finally {
+    await rm(consumerDir, { recursive: true, force: true })
   }
-  const effectVersion = querybuilderPackage.peerDependencies?.effect
+}
+
+const main = async () => {
+  const workspacePackage = JSON.parse(await Bun.file(join(cwd, "package.json")).text()) as {
+    readonly devDependencies?: { readonly effect?: string }
+  }
+  const effectVersion = workspacePackage.devDependencies?.effect
   if (effectVersion === undefined) {
-    throw new Error("effect-qb must declare an effect peer dependency")
+    throw new Error("The workspace must declare an effect development dependency")
   }
 
   const packedTarball = await querybuilderTarballPath()
@@ -250,23 +314,7 @@ const main = async () => {
       ""
     ].join("\n"))
 
-    // A public-package consumer must not inherit the developer's registry
-    // credentials, global Bun config, or mutable package cache.
-    const installHome = join(consumerDir, ".install-home")
-    await mkdir(installHome)
-    await run([
-      process.execPath, "install", "--no-save",
-      "--registry=https://registry.npmjs.org",
-      `--cache-dir=${join(installHome, "cache")}`
-    ], consumerDir, {
-      PATH: process.env.PATH,
-      HOME: installHome,
-      USERPROFILE: installHome,
-      TMPDIR: tmpdir(),
-      SystemRoot: process.env.SystemRoot
-    })
-    // Bun warns on incompatible peers without failing the install.
-    await run(["bunx", "npm", "ls", "effect", "--all"], consumerDir)
+    await installConsumer(consumerDir)
     await Bun.write(join(consumerDir, "node-sqlite.ts"), await Bun.file(join(cwd, "scripts", "fixtures", "node-sqlite.ts")).text())
     console.log(await verifyRuntimeBundles(join(consumerDir, "node_modules", "effect-qb")))
     await run([join(cwd, "node_modules", ".bin", "tsgo"), "-p", "tsconfig.json"], consumerDir)
@@ -398,6 +446,7 @@ export { users }
         throw new Error(`Packed effect-db CLI live smoke failed under Node.js:\n${push.stdout}${push.stderr}`)
       }
     }
+    await verifyQuerybuilderMinimum(packedTarball, nodePath)
   } finally {
     await rm(consumerDir, { recursive: true, force: true })
     await rm(nodeOnlyBinDir, { recursive: true, force: true })

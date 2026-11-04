@@ -65,8 +65,8 @@ bun add effect-qb effect
 
 Runtime requirements:
 
-- Node.js `>=22` and stable Effect `>=4.0.0 <4.1.0`
-- Bun `>=1.3.5` for this repository's development scripts
+- Node.js `>=22`. Stable Effect: `>=4.0.0 <4.2.0` for `effect-qb`; `>=4.1.2 <4.2.0` for `effect-db`
+- Bun `>=1.3.5` for this repository's development scripts, which use Effect `4.1.2`
 
 Public query-builder import paths:
 
